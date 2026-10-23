@@ -1,0 +1,126 @@
+use super::core_audio;
+use super::sck;
+use anyhow::Result;
+use ringbuf::HeapCons;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
+pub use super::sck::list_output_devices;
+
+pub struct SpeakerInput {
+    backend: BackendInput,
+}
+
+enum BackendInput {
+    CoreAudio(core_audio::SpeakerInput),
+    Sck(sck::SpeakerInput),
+}
+
+impl SpeakerInput {
+    pub fn new(device_id: Option<String>) -> Result<Self> {
+        let force_sck = device_id.as_deref() == Some("sck");
+
+        if force_sck {
+            println!("[SpeakerInput] SCK backend explicitly requested.");
+            let input = sck::SpeakerInput::new(device_id)?;
+            return Ok(Self {
+                backend: BackendInput::Sck(input),
+            });
+        }
+
+        // Prefer ScreenCaptureKit: production diagnostics showed CoreAudio's
+        // process-tap callback running while delivering zero-valued samples.
+        // Keep CoreAudio as a fallback when ScreenCaptureKit is unavailable.
+        println!("[SpeakerInput] Trying ScreenCaptureKit system-audio backend first...");
+        match sck::SpeakerInput::new(device_id.clone()) {
+            Ok(input) => {
+                println!("[SpeakerInput] ScreenCaptureKit backend initialized.");
+                return Ok(Self {
+                    backend: BackendInput::Sck(input),
+                });
+            }
+            Err(e) => {
+                println!("[SpeakerInput] ScreenCaptureKit initialization failed: {}. Falling back to CoreAudio Tap.", e);
+            }
+        }
+
+        println!("[SpeakerInput] Initializing CoreAudio Tap backend...");
+        let input = core_audio::SpeakerInput::new(device_id)?;
+        println!("[SpeakerInput] CoreAudio Tap backend initialized.");
+        Ok(Self {
+            backend: BackendInput::CoreAudio(input),
+        })
+    }
+
+    pub fn stream(self) -> Result<SpeakerStream> {
+        match self.backend {
+            BackendInput::CoreAudio(input) => {
+                let stream = input.stream()?;
+                Ok(SpeakerStream {
+                    backend: BackendStream::CoreAudio(stream),
+                })
+            }
+            BackendInput::Sck(input) => {
+                let stream = input.stream()?;
+                Ok(SpeakerStream {
+                    backend: BackendStream::Sck(stream),
+                })
+            }
+        }
+    }
+}
+
+pub struct SpeakerStream {
+    backend: BackendStream,
+}
+
+enum BackendStream {
+    CoreAudio(core_audio::SpeakerStream),
+    Sck(sck::SpeakerStream),
+}
+
+impl SpeakerStream {
+    pub fn callback_stats(&self) -> Option<(Arc<AtomicU64>, Arc<AtomicU64>)> {
+        match &self.backend {
+            BackendStream::CoreAudio(s) => Some(s.callback_stats()),
+            BackendStream::Sck(_) => None,
+        }
+    }
+
+    pub fn sample_rate(&self) -> u32 {
+        match &self.backend {
+            BackendStream::CoreAudio(s) => s.sample_rate(),
+            BackendStream::Sck(s) => s.sample_rate(),
+        }
+    }
+
+    pub fn take_consumer(&mut self) -> Option<HeapCons<f32>> {
+        match &mut self.backend {
+            BackendStream::CoreAudio(s) => s.take_consumer(),
+            BackendStream::Sck(s) => s.take_consumer(),
+        }
+    }
+
+    /// Pause the underlying audio stream without destroying it.
+    pub fn pause(&mut self) {
+        match &mut self.backend {
+            BackendStream::CoreAudio(s) => s.pause(),
+            BackendStream::Sck(_s) => {
+                println!("[SpeakerStream] SCK pause: no-op (managed by capture thread)");
+            }
+        }
+    }
+
+    /// Resume the underlying audio stream.
+    /// Returns Err for CoreAudio (needs full recreation); SCK is a no-op.
+    pub fn resume(&mut self) -> Result<()> {
+        match &mut self.backend {
+            BackendStream::CoreAudio(s) => s.resume(),
+            BackendStream::Sck(_s) => {
+                println!("[SpeakerStream] SCK resume: no-op (stream remains active)");
+                Ok(())
+            }
+        }
+    }
+}
+
