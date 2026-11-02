@@ -91,8 +91,8 @@ describe('review hardening: JOB_RE widening stays narrow', () => {
 });
 
 describe('motivation questions are grounded turns, not FAST', () => {
-  test('"Why did I build Natively?" claims motivation and retrieves', () => {
-    const c = cls('Why did I build Natively?');
+  test('"Why did I build Sneak-Peek?" claims motivation and retrieves', () => {
+    const c = cls('Why did I build Sneak-Peek?');
     assert.ok(c.claimTypes.includes('USER_MOTIVATION'));
     assert.notEqual(c.path, 'FAST', 'FAST here means answering a personal WHY from model knowledge');
     assert.equal(c.shouldRetrieve, true);

@@ -93,7 +93,7 @@ export interface ManualQualityRatings {
   factualCorrectness?: number;
   instructionAdherence?: number;
   usefulness?: number;
-  naturalNativelyStyle?: number;
+  naturalSneakPeekStyle?: number;
 }
 
 export interface VisionBenchmarkRun {
@@ -160,4 +160,4 @@ export interface VisionBenchmarkSession {
 }
 
 export const DEFAULT_BENCHMARK_QUESTION =
-  'Analyze the attached screenshot using the active Natively mode. Identify the main question or task visible on screen and provide the exact answer Natively should display to the user. Do not discuss the benchmark.';
+  'Analyze the attached screenshot using the active Sneak-Peek mode. Identify the main question or task visible on screen and provide the exact answer Sneak-Peek should display to the user. Do not discuss the benchmark.';

@@ -1,5 +1,5 @@
 /**
- * Change 17 — explicit adapter from canonical RAG reads to Natively evidence.
+ * Change 17 — explicit adapter from canonical RAG reads to Sneak-Peek evidence.
  *
  * The ContextPlanner / RetrievalCoordinator owns source selection. This
  * adapter accepts an already-selected source and never calls RagQueryPlanner,
@@ -11,7 +11,7 @@
  * on Electron or the concrete RAGManager implementation.
  */
 import type { ContextSource } from './ContextTypes';
-import type { NativelyEvidenceItem } from './types';
+import type { SneakPeekEvidenceItem } from './types';
 import type { RagSearchResult } from '../../rag/storage/RagStorageTypes';
 
 export type CanonicalRagSource = 'meeting' | 'mode' | 'personal';
@@ -51,7 +51,7 @@ export interface CanonicalRagCapabilityInput {
   contextPlan: unknown;
 }
 
-function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: number): NativelyEvidenceItem | null {
+function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: number): SneakPeekEvidenceItem | null {
   const content = String(result.chunk?.text ?? '').trim();
   if (!content) return null;
 
@@ -100,7 +100,7 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
       if (input.signal?.aborted) return { items: [], metadata: { cancelled: true } };
       const items = result.results
         .map((item, index) => toEvidenceItem(item, options.source, index))
-        .filter((item): item is NativelyEvidenceItem => item !== null);
+        .filter((item): item is SneakPeekEvidenceItem => item !== null);
 
       return {
         items,

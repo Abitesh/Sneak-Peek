@@ -103,7 +103,7 @@ test('switchToLauncher hides the aux chrome BEFORE showing the launcher', () => 
 
 test('switchToLauncher still hides the overlay body AFTER showing the launcher', () => {
   // The aux fix must not have inverted the show-before-hide invariant that
-  // keeps at least one Natively window on screen through the swap.
+  // keeps at least one Sneak-Peek window on screen through the swap.
   const launcherShow = Math.min(
     ...['this.launcherWindow.show()', 'this.launcherWindow.showInactive()']
       .map((s) => switchToLauncher.indexOf(s))

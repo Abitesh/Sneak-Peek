@@ -85,7 +85,7 @@ describe('RC-2: the original safety intent of the gate is preserved', () => {
 
   test('mixed blob: directive survives coding, the factual note does not', () => {
     const raw = 'Answer all coding questions in Java only.\n\n'
-      + 'My main project is Natively, a meeting copilot with 16,000 users.';
+      + 'My main project is Sneak-Peek, a meeting copilot with 16,000 users.';
     const { text } = buildScopedCustomContext(raw, 'coding_question_answer');
     assert.match(text, /Java only/);
     assert.doesNotMatch(text, /16,000 users/);
@@ -107,7 +107,7 @@ describe('RC-2: isFormatDirective predicate', () => {
     [true, 'Respond in Spanish.'],
     [true, 'Never use bullet points in answers.'],
     [false, 'I used Java at my last job for backend services.'],
-    [false, 'My main project is Natively, a meeting copilot with 16,000 users.'],
+    [false, 'My main project is Sneak-Peek, a meeting copilot with 16,000 users.'],
     [false, 'The interviewer is from the analytics team and cares about SQL.'],
     [false, 'B.Tech in Computer Science from CUSAT, graduating 2026.'],
   ]) {
@@ -129,7 +129,7 @@ describe('RC-2 code-review fixes (2026-08-22)', () => {
   });
 
   test('technical_concept_answer drops factual notes (parity with forbiddenLayersFor)', () => {
-    const raw = 'My main project is Natively, a meeting copilot with 16,000 users.';
+    const raw = 'My main project is Sneak-Peek, a meeting copilot with 16,000 users.';
     assert.equal(buildScopedCustomContext(raw, 'technical_concept_answer').text, '',
       'technical_concept is custom_context-forbidden in AnswerPlanner; the classifier must agree');
     // ...while a genuine format directive still reaches it via the directive lane.
@@ -140,7 +140,7 @@ describe('RC-2 code-review fixes (2026-08-22)', () => {
 describe('RC-2: selection metadata stays truthful', () => {
   test('forbidden-type selection reports the directive as included and the note as excluded', () => {
     const classified = classifyCustomContext(
-      'Answer all coding questions in Java only.\n\nMy main project is Natively.',
+      'Answer all coding questions in Java only.\n\nMy main project is Sneak-Peek.',
     );
     const sel = selectCustomContextForAnswer(classified, 'dsa_question_answer');
     assert.equal(sel.included.length, 1);

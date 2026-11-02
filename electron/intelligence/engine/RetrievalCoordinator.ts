@@ -1,5 +1,5 @@
 /**
- * Canonical retrieval execution boundary for Natively Intelligence.
+ * Canonical retrieval execution boundary for Sneak-Peek Intelligence.
  *
  * The ContextPlanner decides WHAT context is necessary. This coordinator is
  * the only new-engine component allowed to turn that plan into retrieval work.
@@ -14,18 +14,18 @@
  */
 
 import type { ContextPlan, ContextSource } from './ContextTypes';
-import type { NativelyIntelligenceRequest, NativelyEvidence, NativelyEvidenceItem } from './types';
+import type { SneakPeekIntelligenceRequest, SneakPeekEvidence, SneakPeekEvidenceItem } from './types';
 
 export interface RetrievalCapabilityRequest {
   query: string;
   source: ContextSource;
-  request: NativelyIntelligenceRequest;
+  request: SneakPeekIntelligenceRequest;
   contextPlan: ContextPlan;
   signal?: AbortSignal;
 }
 
 export interface RetrievalCapabilityResult {
-  items: NativelyEvidenceItem[];
+  items: SneakPeekEvidenceItem[];
   /** Optional diagnostic detail from the underlying retrieval implementation. */
   metadata?: Record<string, unknown>;
 }
@@ -46,7 +46,7 @@ export interface RetrievalDecisionTrace {
 }
 
 export interface RetrievalCoordinatorResult {
-  evidence: NativelyEvidence;
+  evidence: SneakPeekEvidence;
   trace: RetrievalDecisionTrace;
 }
 
@@ -79,7 +79,7 @@ const SOURCE_EXECUTION_PRIORITY: ContextSource[] = [
 const RETRIEVABLE = new Set<ContextSource>(SOURCE_EXECUTION_PRIORITY);
 
 function sourcePermissionAllowed(
-  request: NativelyIntelligenceRequest,
+  request: SneakPeekIntelligenceRequest,
   source: ContextSource,
 ): boolean {
   switch (source) {
@@ -129,8 +129,8 @@ function chooseExecutionSources(plan: ContextPlan): ContextSource[] {
   return required.has('rag') ? ['rag'] : [];
 }
 
-function dedupeEvidence(items: NativelyEvidenceItem[]): NativelyEvidenceItem[] {
-  const byKey = new Map<string, NativelyEvidenceItem>();
+function dedupeEvidence(items: SneakPeekEvidenceItem[]): SneakPeekEvidenceItem[] {
+  const byKey = new Map<string, SneakPeekEvidenceItem>();
   for (const item of items) {
     const key = `${item.source}:${item.id}:${item.content.trim().toLowerCase().replace(/\s+/g, ' ')}`;
     const previous = byKey.get(key);
@@ -159,7 +159,7 @@ export class RetrievalCoordinator {
 
   async retrieve(
     contextPlan: ContextPlan,
-    input: NativelyIntelligenceRequest,
+    input: SneakPeekIntelligenceRequest,
     query: string,
   ): Promise<RetrievalCoordinatorResult> {
     const decisionId = `retrieval:${input.sessionId}:${input.requestId}`;
@@ -181,7 +181,7 @@ export class RetrievalCoordinator {
       return { evidence: { items: [], sufficient: false }, trace };
     }
 
-    const items: NativelyEvidenceItem[] = [];
+    const items: SneakPeekEvidenceItem[] = [];
     for (const source of executedSources) {
       if (input.cancellationSignal?.aborted) break;
 

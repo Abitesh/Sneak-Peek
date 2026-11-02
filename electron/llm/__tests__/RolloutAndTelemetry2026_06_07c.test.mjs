@@ -127,7 +127,7 @@ describe('Telemetry — marker only, no sensitive content', () => {
       answerType: 'project_answer', mode: 'technical-interview',
       resume: 'John Doe, 10 years...', transcript: 'long convo', salary: '250k',
       answerText: 'the full answer body', apiKey: 'AQ.secret', prompt: 'system prompt',
-      recalledValue: 'Natively', entityValue: 'Natively',
+      recalledValue: 'Sneak-Peek', entityValue: 'Sneak-Peek',
     });
     assert.equal(out.answerType, 'project_answer');
     assert.equal(out.mode, 'technical-interview');
@@ -148,7 +148,7 @@ describe('Telemetry — marker only, no sensitive content', () => {
     }
   });
   test('an allowed key with a free-text / number value is still dropped (value backstop)', () => {
-    const out = scrubTelemetry({ reason: 'recalled the Natively project from minute 1 of the conversation', mode: 'sales' });
+    const out = scrubTelemetry({ reason: 'recalled the Sneak-Peek project from minute 1 of the conversation', mode: 'sales' });
     assert.ok(!('reason' in out), 'long free-text value rejected even under an allowed key');
     assert.equal(out.mode, 'sales');
   });
@@ -163,7 +163,7 @@ describe('Telemetry — marker only, no sensitive content', () => {
     assert.equal(out.mode, 'sales');
   });
   test('emit stores a scrubbed record', () => {
-    piTelemetry.emit('session_memory_recall_succeeded', { recalledKind: 'project', ageBucket: '60min+', recalledValue: 'Natively' });
+    piTelemetry.emit('session_memory_recall_succeeded', { recalledKind: 'project', ageBucket: '60min+', recalledValue: 'Sneak-Peek' });
     const recent = piTelemetry.recent(5);
     const rec = recent[recent.length - 1];
     assert.equal(rec.event, 'session_memory_recall_succeeded');

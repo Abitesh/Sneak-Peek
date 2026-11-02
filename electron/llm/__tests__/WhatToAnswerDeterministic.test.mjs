@@ -85,7 +85,7 @@ describe('WTA intro: deterministic identity_answer evidence, never a rendered as
   test('manual mode selects the SAME deterministic identity_answer evidence (2026-06-06b)', () => {
     // Release 2026-06-06b: the real manual-chat log showed plain "introduce
     // yourself" / "introduce yourseld" reaching the LLM and answering "I'm
-    // Natively, an AI assistant". With a profile loaded, manual intro now routes
+    // Sneak-Peek, an AI assistant". With a profile loaded, manual intro now routes
     // through the same deterministic evidence selection as WTA — the JIT prompt
     // builder downstream can never be handed the assistant identity instead.
     for (const q of ['Tell me about yourself.', 'introduce yourself', 'introduce yourseld', 'hey man introduce yourself']) {

@@ -9,7 +9,7 @@
  *
  * Provider routing: it calls the EXISTING provider stack via
  * LLMHelper.generateContentStructured() — which already walks selected/custom →
- * Gemini cascade → Groq → Ollama → custom/cURL → Natively with retries — so we
+ * Gemini cascade → Groq → Ollama → custom/cURL → Sneak-Peek with retries — so we
  * do NOT hardcode a model. If no provider is available (or the call/parse fails),
  * it returns a conservative unknown/manual verdict.
  *

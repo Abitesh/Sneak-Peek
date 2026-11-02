@@ -1,6 +1,6 @@
 import React from 'react';
 import { Monitor, Cpu, Info } from 'lucide-react';
-import { NativelyLogoMark } from '../NativelyLogoMark';
+import { SneakPeekLogoMark } from '../SneakPeekLogoMark';
 
 interface SidebarProps {
     activeTab: 'general' | 'ai-providers' | 'about';

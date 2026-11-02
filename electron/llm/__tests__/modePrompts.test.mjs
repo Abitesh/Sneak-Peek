@@ -172,7 +172,7 @@ test('code hint examples avoid named problems and em dashes', () => {
 });
 
 // ── SERVER ROUTING CONTRACT ──────────────────────────────────────────────────
-// The Natively server (natively-api/lib/flashModelPicker.js) routes the live
+// The Sneak-Peek server (natively-api/lib/flashModelPicker.js) routes the live
 // interview modes to gemini-3.7-flash by regex-matching this exact phrase in the
 // system prompt the client sends. If a prompt edit drops/rewords the phrase,
 // those modes silently fall back to flash-lite. This guard fails LOUDLY on drift.

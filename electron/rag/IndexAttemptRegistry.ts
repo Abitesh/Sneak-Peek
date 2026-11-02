@@ -6,8 +6,8 @@
 type AttemptKey = string;
 
 const getRegistry = (): Map<AttemptKey, number> => {
-  const g = globalThis as unknown as { __nativelyRagIndexAttemptsV1__?: Map<AttemptKey, number> };
-  return g.__nativelyRagIndexAttemptsV1__ ?? (g.__nativelyRagIndexAttemptsV1__ = new Map());
+  const g = globalThis as unknown as { __sneakPeekRagIndexAttemptsV1__?: Map<AttemptKey, number> };
+  return g.__sneakPeekRagIndexAttemptsV1__ ?? (g.__sneakPeekRagIndexAttemptsV1__ = new Map());
 };
 
 const keyFor = (sourceType: string, documentId: string): AttemptKey => `${sourceType}:${documentId}`;

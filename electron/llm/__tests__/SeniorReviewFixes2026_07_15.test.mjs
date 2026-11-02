@@ -38,7 +38,7 @@ const PROFILE = {
     { company: 'Aetherbot AI', role: 'Software Engineer Intern', start_date: '2024-12', end_date: '2025-03' },
   ],
   projects: [
-    { name: 'Natively', description: 'Desktop AI meeting assistant with local RAG.', technologies: ['Electron', 'TypeScript'] },
+    { name: 'Sneak-Peek', description: 'Desktop AI meeting assistant with local RAG.', technologies: ['Electron', 'TypeScript'] },
   ],
   skills: ['TypeScript', 'Electron', 'Python'],
   education: [{ school: 'IIT', degree: 'B.Tech', endDate: '2016' }],
@@ -152,7 +152,7 @@ const baseContract = {
 
 const resume = { evidenceId: 'resume:cedar-falcon', sourceKind: 'profile_resume', sourceId: 'cedar-falcon',
   sourceOwner: 'profile', authority: 'evidence', trustLevel: 'profile_verified',
-  text: 'Evin led the Natively assistant platform.', supports: { property: 'unknown' }, score: { final: 1 }, reasonIncluded: 'test' };
+  text: 'Evin led the Sneak-Peek assistant platform.', supports: { property: 'unknown' }, score: { final: 1 }, reasonIncluded: 'test' };
 
 const jd = { evidenceId: 'jd:session-recovery', sourceKind: 'profile_jd', sourceId: 'session-recovery',
   sourceOwner: 'profile', authority: 'evidence', trustLevel: 'profile_verified',

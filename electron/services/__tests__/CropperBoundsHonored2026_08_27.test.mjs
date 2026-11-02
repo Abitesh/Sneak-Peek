@@ -1,5 +1,5 @@
 // Regression tests for the 2026-08-27 win32 cropper-misplacement report
-// (user log: Natively 2.8.7, win32, mixed-DPI multi-monitor).
+// (user log: Sneak-Peek 2.8.7, win32, mixed-DPI multi-monitor).
 //
 // The log showed createWindow() asking for {x:0, y:-442, w:3627, h:1509} and
 // getBounds() immediately returning {x:569, y:-83, w:3628, h:1510} — the

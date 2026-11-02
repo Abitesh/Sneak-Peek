@@ -3,7 +3,7 @@
 // Phase 3 (context-rebuild) live-repro test for docs/context-rebuild
 // hypothesis #4 (00_BASELINE_AND_REPRODUCTION.md §3.6 "doubled question text
 // artifact"): a client-side STT final/partial race in
-// src/components/NativelyInterface.tsx (the voice-dictation "Answer Now"
+// src/components/SneakPeekInterface.tsx (the voice-dictation "Answer Now"
 // flow) produced the observed doubled-question artifact:
 //
 //   "What is a race condition? Show howWhat is a race condition? Show how
@@ -16,7 +16,7 @@
 //   input-construction artifact, not a model artifact.)
 //
 // Phase 6 Slice 0 item 2 fix: the two accumulation sites
-// (NativelyInterface.tsx's onNativeAudioTranscript final-event handler and
+// (SneakPeekInterface.tsx's onNativeAudioTranscript final-event handler and
 // handleAnswerNow's submit-time join) now both call the SAME shared,
 // overlap-aware merge helper — src/lib/transcriptMerge.mjs's
 // mergeTranscriptChunks — instead of duplicating its arithmetic. This file
@@ -28,7 +28,7 @@
 // tag `surface: 'manual_chat'` on the same IPC channel): handleManualSubmit
 // is driven entirely by `inputValue` (typed-input React state) and never
 // reads `voiceInputRef`/`manualTranscriptRef` — confirmed by reading
-// NativelyInterface.tsx's handleManualSubmit in full. It already has its own,
+// SneakPeekInterface.tsx's handleManualSubmit in full. It already has its own,
 // separate exact-duplicate-resubmission guard (shouldDedupeManualSubmit,
 // src/lib/overlaySubmitDedup.mjs), which addresses a different failure mode
 // (re-submitting the identical text twice within a time window), not

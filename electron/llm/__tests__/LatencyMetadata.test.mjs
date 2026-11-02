@@ -126,8 +126,8 @@ test('sanitizer removes raw transcript/prompt/resume/persona/jd/negotiation cont
 });
 
 test('sanitizer redacts apiKey-suffixed keys', () => {
-  const clean = sanitizeTelemetryProperties({ nativelyApiKey: 'natively_sk_xxxxxxxxxxxx', model: 'gemini-flash' });
-  assert.equal(clean.nativelyApiKey, '[REDACTED]');
+  const clean = sanitizeTelemetryProperties({ sneakPeekApiKey: 'natively_sk_xxxxxxxxxxxx', model: 'gemini-flash' });
+  assert.equal(clean.sneakPeekApiKey, '[REDACTED]');
   assert.equal(clean.model, 'gemini-flash');
 });
 

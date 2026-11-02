@@ -251,7 +251,7 @@ export class QuestionLedger {
         // without term echo (people rarely repeat the question's words).
         // Divergence-benchmark adjudication 2026-08-18: the old 15-word floor
         // left stale asks open, which then OUTRANKED the fresh follow-up. A
-        // short direct reply (4-7 words: "That would be Natively.") is
+        // short direct reply (4-7 words: "That would be Sneak-Peek.") is
         // PARTIALLY answered — enough to stop outranking a fresh ask, honest
         // about possibly being an interrupted lead-in ("Sure, so at a high
         // level…"). A substantive reply (≥8 words) is answered.

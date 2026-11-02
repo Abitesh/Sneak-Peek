@@ -187,7 +187,7 @@ export class SettingsWindowHelper {
 
     private emitVisibilityChange(isVisible: boolean): void {
         // Drive the overlay click-catcher: an overlay-anchored settings
-        // dropdown must be dismissible by clicking anywhere outside Natively.
+        // dropdown must be dismissible by clicking anywhere outside Sneak-Peek.
         this.windowHelper?.notifyOverlayPopover?.('settings', isVisible && this.overlayAnchor !== null);
         const mainWindow = this.windowHelper?.getMainWindow() ?? null;
         if (!mainWindow) {
@@ -270,7 +270,7 @@ export class SettingsWindowHelper {
             // Apply NSPanel stealth attributes (becomesKeyOnlyIfNeeded +
             // _setPreventsActivation + sharingType=None + collectionBehavior)
             // BEFORE any show() so clicking the Settings button on the
-            // Natively overlay doesn't activate the Natively app and dim
+            // Sneak-Peek overlay doesn't activate the Sneak-Peek app and dim
             // the user's foreground app (Zoom/browser/IDE) mid-meeting.
             // Without this, settings was a regular focusable window and
             // every interaction stole focus. Failure is non-fatal; logged.
@@ -304,7 +304,7 @@ export class SettingsWindowHelper {
 
         // ROUND 3 FIX (#1): when Settings becomes visible, stop the
         // CGEventTap. Otherwise the tap intercepts every plain keystroke at
-        // OS level and routes them into Natively's chat input — the user
+        // OS level and routes them into Sneak-Peek's chat input — the user
         // can't type API keys (or anything) into Settings fields. Settings
         // input is a long-form interaction; stealth-typing-into-overlay is
         // not what the user wants here. They can re-engage with the hotkey

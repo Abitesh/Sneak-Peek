@@ -68,7 +68,7 @@ describe('Review modal — obsidian editorial composition', () => {
     test('the receipt does not claim a byline when attribution never ran', () => {
         // When the create call returns no id there is nothing to PATCH, so
         // can_use_publicly stays false and NOTHING is published. The receipt
-        // used to say "Published as Anonymous Natively user" anyway, which is
+        // used to say "Published as Anonymous Sneak-Peek user" anyway, which is
         // simply untrue — it must fall back to a rating-only message.
         assert.match(MODAL, /setAttributionSkipped\(true\)/);
         assert.match(MODAL, /attributionSkipped\s*\?/);
@@ -96,7 +96,7 @@ describe('Review modal — obsidian editorial composition', () => {
         // Describing the outcome ("your name will run alongside it") is weaker
         // than showing it: the last thing the user sees should be the literal
         // string, so a wrong name is caught here rather than after publication.
-        assert.match(MODAL, /const byline\s*=\s*displayNamePublicly && name\.trim\(\)\s*\?\s*name\.trim\(\)\s*:\s*"Anonymous Natively user"/);
+        assert.match(MODAL, /const byline\s*=\s*displayNamePublicly && name\.trim\(\)\s*\?\s*name\.trim\(\)\s*:\s*"Anonymous Sneak-Peek user"/);
         assert.match(MODAL, /className="review-byline"/);
         assert.match(MODAL, /\{byline\}/);
     });

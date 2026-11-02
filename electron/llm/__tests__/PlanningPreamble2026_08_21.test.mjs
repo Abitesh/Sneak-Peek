@@ -18,7 +18,7 @@ const { stripPlanningPreamble } = await import(dist('planningPreamble.js'));
 
 describe('RC-6: the live leaks are stripped', () => {
   test('press 5 — deliberation with résumé figures, then the real answer', () => {
-    const leaked = 'Since the interviewer is asking directly about what I built in Natively, and the résumé '
+    const leaked = 'Since the interviewer is asking directly about what I built in Sneak-Peek, and the résumé '
       + 'shows me as the builder of the whole project (16,000+ users, $25K+ revenue, Electron/TypeScript/React/Rust '
       + 'stack), I should answer in my own voice describing what I personally built. The prior assistant turn '
       + 'already established the product story, so this should go deeper on the "what did YOU build" angle. '
@@ -76,7 +76,7 @@ describe('RC-6: legitimate content is never touched', () => {
 
 describe('RC-6 code-review fixes (2026-08-22)', () => {
   test('contractions match: "I\'ll answer…" is stripped (the old regex required "I \'ll")', () => {
-    const leaked = "I'll answer with the Natively story since it is the strongest example. "
+    const leaked = "I'll answer with the Sneak-Peek story since it is the strongest example. "
       + 'The Rust audio layer was the hardest part of the whole build.';
     const r = stripPlanningPreamble(leaked);
     assert.equal(r.repaired, true);

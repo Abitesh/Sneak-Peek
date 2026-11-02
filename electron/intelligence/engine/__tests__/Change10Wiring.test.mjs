@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const engine = await fs.readFile(path.join(here, '..', 'NativelyIntelligenceEngine.ts'), 'utf8');
+const engine = await fs.readFile(path.join(here, '..', 'SneakPeekIntelligenceEngine.ts'), 'utf8');
 const types = await fs.readFile(path.join(here, '..', 'types.ts'), 'utf8');
 const answerPlanner = await fs.readFile(path.resolve(here, '../../../llm/AnswerPlanner.ts'), 'utf8');
 const normalizer = await fs.readFile(path.resolve(here, '../../OutputShapeNormalizer.ts'), 'utf8');

@@ -25,7 +25,7 @@
 // — an earlier assumption that this app "never sends Nemotron literal auto"
 // was wrong. Nemotron has no real auto-detect mode, so this must follow the
 // same precedent AppState.setRecognitionLanguage already applies for every
-// other non-NativelyProSTT provider: normalize 'auto' -> 'english-us'
+// other non-SneakPeekProSTT provider: normalize 'auto' -> 'english-us'
 // (lang_id 0), not fail closed. Without this fix, any user who previously
 // picked "Auto Detect" would hit the fail-closed path on every app launch
 // while on the Nemotron model (createSTTProvider reads the persisted
@@ -124,7 +124,7 @@ describe('Nemotron language selection fail-closed behaviour (Task 12)', () => {
     // a real, selectable RECOGNITION_LANGUAGES entry, not an impossible
     // input — must be normalized to 'english-us' before table lookup, the
     // same precedent AppState.setRecognitionLanguage already applies for
-    // every other non-NativelyProSTT provider.
+    // every other non-SneakPeekProSTT provider.
     lws = new LocalWhisperSTT(NEMOTRON_MODEL_ID);
     let errored = false;
     lws.on('error', () => { errored = true; });

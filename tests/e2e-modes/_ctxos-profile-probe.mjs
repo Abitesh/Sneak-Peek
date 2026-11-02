@@ -56,7 +56,7 @@ const verdict = {
   ingest: { resume_ok: resume?.hasStructuredResume, jd_ok: jd?.hasStructuredJD },
   best_project: {
     preview: best.answer.slice(0, 200),
-    mentions_natively: /natively/i.test(best.answer),
+    mentions_sneakPeek: /natively/i.test(best.answer),
     leaks_document: /agenticvla|mercury|openvla/i.test(best.answer),
     hasTypedEvidencePack: best.audit.hasTypedEvidencePack,
     hasRawCandidateProfile: best.audit.hasRawCandidateProfile,

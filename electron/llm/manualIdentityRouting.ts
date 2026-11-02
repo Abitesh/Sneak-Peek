@@ -2,7 +2,7 @@
 //
 // REAL-APP FIX (manual regression 2026-06-12, P2): the manual chat handler's
 // identity-probe short-circuit answered "who are you?", "what is your name?",
-// and "introduce yourself" with the canned "I'm Natively, an AI assistant."
+// and "introduce yourself" with the canned "I'm Sneak-Peek, an AI assistant."
 // BEFORE the candidate-profile fast path could run — the exact assistant-
 // identity leak users hit in real sessions. Benchmarks missed it because the
 // eval harness never replayed the probe.
@@ -10,7 +10,7 @@
 // This module is THE single decision point both the IPC handler and the evals
 // share. The rule:
 //   - ASSISTANT-META probes (are you an AI / ChatGPT? what model? who built
-//     Natively? what is Natively?) → canned assistant reply, always.
+//     Sneak-Peek? what is Sneak-Peek?) → canned assistant reply, always.
 //   - CANDIDATE-AMBIGUOUS probes (who are you? introduce yourself, what's
 //     your name?) → when a candidate profile is LOADED, these are interview
 //     rehearsal questions about the CANDIDATE → route to the profile fast
@@ -23,11 +23,11 @@
  *  candidate, regardless of profile state. Kept byte-compatible with the prior
  *  ipcHandlers regexes for these intents. */
 const ASSISTANT_META_PROBE_RE =
-  /^\s*(?:so|wait|ok(?:ay)?|um|hey|but|and|actually)?[\s,]*(what\s+(are|r)\s+(you|u)|are\s+you\s+(chatgpt|gpt[-\s]?\d?|claude|gemini|llama|an?\s+(ai|bot|llm|model|assistant)|human|real|a\s+robot)|what('?s|\s+is)\s+your\s+model|which\s+(ai|model|llm)\s+are\s+you|who\s+(made|built|created|developed|trained)\s+(you|this|natively)|what\s+model\s+(are\s+you|do\s+you\s+use)|what\s+(is|'?s)\s+natively)\s*\??\s*$/i;
+  /^\s*(?:so|wait|ok(?:ay)?|um|hey|but|and|actually)?[\s,]*(what\s+(are|r)\s+(you|u)|are\s+you\s+(chatgpt|gpt[-\s]?\d?|claude|gemini|llama|an?\s+(ai|bot|llm|model|assistant)|human|real|a\s+robot)|what('?s|\s+is)\s+your\s+model|which\s+(ai|model|llm)\s+are\s+you|who\s+(made|built|created|developed|trained)\s+(you|this|natively|sneak[- ]?peek)|what\s+model\s+(are\s+you|do\s+you\s+use)|what\s+(is|'?s)\s+(?:natively|sneak[- ]?peek))\s*\??\s*$/i;
 
 /** Creator probes — always the assistant's creator. */
 const CREATOR_PROBE_RE =
-  /^\s*(who\s+(made|built|created|developed|trained)\s+(you|this|natively))\s*\??\s*$/i;
+  /^\s*(who\s+(made|built|created|developed|trained)\s+(you|this|natively|sneak[- ]?peek))\s*\??\s*$/i;
 
 /** Probes that read as CANDIDATE identity when a profile is loaded (interview
  *  rehearsal: "who are you?" → the candidate introduces themselves), and as

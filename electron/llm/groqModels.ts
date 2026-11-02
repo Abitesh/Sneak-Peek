@@ -1,6 +1,6 @@
 // electron/llm/groqModels.ts
 //
-// The single place that names which Groq model Natively talks to, and what it
+// The single place that names which Groq model Sneak-Peek talks to, and what it
 // falls back to when that model is gone.
 //
 // Why a ladder and not one pinned id: on 2026-08-23 Groq's catalogue held
@@ -57,7 +57,7 @@ export function groqFallbackFor(modelId: string): string | null {
 }
 
 /**
- * Every id prefix Groq hosts that Natively can encounter (pinned ids, the
+ * Every id prefix Groq hosts that Sneak-Peek can encounter (pinned ids, the
  * picker's offerings, legacy auto-set defaults, discovery-promoted ids).
  *
  * THE one predicate (code-review 2026-08-23): this existed as three hand-

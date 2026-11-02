@@ -7,6 +7,7 @@
 // init_DatabaseManager() (which is what loads better-sqlite3).
 // ============================================================================
 import './nativeArchGate';
+import './preserveLegacyUserData';
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, systemPreferences, screen, desktopCapturer } from "electron"
 import * as crypto from "crypto"
@@ -103,7 +104,7 @@ try {
  * Whether THIS build carries a real Developer ID signature.
  *
  * The signed release path (`electron-builder.signed.cjs`) bakes
- * `nativelySigned: true` into the packaged app's package.json via
+ * `sneakPeekSigned: true` into the packaged app's package.json via
  * `extraMetadata`. The default/dev build leaves it absent. We read the flag
  * once from the bundled package.json (inside the asar) and cache it.
  *
@@ -115,7 +116,7 @@ function isSignedBuild(): boolean {
  try {
  const pkgPath = path.join(app.getAppPath(), 'package.json')
  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
- _cachedSignedBuild = pkg?.nativelySigned === true
+ _cachedSignedBuild = pkg?.sneakPeekSigned === true
  } catch {
  _cachedSignedBuild = false
  }
@@ -183,7 +184,7 @@ process.on('uncaughtException', (err) => {
  // showErrorBox is modal and blocks until the user clicks OK.
  dialog.showErrorBox(
  packaged
- ? 'Natively was built for a different chip — please reinstall'
+ ? 'Sneak-Peek was built for a different chip — please reinstall'
  : 'Native modules are wrong architecture — run this command to fix:',
  detail,
  );
@@ -1015,27 +1016,27 @@ function formatPermissionMessage(reason: PermissionReason, extra?: { device?: st
  // console instead (logDevScreenTccBypassHint, below). Bodies here are
  // budgeted at ~2 lines at 11px and must never restate their own title
  // (see permissionTitleKey).
- return 'Dev builds need their own grant. Enable Natively under Privacy & Security  Screen Recording, then restart.';
+ return 'Dev builds need their own grant. Enable Sneak-Peek under Privacy & Security  Screen Recording, then restart.';
  }
- return "Interviewer audio won't be captured. Enable Natively under Privacy & Security  Screen Recording, then restart.";
+ return "Interviewer audio won't be captured. Enable Sneak-Peek under Privacy & Security  Screen Recording, then restart.";
  case 'mac-screen-recording-restricted':
  if (!isMac) return formatPermissionMessage('system-audio-stuck');
- return 'Device policy blocks screen capture. Ask your administrator to allow Natively.';
+ return 'Device policy blocks screen capture. Ask your administrator to allow Sneak-Peek.';
  case 'mac-screen-recording-revoked-rebuild':
  // Defense-in-depth: even though all call sites must be darwin-gated
  // (the `mac-` prefix marks this constraint), if a future contributor
  // calls this from a cross-platform path we degrade gracefully rather
  // than leak macOS UI strings to Windows users.
  if (!isMac) return formatPermissionMessage('system-audio-stuck');
- return 'System audio is arriving silent. Toggle Natively off and on under Privacy & Security  Screen Recording, then restart.';
+ return 'System audio is arriving silent. Toggle Sneak-Peek off and on under Privacy & Security  Screen Recording, then restart.';
  case 'mic-denied':
  return isMac
- ? 'Enable Natively under Privacy & Security  Microphone, then restart.'
- : 'Enable Natively under Settings  Privacy  Microphone, then restart.';
+ ? 'Enable Sneak-Peek under Privacy & Security  Microphone, then restart.'
+ : 'Enable Sneak-Peek under Settings  Privacy  Microphone, then restart.';
  case 'mic-zero-fill':
  return isMac
- ? "Check the device isn't muted, and that Natively is enabled under Privacy & Security  Microphone."
- : "Check the device isn't muted, and that Natively is enabled under Settings  Privacy  Microphone.";
+ ? "Check the device isn't muted, and that Sneak-Peek is enabled under Privacy & Security  Microphone."
+ : "Check the device isn't muted, and that Sneak-Peek is enabled under Settings  Privacy  Microphone.";
  case 'mac-same-device-input-output':
  // Defense-in-depth: see comment on `mac-screen-recording-revoked-rebuild`.
  // The CoreAudio Process Tap same-device limitation is macOS-specific;
@@ -1201,7 +1202,7 @@ import type { SpeechEdge } from "./audio/speechEdge"
 import { SonioxStreamingSTT } from "./audio/SonioxStreamingSTT"
 import { ElevenLabsStreamingSTT } from "./audio/ElevenLabsStreamingSTT"
 import { OpenAIStreamingSTT } from "./audio/OpenAIStreamingSTT"
-import { NativelyProSTT } from "./audio/NativelyProSTT"
+import { SneakPeekProSTT } from "./audio/SneakPeekProSTT"
 import { NvidiaNimStreamingSTT } from "./audio/NvidiaNimStreamingSTT"
 import { punctuationSourceFor } from "./llm/punctuationProvenance"
 import { ThemeManager } from "./ThemeManager"
@@ -1210,7 +1211,7 @@ import { DatabaseManager } from "./db/DatabaseManager"
 import { warmupIntentClassifier } from "./llm"
 
 /** Unified type for all STT providers with optional extended capabilities */
-type STTProvider = (GoogleSTT | LocalWhisperSTT | RestSTT | DeepgramStreamingSTT | SonioxStreamingSTT | ElevenLabsStreamingSTT | OpenAIStreamingSTT | NativelyProSTT | NvidiaNimStreamingSTT) & {
+type STTProvider = (GoogleSTT | LocalWhisperSTT | RestSTT | DeepgramStreamingSTT | SonioxStreamingSTT | ElevenLabsStreamingSTT | OpenAIStreamingSTT | SneakPeekProSTT | NvidiaNimStreamingSTT) & {
  finalize?: () => void;
  setAudioChannelCount?: (count: number) => void;
  setSampleRate?: (rate: number) => void;
@@ -1419,7 +1420,7 @@ export class AppState {
  // (and only the transcript handler) treats `isMeetingActive || _isDraining`
  // as "accept trailing finals" — every other call site looks at
  // `isMeetingActive` alone, which flips to false synchronously on Stop so the
- // launcher's "Meeting ongoing" pill switches back to "Start Natively" the
+ // launcher's "Meeting ongoing" pill switches back to "Start Sneak-Peek" the
  // instant the user clicks Stop, with no 250 ms green--blue stutter.
  private _isDraining: boolean = false;
  // Tracks remembered output device so reconfigureAudio can no-op when nothing changed.
@@ -1861,7 +1862,7 @@ export class AppState {
  // connected, ask it to grab the active tab's page context (delivered to
  // the overlay via /dom). If it isn't reachable — not in a browser, SW
  // asleep, Phone Mirror off — fall back to a screenshot automatically so
- // the gesture always does something. See natively-browser/README.md.
+ // the gesture always does something. See sneak-peek-browser/README.md.
  let captured = false;
  let domFailureReason = '';
  // Announce the in-flight capture so a fast follow-up Enter (the
@@ -1907,7 +1908,7 @@ export class AppState {
  // (2026-08-18 report). The notice renders as a warn-tone status pill.
  const fallbackNotice = describePageCaptureFallback(domFailureReason);
  // Target the OVERLAY window explicitly: the only listener lives in
- // NativelyInterface, which mounts there — getMainWindow() returns
+ // SneakPeekInterface, which mounts there — getMainWindow() returns
  // the launcher in launcher mode, where the notice would be dropped
  // (same reason /dom delivery resolves the overlay window).
  const noticeWindow = () => this.windowHelper?.getOverlayWindow?.() ?? this.getMainWindow();
@@ -1938,7 +1939,7 @@ export class AppState {
  ` " Page context: ${domFailureReason || 'unavailable'}\n` +
  ` " Screenshot: ${shotErr?.message || shotErr}\n` +
  (needsHost
- ? '  Chrome has not granted this site to the extension. Click the Natively\n' +
+ ? '  Chrome has not granted this site to the extension. Click the Sneak-Peek\n' +
  ' extension icon and press Capture once to grant it (one site, one click).\n'
  : '') +
  '  Screenshot capture additionally requires Screen Recording permission\n' +
@@ -2360,7 +2361,7 @@ export class AppState {
  /**
  * Send `model-changed` to the windows that actually listen for it.
  *
- * Two of them: the overlay (NativelyInterface renders the active model) and
+ * Two of them: the overlay (SneakPeekInterface renders the active model) and
  * the model selector (it highlights the current row before it closes).
  * Everything else on screen ignores the channel, and `broadcast()` reached all
  * of them — the revert path's own comment calls this out, that the
@@ -2632,7 +2633,7 @@ export class AppState {
  });
  }
 
- // Company-research search provider (Tavily key  Natively API  none),
+ // Company-research search provider (Tavily key  Sneak-Peek API  none),
  // resolved per AOT run so keys added/changed mid-session take effect.
  // Same cascade the manual profile:research-company handler uses; without
  // this the JD-upload AOT pipeline always fell back to LLM-only dossiers.
@@ -3349,10 +3350,10 @@ export class AppState {
  let stt: STTProvider;
 
  if (sttProvider === 'natively') {
- // The hosted Natively API is intentionally disabled in this build. Treat the
+ // The hosted Sneak-Peek API is intentionally disabled in this build. Treat the
  // legacy STT selection as unavailable and fail closed to Google so the app
  // never dials api.natively.software even if an old saved setting survives.
- console.warn(`[Main] Natively STT is disabled in this build for ${speaker}; falling back to GoogleSTT`);
+ console.warn(`[Main] Sneak-Peek STT is disabled in this build for ${speaker}; falling back to GoogleSTT`);
  stt = new GoogleSTT(speaker);
  } else if (sttProvider === 'deepgram') {
  const apiKey = CredentialsManager.getInstance().getDeepgramApiKey();
@@ -3469,7 +3470,7 @@ export class AppState {
  : stt instanceof SonioxStreamingSTT ? 'soniox'
  : stt instanceof OpenAIStreamingSTT ? 'openai'
  : stt instanceof ElevenLabsStreamingSTT ? 'elevenlabs'
- : stt instanceof NativelyProSTT ? 'natively'
+ : stt instanceof SneakPeekProSTT ? 'natively'
  : stt instanceof GoogleSTT ? 'google'
  : sttProvider;
 
@@ -3705,10 +3706,10 @@ export class AppState {
  { provider: sttProvider, message: w?.message, droppedBytes: w?.droppedBytes });
  });
 
- // Auto language detection: NativelyProSTT emits 'languageDetected' when the
+ // Auto language detection: SneakPeekProSTT emits 'languageDetected' when the
  // backend resolves the language from the first audio batch. Notify the renderer
  // so the settings UI can show what was detected.
- if (stt instanceof NativelyProSTT) {
+ if (stt instanceof SneakPeekProSTT) {
  stt.on('connected', () => {
  _consecutiveErrors = 0;
  if (_lastState !== 'connected') {
@@ -3728,7 +3729,7 @@ export class AppState {
  this.sendToWindow(helper.getLauncherWindow(), 'stt-language-auto-detected', bcp47);
  });
 
- // Persistent-reconnect signal: NativelyProSTT now retries indefinitely
+ // Persistent-reconnect signal: SneakPeekProSTT now retries indefinitely
  // with a 30s backoff cap, but we want the user to know after ~5 attempts
  // (~3090s of dead transcript) that the issue is sustained, not a blip.
  // Reuse the stt-status channel with state='reconnecting' and a higher
@@ -4242,7 +4243,7 @@ export class AppState {
  this.systemAudioCapture = null;
  this.sendAudioCaptureFailed({
  channel: 'system',
- message: 'System audio capture failed to initialize. The native audio module could not allocate the capture device. Restarting Natively may help; if the problem persists, file a bug.',
+ message: 'System audio capture failed to initialize. The native audio module could not allocate the capture device. Restarting Sneak-Peek may help; if the problem persists, file a bug.',
  attempt: 0,
  maxAttempts: 0,
  terminal: true,
@@ -4265,7 +4266,7 @@ export class AppState {
  this.microphoneCapture = null;
  this.sendAudioCaptureFailed({
  channel: 'mic',
- message: 'Microphone capture failed to initialize. The native audio module could not open the default input device. Check that the device is connected and not in exclusive use by another app, then restart Natively.',
+ message: 'Microphone capture failed to initialize. The native audio module could not open the default input device. Check that the device is connected and not in exclusive use by another app, then restart Sneak-Peek.',
  attempt: 0,
  maxAttempts: 0,
  terminal: true,
@@ -5085,7 +5086,7 @@ export class AppState {
  /**
  * Serialization mutex for reconfigureSttProvider.
  *
- * Crash/hang fix (2026-06-05): a single "save Natively API key" action can
+ * Crash/hang fix (2026-06-05): a single "save Sneak-Peek API key" action can
  * fire up to TWO reconfigure calls back-to-back — one from the
  * `set-natively-api-key` handler (which auto-promotes the STT provider to
  * 'natively' and reconfigures), and one from the renderer's follow-up
@@ -5839,7 +5840,7 @@ export class AppState {
 
  if (!(await ensureMacMicrophoneAccess('audio test'))) {
  // The title is prepended here, not folded back into the body. Banner
- // copy is now remedy-only ("Enable Natively under&") because the UI
+ // copy is now remedy-only ("Enable Sneak-Peek under&") because the UI
  // renders the fault as a separate title; an Error carries no title, so
  // thrown/logged text would otherwise state a fix without ever naming
  // what failed.
@@ -6144,7 +6145,7 @@ export class AppState {
  if (!out.system && !out.message) {
  out.message = screenDenied
  ? undefined
- : 'System audio is not capturing the other person. Grant Screen Recording to Natively, and play call audio through speakers or headphones (not a virtual cable Natively cannot tap).';
+ : 'System audio is not capturing the other person. Grant Screen Recording to Sneak-Peek, and play call audio through speakers or headphones (not a virtual cable Sneak-Peek cannot tap).';
  }
  return out;
  }
@@ -6265,7 +6266,7 @@ export class AppState {
  // entirely for the whole meeting (see the `!this._ambientChatEnabled`
  // gate around setupSystemAudioPipeline() below) — so neither permission
  // is ever touched in that mode. Checking/warning about them here anyway
- // used to throw on a denied mic grant (blocking "Start Natively" outright)
+ // used to throw on a denied mic grant (blocking "Start Sneak-Peek" outright)
  // and always surface the "Interviewer audio will not be captured" banner,
  // even though no audio was ever going to be captured by design.
  if (!this._ambientChatEnabled) {
@@ -6276,7 +6277,7 @@ export class AppState {
  // the in-overlay audio banner would not be visible) can recognise this
  // as a recoverable mic-permission denial and re-open the permissions
  // card instead of failing silently with only a console.error. Pre-fix,
- // a denied/revoked mic grant made "Start Natively" do nothing on screen.
+ // a denied/revoked mic grant made "Start Sneak-Peek" do nothing on screen.
  const err = new Error(message) as Error & { code?: string; channel?: string };
  err.code = 'mic-permission-denied';
  err.channel = 'mic';
@@ -6623,7 +6624,7 @@ export class AppState {
 
  //  UX STATE FLIP — SYNCHRONOUS 
  // Now flip the UX-facing meeting flag and broadcast. The launcher's
- // "Meeting ongoing" pill reverts to "Start Natively" immediately;
+ // "Meeting ongoing" pill reverts to "Start Sneak-Peek" immediately;
  // trailing transcript finals are still accepted via `_isDraining`.
  this.isMeetingActive = false;
  this._meetingGeneration++;
@@ -7145,7 +7146,7 @@ export class AppState {
  CredentialsManager.getInstance().setSttLanguage(key);
 
  // 'auto' is forwarded verbatim (changed 2026-08-24). The old collapse to
- // 'english-us' for every non-Natively provider was stale: each provider
+ // 'english-us' for every non-Sneak-Peek provider was stale: each provider
  // implements its own 'auto' branch and has for some time —
  // GoogleSTT en-US + fr/es/de alternativeLanguageCodes
  // DeepgramStreamingSTT language 'multi' (nova-3 multilingual)
@@ -7609,7 +7610,7 @@ export class AppState {
  trayIcon.setTemplateImage(iconToUse.endsWith('Template.png'));
 
  this.tray = new Tray(trayIcon)
- this.tray.setToolTip('Natively') // This tooltip might also need update if we change global shortcut, but global shortcut is removed.
+ this.tray.setToolTip('Sneak-Peek') // This tooltip might also need update if we change global shortcut, but global shortcut is removed.
  this.updateTrayMenu();
 
  // Double-click to show window
@@ -7627,7 +7628,7 @@ export class AppState {
  console.log('[Main] updateTrayMenu called. Screenshot Accelerator:', screenshotAccel);
 
  // Update tooltip for verification
- this.tray.setToolTip('Natively');
+ this.tray.setToolTip('Sneak-Peek');
 
  // Helper to format accelerator for display (e.g. CommandOrControl+H -> Cmd+H)
  const formatAccel = (accel: string) => {
@@ -7647,7 +7648,7 @@ export class AppState {
 
  const contextMenu = Menu.buildFromTemplate([
  {
- label: 'Show Natively',
+ label: 'Show Sneak-Peek',
  click: () => {
  this.centerAndShowWindow()
  }
@@ -7860,7 +7861,7 @@ export class AppState {
 
  if (shouldApply) {
  if (wantUndetectable) {
- const nativelyWasFocused =
+ const sneakPeekWasFocused =
  targetFocusWindow != null &&
  !targetFocusWindow.isDestroyed() &&
  targetFocusWindow.isFocused();
@@ -7873,9 +7874,9 @@ export class AppState {
  // the windows' sharingType, silently undoing screen-capture stealth.
  this.reassertAllContentProtection();
 
- // Keep focus on Natively (win.focus(), not app.focus()) so dock.hide()'s
+ // Keep focus on Sneak-Peek (win.focus(), not app.focus()) so dock.hide()'s
  // implicit app-deactivation doesn't hand control to the app behind us.
- if (nativelyWasFocused && targetFocusWindow && !targetFocusWindow.isDestroyed()) {
+ if (sneakPeekWasFocused && targetFocusWindow && !targetFocusWindow.isDestroyed()) {
  targetFocusWindow.focus();
  }
  } else {
@@ -7942,7 +7943,7 @@ export class AppState {
  // .show()+.focus() on it while the app is in accessory policy with the dock
  // tile hidden re-activates the app as a foreground app, which makes macOS
  // re-register it and REVEAL the dock tile — silently undoing app.dock.hide().
- // This is the "Natively icon appears in the dock after Stop meeting" bug:
+ // This is the "Sneak-Peek icon appears in the dock after Stop meeting" bug:
  // endMeeting() swaps overlaylauncher, the activating show re-shows the tile,
  // and nothing re-asserted stealth afterward. It is intermittent because macOS
  // asynchronously coalesces and sometimes drops activation-policy/dock calls.
@@ -8115,7 +8116,7 @@ export class AppState {
  }
 
  private _applyDisguise(mode: 'terminal' | 'settings' | 'activity' | 'none'): void {
- let appName = "Natively";
+ let appName = "Sneak-Peek";
  let iconPath = "";
 
  const isWin = process.platform === 'win32';
@@ -8160,11 +8161,11 @@ export class AppState {
  break;
  case 'none':
  default:
- appName = "Natively";
+ appName = "Sneak-Peek";
  if (isMac) {
  iconPath = app.isPackaged
- ? path.join(process.resourcesPath, "natively.icns")
- : path.join(app.getAppPath(), "assets/natively.icns");
+ ? path.join(process.resourcesPath, "sneak-peek.icns")
+ : path.join(app.getAppPath(), "assets/sneak-peek.icns");
  } else if (isWin) {
  iconPath = app.isPackaged
  ? path.join(process.resourcesPath, "assets/icons/win/icon.ico")
@@ -8323,7 +8324,7 @@ async function initializeApp() {
  logStartupPhase('initializeApp:start');
 
  // When a duplicate launch is attempted (e.g. user invokes Spotlight again
- // while Natively is running), focus and recenter the existing window so the
+ // while Sneak-Peek is running), focus and recenter the existing window so the
  // launch is visibly handled instead of silently absorbed.
  app.on('second-instance', () => {
  try {
@@ -8416,7 +8417,7 @@ async function initializeApp() {
  // re-register the running app's LS identity. Doing that while the app is on the
  // default 'regular' activation policy makes macOS paint a SECOND dock tile (the
  // old identity's tile lingers while the renamed one registers) — the duplicate
- // "Natively" icon multiple users reported. We therefore drop to 'accessory'
+ // "Sneak-Peek" icon multiple users reported. We therefore drop to 'accessory'
  // (no dock tile) for the whole rename+window-creation window, then promote back
  // to 'regular' exactly once AFTER createWindow() so a single, correctly-named
  // tile appears together with the window. Stealth mode stays hidden via dock.hide()
@@ -8566,7 +8567,7 @@ async function initializeApp() {
  appState.applyInitialDisguise();
 
  // Ollama is an external optional provider. Do not spawn it on startup unless
- // the user explicitly selected/opted into it; Natively's packaged fallback
+ // the user explicitly selected/opted into it; Sneak-Peek's packaged fallback
  // stack must work without Ollama installed.
  try {
  const settingsManager = SettingsManager.getInstance();
@@ -8601,7 +8602,7 @@ async function initializeApp() {
  // Usage outbox — durable delivery of client-reported (BYOK) usage events.
  //
  // Started AFTER credentials are loaded, but the key is passed as a GETTER
- // rather than a value: a user who pastes their Natively key ten minutes from
+ // rather than a value: a user who pastes their Sneak-Peek key ten minutes from
  // now must not need a restart before their queued events can drain.
  //
  // ON BY DEFAULT since 2026-08-27. It was gated behind an unset env var from
@@ -8853,7 +8854,7 @@ if (process.env.THINKING_MATRIX === '1') {
  // stealth mode is never promoted (it must stay dock-tile-less). This pairs
  // with the 'accessory' clamp in step 2a above — together they ensure the LS
  // re-registration from app.setName()/setProcessDisplayName() happens while no
- // tile is visible, so macOS never paints a second "Natively" icon.
+ // tile is visible, so macOS never paints a second "Sneak-Peek" icon.
  if (process.platform === 'darwin' && !appState.getUndetectable()) {
  app.setActivationPolicy('regular');
  }
@@ -8994,7 +8995,7 @@ if (process.env.THINKING_MATRIX === '1') {
  // One-time macOS screen recording permission prompt.
  //
  // We must fire this AFTER createWindow() so that:
- // 1. The Natively launcher window is visible and focused when the TCC dialog
+ // 1. The Sneak-Peek launcher window is visible and focused when the TCC dialog
  // appears — macOS anchors the dialog to the frontmost app window on Ventura+.
  // Without a visible window the dialog can appear behind other apps (Sequoia).
  // 2. In stealth/undetectable mode the dock icon is hidden, but the window is
@@ -9085,7 +9086,7 @@ if (process.env.THINKING_MATRIX === '1') {
  console.warn('[Init] Microphone is restricted by device policy at startup.');
  appState.sendAudioCaptureFailed({
  channel: 'mic',
- message: 'Microphone is restricted by device policy. Contact your administrator to enable microphone access for Natively.',
+ message: 'Microphone is restricted by device policy. Contact your administrator to enable microphone access for Sneak-Peek.',
  attempt: 0,
  maxAttempts: 0,
  terminal: true,
@@ -9298,8 +9299,8 @@ if (process.env.THINKING_MATRIX === '1') {
  // the native-arch gate handler's pattern above).
  const { dialog } = require('electron');
  dialog.showErrorBox(
- 'Natively — display error',
- 'A window keeps crashing while rendering. Please restart Natively. ' +
+ 'Sneak-Peek — display error',
+ 'A window keeps crashing while rendering. Please restart Sneak-Peek. ' +
  'If this continues, update to the latest version.'
  );
  } catch { /* dialog best-effort */ }

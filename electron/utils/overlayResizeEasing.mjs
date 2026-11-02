@@ -11,7 +11,7 @@
 // THAT IS NO LONGER TRUE. The OS overlay window is now a FIXED WIDTH (780) for
 // its entire visible lifetime; only the panel animates 600↔780 centered inside
 // it (see WindowHelper.setOverlayDimensionsCentered + the startTransition in
-// NativelyInterface). The main process never animates width and never imports
+// SneakPeekInterface). The main process never animates width and never imports
 // this module's width sampler — grep WindowHelper.ts: no widthAt /
 // easeOverlayResize / resize loop. So the width channel is now PURELY
 // renderer-side, and nothing downstream consumes an in-between width. That
@@ -39,7 +39,7 @@
 //     reduced-motion fallback, or a re-introduced native width loop) can use it.
 //
 // Pure, dependency-free, importable from:
-//   • renderer  (src/components/NativelyInterface.tsx)
+//   • renderer  (src/components/SneakPeekInterface.tsx)
 //   • node test (electron/utils/__tests__/overlayResizeEasing.test.mjs)
 //
 // MONOTONIC BY CONSTRUCTION: easeOverlayResize / easeOutQuint are strictly

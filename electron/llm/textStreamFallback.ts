@@ -4,10 +4,10 @@
 //
 // PROBLEM (REPORT_TO_CHATGPT §21, hypothesis L1 + §18 "why the app feels like
 // 10s"): the text streaming path (`LLMHelper._streamChatInner`) used a plain
-// serial loop — try Natively, on THROW try Groq, on THROW try Gemini. The
+// serial loop — try Sneak-Peek, on THROW try Groq, on THROW try Gemini. The
 // catch only fires on a thrown error; a provider that *connects* but then
 // stalls before the first token blocks the user with no fallback. Worse, the
-// Natively connect timeout was 10_000ms and only guarded the connect phase, so
+// Sneak-Peek connect timeout was 10_000ms and only guarded the connect phase, so
 // a slow prefill could wait the full budget before anyone saw a token.
 //
 // FIX: reuse the already-unit-tested commit-point state machine from

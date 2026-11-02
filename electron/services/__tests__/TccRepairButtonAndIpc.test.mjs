@@ -20,7 +20,7 @@ const read = (rel) => readFileSync(resolve(repoRoot, rel), 'utf8');
 const ipcHandlers = read('electron/ipcHandlers.ts');
 const preload = read('electron/preload.ts');
 const electronDts = read('src/types/electron.d.ts');
-const interfaceTsx = read('src/components/NativelyInterface.tsx');
+const interfaceTsx = read('src/components/SneakPeekInterface.tsx');
 
 // Extract the handler body for handler-scoped assertions.
 function extractHandlerBody(source) {

@@ -167,13 +167,13 @@ describe('End-to-end wiring: screen button -> capture -> vision/OCR -> gate -> c
   });
 
   test('Screen button capture still flows through ScreenshotHelper (unchanged capture path)', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+    const source = read('src/components/SneakPeekInterface.tsx');
     assert.match(source, /takeScreenshot: async \(\) => \{[\s\S]{0,200}window\.electronAPI\.takeScreenshot\(\)/,
       'the Screen button must still capture via the existing takeScreenshot IPC (ScreenshotHelper-backed)');
   });
 
   test('the answer still renders in the normal chat surface, not an isolated window', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+    const source = read('src/components/SneakPeekInterface.tsx');
     // handleWhatToSay (the Answer path a Screen capture feeds into) mounts its
     // streaming placeholder into the same `messages` state the rest of chat
     // uses — there is no separate BrowserWindow/portal for screen answers.

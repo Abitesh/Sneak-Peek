@@ -22,7 +22,7 @@ const DNS_CACHE_TTL_MS = 60_000;
  * transcripts never start.
  *
  * Forcing family=4 mirrors curl's effective behavior: skip IPv6 entirely.
- * Streaming STT endpoints (Natively, ElevenLabs, Soniox, OpenAI Realtime) are
+ * Streaming STT endpoints (Sneak-Peek, ElevenLabs, Soniox, OpenAI Realtime) are
  * effectively IPv4-only at the edge today, so we lose nothing by pinning the
  * resolver here. If a vendor later moves to IPv6-only or v6-preferred, swap
  * to family=0 (AF_UNSPEC) with a custom v6→v4 fallback.

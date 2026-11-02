@@ -26,7 +26,7 @@ function read(rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8');
 }
 
-const ui = read('src/components/NativelyInterface.tsx');
+const ui = read('src/components/SneakPeekInterface.tsx');
 
 test('issue #252: audio-capture-failed handler does not reuse the screen-recording banner kind', () => {
   // The audio-capture-failed listener should set a warning of kind
@@ -86,7 +86,7 @@ test('issue #252: banner title is not hardcoded to "Screen Recording Permission 
 
 test('issue #252: Open Settings button does not unconditionally fire x-apple.systempreferences', () => {
   // The macOS-only URL is correct ONLY for kind=screen-recording-permission.
-  // For kind=audio-capture-failure the action must open Natively's own
+  // For kind=audio-capture-failure the action must open Sneak-Peek's own
   // settings (toggleSettingsWindow / openSettingsTab) — not an OS URL.
   const stripped = ui.replace(/\s+/g, ' ');
 

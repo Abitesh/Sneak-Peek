@@ -82,7 +82,7 @@ function freshManager(env) {
   const mod = require(COMPILED);
   if (mod.CredentialsManager.instance) mod.CredentialsManager.instance = undefined;
   const g = globalThis;
-  delete g.__nativelyCredentialsManagerV1__;
+  delete g.__sneakPeekCredentialsManagerV1__;
   const cm = mod.CredentialsManager.getInstance();
   cm.init();
   return cm;

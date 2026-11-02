@@ -50,7 +50,7 @@ export interface SessionFollowupInput {
   /** The kind of entity the follow-up is most likely about (caller hint). When
    *  omitted we infer from the prior answer type / question demonstratives. */
   expectedKind?: MemoryItemKind;
-  /** The user EXPLICITLY crossed a mode boundary ("have you used this in Natively?"). */
+  /** The user EXPLICITLY crossed a mode boundary ("have you used this in Sneak-Peek?"). */
   explicitCrossMode?: boolean;
 }
 

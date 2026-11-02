@@ -4,7 +4,7 @@
 // What-to-Answer response with its own DELIBERATION — planning notes addressed
 // to itself, not spoken content:
 //
-//   "Since the interviewer is asking directly about what I built in Natively,
+//   "Since the interviewer is asking directly about what I built in Sneak-Peek,
 //    and the résumé shows me as the builder of the whole project (16,000+
 //    users, $25K+ revenue…), I should answer in my own voice describing what I
 //    personally built. The prior assistant turn already established the

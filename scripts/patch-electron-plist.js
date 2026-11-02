@@ -42,7 +42,7 @@ let modified = false;
 if (!content.includes('NSScreenCaptureUsageDescription')) {
   content = content.replace(
     '<key>NSMicrophoneUsageDescription</key>',
-    '<key>NSScreenCaptureUsageDescription</key>\n\t<string>Natively needs Screen Recording permission to capture system audio for meeting transcription.</string>\n\t<key>NSMicrophoneUsageDescription</key>'
+    '<key>NSScreenCaptureUsageDescription</key>\n\t<string>Sneak-Peek needs Screen Recording permission to capture system audio for meeting transcription.</string>\n\t<key>NSMicrophoneUsageDescription</key>'
   );
   modified = true;
   console.log('[patch-electron-plist] Added NSScreenCaptureUsageDescription.');
@@ -54,7 +54,7 @@ if (!content.includes('NSScreenCaptureUsageDescription')) {
 if (!content.includes('NSAudioCaptureUsageDescription')) {
   content = content.replace(
     '<key>NSMicrophoneUsageDescription</key>',
-    '<key>NSAudioCaptureUsageDescription</key>\n\t<string>Natively needs system audio access to transcribe meeting audio.</string>\n\t<key>NSMicrophoneUsageDescription</key>'
+    '<key>NSAudioCaptureUsageDescription</key>\n\t<string>Sneak-Peek needs system audio access to transcribe meeting audio.</string>\n\t<key>NSMicrophoneUsageDescription</key>'
   );
   modified = true;
   console.log('[patch-electron-plist] Added NSAudioCaptureUsageDescription.');
@@ -68,11 +68,11 @@ if (!content.includes('NSAudioCaptureUsageDescription')) {
 // In dev we run the loose node_modules `Electron.app`, whose stock Info.plist
 // has CFBundleName=Electron and NO LSUIElement, so macOS paints a generic
 // "Electron" dock tile the instant `electron .` launches — before any JS runs.
-// The app then renames itself to "Natively" (app.setName + CFBundleName),
+// The app then renames itself to "Sneak-Peek" (app.setName + CFBundleName),
 // triggering a LaunchServices re-registration that can leave the original tile
 // behind alongside the renamed one. With LSUIElement set, the process starts
 // agent-style (no tile), and the app's existing setActivationPolicy('regular')
-// promotion at startup paints exactly one correctly-timed "Natively" tile.
+// promotion at startup paints exactly one correctly-timed "Sneak-Peek" tile.
 //
 // Scope: this only touches the DEV node_modules bundle. Packaged/signed builds
 // use their own production plist (package.json build.mac.extendInfo /
@@ -96,7 +96,7 @@ if (!content.includes('LSUIElement')) {
 if (content.includes('This app needs access to the microphone')) {
   content = content.replace(
     '<string>This app needs access to the microphone</string>',
-    '<string>Natively needs microphone access to transcribe your voice during meetings.</string>'
+    '<string>Sneak-Peek needs microphone access to transcribe your voice during meetings.</string>'
   );
   modified = true;
   console.log('[patch-electron-plist] Updated NSMicrophoneUsageDescription text.');

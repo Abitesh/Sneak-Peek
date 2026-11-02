@@ -23,7 +23,7 @@ const p = (q) => planAnswer({ question: q, source: 'manual_input', speakerPerspe
 describe('Bare "solve" must not hijack a project-description question into coding', () => {
   const projectProblemQuestions = [
     "What's RedisMart and what problem does it solve?",
-    'What problem does Natively solve?',
+    'What problem does Sneak-Peek solve?',
     'What problem does your project solve for users?',
     'What problem does the RedisMart app solve?',
   ];

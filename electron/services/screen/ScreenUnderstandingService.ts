@@ -1,6 +1,6 @@
 // electron/services/screen/ScreenUnderstandingService.ts
 //
-// VISION-FIRST screen understanding pipeline for Natively.
+// VISION-FIRST screen understanding pipeline for Sneak-Peek.
 //
 // Flow:
 //   request
@@ -226,7 +226,7 @@ export class ScreenUnderstandingService {
         imageHash,
         unavailableReason: mode === 'private_vision'
           ? 'No local vision provider is available. Configure Ollama with a vision-capable model (llava, qwen2.5-vl, llama3.2-vision, etc.) or enable Codex CLI vision.'
-          : 'No vision-capable provider is configured. Add an API key for OpenAI, Claude, Gemini, Groq, or Natively, or configure a local Ollama vision model.',
+          : 'No vision-capable provider is configured. Add an API key for OpenAI, Claude, Gemini, Groq, or Sneak-Peek, or configure a local Ollama vision model.',
       });
     }
 

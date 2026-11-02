@@ -169,10 +169,10 @@ describe('Defect D: the reported follow-ups resolve', () => {
   const scope = { userId: 'local', sessionId: 's1' };
 
   test('"What should I say?" inherits the user-count exchange', () => {
-    const st = advance(null, { scope, question: 'How many users does Natively have?', answerSummary: '16,000+ users.' });
+    const st = advance(null, { scope, question: 'How many users does Sneak-Peek have?', answerSummary: '16,000+ users.' });
     const r = resolveReference('What should I say?', st);
     assert.equal(r.usedState, true);
-    assert.ok(r.resolved.includes('How many users does Natively have?'), r.resolved);
+    assert.ok(r.resolved.includes('How many users does Sneak-Peek have?'), r.resolved);
   });
 
   test('"Can you explain it generally instead?" resolves it → quantum computing', () => {

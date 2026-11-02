@@ -85,7 +85,7 @@ function writeLicense(provider, hwid, extra = {}) {
 /** Cold app launch. Both singleton handles must be cleared — getInstance()
  *  falls back to the static when the globalThis anchor is gone. */
 function freshManager() {
-  delete globalThis.__nativelyLicenseManagerV1__;
+  delete globalThis.__sneakPeekLicenseManagerV1__;
   LicenseManager.instance = undefined;
   return LicenseManager.getInstance();
 }

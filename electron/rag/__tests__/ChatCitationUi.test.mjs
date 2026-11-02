@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ui = fs.readFileSync(
-  path.join(process.cwd(), 'src/components/NativelyInterface.tsx'),
+  path.join(process.cwd(), 'src/components/SneakPeekInterface.tsx'),
   'utf8',
 );
 

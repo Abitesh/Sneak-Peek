@@ -11,7 +11,7 @@
 // failure: the deterministic profile fast-path was gated by a brittle
 // answer-type check (`answerType !== 'lecture_answer'`) that missed the five
 // OTHER document answer shapes, so "What are the four main phases of the
-// project?" (→ list_answer) leaked "My project Natively…" over the uploaded
+// project?" (→ list_answer) leaked "My project Sneak-Peek…" over the uploaded
 // file.
 //
 // The resolver is intentionally GENERAL and PURE:
@@ -22,7 +22,7 @@
 //   - `explicitProfileAsk` detects only the GENERIC first-person-possessive
 //     SHAPE ("my resume", "my project", "from my background") — it never looks
 //     for a specific project name. It answers "did the user claim ownership?",
-//     not "did they mention Natively?".
+//     not "did they mention Sneak-Peek?".
 //   - No document terms, no company names, no question strings are hardcoded.
 //
 // Consumed by: the manual gemini-chat-stream fast-path gate, the OKF

@@ -129,30 +129,30 @@ describe('Skill prefix regex', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Skill picker UI wiring (static source assertions on NativelyInterface.tsx)
+// 4. Skill picker UI wiring (static source assertions on SneakPeekInterface.tsx)
 // ---------------------------------------------------------------------------
 describe('Issue #303: skill picker dropdown in overlay chat input', () => {
-  test('createPortal is imported from react-dom in NativelyInterface.tsx', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+  test('createPortal is imported from react-dom in SneakPeekInterface.tsx', () => {
+    const source = read('src/components/SneakPeekInterface.tsx');
     assert.match(source, /import\s*\{\s*createPortal\s*\}\s*from\s*['"]react-dom['"]/,
       'createPortal must be imported from react-dom');
   });
 
-  test('SkillPicker component is defined in NativelyInterface.tsx', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+  test('SkillPicker component is defined in SneakPeekInterface.tsx', () => {
+    const source = read('src/components/SneakPeekInterface.tsx');
     assert.match(source, /function SkillPicker\s*\(/, 'SkillPicker must be defined');
     assert.match(source, /position:\s*['"]fixed['"]/, 'SkillPicker must use fixed positioning to escape overflow-hidden shell');
     assert.match(source, /onMouseDown.*e\.preventDefault/, 'SkillPicker must use onMouseDown+preventDefault to keep input focus');
   });
 
-  test('skill list is fetched on mount via skillsRefresh in NativelyInterface.tsx', () => {
-    const source = read('src/components/NativelyInterface.tsx');
-    assert.match(source, /skillsRefresh\?\.\(\)/, 'skillsRefresh must be called in NativelyInterface');
+  test('skill list is fetched on mount via skillsRefresh in SneakPeekInterface.tsx', () => {
+    const source = read('src/components/SneakPeekInterface.tsx');
+    assert.match(source, /skillsRefresh\?\.\(\)/, 'skillsRefresh must be called in SneakPeekInterface');
     assert.match(source, /setAvailableSkills/, 'availableSkills state must be set from skillsRefresh result');
   });
 
   test('picker derives from inputValue — opens on / or $ prefix, closes on space', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+    const source = read('src/components/SneakPeekInterface.tsx');
     // The regex that drives the picker open/closed state
     assert.match(source, /\^[\/\$\[]/, 'picker regex must anchor to start and match / or $');
     assert.match(source, /filteredSkills/, 'filtered skills derived list must exist');
@@ -160,7 +160,7 @@ describe('Issue #303: skill picker dropdown in overlay chat input', () => {
   });
 
   test('ArrowUp/ArrowDown/Escape/Tab/Enter handled in onKeyDown for picker navigation', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+    const source = read('src/components/SneakPeekInterface.tsx');
     assert.match(source, /ArrowUp/, 'ArrowUp must be handled');
     assert.match(source, /ArrowDown/, 'ArrowDown must be handled');
     assert.match(source, /Escape.*setInputValue\(['"]['"]\)|setInputValue\(['"]['"]\).*Escape/s,
@@ -169,7 +169,7 @@ describe('Issue #303: skill picker dropdown in overlay chat input', () => {
   });
 
   test('selectSkill sets inputValue to /skill-id with trailing space', () => {
-    const source = read('src/components/NativelyInterface.tsx');
+    const source = read('src/components/SneakPeekInterface.tsx');
     // The prefix is dynamic now — `const prefix = inputValue.startsWith('$') ? '$' : '/'`
     // — so a skill can be invoked with either sigil. The invariant is the
     // COMPLETION shape: the chosen prefix, the skill id, and a TRAILING SPACE so

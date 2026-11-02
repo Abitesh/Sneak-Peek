@@ -417,7 +417,7 @@ export class SessionTracker {
             return false;
         }
 
-        // Natively-style filtering
+        // Sneak-Peek-style filtering
         if (!text) return false;
 
         // Prompt System v2 no-action sentinel (2026-08-01): [[NO_ACTION]] is a

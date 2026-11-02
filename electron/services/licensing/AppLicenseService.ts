@@ -1,7 +1,7 @@
 /**
  * AppLicenseService - Application-owned license validation and state management
  *
- * This service replaces the deprecated Natively API licensing model.
+ * This service replaces the deprecated Sneak-Peek API licensing model.
  * It provides a single canonical source of truth for application license state.
  *
  * License Key: AVIABI-2005-2007-1977 (development build)

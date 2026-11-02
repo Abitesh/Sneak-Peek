@@ -3,7 +3,7 @@ import { useT } from '../../i18n';
 import { ArrowRight, Loader, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 // Static import keeps Vite from warning about a "mixed" dynamic+static import
-// graph for analytics.service (App.tsx, Launcher.tsx, NativelyInterface.tsx,
+// graph for analytics.service (App.tsx, Launcher.tsx, SneakPeekInterface.tsx,
 // and SettingsOverlay.tsx all import it statically). The previous
 // `import('../../lib/analytics/analytics.service')` was a tiny "split off
 // the analytics chunk" gesture, but it triggered Vite's dynamic-import

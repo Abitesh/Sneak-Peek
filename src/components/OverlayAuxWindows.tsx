@@ -17,7 +17,7 @@ import { getGlassOverlayAppearance, getOverlayAppearance } from '../lib/overlayA
 // renderer, which invokes the exact same handlers the inline components used.
 
 export interface OverlayUiState {
-  /** Vertical show/hide (Cmd+B) — mirrors NativelyInterface's isExpanded. */
+  /** Vertical show/hide (Cmd+B) — mirrors SneakPeekInterface's isExpanded. */
   expanded?: boolean;
   /** Whether the shell is at its wide width — drives the toggle's icon. */
   shellWide?: boolean;

@@ -1,5 +1,5 @@
 // SpeakerLabelService.ts (Phase 9, MVP)
-// Editable speaker labels. Natively's STT pipeline emits two logical speakers today
+// Editable speaker labels. Sneak-Peek's STT pipeline emits two logical speakers today
 // (`user` → mic, `interviewer`/system → remote); true diarization is not available yet
 // (see docs/speaker-diarization-plan.md). This service:
 //   - derives canonical speaker ids from raw transcript speaker strings,

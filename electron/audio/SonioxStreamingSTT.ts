@@ -50,7 +50,7 @@ export class SonioxStreamingSTT extends EventEmitter {
     // back-to-back (common pattern: device route change emits both new sample
     // rate AND new language in the same tick). The second WS handshake races
     // the first; one of them loses with code 1006 and triggers a reconnect
-    // storm. Same shape as the NativelyProSTT 250ms reconnect pattern.
+    // storm. Same shape as the SneakPeekProSTT 250ms reconnect pattern.
     private pendingRestartTimer: NodeJS.Timeout | null = null;
 
     private buffer: Buffer[] = [];
@@ -308,7 +308,7 @@ export class SonioxStreamingSTT extends EventEmitter {
         // (write() can no longer reach it), clear the new keepalive, and — on
         // a normal 1000 close — set isActive=false, which silently drops every
         // subsequent chunk with no 'error' emitted and no banner (total silent
-        // death until a manual Stop/Start). Mirrors NativelyProSTT's
+        // death until a manual Stop/Start). Mirrors SneakPeekProSTT's
         // documented `guard(ws === this.ws)` pattern.
         const ws = this.ws;
 

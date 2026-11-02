@@ -1,5 +1,5 @@
 // DEV-ONLY visual harness for the streaming code-block fix (see
-// StreamingHighlightedCode / CodeStreamLine in NativelyInterface.tsx).
+// StreamingHighlightedCode / CodeStreamLine in SneakPeekInterface.tsx).
 //
 // Not part of the shipped app — served only via harness.html, which is not
 // referenced from index.html or vite.config.mts's rollup entry, so it is
@@ -16,7 +16,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../index.css';
-import { StreamingHighlightedCode } from '../components/NativelyInterface';
+import { StreamingHighlightedCode } from '../components/SneakPeekInterface';
 import { createPacerState, tickPacer } from '../lib/textRevealPacing.mjs';
 
 // Deliberately includes: prose before the fence, a line with an OPEN quote
@@ -125,7 +125,7 @@ function Harness() {
   // Extract the still-open fence's code-so-far, the same way
   // renderMessageText does: split on the fence regex, find the fence part,
   // strip the ```lang\n marker — WITHOUT trimming (see the .trim() bug fix
-  // comment at the real call site in NativelyInterface.tsx).
+  // comment at the real call site in SneakPeekInterface.tsx).
   const parts = text.split(/(```[\s\S]*?(?:```|$))/g);
   const fencePart = parts.find((p) => p.startsWith('```'));
   const match = fencePart?.match(/```([\w+#-]*)\s+([\s\S]*?)(?:```|$)/);

@@ -78,14 +78,14 @@ test('an empty final still endpoints — the utterance ended even with no words'
   stt.stop();
 });
 
-// ── NativelyProSTT: speaker labels when the relay sends them ─────────────
+// ── SneakPeekProSTT: speaker labels when the relay sends them ─────────────
 // The app's primary speaker separation is physical (mic vs system audio).
 // This covers the case separation cannot reach — several voices inside the
 // meeting-audio channel — and only activates if the relay forwards a tag.
 
-test('NativelyProSTT surfaces a relay speaker tag as speakerId, in every shape the relay might use', () => {
-  const { NativelyProSTT } = require(path.join(distDir, 'NativelyProSTT.js'));
-  const stt = Object.create(NativelyProSTT.prototype);
+test('SneakPeekProSTT surfaces a relay speaker tag as speakerId, in every shape the relay might use', () => {
+  const { SneakPeekProSTT } = require(path.join(distDir, 'SneakPeekProSTT.js'));
+  const stt = Object.create(SneakPeekProSTT.prototype);
   // The parsing is a pure expression over the message; exercise it directly in
   // the same shapes the relay could plausibly send.
   const idOf = (msg) => typeof msg.speaker === 'string' ? msg.speaker
@@ -96,5 +96,5 @@ test('NativelyProSTT surfaces a relay speaker tag as speakerId, in every shape t
   assert.equal(idOf({ text: 'hi', speaker: 2 }), 'speaker_2');
   assert.equal(idOf({ text: 'hi', speaker_id: 'speaker_3' }), 'speaker_3');
   assert.equal(idOf({ text: 'hi' }), undefined, 'no tag from a relay that does not diarize');
-  assert.ok(stt instanceof NativelyProSTT);
+  assert.ok(stt instanceof SneakPeekProSTT);
 });

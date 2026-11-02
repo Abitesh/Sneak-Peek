@@ -24,7 +24,7 @@ describe('Issue 3: WTA ↔ manual routing parity (single source of truth)', () =
     'What is your name?', 'What projects have you done?', 'Rate your Python skills out of 10.',
     'How would you use SQL?', 'How have you used SQL?', 'Solve Two Sum.', 'Explain BFS.',
     'What salary are you expecting?', 'What are the action items?', 'Why should we hire you?',
-    'Tell me about Natively.', 'Where did you study?', 'What is your biggest strength?',
+    'Tell me about Sneak-Peek.', 'Where did you study?', 'What is your biggest strength?',
   ];
   for (const q of questions) {
     test(`"${q}" — same answerType + profileContextPolicy across modes`, () => {
@@ -35,7 +35,7 @@ describe('Issue 3: WTA ↔ manual routing parity (single source of truth)', () =
   }
 
   test('WTA profile/identity answers always use first_person_candidate voice', () => {
-    for (const q of ['What is your name?', 'Why should we hire you?', 'Rate your Python skills out of 10.', 'Tell me about Natively.']) {
+    for (const q of ['What is your name?', 'Why should we hire you?', 'Rate your Python skills out of 10.', 'Tell me about Sneak-Peek.']) {
       assert.equal(wta(q).voicePerspective, 'first_person_candidate', q);
     }
   });

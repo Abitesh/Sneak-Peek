@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sourcePath = path.resolve(__dirname, '../../components/TopControlBar.tsx');
 const source = readFileSync(sourcePath, 'utf8');
-const nativelyInterfaceSource = readFileSync(
-  path.resolve(__dirname, '../../components/NativelyInterface.tsx'),
+const sneakPeekInterfaceSource = readFileSync(
+  path.resolve(__dirname, '../../components/SneakPeekInterface.tsx'),
   'utf8',
 );
 
@@ -26,10 +26,10 @@ test('TopControlBar is an in-flow toolbar inside the chat shell (not fixed outsi
 });
 
 test('TopControlBar mounts inside the shell card, not as an outside sibling overlay', () => {
-  assert.match(nativelyInterfaceSource, /data-shell-card[\s\S]*?<TopControlBar/,
+  assert.match(sneakPeekInterfaceSource, /data-shell-card[\s\S]*?<TopControlBar/,
     'BUG: the toolbar must render as a child of the chat shell card so it stays inside the window hit region.');
-  assert.doesNotMatch(nativelyInterfaceSource, /<>\s*<TopControlBar/,
+  assert.doesNotMatch(sneakPeekInterfaceSource, /<>\s*<TopControlBar/,
     'BUG: rendering TopControlBar as a fragment sibling outside the shell puts it outside the chat window.');
-  assert.doesNotMatch(nativelyInterfaceSource, /new BrowserWindow\s*\(.*TopControlBar|TopControlBar.*new BrowserWindow/s,
+  assert.doesNotMatch(sneakPeekInterfaceSource, /new BrowserWindow\s*\(.*TopControlBar|TopControlBar.*new BrowserWindow/s,
     'BUG: the toolbar must not be created via a separate Electron BrowserWindow or second renderer root.');
 });

@@ -35,10 +35,10 @@ import nvidiaMark from '../../assets/provider-logos/nvidia.svg?raw';
 // this registry stays a plain id→asset map with no platform logic in it.
 import appleMark from '../../assets/provider-logos/apple.svg?raw';
 import microsoftMark from '../../assets/provider-logos/microsoft.svg?raw';
-// Our own app icon, for the Natively API row. Raster and full-colour, so it is a
+// Our own app icon, for the Sneak-Peek API row. Raster and full-colour, so it is a
 // URL rendered with <img> rather than inlined markup — there is no currentColor
 // in a PNG, so an <img> loses nothing.
-import nativelyIcon from '../../../assets/icon-512.png';
+import sneakPeekIcon from '../../../assets/icon-512.png';
 
 /**
  * Provider id → inlined brand mark, keyed by the ids used in the speech provider
@@ -64,7 +64,7 @@ export const BRAND_MARKS: Record<string, string> = {
  * a PNG has no currentColor to resolve, so it needs no inlining.
  */
 export const BRAND_MARK_IMAGES: Record<string, string> = {
-    natively: nativelyIcon,
+    natively: sneakPeekIcon,
 };
 
 /**

@@ -24,7 +24,7 @@ export const ProfileFeatureToaster: React.FC<any> = NullComponent;
 export const JDAwarenessToaster: React.FC<any> = NullComponent;
 export const RemoteCampaignToaster: React.FC<any> = NullComponent;
 export const NegotiationCoachingCard: React.FC<any> = NullComponent;
-export const NativelyApiPromoToaster: React.FC<any> = NullComponent;
+export const SneakPeekApiPromoToaster: React.FC<any> = NullComponent;
 export const MaxUltraUpgradeToaster: React.FC<any> = NullComponent;
 export const ModesSettings: React.FC<any> = NullComponent;
 export const useAdCampaigns = () => ({

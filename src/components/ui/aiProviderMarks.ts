@@ -33,9 +33,9 @@ import nvidiaMark from '../../assets/provider-logos/nvidia.svg?raw';
 // loses nothing here. Vendored from BerriAI/litellm — MIT, and outside the
 // `enterprise/` directory that their LICENSE carves out.
 import litellmMark from '../../assets/provider-logos/litellm.png';
-// Our own app icon, for the Natively API row. Raster and full-colour, so it is a
+// Our own app icon, for the Sneak-Peek API row. Raster and full-colour, so it is a
 // URL rendered with <img> for the same reason as litellm.
-import nativelyIcon from '../../../assets/icon-512.png';
+import sneakPeekIcon from '../../../assets/icon-512.png';
 
 /**
  * Monogram letters + the tile wash colour, for providers with no vendored mark
@@ -59,7 +59,7 @@ export const AI_PROVIDER_BRANDS: Record<string, { mono: string; brand: string }>
 /** Raster marks, rendered as <img>. See AI_PROVIDER_MARKS for the inlined SVGs. */
 export const AI_PROVIDER_MARK_IMAGES: Record<string, string> = {
     litellm: litellmMark,
-    natively: nativelyIcon,
+    natively: sneakPeekIcon,
 };
 
 /**

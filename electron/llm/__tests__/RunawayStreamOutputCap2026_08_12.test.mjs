@@ -1,6 +1,6 @@
 // electron/llm/__tests__/RunawayStreamOutputCap2026_08_12.test.mjs
 //
-// Live capture 2026-08-12 (what_to_answer, Natively fast-mode):
+// Live capture 2026-08-12 (what_to_answer, Sneak-Peek fast-mode):
 //
 //   tfft=2084ms  tokens=8047  chars=22871  totalStreamMs=61221
 //   error='ai_unavailable'  message='The operation was aborted due to timeout'
@@ -324,10 +324,10 @@ describe('the cap actually bounds a runaway end-to-end', () => {
 });
 
 describe('the unbounded request is recorded as still open', () => {
-  test('streamWithNatively removed (Natively backend disabled)', () => {
-    // streamWithNatively was removed as part of Natively backend deprecation.
+  test('streamWithNatively removed (Sneak-Peek backend disabled)', () => {
+    // streamWithNatively was removed as part of Sneak-Peek backend deprecation.
     // The gap it documented (unbounded max_tokens) is no longer relevant.
     const start = src.indexOf('private async * streamWithNatively(');
-    assert.equal(start, -1, 'streamWithNatively must be removed (Natively backend is disabled)');
+    assert.equal(start, -1, 'streamWithNatively must be removed (Sneak-Peek backend is disabled)');
   });
 });

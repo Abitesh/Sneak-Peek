@@ -105,7 +105,7 @@ const GROUNDING_BACKSTOP =
  */
 export function buildMetaPromptSystem(): string {
     return [
-        'You are a configuration generator for an AI interview/meeting assistant called Natively.',
+        'You are a configuration generator for an AI interview/meeting assistant called Sneak-Peek.',
         'You turn a short natural-language brief into a single custom "mode" the assistant will run.',
         'A mode has three parts: a short display NAME, a TEMPLATE_TYPE, and a REAL-TIME PROMPT (customContext).',
         '',

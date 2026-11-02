@@ -1,5 +1,5 @@
 // Context Intelligence V3 — regression tests for the 2026-08-01 DEEP-TEST defect set
-// (Natively_Deep_Mode_Test_Pack campaign; defects D1–D10 in
+// (Sneak-Peek_Deep_Mode_Test_Pack campaign; defects D1–D10 in
 // .audit/ci-v3/deep-test-defects-2026-08-01-root-causes.md).
 //
 // D2/D3/D5: identifier/value questions ("what is the resume canary?", "worker

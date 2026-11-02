@@ -1,6 +1,6 @@
 // electron/services/__tests__/GroqRetiredModels2026_08_23.test.mjs
 //
-// Groq switched off every Llama id Natively shipped:
+// Groq switched off every Llama id Sneak-Peek shipped:
 //   meta-llama/llama-4-scout-17b-16e-instruct  shut down 2026-07-17 (vision)
 //   llama-3.3-70b-versatile                    shut down 2026-08-16 (text)
 // See https://console.groq.com/docs/deprecations. Both were still pinned as

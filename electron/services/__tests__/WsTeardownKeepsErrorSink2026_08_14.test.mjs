@@ -7,7 +7,7 @@
 // this branch the process keeps running with dead persistence).
 // Live-reproduced through the real OpenAI provider (stalled TLS handshake)
 // in scripts/audit/F-201-repro.mjs. Related: main's 21c4e22f fixes the
-// NativelyProSTT site with fuller lifecycle machinery.
+// SneakPeekProSTT site with fuller lifecycle machinery.
 //
 // Contracts pinned here: no STT provider file contains a bare
 // strip-then-close on a WebSocket; every former site routes through
@@ -24,7 +24,7 @@ const audioDir = path.join(__dirname, '..', '..', 'audio');
 const PROVIDER_FILES = [
   'OpenAIStreamingSTT.ts',
   'ElevenLabsStreamingSTT.ts',
-  'NativelyProSTT.ts',
+  'SneakPeekProSTT.ts',
   'SonioxStreamingSTT.ts',
   'DeepgramStreamingSTT.ts',
 ];
@@ -50,7 +50,7 @@ test('every former strip-then-close site keeps an error sink across the close', 
   // The contract is that an 'error' listener survives the close, NOT that a
   // particular function spells it. Two sites route through the shared helper.
   //
-  // NativelyProSTT does not, deliberately: main's 21c4e22f had already fixed
+  // SneakPeekProSTT does not, deliberately: main's 21c4e22f had already fixed
   // this site with fuller lifecycle machinery (this file's own header and
   // wsSafeTeardown.ts's module doc both say so). Its inline version is the
   // stronger of the two — it strips per-event instead of blanket-stripping,
@@ -67,18 +67,18 @@ test('every former strip-then-close site keeps an error sink across the close', 
     );
   }
 
-  const proSrc = fs.readFileSync(path.join(audioDir, 'NativelyProSTT.ts'), 'utf8');
+  const proSrc = fs.readFileSync(path.join(audioDir, 'SneakPeekProSTT.ts'), 'utf8');
   const sinkIdx = proSrc.search(/dying\.on\(\s*'error'/);
   const closeIdx = proSrc.search(/dying\.close\(\)/);
   assert.ok(
     sinkIdx >= 0,
-    'NativelyProSTT.ts: the detached socket must keep an error sink — ws@8 emits the abort error one '
+    'SneakPeekProSTT.ts: the detached socket must keep an error sink — ws@8 emits the abort error one '
     + 'tick after close() on a CONNECTING socket, and a listener-less emit becomes an uncaughtException '
     + 'that irreversibly closes the database (F-201).'
   );
   assert.ok(
     closeIdx > sinkIdx,
-    'NativelyProSTT.ts: the error sink must be attached BEFORE close() — attaching it afterwards loses '
+    'SneakPeekProSTT.ts: the error sink must be attached BEFORE close() — attaching it afterwards loses '
     + 'the race with abortHandshake()\'s next-tick emit.'
   );
 });

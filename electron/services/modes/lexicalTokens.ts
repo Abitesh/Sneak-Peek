@@ -10,8 +10,8 @@
 // comment cannot prevent. Sharing the code removes the hazard.
 //
 // NUMERAL EQUIVALENCE — measured defect
-// A user asking "How fast did Natively reach ten thousand users?" retrieved
-// NOTHING from a résumé that says "scaled Natively to 10k users in the first 90
+// A user asking "How fast did Sneak-Peek reach ten thousand users?" retrieved
+// NOTHING from a résumé that says "scaled Sneak-Peek to 10k users in the first 90
 // days". Measured on corpus question A-03:
 //
 //   query "…reach ten thousand users?"  ->  résumé fts 0.000  ·  NOT retrieved

@@ -173,7 +173,7 @@ describe('main → preload → overlay wiring', () => {
   });
 
   test('overlay subscribes and renders the fallback pill', () => {
-    const src = read('src/components/NativelyInterface.tsx');
+    const src = read('src/components/SneakPeekInterface.tsx');
     assert.match(src, /onPageCaptureFallback/);
     assert.match(src, /captureFallback/);
   });
@@ -183,7 +183,7 @@ describe('main → preload → overlay wiring', () => {
     // chat card itself must show WHICH page fed the answer (mirrors the
     // screenshot thumbnails). Verified live: card reads
     // "Page attached · leetcode.com — Two Sum - LeetCode".
-    const src = read('src/components/NativelyInterface.tsx');
+    const src = read('src/components/SneakPeekInterface.tsx');
     assert.match(src, /capturedMetaRef/);
     assert.match(src, /Page attached/);
     assert.match(src, /m\.id === questionCardId \? \{ \.\.\.m, pageContext: pageMeta \}/);
@@ -202,7 +202,7 @@ describe('main → preload → overlay wiring', () => {
     assert.match(main, /PAGE_CAPTURE_STARTED_CHANNEL,\s*\{ at: Date\.now\(\) \}/);
     const preload = read('electron/preload.ts');
     assert.match(preload, /ipcRenderer\.on\(PAGE_CAPTURE_STARTED_CHANNEL/);
-    const ui = read('src/components/NativelyInterface.tsx');
+    const ui = read('src/components/SneakPeekInterface.tsx');
     assert.match(ui, /onPageCaptureStarted/);
     assert.match(ui, /pendingPageCaptureAtRef/);
   });
@@ -212,7 +212,7 @@ describe('main → preload → overlay wiring', () => {
     // something; the JIT auto-attach is a guess about the active tab. With
     // screenshots attached, the auto request must not run (they can describe
     // different content). Manual ⌘⇧Y captures still attach alongside.
-    const src = read('src/components/NativelyInterface.tsx');
+    const src = read('src/components/SneakPeekInterface.tsx');
     assert.match(src, /!hasManualContext && currentAttachments\.length === 0/);
   });
 });

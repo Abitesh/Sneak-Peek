@@ -33,7 +33,7 @@
 //!
 //! # keyCode contract with the renderer
 //!
-//! `NativelyInterface.tsx` hardcodes macOS HID virtual keycodes (53=Esc,
+//! `SneakPeekInterface.tsx` hardcodes macOS HID virtual keycodes (53=Esc,
 //! 36=Return, 76=NumpadEnter, 51=Backspace) and expects Tab (48) + arrows
 //! (123-126) + F-keys + any system-modifier combo to be PASSED THROUGH (never
 //! delivered). We translate Windows VK codes to those mac HID codes and apply

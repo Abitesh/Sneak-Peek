@@ -1,5 +1,5 @@
 // MeetingSummaryV3.ts
-// Canonical, spec-aligned schema for Natively post-meeting notes (Phase 5).
+// Canonical, spec-aligned schema for Sneak-Peek post-meeting notes (Phase 5).
 //
 // This is the single source of truth for the MeetingSummaryV3 shape and its runtime
 // validation/repair. It deliberately uses a hand-written validator (no new dependency)
@@ -242,7 +242,7 @@ export function cleanNoteText(value: unknown, max = 240): string {
 // answers the transcript instead of naming it writes its whole reply into the
 // title column. Two real rows, 2026-08-02:
 //
-//   197 chars  "I'm Natively, an AI assistant developed by Evin John. I help you ..."
+//   197 chars  "I'm Sneak-Peek, an AI assistant developed by Evin John. I help you ..."
 //    60 chars  "A third-party GraphQL client is a separate tool, service, or"
 //
 // So the bound lives here, in code, and is deliberately prompt-agnostic: it has

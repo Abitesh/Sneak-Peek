@@ -1,6 +1,6 @@
 // electron/llm/__tests__/InterimInjectionGuard2026_08_21.test.mjs
 //
-// RC-1 regression suite from live shadow session C (2026-08-21, NativelyProSTT).
+// RC-1 regression suite from live shadow session C (2026-08-21, SneakPeekProSTT).
 //
 // Measured defect: the STT relay sent CUMULATIVE interim results — one interim
 // grew monotonically 21 -> 10,126 chars over 56 minutes, never resetting per
@@ -47,11 +47,11 @@ const resolve = (interimText, opts = {}) => resolveInterimInjection({
 describe('RC-1: cumulative superset interims are cut to their novel tail', () => {
   test('interim repeating two prior finals injects only the unseen question', () => {
     const priorFinals = finals(
-      'Tell me about Natively, the meeting copilot.',
+      'Tell me about Sneak-Peek, the meeting copilot.',
       'And what part of the system did you personally build?',
     );
     const r = resolve(
-      'Tell me about Natively, the meeting copilot. And what part of the system did you personally build? '
+      'Tell me about Sneak-Peek, the meeting copilot. And what part of the system did you personally build? '
       + 'Okay. If I were to clone this repository today, where would you start?',
       { finals: priorFinals },
     );

@@ -43,7 +43,7 @@ function detailCardRules() {
     while ((m = re.exec(LIVE))) {
         const selector = m[1].trim().split('\n').map((s) => s.trim()).join(' ');
         const body = m[2];
-        if (!/\.natively-api-detail-card(-standard|-pro|-max|-ultra)?\b/.test(selector)) continue;
+        if (!/\.sneak-peek-api-detail-card(-standard|-pro|-max|-ultra)?\b/.test(selector)) continue;
         // Descendant rules (the CTA, the fill pill, the "current plan" tag) are
         // separate elements with their own shadow vocabulary and their own
         // transitions — the contract is about the card surface itself, which is
@@ -203,7 +203,7 @@ describe('API detail card — four-slot box-shadow contract', () => {
         // every frame; a CSS transition on the same property re-smooths each
         // write and makes the press lag.
         for (const theme of ['liquid-glass', 'modern']) {
-            const sel = `[data-interface-theme="${theme}"] .natively-api-detail-card {`;
+            const sel = `[data-interface-theme="${theme}"] .sneak-peek-api-detail-card {`;
             const i = LIVE.indexOf(sel);
             assert.notEqual(i, -1, `${sel} not found`);
             const block = LIVE.slice(i, LIVE.indexOf('}', i));

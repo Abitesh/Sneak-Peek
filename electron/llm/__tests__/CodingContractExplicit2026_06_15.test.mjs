@@ -118,10 +118,10 @@ describe('buildCodingContractPrompt — minimal vs six-section', () => {
     assert.match(p, /NO CODE|Do NOT output any code/i);
   });
 
-  test('all explicit contracts forbid profile/Natively leakage', () => {
+  test('all explicit contracts forbid profile/Sneak-Peek leakage', () => {
     for (const c of ['code_only', 'complexity_only', 'dry_run_only', 'explain_only']) {
       const p = buildCodingContractPrompt(c);
-      assert.match(p, /NEVER mention "Natively"/);
+      assert.match(p, /NEVER mention "Sneak-Peek"/);
       assert.match(p, /Do not include resume, JD/);
     }
   });

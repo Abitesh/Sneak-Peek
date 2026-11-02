@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sourcePath = path.resolve(__dirname, '../../components/NativelyInterface.tsx');
+const sourcePath = path.resolve(__dirname, '../../components/SneakPeekInterface.tsx');
 const source = readFileSync(sourcePath, 'utf8');
 
 test('meeting chat viewport disables horizontal scrolling while retaining vertical scrolling', () => {

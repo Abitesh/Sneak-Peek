@@ -1,7 +1,7 @@
 // Last known license state, remembered ACROSS RESTARTS.
 //
 // WHY THIS EXISTS. Whether Pro came from a standalone Yearly/Lifetime licence
-// or bundled with a Natively API plan is settled at activation time and does
+// or bundled with a Sneak-Peek API plan is settled at activation time and does
 // not change until the user pastes a different key. But the Plans & Billing tab
 // re-derives it asynchronously on every open, from two independent
 // `licenseGetDetails()` calls (PlansSettings, to decide whether to collapse the

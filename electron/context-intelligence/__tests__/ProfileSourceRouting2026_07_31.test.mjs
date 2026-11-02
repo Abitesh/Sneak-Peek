@@ -22,7 +22,7 @@ const { createModeRetrievalPort } = await import(pathToFileURL(path.join(base, '
 const { combineRetrievalPorts } = await import(pathToFileURL(path.join(base, 'retrieval/meeting-retrieval-port.js')).href);
 
 const RESUME_STRUCTURED = {
-  identity: { name: 'Evin John', summary: 'Engineer shipping user-facing AI products. Built Natively, an open-source AI desktop assistant used by 16,000+ users.', location: 'Kochi, Kerala' },
+  identity: { name: 'Evin John', summary: 'Engineer shipping user-facing AI products. Built Sneak-Peek, an open-source AI desktop assistant used by 16,000+ users.', location: 'Kochi, Kerala' },
   skills: { Languages: ['TypeScript', 'JavaScript', 'Python', 'Java', 'SQL', 'C++'], Frameworks: ['React', 'Node.js', 'FastAPI', 'Electron'] },
   skills_flat: ['TypeScript', 'JavaScript', 'Python', 'Java', 'SQL', 'C++', 'React', 'Node.js', 'FastAPI', 'Electron'],
   experience: [
@@ -31,7 +31,7 @@ const RESUME_STRUCTURED = {
     { company: 'EstroTech Robotics', role: 'AI & Full Stack Engineer Intern', start_date: 'Jun 2025', end_date: 'Aug 2025',
       bullets: ['Built a Python/FastAPI backend processing voice and touch inputs with sub-100ms latency'] },
   ],
-  projects: [{ name: 'Natively', description: 'Built and launched an open-source AI meeting copilot. Grew to 16,000+ users, 1,500+ GitHub stars and $25K+ revenue.', technologies: ['Electron', 'TypeScript', 'Rust'] }],
+  projects: [{ name: 'Sneak-Peek', description: 'Built and launched an open-source AI meeting copilot. Grew to 16,000+ users, 1,500+ GitHub stars and $25K+ revenue.', technologies: ['Electron', 'TypeScript', 'Rust'] }],
   education: [{ institution: 'CUSAT', degree: 'B.Tech', field: 'Computer Science Engineering', gpa: '7.5/10' }],
   achievements: [],
 };
@@ -75,8 +75,8 @@ const ask = async (q) => {
 };
 
 describe('acceptance: Profile Intelligence only, zero mode attachments', () => {
-  test('How many users does Natively have? → 16,000+ from the résumé', async () => {
-    const r = await ask('How many users does Natively have?');
+  test('How many users does Sneak-Peek have? → 16,000+ from the résumé', async () => {
+    const r = await ask('How many users does Sneak-Peek have?');
     assert.ok(r.evidence.length > 0, 'evidence must exist with zero attachments');
     assert.ok(r.evidence.some((e) => e.content.includes('16,000+')));
     assert.equal(r.answerability, 'FULL');
@@ -127,10 +127,10 @@ describe('acceptance: Profile Intelligence only, zero mode attachments', () => {
     assert.equal(r.answerability, 'FULL');
   });
 
-  test('Why did I build Natively? → grounded turn with the motivation contract in the prompt', async () => {
-    const r = await ask('Why did I build Natively?');
+  test('Why did I build Sneak-Peek? → grounded turn with the motivation contract in the prompt', async () => {
+    const r = await ask('Why did I build Sneak-Peek?');
     assert.equal(r.decision.retrievalPlan.path, 'GROUNDED', 'motivation questions must not take the FAST path');
-    assert.ok(r.evidence.some((e) => e.content.includes('Natively')), 'project facts are in evidence');
+    assert.ok(r.evidence.some((e) => e.content.includes('Sneak-Peek')), 'project facts are in evidence');
     const composed = composePrompt({ decision: r.decision, policy: POLICY, evidence: r.evidence, profileSourceCount: 2 });
     assert.ok(/reason|motivation/i.test(composed.system),
       'the composer instructs that an unstated reason must be disclosed as unstated');
@@ -159,7 +159,7 @@ describe('acceptance: Profile Intelligence only, zero mode attachments', () => {
 
 describe('composition wording', () => {
   test('zero attachments + live profile: the prompt never claims nothing was attached', async () => {
-    const r = await ask('How many users does Natively have?');
+    const r = await ask('How many users does Sneak-Peek have?');
     const composed = composePrompt({
       decision: r.decision, policy: POLICY, evidence: r.evidence,
       attachedSourceCount: 0, profileSourceCount: 2,
@@ -317,7 +317,7 @@ describe('E2E-B: a supplemental mode file never hides the profile', () => {
   };
 
   test('profile questions still answer from the profile with a mode file attached', async () => {
-    const r = await askCombined('How many users does Natively have?', 'e2e-b1');
+    const r = await askCombined('How many users does Sneak-Peek have?', 'e2e-b1');
     assert.ok(r.evidence.some((e) => e.content.includes('16,000+')),
       'the supplemental file must not displace the profile résumé');
     assert.equal(r.answerability, 'FULL');

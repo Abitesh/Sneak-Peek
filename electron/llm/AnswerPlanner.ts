@@ -90,7 +90,7 @@ export type AnswerType =
   // refuses with "I can't share that" and NEVER invents a URL.
   | 'project_link_answer'
   // A request for the ACTUAL source code of a loaded project ("a snippet you used
-  // to build Natively", "repo-verifiable code"). Must retrieve real source if
+  // to build Sneak-Peek", "repo-verifiable code"). Must retrieve real source if
   // loaded + cite it, else say exact source isn't loaded and label any demo
   // conceptual — NEVER present generic code as the real implementation.
   | 'source_code_evidence_answer'
@@ -98,7 +98,7 @@ export type AnswerType =
   // decline to help hide the tool from an interviewer or bypass detection, and
   // redirect to privacy-first / consent / transparency / low-distraction themes.
   | 'ethical_usage_answer'
-  // A question ABOUT the product/project itself ("what kind of app is Natively?",
+  // A question ABOUT the product/project itself ("what kind of app is Sneak-Peek?",
   // "how's its backend?") — grounded in loaded project metadata, no overclaim.
   | 'project_about_answer';
 
@@ -152,7 +152,7 @@ export interface AnswerPlan {
   profileContextPolicy: ProfileContextPolicy;
   /**
    * Phase 5: the project/entity a follow-up resolves to ("how is IT developed?"
-   * → "Natively"). Set for project_followup_answer; undefined otherwise. Used to
+   * → "Sneak-Peek"). Set for project_followup_answer; undefined otherwise. Used to
    * scope grounding to the right project node without re-asking the model.
    */
   resolvedEntity?: string;
@@ -238,7 +238,7 @@ export interface PlanAnswerInput {
 // Derives from the single canonical CODING_CONTRACT (codingContract.ts) so the
 // planner's template can never drift from the prompts/validator. Adds the two
 // answer-contract rules that are planner-specific (no context leakage, no
-// Natively mention) on top of the shared section spec.
+// Sneak-Peek mention) on top of the shared section spec.
 // NOTE: the hidden <verification_spec> instruction is appended at PROMPT-BUILD
 // time (formatAnswerPlanForPrompt) only when code verification is enabled, so a
 // disabled kill-switch also stops the model wasting tokens emitting the spec.
@@ -249,7 +249,7 @@ ${CODING_CONTRACT}
 
 Additional rules:
 - Do not include resume, JD, salary, negotiation, or unrelated profile context unless explicitly asked.
-- NEVER mention "Natively", the assistant, the product, or the candidate's profile/projects anywhere in the answer — not in the explanation, not in a closing remark, not in an example. This is a pure technical answer about the algorithm only.`;
+- NEVER mention "Sneak-Peek", the assistant, the product, or the candidate's profile/projects anywhere in the answer — not in the explanation, not in a closing remark, not in an example. This is a pure technical answer about the algorithm only.`;
 
 // General implementation tasks (React components, scripts, utilities) get the
 // IMPL contract: code-first with the correct fence tag, short explanation, NO
@@ -261,7 +261,7 @@ ${CODING_CONTRACT_IMPL}
 
 Additional rules:
 - Do not include resume, JD, salary, negotiation, or unrelated profile context.
-- NEVER mention "Natively", the assistant, the product, or the candidate's profile anywhere in the answer.`;
+- NEVER mention "Sneak-Peek", the assistant, the product, or the candidate's profile anywhere in the answer.`;
 
 const BEHAVIORAL_TEMPLATE = `Use exactly these sections:
 
@@ -504,7 +504,7 @@ Example of the RIGHT shape (for "what is Redis?"):
 Sound like a competent engineer answering quickly in conversation — calm, specific, done in about 20 seconds.`;
 
 // SALES voice (manual regression 2026-06-12): real sales-mode sessions answered
-// "why is your product expensive?" with "I'm Natively, an AI assistant. I don't
+// "why is your product expensive?" with "I'm Sneak-Peek, an AI assistant. I don't
 // have a product or pricing model" — the model fell back to its system identity
 // because sales_answer had no template telling it WHO it is in this turn. The
 // seller speaks as the PRODUCT/TEAM REP, grounded in the active mode's product
@@ -512,7 +512,7 @@ Sound like a competent engineer answering quickly in conversation — calm, spec
 const SALES_TEMPLATE = `You are the SELLER'S spoken voice in a live sales/commercial conversation. The user is selling a product; the question comes from a customer or prospect.
 
 Rules:
-- Speak in FIRST PERSON as the product's representative ("our product", "we", "our pricing"). You are NOT an AI assistant in this answer and must NEVER say "I'm Natively", "as an AI", or "I don't have a product" — the user's product context defines the product.
+- Speak in FIRST PERSON as the product's representative ("our product", "we", "our pricing"). You are NOT an AI assistant in this answer and must NEVER say "I'm Sneak-Peek", "as an AI", or "I don't have a product" — the user's product context defines the product.
 - Ground product claims in the provided mode/custom/reference context. If pricing or a specific fact isn't in the context, handle it like a real seller: acknowledge, reframe around value, and offer to follow up with specifics — never claim the product doesn't exist.
 - Handle objections (price, speed, competitors) with empathy + value reframe + one concrete differentiator from the context when available.
 - 2-5 sentences, confident, speakable, no headings or bullet markers unless asked.
@@ -545,7 +545,7 @@ const SOURCE_CODE_EVIDENCE_TEMPLATE = `The user is asking for the ACTUAL source 
 
 Rules:
 - If the exact source code for the project is present in the provided context (reference files / loaded source), quote the relevant real snippet, name the file it came from, and add a one-line explanation. Do not modify it unless asked.
-- If the exact source code is NOT loaded, say clearly: "I don't have Natively's exact source code loaded in my current context, so I can't give you a repo-verifiable snippet." Then, ONLY IF it helps, offer a clearly-labeled CONCEPTUAL example: prefix it with "Here's a conceptual illustration (NOT the actual repo code):".
+- If the exact source code is NOT loaded, say clearly: "I don't have Sneak-Peek's exact source code loaded in my current context, so I can't give you a repo-verifiable snippet." Then, ONLY IF it helps, offer a clearly-labeled CONCEPTUAL example: prefix it with "Here's a conceptual illustration (NOT the actual repo code):".
 - NEVER present a generic/conceptual snippet as if it were the real implementation.
 - NEVER invent file names, function names, or claim a snippet is "from the repo" when it is not loaded.
 Be honest about what is and isn't available.`;
@@ -1292,7 +1292,7 @@ export const profileContextPolicyFor = (answerType: AnswerType): ProfileContextP
 };
 
 // Phase 5: pull a likely project/entity NAME out of a follow-up question
-// ("how is Natively developed?" → "Natively", "what was your role in SQL-Copilot?"
+// ("how is Sneak-Peek developed?" → "Sneak-Peek", "what was your role in SQL-Copilot?"
 // → "SQL-Copilot"). Deterministic, conservative: prefers a capitalized /
 // hyphenated token after a project preposition; never invents. Returns '' when
 // the question only uses a pronoun ("it"/"that") — the orchestrator then resolves
@@ -1650,7 +1650,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
 
   // "solve" alone is a false-positive coding signal for a PRODUCT/PROJECT
   // question ("What's RedisMart and what problem does it SOLVE?", "What
-  // problem does Natively solve?") — a bare project-description ask that
+  // problem does Sneak-Peek solve?") — a bare project-description ask that
   // shares the word "solve" with a genuine coding task ("solve two sum",
   // "can you solve this problem"), but is never asking for code. Without
   // this guard the bare `\bsolve\b` in CODING_PATTERNS (and the
@@ -1677,7 +1677,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // `write`/`implement`/DSA signal ELSEWHERE in the same message still fires
   // normally — the guard now suppresses just its own clause, not the whole
   // message.
-  const productProblemSolveMatch = text.match(/\bwhat\s+(problem|issue|pain\s?point)s?\s+(does|do|did)\s+(it|this|that|he|she|they|natively|redismart|talentscope|your|my|the|his|her)\b[\w '-]{0,20}\bsolves?\b/i);
+  const productProblemSolveMatch = text.match(/\bwhat\s+(problem|issue|pain\s?point)s?\s+(does|do|did)\s+(it|this|that|he|she|they|natively|sneak[- ]?peek|redismart|talentscope|your|my|the|his|her)\b[\w '-]{0,20}\bsolves?\b/i);
   const textWithoutProductSolveClause = productProblemSolveMatch
     ? (text.slice(0, productProblemSolveMatch.index) + text.slice((productProblemSolveMatch.index || 0) + productProblemSolveMatch[0].length))
     : text;
@@ -1707,9 +1707,9 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // "caching", "logging"). Without this, "have you implemented a rate limiter
   // before" mis-routed to system_design (release 2026-06-07: residual pattern #2).
   // A write-code verb still vetoes (that's a coding task, not an experience ask).
-  // EXCLUDE when the object is the named product Natively ("how did you build
-  // Natively" is a product-about/architecture question, not a generic skill probe).
-  const asksAboutNatively = /\bnativel?y\b|\bnativly\b/i.test(text);
+  // EXCLUDE when the object is the named product Sneak-Peek ("how did you build
+  // Sneak-Peek" is a product-about/architecture question, not a generic skill probe).
+  const asksAboutSneakPeek = /\bnativel?y\b|\bnativly\b|\bsneak[- ]?peek\b/i.test(text);
   // "what PROJECTS have you built" is a project-LIST ask, not a skill probe — the
   // experience probe must not steal it (release 2026-06-07 regression guard).
   const asksAboutProjectsList = /\b(what|which|any)\s+projects?\b/i.test(text);
@@ -1726,7 +1726,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // skill probe — exclude it so it falls through to BEHAVIORAL_PATTERNS (code-review caveat
   // 2026-06-16). "have you managed a database/cluster" (a tech object) stays a skill probe.
   const hasPeopleObject = new RegExp(`\\b(?:manage[d]?|handle[d]?|led|lead|mentor(?:ed)?|coach(?:ed)?|supervis(?:e|ed)|resolv(?:e|ed)|navigat(?:e|ed)|deal[t]?\\s+with)\\s+(?:a\\s+|an\\s+|the\\s+|your\\s+|some\\s+|any\\s+)?${PEOPLE_OR_CONFLICT_OBJECT}\\b`, 'i').test(text);
-  const isExplicitExperienceProbe = !hasWriteCodeVerb && !asksAboutNatively && !asksAboutProjectsList && !isProjectDrillIn && !hasPeopleObject && (
+  const isExplicitExperienceProbe = !hasWriteCodeVerb && !asksAboutSneakPeek && !asksAboutProjectsList && !isProjectDrillIn && !hasPeopleObject && (
     /\bhave (you|u) (ever )?(used|worked with|worked on|built|implemented|written|coded|deployed|designed|done|handled|managed)\b/i.test(text)
     || /\bdid (you|u) (actually |really |ever )?(use|work with|build|implement|write|deploy|design|do|handle)\b/i.test(text)
     || /\bwhere have (you|i) (used|worked|applied|built|implemented)\b/i.test(text)
@@ -1825,7 +1825,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     answerType = 'skill_experience_answer';
   } else if (includesAny(text, PROJECT_FOLLOWUP_PATTERNS)
              // An EXPLICIT project entity ("...in SQL-Copilot?", "...role in
-             // Natively?") OR a resolved prior-turn target makes this an
+             // Sneak-Peek?") OR a resolved prior-turn target makes this an
              // unambiguous project follow-up — even if the project NAME contains a
              // technology token (SQL-Copilot has "sql"). In that case we skip the
              // technical-subject guards. Otherwise (a bare drill-in verb on a
@@ -1901,11 +1901,11 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     answerType = 'sales_answer';
   } else if (includesAny(text, LECTURE_PATTERNS)) {
     answerType = 'lecture_answer';
-  } else if (asksAboutNatively && includesAny(text, PRODUCT_ABOUT_PATTERNS)) {
-    // A question that NAMES Natively and is about its build/architecture/stack is a
+  } else if (asksAboutSneakPeek && includesAny(text, PRODUCT_ABOUT_PATTERNS)) {
+    // A question that NAMES Sneak-Peek and is about its build/architecture/stack is a
     // product-about answer (grounded in loaded metadata), NOT a generic system-
     // design task — checked before system_design so "what is the architecture of
-    // Natively" / "how did you build Natively" route to product-about
+    // Sneak-Peek" / "how did you build Sneak-Peek" route to product-about
     // (release 2026-06-07: residual pattern #1).
     answerType = 'project_about_answer';
   } else if (includesAny(text, SYSTEM_DESIGN_PATTERNS)
@@ -1926,7 +1926,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
              // STAR story about the candidate's past, not a live debugging task —
              // the bare \bbug\b pattern captured it into the technical lane
              // (profile forbidden, neutral voice) where the model answered
-             // "I'm Natively, an AI assistant. I don't have personal
+             // "I'm Sneak-Peek, an AI assistant. I don't have personal
              // experiences." A past-tense candidate frame defers to BEHAVIORAL.
              // Now shared with the technical_concept branch below — see
              // isPastTensePersonalExperienceFrame's definition above.
@@ -1991,7 +1991,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     // Kept BEFORE generic CODING so the specific DSA label/template wins.
     answerType = 'dsa_question_answer';
   } else if (
-    // "What problem does RedisMart/Natively/it solve?" trips the bare
+    // "What problem does RedisMart/Sneak-Peek/it solve?" trips the bare
     // `\bsolve\b` inside CODING_PATTERNS — that's a project-description ask,
     // never a coding task. CODING_PATTERNS is tested against the
     // clause-stripped text (textWithoutProductSolveClause) so a genuine
@@ -2037,8 +2037,8 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     // 2026-06-05. Profile required, concise direct answer.
     answerType = 'profile_fact_answer';
   } else if (includesAny(text, PRODUCT_ABOUT_PATTERNS)) {
-    // "what kind of app is Natively?", "how's its backend?", "what do you think
-    // about Natively?" — a drill-in ABOUT the product, grounded in loaded project
+    // "what kind of app is Sneak-Peek?", "how's its backend?", "what do you think
+    // about Sneak-Peek?" — a drill-in ABOUT the product, grounded in loaded project
     // metadata (no overclaim). Checked before the generic project-list branch so a
     // product question isn't answered with the candidate's whole project list.
     answerType = 'project_about_answer';
@@ -2324,7 +2324,7 @@ export const formatAnswerPlanForPrompt = (plan: AnswerPlan, includeVerificationS
       ? 'Address the user about themselves in the second person ("Your …").'
       : (plan.answerType === 'sales_answer' || plan.answerType === 'product_candidate_mix_answer')
         // Sales turns speak as the seller/product rep — the neutral-assistant
-        // voice line caused "I'm Natively… I don't have a product" in real
+        // voice line caused "I'm Sneak-Peek… I don't have a product" in real
         // sales sessions (manual regression 2026-06-12).
         ? 'Speak in the FIRST PERSON as the product\'s seller/representative ("our product", "we"). Never identify as an AI assistant.'
         : 'Answer in a neutral, explanatory voice. Do not roleplay as the candidate.';

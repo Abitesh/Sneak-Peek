@@ -40,7 +40,7 @@ SUMMARY
 Software engineer and founder building real-time AI products.
 
 EXPERIENCE
-Founder | Natively (Open Source AI Meeting Copilot) | 2024-01 - Present
+Founder | Sneak-Peek (Open Source AI Meeting Copilot) | 2024-01 - Present
 - Built a privacy-first AI meeting assistant with a Local RAG system
 - Hybrid Electron/Rust core for low-latency audio capture
 Software Engineer Intern | Aetherbot AI | 2023-06 - 2023-09
@@ -96,7 +96,7 @@ const MOCK_GENERATE_CONTENT = async (contents) => {
             ml: [], devops: ['Docker'], tools: ['WebRTC'],
         },
         experience: [
-            { company: 'Natively', role: 'Founder', start_date: '2024-01', end_date: null, bullets: ['Built a privacy-first AI meeting assistant', 'Hybrid Electron/Rust core'], is_internship: false },
+            { company: 'Sneak-Peek', role: 'Founder', start_date: '2024-01', end_date: null, bullets: ['Built a privacy-first AI meeting assistant', 'Hybrid Electron/Rust core'], is_internship: false },
             { company: 'Aetherbot AI', role: 'Software Engineer Intern', start_date: '2023-06', end_date: '2023-09', bullets: ['Integrated Unreal Engine pixel streaming with AWS', 'Worked with WebRTC for real-time media'], is_internship: true },
         ],
         projects: [

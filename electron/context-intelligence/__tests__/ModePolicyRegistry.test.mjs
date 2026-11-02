@@ -81,7 +81,7 @@ describe('source authorization per mode', () => {
     const p = MODE_POLICIES.recruiting;
     assert.ok(modeAllowsSource(p, 'CANDIDATE_FILE'));
     assert.equal(modeAllowsSource(p, 'RESUME'), false,
-      'the Natively user\'s resume must not be confused with a candidate\'s');
+      'the Sneak-Peek user\'s resume must not be confused with a candidate\'s');
   });
 
   test('technical-interview authorizes coding samples and screen context', () => {

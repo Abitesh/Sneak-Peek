@@ -26,7 +26,7 @@ const PROFILE = {
     { title: 'Senior Engineer', company: 'Aetherbot AI', startDate: '2021-01', endDate: 'present', highlights: ['Led the assistant platform team'] },
   ],
   projects: [
-    { name: 'Natively', description: 'Desktop AI meeting assistant with local RAG.', technologies: ['Electron', 'TypeScript'] },
+    { name: 'Sneak-Peek', description: 'Desktop AI meeting assistant with local RAG.', technologies: ['Electron', 'TypeScript'] },
   ],
   skills: ['TypeScript', 'Electron', 'Python'],
   education: [{ school: 'IIT', degree: 'B.Tech', endDate: '2016' }],
@@ -57,7 +57,7 @@ test('DOC-GROUNDED: facade refuses to consult the legacy fast path at all', () =
   assert.equal(pack.answerPolicy, 'refuse_insufficient_evidence');
   assert.equal(pack.rejected[0].reason, 'forbidden_source');
   // No profile content anywhere.
-  assert.ok(!JSON.stringify(pack).includes('Natively'));
+  assert.ok(!JSON.stringify(pack).includes('Sneak-Peek'));
   assert.ok(!JSON.stringify(pack).includes('Aetherbot'));
 });
 

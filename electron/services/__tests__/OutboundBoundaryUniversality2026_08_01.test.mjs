@@ -458,7 +458,7 @@ describe('DEFECT 3 — the `custom` family toggle reaches the boundary', () => {
     setCreds({ disabled: ['custom'] });
     const { h } = helper();
     h.customProvider = { id: 'cp1', name: 'OpenRouter', curlCommand: 'curl https://openrouter.ai/api' };
-    h.nativelyKey = null;
+    h.sneakPeekKey = null;
     h._openaiClient = null;
     h._claudeClient = null;
     h._client = null;
@@ -484,7 +484,7 @@ describe('DEFECT 3 — the `custom` family toggle reaches the boundary', () => {
     h.customProvider = { id: 'cp1', name: 'OpenRouter', curlCommand: 'curl https://openrouter.ai/api' };
     h._client = null; h._groqClient = null; h._openaiClient = null;
     h._claudeClient = null; h._deepseekClient = null;
-    h.nativelyKey = null;
+    h.sneakPeekKey = null;
     let used = false;
     h.executeCustomProvider = async () => { used = true; return 'custom-ok'; };
     await LLMHelper.prototype.chatWithGemini.call(h, 'a question').catch(() => {});
@@ -557,7 +557,7 @@ describe('DEFECT 3 — the `custom` family toggle reaches the boundary', () => {
     setCreds({ disabled: [] });
     const { h } = helper();
     h.customProvider = { id: 'cp1', name: 'OpenRouter', curlCommand: 'curl https://openrouter.ai/api' };
-    h.nativelyKey = null;
+    h.sneakPeekKey = null;
     h._openaiClient = null;
     h._claudeClient = null;
     h._client = null; // no Gemini either, so custom is the only rung left

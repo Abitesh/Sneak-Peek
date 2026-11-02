@@ -1,7 +1,7 @@
 // DEV-ONLY visual repro for the "no thinking-dot under liquid-glass/modern"
 // bug report. Not part of the shipped app (see harness.html precedent:
 // streamingCodeHarness.tsx). Renders the REAL class strings used by both
-// thinking-dot render sites in NativelyInterface.tsx (the embedded dot in
+// thinking-dot render sites in SneakPeekInterface.tsx (the embedded dot in
 // renderMessageText's streaming branch, ~L5636-5651, and the standalone
 // pre-placeholder pill, ~L7404-7427) under all 6 (theme x light/dark)
 // combinations, each wrapped in the real `[data-theme]` / `[data-interface-theme]`
@@ -20,7 +20,7 @@ const THEMES: Array<{ value: 'default' | 'liquid-glass' | 'modern'; label: strin
 ];
 
 function EmbeddedDot({ isLightTheme }: { isLightTheme: boolean }) {
-  // Exact classes from NativelyInterface.tsx L5605-5651 (the `key="streaming"`
+  // Exact classes from SneakPeekInterface.tsx L5605-5651 (the `key="streaming"`
   // branch, isThinking = true).
   const cardBgBorderClass = isLightTheme
     ? 'bg-slate-100/70 backdrop-blur-md border border-slate-200/50 text-slate-900 shadow-sm'
@@ -31,15 +31,15 @@ function EmbeddedDot({ isLightTheme }: { isLightTheme: boolean }) {
     >
       <div className="flex gap-1.5 items-center py-0.5">
         <div
-          className={`natively-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
+          className={`sneak-peek-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
           style={{ animationDelay: '0ms' }}
         />
         <div
-          className={`natively-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
+          className={`sneak-peek-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
           style={{ animationDelay: '160ms' }}
         />
         <div
-          className={`natively-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
+          className={`sneak-peek-thinking-dot w-2 h-2 ${isLightTheme ? 'bg-slate-400' : 'bg-white'} rounded-full`}
           style={{ animationDelay: '320ms' }}
         />
       </div>
@@ -48,15 +48,15 @@ function EmbeddedDot({ isLightTheme }: { isLightTheme: boolean }) {
 }
 
 function StandalonePill({ subtleStyle }: { subtleStyle: React.CSSProperties }) {
-  // Exact classes from NativelyInterface.tsx L7404-7427, now with the REAL
+  // Exact classes from SneakPeekInterface.tsx L7404-7427, now with the REAL
   // appearance.subtleStyle inline style (advisor-flagged: the earlier repro
   // omitted this).
   return (
     <div className="flex justify-start">
       <div className="px-3 py-2 flex gap-1.5 overlay-subtle-surface rounded-full border" style={subtleStyle}>
-        <div className="natively-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '0ms' }} />
-        <div className="natively-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '160ms' }} />
-        <div className="natively-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '320ms' }} />
+        <div className="sneak-peek-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '0ms' }} />
+        <div className="sneak-peek-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '160ms' }} />
+        <div className="sneak-peek-thinking-dot w-2 h-2 bg-slate-400 rounded-full" style={{ animationDelay: '320ms' }} />
       </div>
     </div>
   );
@@ -66,7 +66,7 @@ function ThemeBlock({ theme, mode }: { theme: 'default' | 'liquid-glass' | 'mode
   const isLightTheme = mode === 'light';
   const isGlassTheme = theme === 'liquid-glass';
   const shellRef = React.useRef<HTMLDivElement | null>(null);
-  // Mirrors NativelyInterface.tsx L1462-1467 exactly: glass gets the empty
+  // Mirrors SneakPeekInterface.tsx L1462-1467 exactly: glass gets the empty
   // getGlassOverlayAppearance() object, everyone else (default AND modern —
   // isModernTheme is NOT in this branch) gets getOverlayAppearance().
   const appearance = isGlassTheme
@@ -99,7 +99,7 @@ function ThemeBlock({ theme, mode }: { theme: 'default' | 'liquid-glass' | 'mode
       <div style={{ fontSize: 11, opacity: 0.9, marginBottom: 8, fontFamily: 'monospace', color: mode === 'light' ? '#000' : '#fff', background: mode === 'light' ? '#fff8' : '#0008', display: 'inline-block', padding: '2px 4px' }}>
         theme={theme} / data-theme={mode}
       </div>
-      {/* Real shellRef structure: NativelyInterface.tsx L6984-7010 */}
+      {/* Real shellRef structure: SneakPeekInterface.tsx L6984-7010 */}
       <div
         ref={shellRef}
         data-shell-card=""
@@ -107,7 +107,7 @@ function ThemeBlock({ theme, mode }: { theme: 'default' | 'liquid-glass' | 'mode
         style={{ ...appearance.shellStyle, contain: 'layout style', width: 300 }}
       >
         {isGlassTheme && <GlassEffectLayer parentRef={shellRef} cornerRadius={24} />}
-        {/* Real scroll container: NativelyInterface.tsx L7326-7331 */}
+        {/* Real scroll container: SneakPeekInterface.tsx L7326-7331 */}
         <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 no-drag isolate">
           <div data-testid={`embedded-${theme}-${mode}`}>
             <EmbeddedDot isLightTheme={isLightTheme} />

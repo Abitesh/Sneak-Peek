@@ -1,4 +1,4 @@
-import type { NativelyIntelligenceRequest } from './types';
+import type { SneakPeekIntelligenceRequest } from './types';
 import type { TurnUnderstanding } from '../../context-intelligence/question/question-resolver';
 import type { ContextAvailability, ContextPlan, ContextRequirement, ContextSource, ContextSourceDecision } from './ContextTypes';
 
@@ -26,12 +26,12 @@ const PRIVATE_SOURCES = new Set<ContextSource>([
 ]);
 
 export interface ContextPlannerInput {
-  request: NativelyIntelligenceRequest;
+  request: SneakPeekIntelligenceRequest;
   understanding: TurnUnderstanding;
   availability?: Partial<ContextAvailability>;
 }
 
-function available(request: NativelyIntelligenceRequest, source: ContextSource, a: Partial<ContextAvailability>): boolean {
+function available(request: SneakPeekIntelligenceRequest, source: ContextSource, a: Partial<ContextAvailability>): boolean {
   switch (source) {
     case 'recent_conversation':
       return Boolean(request.contextPermissions.conversation && (a.recentConversation ?? true));
@@ -60,7 +60,7 @@ function available(request: NativelyIntelligenceRequest, source: ContextSource, 
   }
 }
 
-function permissionAllows(request: NativelyIntelligenceRequest, source: ContextSource): boolean {
+function permissionAllows(request: SneakPeekIntelligenceRequest, source: ContextSource): boolean {
   switch (source) {
     case 'recent_conversation':
     case 'longer_conversation':

@@ -156,7 +156,7 @@ test('routeLLMProviders marks unsupported capabilities without dropping attempts
 });
 
 test('routeLLMProviders does not mutate input objects', async () => {
-  const availability = { hasNatively: true, hasGroq: false };
+  const availability = { hasSneakPeek: true, hasGroq: false };
   const models = { groq: 'groq-text' };
   const before = JSON.stringify({ availability, models });
 

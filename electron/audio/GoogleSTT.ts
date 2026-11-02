@@ -265,7 +265,7 @@ export class GoogleSTT extends EventEmitter {
         // (FrameAction::SendSilence → vec![0u8; chunk_size*2]). For system audio
         // the suppressor runs with VAD disabled and a permissive RMS floor, so it
         // oscillates between real low-amplitude Send frames and these silent
-        // keepalives. Google's streamingRecognize (unlike Deepgram/Natively, which
+        // keepalives. Google's streamingRecognize (unlike Deepgram/Sneak-Peek, which
         // endpoint cleanly on silence) hallucinates tiny interim fragments —
         // "he", "heh", "hehehe" — when real audio is interleaved with zero frames.
         // Google holds the gRPC stream open on its own (10s idle timeout) and
@@ -367,7 +367,7 @@ export class GoogleSTT extends EventEmitter {
         // restart) let the DESTROYED stream's async 'close'/'end' run
         // `this.stream = null` against the freshly-created stream, orphaning it
         // (open, never ended) and pushing writes into the lazy-reconnect path
-        // so a third stream opens. Mirrors NativelyProSTT's documented
+        // so a third stream opens. Mirrors SneakPeekProSTT's documented
         // `guard(ws === this.ws)` pattern. Live-reproduced in
         // scripts/audit/F-203-repro.mjs.
         const stream: any = this.client

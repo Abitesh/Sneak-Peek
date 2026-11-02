@@ -34,7 +34,7 @@ async function loadPromptAssembler() {
   return import(pathToFileURL(path.join(contextDir, 'PromptAssembler.js')).href);
 }
 
-const SAMPLE_SYSTEM_PROMPT = 'You are Natively. Answer questions directly.';
+const SAMPLE_SYSTEM_PROMPT = 'You are Sneak-Peek. Answer questions directly.';
 const defaultParams = {
   modeTemplateType: 'general',
   tokenBudget: 8000,

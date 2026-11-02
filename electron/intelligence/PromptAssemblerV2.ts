@@ -173,7 +173,7 @@ export function assemblePromptV2(input: AssemblePromptV2Input): AssembledPromptV
   try {
     const v = ProfileTreeService.getCandidatePerspectiveGuard(input.mode, input.query);
     if (v.assistantIdentityWouldLeak) {
-      perspectiveGuard = 'You are answering AS the candidate/user in first person. Never say "I am Natively", "I am an AI assistant", or otherwise self-identify as the assistant — the user expects their own identity. (Genuine questions about the app itself are exempt.)';
+      perspectiveGuard = 'You are answering AS the candidate/user in first person. Never say "I am Sneak-Peek", "I am an AI assistant", or otherwise self-identify as the assistant — the user expects their own identity. (Genuine questions about the app itself are exempt.)';
     }
   } catch { /* keep empty */ }
 

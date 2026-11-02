@@ -24,7 +24,7 @@
  *
  * This module is a pure, clock-free state machine: every timestamp
  * (`nowMs`) and frame delta (`deltaMs`) is passed in by the caller (a
- * requestAnimationFrame loop in NativelyInterface.tsx), never read via
+ * requestAnimationFrame loop in SneakPeekInterface.tsx), never read via
  * Date.now()/performance.now() here — that's what makes it exhaustively
  * unit-testable without faking the DOM or the clock.
  */
@@ -55,7 +55,7 @@ export const USE_ANIMATION_FRAME = true;
 // feels identical from the first character to the final period regardless
 // of when the network finished. When true: stream-end commits the full text
 // immediately (the v1 behavior) — useful for a future experiment/rollback
-// without code changes. NativelyInterface.tsx's finalize call sites are
+// without code changes. SneakPeekInterface.tsx's finalize call sites are
 // expected to honor this flag explicitly (it is NOT auto-applied inside
 // tickPacer, which has no concept of "the provider is done").
 export const FLUSH_IMMEDIATELY_ON_COMPLETE = false;

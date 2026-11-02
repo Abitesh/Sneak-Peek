@@ -37,9 +37,9 @@ describe('FollowUpResolver: expand inherits prior route', () => {
     assert.equal(r.resolvedAnswerType, 'jd_fit_answer');
   });
   test('"Can you expand?" after a project answer → project_followup', () => {
-    const r = resolveFollowUp({ latestQuestion: 'Can you expand?', previousQuestion: 'Tell me about Natively.', previousAnswerType: 'project_answer', lastEntity: 'Natively' });
+    const r = resolveFollowUp({ latestQuestion: 'Can you expand?', previousQuestion: 'Tell me about Sneak-Peek.', previousAnswerType: 'project_answer', lastEntity: 'Sneak-Peek' });
     assert.equal(r.resolvedAnswerType, 'project_followup_answer');
-    assert.equal(r.resolvedEntity, 'Natively');
+    assert.equal(r.resolvedEntity, 'Sneak-Peek');
   });
   test('"How so?" after a technical concept → technical_concept expand (profile stays out)', () => {
     const r = resolveFollowUp({ latestQuestion: 'How so?', previousQuestion: 'Explain BFS.' });
@@ -49,14 +49,14 @@ describe('FollowUpResolver: expand inherits prior route', () => {
 });
 
 describe('Issue 4: project drill-in resolves to project_followup on the entity', () => {
-  test('"How is it developed?" after a project (entity Natively) → project_followup', () => {
-    const r = resolveFollowUp({ latestQuestion: 'How is it developed?', previousQuestion: 'Which is your best project?', lastEntity: 'Natively' });
+  test('"How is it developed?" after a project (entity Sneak-Peek) → project_followup', () => {
+    const r = resolveFollowUp({ latestQuestion: 'How is it developed?', previousQuestion: 'Which is your best project?', lastEntity: 'Sneak-Peek' });
     assert.equal(r.resolvedAnswerType, 'project_followup_answer');
-    assert.equal(r.resolvedEntity, 'Natively');
-    assert.match(r.resolvedQuestion, /Natively/);
+    assert.equal(r.resolvedEntity, 'Sneak-Peek');
+    assert.match(r.resolvedQuestion, /Sneak-Peek/);
   });
   test('"That project?" → project_followup on the entity', () => {
-    const r = resolveFollowUp({ latestQuestion: 'That project?', previousQuestion: 'Tell me about Natively.', lastEntity: 'Natively' });
+    const r = resolveFollowUp({ latestQuestion: 'That project?', previousQuestion: 'Tell me about Sneak-Peek.', lastEntity: 'Sneak-Peek' });
     assert.equal(r.resolvedAnswerType, 'project_followup_answer');
   });
 });
@@ -103,8 +103,8 @@ describe('FollowUpResolver: gate boundaries + safety', () => {
     assert.notEqual(r.resolvedAnswerType, 'dsa_question_answer');
   });
   test('entity propagation without previousAnswerType still resolves a project expand', () => {
-    const r = resolveFollowUp({ latestQuestion: 'Can you expand?', previousQuestion: 'Tell me about Natively.', lastEntity: 'Natively' });
-    assert.equal(r.resolvedEntity, 'Natively');
+    const r = resolveFollowUp({ latestQuestion: 'Can you expand?', previousQuestion: 'Tell me about Sneak-Peek.', lastEntity: 'Sneak-Peek' });
+    assert.equal(r.resolvedEntity, 'Sneak-Peek');
   });
   test('a long question (>8 words) is never treated as a bare follow-up', () => {
     const r = resolveFollowUp({ latestQuestion: 'And what about your experience using SQL in real production data pipelines?', previousQuestion: 'Rate Python.' });

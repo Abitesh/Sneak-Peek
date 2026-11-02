@@ -20,7 +20,7 @@ TrustLevel,
 import { deriveEvidenceSufficiency, type EvidenceSufficiency } from './evidenceSufficiency';
 import type { RagCitation } from '../../rag/RagCitation';
 import type { ContextSource } from '../engine/ContextTypes';
-import type { NativelyEvidence } from '../engine/types';
+import type { SneakPeekEvidence } from '../engine/types';
 export interface EvidencePointer {
 page?: number;
 section?: string;
@@ -34,7 +34,7 @@ speaker?: string;
 }
 export interface EvidenceItem {
 evidenceId: string;
-/** Canonical Natively Intelligence source selected by ContextPlanner. */
+/** Canonical Sneak-Peek Intelligence source selected by ContextPlanner. */
 canonicalSource?: ContextSource;
 /** Explicit retrieval scope preserved across the evidence boundary. */
 scope?: { kind: string; id: string | null };
@@ -186,11 +186,11 @@ return String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
  * membership and converts returned material into the Context OS EvidencePack
  * contract so later prompt assembly consumes one representation.
  */
-export function buildEvidencePackFromNativelyEvidence(input: {
+export function buildEvidencePackFromSneakPeekEvidence(input: {
   turnId: string;
   query: string;
   contextPlan: import('../engine/ContextTypes').ContextPlan;
-  evidence: NativelyEvidence;
+  evidence: SneakPeekEvidence;
   answerPolicy?: AnswerPolicy;
   sourceOwner?: SourceOwner;
   requestedProperty?: RequestedProperty;

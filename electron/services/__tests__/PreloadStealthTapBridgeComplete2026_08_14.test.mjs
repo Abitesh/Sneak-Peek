@@ -19,7 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..', '..', '..');
 const preload = fs.readFileSync(path.join(root, 'electron', 'preload.ts'), 'utf8');
 const renderer = fs.readFileSync(
-  path.join(root, 'src', 'components', 'NativelyInterface.tsx'),
+  path.join(root, 'src', 'components', 'SneakPeekInterface.tsx'),
   'utf8'
 );
 

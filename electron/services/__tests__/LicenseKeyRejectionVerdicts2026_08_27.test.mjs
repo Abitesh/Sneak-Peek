@@ -2,7 +2,7 @@
 //
 // From a 2026-08-27 win32 user report: the log read
 //   [LicenseManager] activateWithApiKey: plan has no Pro — undefined
-//   [IPC] set-natively-api-key: Pro not activated — Your plan does not include Natively Pro.
+//   [IPC] set-natively-api-key: Pro not activated — Your plan does not include Sneak-Peek Pro.
 // The user was NOT on a free plan. natively-api's /v1/pro/verify (server.js:5716)
 // always emits `plan` on its success path (`auth.user.plan || 'standard'`), so a
 // genuine standard-plan user logs "— standard". `undefined` can only come from
@@ -53,7 +53,7 @@ after(() => {
 });
 
 function freshManager() {
-  delete globalThis.__nativelyLicenseManagerV1__;
+  delete globalThis.__sneakPeekLicenseManagerV1__;
   LicenseManager.instance = undefined;
   return LicenseManager.getInstance();
 }
@@ -102,7 +102,7 @@ describe('4xx — the server refused the key', () => {
     );
     assert.notEqual(
       r.error,
-      'Your plan does not include Natively Pro.',
+      'Your plan does not include Sneak-Peek Pro.',
       'this is the exact misreport from the 2026-08-27 user log',
     );
   });
@@ -138,7 +138,7 @@ describe('200 — the key authenticates, the plan simply has no Pro', () => {
       !r.keyRejected,
       'CRITICAL: a standard-plan key authenticates against /v1/chat (the server gates only /v1/pro/verify on PRO_PLANS). Marking it rejected would tear down a WORKING configuration.',
     );
-    assert.equal(r.error, 'Your plan does not include Natively Pro.');
+    assert.equal(r.error, 'Your plan does not include Sneak-Peek Pro.');
   });
 });
 
@@ -172,7 +172,7 @@ describe('no verdict — nothing may be torn down', () => {
 
     assert.equal(r.success, false);
     assert.ok(!r.keyRejected, 'refuse to guess in either direction on a malformed body');
-    assert.notEqual(r.error, 'Your plan does not include Natively Pro.');
+    assert.notEqual(r.error, 'Your plan does not include Sneak-Peek Pro.');
   });
 });
 

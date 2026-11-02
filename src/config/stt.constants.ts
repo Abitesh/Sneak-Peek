@@ -115,8 +115,8 @@ export const STT_PROVIDERS: Record<SttProviderId, SttProviderConfig> = {
     },
     natively: {
         id: 'natively',
-        name: 'Natively Pro (Managed)',
-        description: 'All-in-one managed STT via Natively API',
+        name: 'Sneak-Peek Pro (Managed)',
+        description: 'All-in-one managed STT via Sneak-Peek API',
         endpoint: '', 
         model: '',
         uploadType: 'websocket',

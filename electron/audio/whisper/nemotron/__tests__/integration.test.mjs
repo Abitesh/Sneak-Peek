@@ -57,7 +57,7 @@ const { NemotronEngine } = fs.existsSync(nemotronEnginePath)
 // override runs — verified against this machine's real, dev-mode (`npm
 // start`) `~/Library/Application Support/natively/whisper-models/...`
 // directory). A packaged (electron-builder) build may instead resolve the
-// capitalized `productName` ("Natively") — not re-verified against a
+// capitalized `productName` ("Sneak-Peek") — not re-verified against a
 // packaged install here — but macOS and Windows filesystems are both
 // case-insensitive by default, so 'natively' still resolves to the same
 // directory either way; only case-sensitive Linux filesystems could diverge,

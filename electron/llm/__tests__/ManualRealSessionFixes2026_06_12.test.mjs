@@ -48,15 +48,15 @@ describe('P2: identity probe routing', () => {
         for (const q of ['who are you?', 'introduce yourself']) {
             const d = resolveIdentityProbe(q, false);
             assert.equal(d.kind, 'assistant_reply', q);
-            assert.match(d.reply, /I'm Natively/);
+            assert.match(d.reply, /I'm Sneak-Peek/);
         }
     });
     test('assistant-meta probes stay canned even WITH a profile', () => {
         const cases = [
-            ['are you an AI?', /I'm Natively/],
-            ['are you chatgpt?', /I'm Natively/],
-            ['what is natively?', /I'm Natively/],
-            ['what model are you?', /I'm Natively/],
+            ['are you an AI?', /I'm Sneak-Peek/],
+            ['are you chatgpt?', /I'm Sneak-Peek/],
+            ['what is natively?', /I'm Sneak-Peek/],
+            ['what model are you?', /I'm Sneak-Peek/],
             ['who built natively?', /developed by Evin John/],
             ['who made you', /developed by Evin John/],
         ];
@@ -71,7 +71,7 @@ describe('P2: identity probe routing', () => {
             assert.equal(resolveIdentityProbe(q, true).kind, 'none', q);
         }
     });
-    test('the fast path actually selects the candidate\'s own identity as evidence for the routed probes (no Natively leak possible)', () => {
+    test('the fast path actually selects the candidate\'s own identity as evidence for the routed probes (no Sneak-Peek leak possible)', () => {
         // Since the Full-JIT policy (2026-07-07/08, commit 6e6189b4), this layer only
         // SELECTS structured evidence — it never renders `.answer` prose. Assert the
         // evidence itself names the candidate and excludes the assistant's identity.
@@ -81,7 +81,7 @@ describe('P2: identity probe routing', () => {
             assert.equal(r.answer, undefined, 'Full-JIT policy: must not render a final answer string');
             assert.ok(r.items.some((f) => f.field === 'identity.name' && f.value === 'Aarav Menon'), q);
             assert.ok(r.excludedContextLayers.includes('assistant_identity'), q);
-            assert.doesNotMatch(JSON.stringify(r.items), /Natively|AI assistant/i, q);
+            assert.doesNotMatch(JSON.stringify(r.items), /Sneak-Peek|AI assistant/i, q);
         }
     });
 });
@@ -179,7 +179,7 @@ describe('P6: sales template voice', () => {
             assert.ok(['sales_answer', 'product_candidate_mix_answer'].includes(p.answerType), `${q} → ${p.answerType}`);
             const c = formatAnswerPlanForPrompt(p, false);
             assert.match(c, /SELLER'S spoken voice|seller\/representative/i, q);
-            assert.match(c, /NEVER say "I'm Natively"|Never identify as an AI assistant/, q);
+            assert.match(c, /NEVER say "I'm Sneak-Peek"|Never identify as an AI assistant/, q);
             assert.ok(p.forbiddenContextLayers.includes('resume'), q);
         }
     });
@@ -201,17 +201,17 @@ describe('P6: sales template voice', () => {
 // ── P7: built-with / source-available routing pins ───────────────────────────────
 describe('P7: project tech-stack/source routing', () => {
     const route = (q) => planAnswer({ question: q, source: 'manual_input', speakerPerspective: 'user' }).answerType;
-    test('"what is Natively built with?" → project_about (tech stack), never source-evidence refusal', () => {
-        assert.equal(route('what is Natively built with?'), 'project_about_answer');
+    test('"what is Sneak-Peek built with?" → project_about (tech stack), never source-evidence refusal', () => {
+        assert.equal(route('what is Sneak-Peek built with?'), 'project_about_answer');
     });
-    test('"is Natively source available?" → project_about', () => {
-        assert.equal(route('is Natively source available?'), 'project_about_answer');
+    test('"is Sneak-Peek source available?" → project_about', () => {
+        assert.equal(route('is Sneak-Peek source available?'), 'project_about_answer');
     });
     test('"show me the exact source code" → source_code_evidence (refuse unless loaded)', () => {
-        assert.equal(route('show me the exact source code of Natively'), 'source_code_evidence_answer');
+        assert.equal(route('show me the exact source code of Sneak-Peek'), 'source_code_evidence_answer');
     });
     test('"give me the GitHub link" → project_link (loaded link only)', () => {
-        assert.equal(route('give me the GitHub link for Natively'), 'project_link_answer');
+        assert.equal(route('give me the GitHub link for Sneak-Peek'), 'project_link_answer');
     });
 });
 

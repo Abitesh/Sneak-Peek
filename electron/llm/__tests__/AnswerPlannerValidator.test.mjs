@@ -48,6 +48,12 @@ test('planAnswer detects system design and debugging answer types', () => {
   assert.equal(planFor('How would you debug this production exception?').answerType, 'debugging_question_answer');
 });
 
+test('new product name routes to grounded project answers without changing legacy recognition', () => {
+  assert.equal(planFor('What is Sneak-Peek?', 'manual_chat').answerType, 'project_about_answer');
+  assert.equal(planFor('What problem does Sneak-Peek solve?', 'manual_chat').answerType, 'project_about_answer');
+  assert.equal(planFor('What is Natively?', 'manual_chat').answerType, 'project_answer');
+});
+
 test('planAnswer routes identity and JD-fit questions with isolated context', () => {
   const identity = planFor('What is my name?');
   assert.equal(identity.answerType, 'identity_answer');
@@ -140,7 +146,7 @@ The approach uses the modulo operator \`%\`.`;
   assert.match(result.repaired ?? '', /O\(\?\)/, 'absent complexity → O(?) placeholder');
   assert.doesNotMatch(result.repaired ?? '', /Time Complexity:\s*`?O\(1\)`?/i, 'must NOT fabricate O(1)');
   assert.doesNotMatch(result.repaired ?? '', /resume|job description|salary|negotiation/i);
-  assert.doesNotMatch(result.repaired ?? '', /I am Natively|I'm Natively|as an AI/i);
+  assert.doesNotMatch(result.repaired ?? '', /I am Sneak-Peek|I'm Sneak-Peek|as an AI/i);
 });
 
 test('validateAnswerStructure requires deterministic markdown heading order for dsa answers', () => {

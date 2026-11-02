@@ -45,8 +45,8 @@ interface SharedNemotronWorkerState {
 
 function getState(): SharedNemotronWorkerState {
   const g = globalThis as unknown as Record<string, SharedNemotronWorkerState | undefined>;
-  if (!g.__nativelySharedNemotronWorkerV1__) {
-    g.__nativelySharedNemotronWorkerV1__ = {
+  if (!g.__sneakPeekSharedNemotronWorkerV1__) {
+    g.__sneakPeekSharedNemotronWorkerV1__ = {
       worker: null,
       modelId: null,
       refCount: 0,
@@ -58,10 +58,10 @@ function getState(): SharedNemotronWorkerState {
   // Defensive: a state object created by an older bundle generation (before
   // this field existed) would otherwise leave `acquireLock` undefined here —
   // the same multi-bundle skew the doc comment above exists to survive.
-  if (!g.__nativelySharedNemotronWorkerV1__.acquireLock) {
-    g.__nativelySharedNemotronWorkerV1__.acquireLock = Promise.resolve();
+  if (!g.__sneakPeekSharedNemotronWorkerV1__.acquireLock) {
+    g.__sneakPeekSharedNemotronWorkerV1__.acquireLock = Promise.resolve();
   }
-  return g.__nativelySharedNemotronWorkerV1__;
+  return g.__sneakPeekSharedNemotronWorkerV1__;
 }
 
 /**

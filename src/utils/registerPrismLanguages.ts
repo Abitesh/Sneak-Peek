@@ -1,5 +1,5 @@
 // Single source of truth for Prism grammar registration across every code-
-// rendering surface (NativelyInterface, MeetingChatOverlay, MeetingDetails).
+// rendering surface (SneakPeekInterface, MeetingChatOverlay, MeetingDetails).
 //
 // PROBLEM this solves: each of those components used to carry its own byte-
 // identical `SyntaxHighlighter.registerLanguage(...)` block covering only ~15

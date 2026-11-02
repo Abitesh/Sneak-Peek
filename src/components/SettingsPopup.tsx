@@ -213,7 +213,7 @@ const SettingsPopup = () => {
     // `BrowserWindow.getAllWindows().forEach(...)` (electron/ipcHandlers.ts
     // `set-overlay-opacity`), this popup window included, which is exactly
     // what `onOverlayOpacityChanged` below picks up — the identical listener
-    // NativelyInterface's own overlay window uses (App.tsx ~720-722) for the
+    // SneakPeekInterface's own overlay window uses (App.tsx ~720-722) for the
     // real panel shell.
     useEffect(() => {
         const unsubscribe = window.electronAPI?.onOverlayOpacityChanged?.((opacity: number) => {
@@ -353,8 +353,8 @@ const SettingsPopup = () => {
         : 'border-black/10 bg-black/[0.04] text-slate-600 glass-shortcut-key';
     const defaultToggleTrackClass = isDarkBg ? 'bg-white/10 glass-toggle-track' : 'bg-black/[0.22] glass-toggle-track';
 
-    // Real per-theme panel material — same computation NativelyInterface uses
-    // for its own shell (NativelyInterface.tsx ~1531-1537) and ResizeToggle
+    // Real per-theme panel material — same computation SneakPeekInterface uses
+    // for its own shell (SneakPeekInterface.tsx ~1531-1537) and ResizeToggle
     // uses for itself (ResizeToggle.tsx): isGlassTheme ?
     // getGlassOverlayAppearance() : getOverlayAppearance(opacity, theme).
     // Applied as an inline style on the contentRef div below, alongside the
@@ -531,7 +531,7 @@ const SettingsPopup = () => {
 
                 <div className={`h-px my-0.5 mx-1.5 ${dividerClass}`} />
 
-                {/* Show/Hide Natively */}
+                {/* Show/Hide Sneak-Peek */}
                 <div className={`flex items-center justify-between px-2.5 py-1.5 rounded-md transition-colors duration-200 group interaction-base interaction-press ${itemHoverClass} ${glassRowClass}`}>
                     <div className="flex items-center gap-2.5">
                         <MessageSquare className={`w-3.5 h-3.5 transition-colors ${inactiveIconColorClass}`} />

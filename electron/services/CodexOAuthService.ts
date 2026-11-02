@@ -254,7 +254,7 @@ function startCallbackServer(): { portReady: Promise<number>; waitForCallback: P
       const errorDescription = url.searchParams.get('error_description') || undefined;
 
       // Friendly landing page (open-sse renders similar — codex.md:5998-6002).
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Natively × ChatGPT</title>
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Sneak-Peek × ChatGPT</title>
 <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0a0a0a;color:#fafafa;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:0 24px}
 .card{max-width:480px;background:#161616;border:1px solid #262626;border-radius:12px;padding:32px;text-align:center}
 h1{font-size:18px;margin:0 0 8px;font-weight:600}
@@ -263,7 +263,7 @@ p{color:#a3a3a3;margin:0;font-size:14px;line-height:1.5}
 <div class="card">${
         error
           ? `<h1 class="err">Sign-in failed</h1><p>${(errorDescription || error).replace(/[<>]/g, '')}</p>`
-          : '<h1 class="ok">Signed in!</h1><p>You can close this tab and return to Natively.</p>'
+          : '<h1 class="ok">Signed in!</h1><p>You can close this tab and return to Sneak-Peek.</p>'
       }</div>
 </body></html>`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

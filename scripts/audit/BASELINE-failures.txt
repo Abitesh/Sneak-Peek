@@ -46,7 +46,7 @@
 ✖ LocalReranker.isCached() resolves true against a SIMULATED packaged-build resourcesPath layout
 ✖ ModeContextRetriever includes reference grounding guard with retrieved snippets
 ✖ ModesManager.getOrMigrateSourceContract — create-then-update migration timing bug (2026-07-11)
-✖ NativelyInterface.tsx renders a Repair Permissions button gated by isMac
+✖ SneakPeekInterface.tsx renders a Repair Permissions button gated by isMac
 ✖ PERMANENT: 3 distinct cold-start decrypt failures escalate to needsCredentialReentry
 ✖ PR #370: keyring AVAILABLE but encryptString throws → save falls through to fallback (returns true, NOT false)
 ✖ PR #370: loadCredentials detects stale-keyring state via mtime and unlinks before read

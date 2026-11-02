@@ -5,7 +5,7 @@
 // are advisory: a model that answers the transcript instead of naming it lands
 // verbatim in the DB. Two real rows observed on 2026-08-02:
 //
-//   197 chars  "I'm Natively, an AI assistant developed by Evin John. I help you ..."
+//   197 chars  "I'm Sneak-Peek, an AI assistant developed by Evin John. I help you ..."
 //    60 chars  "A third-party GraphQL client is a separate tool, service, or"
 //
 // cleanMeetingTitle is the deterministic shape guard. It is prompt-agnostic on
@@ -29,7 +29,7 @@ const wordsOf = (s) => s.split(' ').filter(Boolean).length;
 test('a well-formed title is returned unchanged', () => {
   for (const t of [
     'Q3 Roadmap Planning',
-    'Natively Demo & Guide',
+    'Sneak-Peek Demo & Guide',
     'Billing Migration Kickoff',
     'Weekly Sync: Growth and Platform',
     'Sync with Dr. Patel',              // an abbreviation period must not cut it
@@ -49,7 +49,7 @@ test('a title at exactly the word cap is not clamped', () => {
 
 test('clamps the assistant self-introduction that shipped as a title', () => {
   const out = cleanMeetingTitle(
-    "I'm Natively, an AI assistant developed by Evin John. I help you understand conversations, " +
+    "I'm Sneak-Peek, an AI assistant developed by Evin John. I help you understand conversations, " +
     'respond in your own voice, and answer questions across a range of topics. What would you like to focus on?'
   );
   assert.ok(wordsOf(out) <= MEETING_TITLE_MAX_WORDS, `too many words: ${out}`);
@@ -139,7 +139,7 @@ test('empty and non-string input yield an empty string, never a crash', () => {
 
 test('is idempotent', () => {
   for (const t of [
-    "I'm Natively, an AI assistant developed by Evin John. I help you understand conversations.",
+    "I'm Sneak-Peek, an AI assistant developed by Evin John. I help you understand conversations.",
     '**Title: Billing Migration Kickoff**',
     'Q3 Roadmap Planning',
   ]) {

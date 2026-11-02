@@ -69,7 +69,7 @@ export interface StoredCredentials {
     claudeApiKey?: string;
     deepseekApiKey?: string;
     nvidiaNimApiKey?: string;
-    nativelyApiKey?: string;
+    sneakPeekApiKey?: string;
     litellmApiKey?: string;
     litellmBaseURL?: string;
     /** Manual output ceiling for LiteLLM-proxied models. Unset → Auto (per-model via /model/info). */
@@ -282,11 +282,11 @@ export class CredentialsManager {
         // instances, a revoked key kept being served from a stale copy's
         // decrypted snapshot until restart. One process, one credential truth.
         const g = globalThis as unknown as Record<string, CredentialsManager | undefined>;
-        if (!g.__nativelyCredentialsManagerV1__) {
-            g.__nativelyCredentialsManagerV1__ = CredentialsManager.instance ?? new CredentialsManager();
+        if (!g.__sneakPeekCredentialsManagerV1__) {
+            g.__sneakPeekCredentialsManagerV1__ = CredentialsManager.instance ?? new CredentialsManager();
         }
-        CredentialsManager.instance = g.__nativelyCredentialsManagerV1__;
-        return g.__nativelyCredentialsManagerV1__;
+        CredentialsManager.instance = g.__sneakPeekCredentialsManagerV1__;
+        return g.__sneakPeekCredentialsManagerV1__;
     }
 
     /**
@@ -649,8 +649,8 @@ export class CredentialsManager {
         return this.credentials.deepseekApiKey;
     }
 
-    public getNativelyApiKey(): string | undefined {
-        // The hosted Natively backend is intentionally disabled. Keeping this
+    public getSneakPeekApiKey(): string | undefined {
+        // The hosted Sneak-Peek backend is intentionally disabled. Keeping this
         // path present for compatibility but returning undefined prevents any
         // legacy code from reintroducing a live backend dependency.
         return undefined;
@@ -714,10 +714,10 @@ export class CredentialsManager {
 
     public getSttProvider(): 'none' | 'google' | 'groq' | 'openai' | 'deepgram' | 'elevenlabs' | 'azure' | 'ibmwatson' | 'soniox' | 'nvidia_nim' | 'natively' | 'local-whisper' {
         const provider = this.credentials.sttProvider || 'none';
-        // Self-heal: if provider is 'none' but a Natively key exists, the user is in a
+        // Self-heal: if provider is 'none' but a Sneak-Peek key exists, the user is in a
         // broken state (key cleared then re-entered via a path that skipped auto-promote,
         // or credentials restored from backup). Silently restore to 'natively' so STT works.
-        if (provider === 'none' && this.credentials.nativelyApiKey) {
+        if (provider === 'none' && this.credentials.sneakPeekApiKey) {
             // The in-memory heal is safe and useful even when the store is
             // degraded (STT works this session), so it is NOT gated. Only the
             // PERSIST is skipped — writing would either be refused anyway or,
@@ -729,7 +729,7 @@ export class CredentialsManager {
                 console.log('[CredentialsManager] Self-healed sttProvider in memory only (credential store is degraded)');
             } else {
                 this.saveCredentials();
-                console.log('[CredentialsManager] Self-healed sttProvider: none→natively (Natively key present)');
+                console.log('[CredentialsManager] Self-healed sttProvider: none→natively (Sneak-Peek key present)');
             }
             return 'natively';
         }
@@ -1236,7 +1236,7 @@ export class CredentialsManager {
      * Returns what actually changed so a caller can re-sync the runtime (LLMHelper
      * model, STT pipeline) instead of guessing.
      */
-    private applyNativelyAutoDefaultRevert(reason: string): { defaultModel?: string; sttProvider?: string } {
+    private applySneakPeekAutoDefaultRevert(reason: string): { defaultModel?: string; sttProvider?: string } {
         const changed: { defaultModel?: string; sttProvider?: string } = {};
         if (this.credentials.defaultModel === 'natively') {
             this.credentials.defaultModel = 'gemini-3.1-flash-lite';
@@ -1266,23 +1266,23 @@ export class CredentialsManager {
      * state. Falling back to the same safe defaults the key-cleared path uses
      * always lands somewhere that can actually serve a request.
      */
-    public revertNativelyAutoDefaults(reason: string): { defaultModel?: string; sttProvider?: string } {
+    public revertSneakPeekAutoDefaults(reason: string): { defaultModel?: string; sttProvider?: string } {
         if (this.refuseWriteWhileDegraded('revert natively auto defaults')) return {};
-        const changed = this.applyNativelyAutoDefaultRevert(reason);
+        const changed = this.applySneakPeekAutoDefaultRevert(reason);
         if (changed.defaultModel || changed.sttProvider) this.saveCredentials();
         return changed;
     }
 
-    public setNativelyApiKey(key: string): void {
-        // The hosted Natively backend is intentionally disabled. This call is kept
+    public setSneakPeekApiKey(key: string): void {
+        // The hosted Sneak-Peek backend is intentionally disabled. This call is kept
         // for compatibility only; it must never re-enable a live backend route.
         if (this.refuseWriteWhileDegraded('set natively api key')) return;
         const trimmed = (key || '').trim();
-        this.credentials.nativelyApiKey = undefined;
-        this.applyNativelyAutoDefaultRevert('Natively API disabled in this build');
+        this.credentials.sneakPeekApiKey = undefined;
+      this.applySneakPeekAutoDefaultRevert('Hosted API disabled in this build');
         this.saveCredentials();
         if (trimmed) {
-            console.log('[CredentialsManager] Natively API key ignored; backend disabled in this build');
+            console.log('[CredentialsManager] Sneak-Peek API key ignored; backend disabled in this build');
         }
     }
 

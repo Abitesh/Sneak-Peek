@@ -23,7 +23,7 @@ describe('ProfileOutputValidator: clean answers pass', () => {
     assert.equal(r.ok, true, JSON.stringify(r.violations));
   });
   test('correct first-person experience answer passes', () => {
-    const r = validate("I worked on Natively, an AI meeting assistant, and interned building WebRTC pipelines.", 'Tell me about your experience.');
+    const r = validate("I worked on Sneak-Peek, an AI meeting assistant, and interned building WebRTC pipelines.", 'Tell me about your experience.');
     assert.equal(r.ok, true, JSON.stringify(r.violations));
   });
   test('correct skill answer passes', () => {
@@ -41,8 +41,8 @@ describe('ProfileOutputValidator: clean answers pass', () => {
 });
 
 describe('ProfileOutputValidator: catches the spec §7 failure modes', () => {
-  test('1. assistant-identity leak ("I am Natively") on an identity question', () => {
-    const r = validate("I am Natively, an AI assistant.", 'What is your name?');
+  test('1. assistant-identity leak ("I am Sneak-Peek") on an identity question', () => {
+    const r = validate("I am Sneak-Peek, an AI assistant.", 'What is your name?');
     assert.equal(r.ok, false);
     assert.ok(r.errorCodes.includes('assistant_identity_leak'));
   });
@@ -66,7 +66,7 @@ describe('ProfileOutputValidator: catches the spec §7 failure modes', () => {
   });
 
   test('5. third-person about the user instead of first person', () => {
-    const r = validate("The user's name is Evin John and their experience includes Natively.", 'What is your name?');
+    const r = validate("The user's name is Evin John and their experience includes Sneak-Peek.", 'What is your name?');
     assert.equal(r.ok, false);
     assert.ok(r.errorCodes.includes('wrong_perspective_not_first_person'));
   });
@@ -103,10 +103,10 @@ describe('ProfileOutputValidator: repair instructions', () => {
     assert.equal(buildProfileRepairInstruction(r), '');
   });
   test('identity leak yields a first-person correction', () => {
-    const r = validate('I am Natively, an AI assistant.', 'What is your name?');
+    const r = validate('I am Sneak-Peek, an AI assistant.', 'What is your name?');
     const instr = buildProfileRepairInstruction(r);
     assert.match(instr, /first person/i);
-    assert.match(instr, /Never say you are Natively/i);
+    assert.match(instr, /Never say you are Sneak-Peek/i);
   });
   test('coding leak yields a remove-profile correction', () => {
     const r = validate("Based on the candidate's resume, here is the code.", 'Write two sum', { candidateDirected: false });
@@ -117,7 +117,7 @@ describe('ProfileOutputValidator: repair instructions', () => {
 
 describe('ProfileOutputValidator: does not over-flag legitimate answers', () => {
   test('candidate saying "I" many times is fine', () => {
-    const r = validate("I'm a software engineer. I built Natively and I led the WebRTC work.", 'Tell me about yourself.');
+    const r = validate("I'm a software engineer. I built Sneak-Peek and I led the WebRTC work.", 'Tell me about yourself.');
     assert.equal(r.ok, true, JSON.stringify(r.violations));
   });
   test('a generic technical answer with no profile mention passes', () => {

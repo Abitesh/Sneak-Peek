@@ -6,9 +6,9 @@
 // app-managed fallback that the June-22 fixes (eaa19fd / f2dc18c) hardened — those target
 // the keyring-UNAVAILABLE branch + the false-"Saved" badge.
 //
-// Electron's macOS safeStorage binds the keychain item ("Natively Safe Storage") to
+// Electron's macOS safeStorage binds the keychain item ("Sneak-Peek Safe Storage") to
 // app.getName() AND to an ACL scoped to the app's CODE SIGNATURE (Chromium OSCrypt).
-// Natively IS signed + notarized with a stable Developer ID (electron-builder.signed.cjs,
+// Sneak-Peek IS signed + notarized with a stable Developer ID (electron-builder.signed.cjs,
 // since v2.7), but build/entitlements.mac.plist declares no `keychain-access-groups`, so
 // the item's ACL is bound to the concrete signing context rather than a stable team group.
 // safeStorage.decryptString() can therefore THROW when the reading signing context differs
@@ -49,7 +49,7 @@ function makeEnv() {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'issue322-'));
   const state = { keyringAvailable: true, userData, decryptShouldThrow: false };
   const fakeElectron = {
-    app: { getPath: () => state.userData, isPackaged: false, getVersion: () => '0.0.0-test', getName: () => 'Natively' },
+    app: { getPath: () => state.userData, isPackaged: false, getVersion: () => '0.0.0-test', getName: () => 'Sneak-Peek' },
     safeStorage: {
       isEncryptionAvailable: () => state.keyringAvailable,
       encryptString: (s) => Buffer.concat([Buffer.from('KC:'), Buffer.from(s, 'utf8')]),
@@ -92,7 +92,7 @@ function freshManager(env) {
   // the first test's userData directory, so `keyringAvailable = false` appeared
   // to have no effect and the fallback file was never written where the test
   // looked for it. Must be cleared in lockstep with the static field.
-  delete globalThis.__nativelyCredentialsManagerV1__;
+  delete globalThis.__sneakPeekCredentialsManagerV1__;
   const cm = mod.CredentialsManager.getInstance();
   cm.init();
   return cm;

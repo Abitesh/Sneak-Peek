@@ -18,7 +18,7 @@ export class AudioDevices {
             return [];
         }
         try {
-            // Natively's own system-audio tap is an aggregate device that cpal
+            // Sneak-Peek's own system-audio tap is an aggregate device that cpal
             // enumerates as an INPUT while a meeting is capturing (private
             // aggregates are hidden from other processes, not from ours). Left
             // unfiltered it appears in the mic dropdown, gets persisted as

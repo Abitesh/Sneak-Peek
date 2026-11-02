@@ -29,8 +29,8 @@ export const DEFAULT_KEYBINDS: KeybindConfig[] = [
     { id: 'general:selective-screenshot', label: 'Selective Screenshot', accelerator: 'CommandOrControl+Shift+H', isGlobal: true, defaultAccelerator: 'CommandOrControl+Shift+H' },
     // Capture the active browser tab's page context via the companion extension;
     // falls back to a screenshot when no extension/browser is reachable. Works
-    // from any focused app (including the Natively overlay), which the old
-    // Chrome-owned hotkey could not. See natively-browser/README.md.
+    // from any focused app (including the Sneak-Peek overlay), which the old
+    // Chrome-owned hotkey could not. See sneak-peek-browser/README.md.
     { id: 'general:capture-dom', label: 'Capture Page / Screen (Browser)', accelerator: 'CommandOrControl+Y', isGlobal: true, defaultAccelerator: 'CommandOrControl+Y' },
 
     // Chat - Global shortcuts (work even when app is not focused - stealth mode)
@@ -47,7 +47,7 @@ export const DEFAULT_KEYBINDS: KeybindConfig[] = [
     { id: 'chat:codeHint', label: 'Get Code Hint', accelerator: 'CommandOrControl+6', isGlobal: true, defaultAccelerator: 'CommandOrControl+6' },
     { id: 'chat:brainstorm', label: 'Brainstorm Approaches', accelerator: 'CommandOrControl+7', isGlobal: true, defaultAccelerator: 'CommandOrControl+7' },
     // Scroll shortcuts are global so they work in stealth mode without the user
-    // having to click the Natively window first (regression fix for issue #233).
+    // having to click the Sneak-Peek window first (regression fix for issue #233).
     // Each press kicks an inertial scroll loop in the renderer: a single tap
     // glides ~250ms then decelerates, rapid taps sustain motion. macOS Carbon
     // HotKey API does not auto-repeat with Cmd held, so inertia is what gives
@@ -55,14 +55,14 @@ export const DEFAULT_KEYBINDS: KeybindConfig[] = [
     //
     // Horizontal uses Cmd/Ctrl+Alt+Left/Right to avoid colliding with the macOS
     // line-start/line-end caret-jump shortcut that would otherwise misfire in
-    // every text input system-wide while Natively is running.
+    // every text input system-wide while Sneak-Peek is running.
     { id: 'chat:scrollUp', label: 'Scroll Up', accelerator: 'CommandOrControl+Up', isGlobal: true, defaultAccelerator: 'CommandOrControl+Up' },
     { id: 'chat:scrollDown', label: 'Scroll Down', accelerator: 'CommandOrControl+Down', isGlobal: true, defaultAccelerator: 'CommandOrControl+Down' },
     { id: 'chat:scrollLeft', label: 'Scroll Left (code block)', accelerator: 'CommandOrControl+Alt+Left', isGlobal: true, defaultAccelerator: 'CommandOrControl+Alt+Left' },
     { id: 'chat:scrollRight', label: 'Scroll Right (code block)', accelerator: 'CommandOrControl+Alt+Right', isGlobal: true, defaultAccelerator: 'CommandOrControl+Alt+Right' },
     // CommandOrControl+Shift+Space because bare Cmd+Space is Spotlight on macOS
     // and Ctrl+Space is the IME source switcher. The overlay is created with
-    // type:'panel' on macOS, so focusing it does not activate the Natively app —
+    // type:'panel' on macOS, so focusing it does not activate the Sneak-Peek app —
     // the user's foreground app keeps focus in the dock/menu bar/screen-share.
     { id: 'chat:focusInput', label: 'Toggle Stealth Typing', accelerator: 'CommandOrControl+Shift+Space', isGlobal: true, defaultAccelerator: 'CommandOrControl+Shift+Space' },
 

@@ -1,6 +1,6 @@
 /**
  * Pure decision logic for the chat auto-scroll interrupt state machine
- * (unit-tested). Extracted from NativelyInterface.tsx's handleScrollInterrupt
+ * (unit-tested). Extracted from SneakPeekInterface.tsx's handleScrollInterrupt
  * after this exact branching was wrong three separate times across three
  * separate commits (dead-zone ordering, then a wheel-nudge self-disarm) and
  * each regression was only caught by live manual repro — this table-tested

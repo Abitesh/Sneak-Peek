@@ -1,7 +1,7 @@
 /**
 * LocalWhisperSTT — local Whisper / Distil-Whisper / Moonshine STT provider.
 *
-* Dual-channel architecture: Natively captures Mic and System Audio as two
+* Dual-channel architecture: Sneak-Peek captures Mic and System Audio as two
 * completely separate native streams. createSTTProvider() instantiates this
 * class TWICE — once per channel. No diarization model is needed; speaker
 * attribution is free from the hardware.
@@ -350,8 +350,8 @@ this.contextPromptSentToWorker = this.contextPrompt;
 * wrong, corrected here. Nemotron has no real auto-detect mode (its
 * lang_id conditioning requires one explicit locale per session), so
 * this follows the SAME precedent AppState.setRecognitionLanguage
-* already applies for every other non-NativelyProSTT provider (main.ts:
-* "'auto' is only meaningful for NativelyProSTT — other providers fall
+* already applies for every other non-SneakPeekProSTT provider (main.ts:
+* "'auto' is only meaningful for SneakPeekProSTT — other providers fall
 * back to en-US"). This normalization must also live HERE, not only at
 * that call site, because createSTTProvider() (main.ts) calls
 * setRecognitionLanguage() with the RAW persisted value at construction

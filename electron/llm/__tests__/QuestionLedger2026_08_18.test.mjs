@@ -186,12 +186,12 @@ describe('the spec success criterion, end to end', () => {
 });
 
 describe('ledger-benchmark adjudication fixes (2026-08-18 divergence run)', () => {
-  test('a short direct reply answers the single open ask ("That would be Natively.")', () => {
+  test('a short direct reply answers the single open ask ("That would be Sneak-Peek.")', () => {
     // Divergence wta_project_039/054: 4-6 word replies were ignored (<8 word
     // floor), the stale ask stayed open and outranked the fresh follow-up.
     const l = new QuestionLedger();
     l.ingestInterviewerTurn({ text: 'Which is your best project?', timestamp: s(0) });
-    l.ingestCandidateTurn({ text: 'That would be Natively.', timestamp: s(5) });
+    l.ingestCandidateTurn({ text: 'That would be Sneak-Peek.', timestamp: s(5) });
     assert.equal(l.getOpenAsks().length, 0, 'a direct reply to the only open ask answers it');
     const asks2 = l.ingestInterviewerTurn({ text: 'How is it developed?', timestamp: s(10) });
     assert.equal(asks2.length, 1);

@@ -62,7 +62,7 @@ describe('mode switch invalidates the active-mode snapshot across bundles (2026-
     try { dbMgr?.close?.(); } catch { /* noop */ }
     delete require.cache[DB_PATH];
     delete require.cache[MODES_PATH];
-    delete globalThis.__nativelyActiveModeInfoCacheV1__;
+    delete globalThis.__sneakPeekActiveModeInfoCacheV1__;
     delete process.env.NATIVELY_TEST_USERDATA;
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* noop */ }
   });

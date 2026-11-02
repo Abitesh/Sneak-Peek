@@ -3,7 +3,7 @@
 // RC-1 (live shadow session C, 2026-08-21): shared guard for injecting the
 // rolling interim interviewer transcript into an LLM context window.
 //
-// Why this exists: the Natively STT relay was observed sending CUMULATIVE
+// Why this exists: the Sneak-Peek STT relay was observed sending CUMULATIVE
 // interim results — a single interim that grew monotonically from 21 to
 // 10,126 chars across a 56-minute session instead of resetting per utterance.
 // The two injection sites (IntelligenceEngine's What-to-Answer path and

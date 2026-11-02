@@ -97,7 +97,7 @@ test('reconciliation installs nothing when every candidate is filtered out', () 
     // provider the user just switched off...
     assert.doesNotMatch(
         body,
-        /has\(cm\.get(Gemini|Openai|Claude|Groq|Deepseek|Natively)ApiKey\(\)\) \?/,
+        /has\(cm\.get(Gemini|Openai|Claude|Groq|Deepseek|Sneak-Peek)ApiKey\(\)\) \?/,
         'candidates must be tested with modelAvailable(), not raw key checks',
     );
     // ...and when they all fail we must return WITHOUT persisting a default.

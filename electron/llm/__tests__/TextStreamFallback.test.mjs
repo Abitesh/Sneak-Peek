@@ -81,7 +81,7 @@ function neverFirst(id, opts = {}) {
 }
 
 // First token arrives after `delayMs` (real timer), unless the per-attempt signal
-// aborts first. Models a slow-prefill provider like the Natively gateway when its
+// aborts first. Models a slow-prefill provider like the Sneak-Peek gateway when its
 // server-side chain has fallen back to MiniMax (first token 3.3-7.7s).
 function slowFirst(id, delayMs, tokens, opts = {}) {
   return {
@@ -139,10 +139,10 @@ describe('DEFAULT_TEXT_FALLBACK_CONFIG', () => {
 describe('runStreamingTextFallback — race semantics', () => {
   test('fastest provider that produces a token wins and streams through', async () => {
     const health = new Map();
-    const natively = okProvider('natively', ['Hello', ' world']);
-    const out = await collect(runStreamingTextFallback([natively], health, DEFAULT_TEXT_FALLBACK_CONFIG, fastHooks()));
+    const sneakPeek = okProvider('natively', ['Hello', ' world']);
+    const out = await collect(runStreamingTextFallback([sneakPeek], health, DEFAULT_TEXT_FALLBACK_CONFIG, fastHooks()));
     assert.deepEqual(out, ['Hello', ' world']);
-    assert.equal(natively._calls, 1);
+    assert.equal(sneakPeek._calls, 1);
   });
 
   test('a pre-commit error on the primary silently falls over to the next provider', async () => {
@@ -166,7 +166,7 @@ describe('runStreamingTextFallback — race semantics', () => {
   });
 
   test('a per-provider ttftTimeoutMs override lets a slow-first-token provider commit (MiniMax fallback regression)', async () => {
-    // The Natively gateway can land on MiniMax (first token 3.3-7.7s) after the
+    // The Sneak-Peek gateway can land on MiniMax (first token 3.3-7.7s) after the
     // Gemini chain fails. With ONLY the 2.5s default it would be aborted pre-token
     // and fail over to providers that are typically also down. A per-provider
     // ttftTimeoutMs override (mirrors LLMHelper.ts natively text entry) must let it
@@ -174,10 +174,10 @@ describe('runStreamingTextFallback — race semantics', () => {
     const health = new Map();
     // Default budget 60ms; the slow provider's first token lands at 120ms but it
     // carries a 400ms override, so it must NOT be aborted — and must win.
-    const slowNatively = slowFirst('natively', 120, ['minimax answer'], { ttftTimeoutMs: 400 });
+    const slowSneakPeek = slowFirst('natively', 120, ['minimax answer'], { ttftTimeoutMs: 400 });
     const fallback = okProvider('groq', ['SHOULD-NOT-APPEAR']);
     const cfg = { ...DEFAULT_TEXT_FALLBACK_CONFIG, ttftTimeoutMs: 60, maxAttempts: 1 };
-    const out = await collect(runStreamingTextFallback([slowNatively, fallback], health, cfg, { log: () => {}, warn: () => {} }));
+    const out = await collect(runStreamingTextFallback([slowSneakPeek, fallback], health, cfg, { log: () => {}, warn: () => {} }));
     assert.deepEqual(out, ['minimax answer'], 'override let the slow gateway commit; fallback never served');
     assert.equal(fallback._calls, 0, 'fallback must not open — the override kept the slow provider alive');
   });
@@ -187,10 +187,10 @@ describe('runStreamingTextFallback — race semantics', () => {
     // override, so the 60ms default aborts it and the fallback serves. This is the
     // exact bug the override fixes.
     const health = new Map();
-    const slowNatively = slowFirst('natively', 120, ['minimax answer']); // no override
+    const slowSneakPeek = slowFirst('natively', 120, ['minimax answer']); // no override
     const fallback = okProvider('groq', ['fallback served']);
     const cfg = { ...DEFAULT_TEXT_FALLBACK_CONFIG, ttftTimeoutMs: 60, maxAttempts: 1 };
-    const out = await collect(runStreamingTextFallback([slowNatively, fallback], health, cfg, { log: () => {}, warn: () => {} }));
+    const out = await collect(runStreamingTextFallback([slowSneakPeek, fallback], health, cfg, { log: () => {}, warn: () => {} }));
     assert.deepEqual(out, ['fallback served'], 'no override → default budget aborted the slow provider');
   });
 

@@ -3,7 +3,7 @@
 // Regression test for: Cmd+B hides the meeting overlay, scroll position is
 // lost on re-show ("chat appears at the top of the meeting overlay").
 //
-// Validates the always-mounted shell fix in src/components/NativelyInterface.tsx
+// Validates the always-mounted shell fix in src/components/SneakPeekInterface.tsx
 // — see comments around L5604 (the new <motion.div data-shell-root> wrapper)
 // and L5614 (animate prop drives opacity/scale/pointer-events).
 //

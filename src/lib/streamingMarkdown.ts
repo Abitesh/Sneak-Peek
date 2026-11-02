@@ -10,7 +10,7 @@
 //   can accumulate extensions across test reloads or affect other consumers.
 //
 // Why it stays unsanitized:
-//   The renderer-side caller (NativelyInterface) sanitizes the rendered
+//   The renderer-side caller (SneakPeekInterface) sanitizes the rendered
 //   streaming HTML via DOMPurify AFTER appending the escaped gist. Moving DOMPurify
 //   into this pure module would either require a fake DOM under node:test
 //   or risk sanitizing the body and gist inconsistently. The "keeps HTML

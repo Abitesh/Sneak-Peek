@@ -4,7 +4,7 @@
 // bundle: index.md + log.md + one concept .md file per card, nested under a
 // bundle directory. Producer-defined extension fields (source_*, confidence,
 // generated_from, concept_id, entities, ...) are emitted alongside the
-// required `type` field per the "Natively Adaptation" rule in
+// required `type` field per the "Sneak-Peek Adaptation" rule in
 // docs/investigations/okf-official-spec-notes.md.
 
 import type { KnowledgeCard, KnowledgePack } from './types';
@@ -42,7 +42,7 @@ export function yamlList(values: string[] | number[]): string {
   return `[${values.map((v) => (typeof v === 'number' ? String(v) : yamlEscapeScalar(String(v)))).join(', ')}]`;
 }
 
-/** Maps a Natively KnowledgeCardType to a human-readable OKF `type` value. */
+/** Maps a Sneak-Peek KnowledgeCardType to a human-readable OKF `type` value. */
 export function okfTypeFor(card: KnowledgeCard): string {
   const map: Partial<Record<KnowledgeCard['type'], string>> = {
     concept: 'Reference Concept',
@@ -88,7 +88,7 @@ function buildCardMarkdown(card: KnowledgeCard, params: { sourceFileId: string; 
   fm.push(`resource: natively://reference-file/${params.sourceFileId}#pages=${card.sourcePages.join(',')}`);
   fm.push(`tags: ${yamlList(card.tags)}`);
   fm.push(`timestamp: ${params.nowIso}`);
-  // Natively producer-defined extension fields (OKF "extra fields allowed").
+  // Sneak-Peek producer-defined extension fields (OKF "extra fields allowed").
   fm.push(`source_file_id: ${yamlEscapeScalar(params.sourceFileId)}`);
   fm.push(`source_file_name: ${yamlEscapeScalar(params.sourceFileName)}`);
   fm.push(`source_pages: ${yamlList(card.sourcePages)}`);

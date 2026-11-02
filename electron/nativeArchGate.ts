@@ -140,7 +140,7 @@
       // showErrorBox is modal and blocks until the user clicks OK.
       dialog.showErrorBox(
         packaged
-          ? 'Natively was built for a different chip — please reinstall'
+          ? 'Sneak-Peek was built for a different chip — please reinstall'
           : 'Native modules are wrong architecture — run this command to fix:',
         detail,
       );

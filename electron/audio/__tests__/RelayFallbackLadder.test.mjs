@@ -24,7 +24,7 @@ Module._load = function patched(request, _p, _m) {
   return origLoad.apply(this, arguments);
 };
 
-const { NativelyProSTT } = await import(pathToFileURL(path.join(distRoot, 'NativelyProSTT.js')).href);
+const { SneakPeekProSTT } = await import(pathToFileURL(path.join(distRoot, 'SneakPeekProSTT.js')).href);
 
 const RELAY_URL = 'wss://us-relay.natively.software/ws';
 const ALT_URL = 'wss://asia-relay.natively.software/ws';
@@ -58,7 +58,7 @@ function flagsOn(overrides = {}) {
 }
 
 function relayInstance(flags = flagsOn()) {
-  const stt = new NativelyProSTT('natively_sk_paid', 'system', { appVersion: '2.7.0', platform: 'mac', flags });
+  const stt = new SneakPeekProSTT('natively_sk_paid', 'system', { appVersion: '2.7.0', platform: 'mac', flags });
   stt.installTarget(makeConfig());
   return stt;
 }
@@ -140,7 +140,7 @@ test('sttRailwayFallbackEnabled=false strips the railway url from the chain', ()
 
 test('flag OFF: resolver never called, connect() dials BACKEND_URL, legacy frame', async () => {
   let resolverCalls = 0;
-  const stt = new NativelyProSTT('natively_sk_paid', 'system', {
+  const stt = new SneakPeekProSTT('natively_sk_paid', 'system', {
     appVersion: '2.7.0',
     platform: 'mac',
     flags: flagsOn({ isRelayEnabled: () => false }),  // master OFF
@@ -165,7 +165,7 @@ test('flag OFF: resolver never called, connect() dials BACKEND_URL, legacy frame
 
 test('flag ON with no cache: maybeResolveRelayTarget starts an async resolve (returns true)', async () => {
   let resolverCalls = 0;
-  const stt = new NativelyProSTT('natively_sk_paid', 'system', {
+  const stt = new SneakPeekProSTT('natively_sk_paid', 'system', {
     appVersion: '2.7.0',
     platform: 'mac',
     flags: flagsOn(),

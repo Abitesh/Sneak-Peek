@@ -11,7 +11,7 @@
 //   4. Pass through normal Markdown unchanged alongside math.
 //   5. Not throw on malformed TeX.
 //   6. Stay unsanitized so the existing DOMPurify caller boundary
-//      (NativelyInterface) continues to own escaping; this final test is
+//      (SneakPeekInterface) continues to own escaping; this final test is
 //      intentional and pins responsibility rather than approves unsafe
 //      output.
 
@@ -413,7 +413,7 @@ describe('the FINALIZED path must survive remark-math, not just this module', ()
   // tokenizer the adjacency rule, and this suite went green — while the UI was
   // still broken. The user's question echo renders through
   //   normalizeFinalizedMarkdownMath -> ReactMarkdown(remark-math, rehype-katex)
-  // (NativelyInterface.tsx, "Standard Text Messages"), and remark-math does its
+  // (SneakPeekInterface.tsx, "Standard Text Messages"), and remark-math does its
   // OWN `$…$` pairing. Deciding "not math" here was not enough: the old code
   // emitted a BARE `$`, handing the decision straight back to the plugin.
   //

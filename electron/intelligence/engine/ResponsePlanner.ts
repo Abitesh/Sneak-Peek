@@ -1,5 +1,5 @@
 /**
- * Canonical response-planning stage for Natively Intelligence.
+ * Canonical response-planning stage for Sneak-Peek Intelligence.
  *
  * Context selection answers: "what information should I use?"
  * Response planning answers: "what should the answer look/sound like?"

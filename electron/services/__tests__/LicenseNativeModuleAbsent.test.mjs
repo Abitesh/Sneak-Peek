@@ -78,7 +78,7 @@ function writeLicense(provider, extra = {}) {
  * only the anchor hands back the same warm object.
  */
 function freshManager() {
-  delete globalThis.__nativelyLicenseManagerV1__;
+  delete globalThis.__sneakPeekLicenseManagerV1__;
   LicenseManager.instance = undefined;
   return LicenseManager.getInstance();
 }

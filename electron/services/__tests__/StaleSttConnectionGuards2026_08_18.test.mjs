@@ -1,6 +1,6 @@
 // F-203 regression pin (audit/autopilot-2026-08-18).
 //
-// NativelyProSTT wraps every handler in `guard(ws === this.ws)` and documents
+// SneakPeekProSTT wraps every handler in `guard(ws === this.ws)` and documents
 // it as CRITICAL: "a delayed event from a previously-closed WebSocket can
 // mutate this.isConnected / this.isConnecting / fire scheduleReconnect
 // against the new ws's state." Google, Soniox and Deepgram had no such guard,

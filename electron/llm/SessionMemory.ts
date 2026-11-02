@@ -2,9 +2,9 @@
 //
 // Structured, time-aware session memory for long-range follow-up resolution
 // (release 2026-06-07c). This is the piece the existing single-prior-turn
-// FollowUpResolver lacks: when an interviewer mentions "Natively" at minute 1 and at
+// FollowUpResolver lacks: when an interviewer mentions "Sneak-Peek" at minute 1 and at
 // minute 62 asks "what was the hardest part of that project?", we must resolve
-// "that project" → Natively even though it's far outside the transcript window.
+// "that project" → Sneak-Peek even though it's far outside the transcript window.
 //
 // Design principles (per the hardening directive):
 //   • STRUCTURED METADATA, not prompt blobs. We track entities/skills/projects/
@@ -15,7 +15,7 @@
 //   • MODE-AWARE BOUNDARIES. Interview memory must not leak into coding; sales
 //     pricing must not leak into interview; negotiation only surfaces for comp.
 //   • CORRECTIONS override. "Actually, use TalentScope as my best project" replaces
-//     the earlier "Natively".
+//     the earlier "Sneak-Peek".
 //   • PURE + DETERMINISTIC. No LLM, no I/O. Cheap enough for the live path.
 //   • PRIVACY. Stores short entity/skill TOKENS and turn text the caller already
 //     has — never re-derives or persists raw resume/JD/salary. Callers must NOT place
@@ -35,7 +35,7 @@ export type MemoryMode = 'general' | 'interview' | 'technical-interview' | 'look
   | 'coding' | 'sales' | 'lecture' | 'team-meet' | 'recruiting' | 'negotiation';
 
 export type MemoryItemKind =
-  | 'project'     // a named project on the table ("Natively", "TalentScope")
+  | 'project'     // a named project on the table ("Sneak-Peek", "TalentScope")
   | 'skill'       // a skill/tech being discussed ("Python", "SQL")
   | 'company'     // a company/customer ("Acme", "Globex", "EstroTech")
   | 'person'      // a named person ("Mark", "Rahul")
@@ -47,7 +47,7 @@ export type MemoryItemKind =
 
 export interface MemoryItem {
   kind: MemoryItemKind;
-  /** Short token/phrase (e.g. "Natively", "Python", "price too high"). Never raw PII. */
+  /** Short token/phrase (e.g. "Sneak-Peek", "Python", "price too high"). Never raw PII. */
   value: string;
   /** Turn timestamp in seconds (session-relative or wall-clock — caller is consistent). */
   t: number;
@@ -69,7 +69,7 @@ export interface MemoryQuery {
   /** The current mode — gates which items are visible (mode boundaries). */
   mode: MemoryMode;
   /** When true, the user EXPLICITLY asked to cross a mode boundary (e.g. "have you
-   *  used this in Natively?" during coding) — allows the otherwise-blocked recall. */
+   *  used this in Sneak-Peek?" during coding) — allows the otherwise-blocked recall. */
   explicitCrossMode?: boolean;
 }
 

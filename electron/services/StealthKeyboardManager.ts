@@ -4,7 +4,7 @@ import { isVerboseLogging } from '../verboseLog';
 
 /**
  * Lifecycle owner for the macOS CGEventTap. JS-side state machine for the
- * "stealth typing mode" that lets the user type into Natively without their
+ * "stealth typing mode" that lets the user type into Sneak-Peek without their
  * foreground app (Zoom, browser, etc.) ever losing key/frontmost status at
  * the OS level.
  *
@@ -85,7 +85,7 @@ export class StealthKeyboardManager {
     //
     // Not removed outright: unlike macOS DOM focus, the Windows hook SWALLOWS
     // keystrokes system-wide, so a session that somehow outlives its exits would
-    // eat every keypress. The real exits (Esc, click outside Natively, app
+    // eat every keypress. The real exits (Esc, click outside Sneak-Peek, app
     // switch — see keyboard_hook_windows.rs) are comprehensive and fire in
     // milliseconds; this is only a last-resort backstop.
     private static readonly IDLE_TIMEOUT_WIN32_MS = 5 * 60_000;
@@ -374,7 +374,7 @@ export class StealthKeyboardManager {
         // sees a stale window with dead inputs (tap intercepts keystrokes
         // at OS level → routes to overlay, not the aux window's React
         // tree). Hiding here closes the loop: engaging the tap = "I want
-        // to type into Natively now" implies "no other Natively windows
+        // to type into Sneak-Peek now" implies "no other Sneak-Peek windows
         // should be competing for input."
         this.hideAuxWindowsForStealth();
 

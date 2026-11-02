@@ -1,5 +1,5 @@
 // Shared Prism language resolution for the chat/markdown code renderers
-// (NativelyInterface, MeetingDetails, MeetingChatOverlay). Previously each
+// (SneakPeekInterface, MeetingDetails, MeetingChatOverlay). Previously each
 // component carried a byte-identical copy of mapLanguageForPrism; they drifted
 // and none handled JSX/TSX. This is the single source of truth.
 //

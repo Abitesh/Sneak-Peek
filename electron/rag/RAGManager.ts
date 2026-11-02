@@ -443,8 +443,8 @@ return { modesManager, personalKnowledge };
 */
 private get _jobGuards(): { reprocess: Set<string>; reindexing: boolean } {
 const g = globalThis as unknown as Record<string, { reprocess: Set<string>; reindexing: boolean } | undefined>;
-if (!g.__nativelyRagJobGuardsV1__) g.__nativelyRagJobGuardsV1__ = { reprocess: new Set(), reindexing: false };
-return g.__nativelyRagJobGuardsV1__;
+if (!g.__sneakPeekRagJobGuardsV1__) g.__sneakPeekRagJobGuardsV1__ = { reprocess: new Set(), reindexing: false };
+return g.__sneakPeekRagJobGuardsV1__;
 }
 private get _reprocessInFlight(): Set<string> { return this._jobGuards.reprocess; }
 constructor(config: RAGManagerConfig) {

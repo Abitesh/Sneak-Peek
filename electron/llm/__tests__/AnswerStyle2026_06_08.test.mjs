@@ -40,7 +40,7 @@ describe('detectAnswerStyle — recognizes the requested style', () => {
 });
 
 describe('detectAnswerStyle — normal questions stay default (no routing-affecting false positives)', () => {
-  for (const q of ['what is your name', 'tell me about Natively', 'solve two sum', 'why should we hire you', 'rate your Python out of 10', 'what is eventual consistency']) {
+  for (const q of ['what is your name', 'tell me about Sneak-Peek', 'solve two sum', 'why should we hire you', 'rate your Python out of 10', 'what is eventual consistency']) {
     test(`"${q}" → default`, () => assert.equal(detectAnswerStyle(q).style, 'default'));
   }
 });

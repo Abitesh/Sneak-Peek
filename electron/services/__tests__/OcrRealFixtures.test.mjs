@@ -1,7 +1,7 @@
 // LEGACY OCR PATH — TESTS SKIPPED (2026-05-17)
 // =====================================================================
 // This integration test exercises Tesseract.js directly through
-// OcrProviderManager. OCR has been removed from Natively's runtime
+// OcrProviderManager. OCR has been removed from Sneak-Peek's runtime
 // default in the vision-first pivot. The test is kept on disk so that
 // if a future opt-in legacy OCR mode is reintroduced, the contract
 // for Tesseract.js can be re-validated without rewriting from scratch.

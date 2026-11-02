@@ -196,7 +196,7 @@ export const useShortcuts = () => {
     // mounted, and the first registration pass runs from KeybindManager's
     // constructor — before any BrowserWindow exists — so a conflict that was
     // present at launch is broadcast to nobody. That is the common case: the
-    // rival app is usually already running when Natively starts. Without this
+    // rival app is usually already running when Sneak-Peek starts. Without this
     // snapshot the badges only ever appeared after the user edited some
     // unrelated shortcut and incidentally triggered a full re-registration.
     useEffect(() => {

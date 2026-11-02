@@ -4,7 +4,7 @@
 // live real-UI failure was `resumeLoaded=false` for 169s because structured
 // extraction is LLM-only — when the extraction LLM is down/billing-blocked it
 // throws, ingestDocument returns {success:false}, activeResume is never saved,
-// and the profile is NEVER ready (identity/projects fall back to "I am Natively").
+// and the profile is NEVER ready (identity/projects fall back to "I am Sneak-Peek").
 //
 // These tests prove the orchestrator now degrades gracefully:
 //   1. extraction-LLM failure → heuristic fallback → ingest SUCCEEDS, profile READY
@@ -36,7 +36,7 @@ Frameworks: React, FastAPI
 Cloud: AWS, GCP
 
 EXPERIENCE
-Founder at Natively (2024-01 - Present)
+Founder at Sneak-Peek (2024-01 - Present)
 - Built a real-time meeting copilot.
 
 PROJECTS
@@ -98,7 +98,7 @@ describe('D2: ingest resilience when the extraction LLM is down', () => {
     orchestrator.setGenerateContentFn(async () => JSON.stringify({
       identity: { name: 'Evin John', email: '', phone: '', location: '', linkedin: '', github: '', website: '', summary: '' },
       skills: { languages: ['TypeScript'], frameworks: ['React'], cloud: [], databases: [], ml: [], devops: [], tools: [] },
-      experience: [{ company: 'Natively', role: 'Founder', start_date: '2024-01', end_date: null, bullets: ['Built copilot'] }],
+      experience: [{ company: 'Sneak-Peek', role: 'Founder', start_date: '2024-01', end_date: null, bullets: ['Built copilot'] }],
       projects: [], education: [], achievements: [], certifications: [], leadership: [],
     }));
     orchestrator.setEmbedFn(EMBED_DOWN);

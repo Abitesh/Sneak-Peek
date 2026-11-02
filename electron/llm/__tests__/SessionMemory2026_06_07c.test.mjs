@@ -19,29 +19,29 @@ const MIN = 60; // seconds per minute
 describe('Time-aware recall — immediate / short / long range', () => {
   test('immediate (1 min ago) project recalls easily', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = m.recall({ now: 2 * MIN, kind: 'project', mode: 'technical-interview' });
-    assert.equal(r.item?.value, 'Natively');
+    assert.equal(r.item?.value, 'Sneak-Peek');
     assert.ok(r.salience > 0.9);
   });
   test('30 min later, a project is still recallable (within half-life)', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = m.recall({ now: 31 * MIN, kind: 'project', mode: 'technical-interview' });
-    assert.equal(r.item?.value, 'Natively');
+    assert.equal(r.item?.value, 'Sneak-Peek');
     assert.ok(r.salience > 0.4, `salience ${r.salience}`);
   });
   test('60 min later, a project is still recallable if no newer project superseded it', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = m.recall({ now: 62 * MIN, kind: 'project', mode: 'technical-interview' });
-    assert.equal(r.item?.value, 'Natively', 'one-hour-later project follow-up resolves');
+    assert.equal(r.item?.value, 'Sneak-Peek', 'one-hour-later project follow-up resolves');
   });
   test('pinned items survive long decay', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 0, 'technical-interview', { pinned: true });
+    m.note('project', 'Sneak-Peek', 0, 'technical-interview', { pinned: true });
     const r = m.recall({ now: 180 * MIN, kind: 'project', mode: 'technical-interview' });
-    assert.equal(r.item?.value, 'Natively');
+    assert.equal(r.item?.value, 'Sneak-Peek');
     assert.equal(r.salience, 1);
   });
 });
@@ -49,7 +49,7 @@ describe('Time-aware recall — immediate / short / long range', () => {
 describe('Supersession — newer same-kind mention wins', () => {
   test('a newer project supersedes an older one', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     m.note('project', 'TalentScope', 40 * MIN, 'technical-interview');
     const r = m.recall({ now: 45 * MIN, kind: 'project', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'TalentScope', 'most recent project is the active one');
@@ -66,7 +66,7 @@ describe('Supersession — newer same-kind mention wins', () => {
 describe('Corrections override earlier memory', () => {
   test('"actually use TalentScope" corrects the best project', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'looking-for-work');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'looking-for-work');
     m.note('project', 'TalentScope', 10 * MIN, 'looking-for-work', { corrects: true });
     const r = m.recall({ now: 20 * MIN, kind: 'project', mode: 'looking-for-work' });
     assert.equal(r.item?.value, 'TalentScope');
@@ -92,15 +92,15 @@ describe('Corrections override earlier memory', () => {
 describe('Cross-mode boundaries — memory must not leak into the wrong mode', () => {
   test('interview project does NOT recall in coding mode', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = m.recall({ now: 5 * MIN, kind: 'project', mode: 'coding' });
     assert.equal(r.item, null, 'coding answers must not pull the interview project');
   });
-  test('but an EXPLICIT cross-mode request allows it ("have you used this in Natively?")', () => {
+  test('but an EXPLICIT cross-mode request allows it ("have you used this in Sneak-Peek?")', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = m.recall({ now: 5 * MIN, kind: 'project', mode: 'coding', explicitCrossMode: true });
-    assert.equal(r.item?.value, 'Natively');
+    assert.equal(r.item?.value, 'Sneak-Peek');
   });
   test('sales pricing/objection does NOT recall in interview mode', () => {
     const m = new SessionMemory();
@@ -183,7 +183,7 @@ describe('isKindAllowedInMode boundary table', () => {
 describe('Adversarial: competing entities + stale-vs-fresh + double-correction (test-engineer review)', () => {
   test('two competing projects — the FRESHER one wins the demonstrative', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     m.note('project', 'TalentScope', 30 * MIN, 'technical-interview');
     const r = m.recall({ now: 62 * MIN, kind: 'project', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'TalentScope', 'most recent project is the active referent');
@@ -195,13 +195,13 @@ describe('Adversarial: competing entities + stale-vs-fresh + double-correction (
     const r = m.recall({ now: 45 * MIN, kind: 'skill', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'SQL');
   });
-  test('double correction — the LATEST correction wins (Natively → TalentScope → Natively)', () => {
+  test('double correction — the LATEST correction wins (Sneak-Peek → TalentScope → Sneak-Peek)', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 2 * MIN, 'looking-for-work');
+    m.note('project', 'Sneak-Peek', 2 * MIN, 'looking-for-work');
     m.note('project', 'TalentScope', 4 * MIN, 'looking-for-work', { corrects: true });
-    m.note('project', 'Natively', 8 * MIN, 'looking-for-work', { corrects: true });
+    m.note('project', 'Sneak-Peek', 8 * MIN, 'looking-for-work', { corrects: true });
     const r = m.recall({ now: 12 * MIN, kind: 'project', mode: 'looking-for-work' });
-    assert.equal(r.item?.value, 'Natively', 'latest correction is authoritative');
+    assert.equal(r.item?.value, 'Sneak-Peek', 'latest correction is authoritative');
     assert.equal(r.reason, 'correction_override');
   });
   test('a fresh non-correction does NOT override an explicit correction', () => {
@@ -225,7 +225,7 @@ describe('Memory bounds + reset', () => {
   });
   test('reset clears memory', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1, 'technical-interview');
     m.reset();
     assert.equal(m.size(), 0);
     assert.equal(m.recall({ now: 2, kind: 'project', mode: 'technical-interview' }).item, null);

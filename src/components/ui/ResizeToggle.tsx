@@ -88,7 +88,7 @@ const ResizeToggle = forwardRef<HTMLButtonElement, ResizeToggleProps>(
           // appearance.shellStyle (spread above) already supplies all four
           // (backgroundColor/borderColor/backdropFilter/WebkitBackdropFilter)
           // from the same getOverlayAppearance()/getGlassOverlayAppearance()
-          // source NativelyInterface's own shell uses, so default theme now
+          // source SneakPeekInterface's own shell uses, so default theme now
           // tracks it fully. For liquid-glass/modern this has no visible
           // effect on those four — the !important rules on
           // .overlay-resize-toggle-surface in index.css (~788, ~1674) already

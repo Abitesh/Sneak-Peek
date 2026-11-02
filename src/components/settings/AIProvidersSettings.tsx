@@ -2119,7 +2119,7 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
     const [defaultModel, setDefaultModel] = useState<string>('gemini-3.7-flash');
     const [fastResponseMode, setFastResponseMode] = useState(false);
     const [credentialsLoaded, setCredentialsLoaded] = useState(false);
-    const canUseFastMode = !!(hasStoredKey.groq || hasStoredKey.natively || (codexCliConfig.enabled && codexOauthStatus.signedIn));
+    const canUseFastMode = !!(hasStoredKey.groq || hasStoredKey.sneakPeek || (codexCliConfig.enabled && codexOauthStatus.signedIn));
 
     // --- Dynamic Model Discovery ---
     const [preferredModels, setPreferredModels] = useState<Record<string, string>>({});

@@ -3,7 +3,7 @@
 // macOS gets "clicks never steal focus" from the native side: the overlay,
 // pill, toggle and the overlay-anchored popovers are NSPanels with
 // becomesKeyOnlyIfNeeded (+ _setPreventsActivation via applyStealthToWindow),
-// so clicking a button never activates Natively and the user's meeting app
+// so clicking a button never activates Sneak-Peek and the user's meeting app
 // keeps frontmost/key status.
 //
 // Windows has no panel concept. The equivalent is the WS_EX_NOACTIVATE

@@ -79,7 +79,7 @@ afterEach(() => {
 
 function makeResumeFile() {
   const file = path.join(os.tmpdir(), `profile-space-${process.pid}-${Date.now()}.txt`);
-  fs.writeFileSync(file, `Evin Example\nSoftware Engineer at Natively\nBuilt resilient local RAG and Electron systems.\nSkills: TypeScript, SQLite, RAG`, 'utf8');
+  fs.writeFileSync(file, `Evin Example\nSoftware Engineer at Sneak-Peek\nBuilt resilient local RAG and Electron systems.\nSkills: TypeScript, SQLite, RAG`, 'utf8');
   tmpFiles.push(file);
   return file;
 }
@@ -94,7 +94,7 @@ describe('KnowledgeOrchestrator ingestion uses producer embedding space metadata
       orch.setGenerateContentFn(async () => JSON.stringify({
         identity: { name: 'Evin Example' },
         skills: { languages: ['TypeScript'], frameworks: [], cloud: [], databases: ['SQLite'], ml: ['RAG'], devops: [], tools: [] },
-        experience: [{ company: 'Natively', role: 'Software Engineer', start_date: '2024-01', end_date: null, bullets: ['Built resilient local RAG and Electron systems.'] }],
+        experience: [{ company: 'Sneak-Peek', role: 'Software Engineer', start_date: '2024-01', end_date: null, bullets: ['Built resilient local RAG and Electron systems.'] }],
         projects: [],
         education: [],
         achievements: [],

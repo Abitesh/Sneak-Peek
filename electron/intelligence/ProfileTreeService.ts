@@ -5,7 +5,7 @@
 // getSkills()/getEducation()/getRoleFit()/getCompactIdentityBlock()/
 // getInterviewIntro().
 //
-// THIS IS A FACADE, NOT A REWRITE. Natively already selects source-aware profile
+// THIS IS A FACADE, NOT A REWRITE. Sneak-Peek already selects source-aware profile
 // evidence via electron/llm/manualProfileIntelligence.ts (`selectManualProfileEvidence`),
 // the same selector used by live manual-chat/WTA JIT paths. This service DELEGATES
 // to that selector with canonical question phrasing, then returns the compact JIT
@@ -20,7 +20,7 @@
 //
 // Determinism guarantees required by the spec acceptance criteria:
 //   • identity/intro/projects/experience/skills/education answer from structure,
-//   • NEVER "I am Natively" (assistant-meta asks bail; these methods ask candidate
+//   • NEVER "I am Sneak-Peek" (assistant-meta asks bail; these methods ask candidate
 //     questions, so they always answer AS the candidate),
 //   • NEVER "I don't know" when a profile exists (returns the grounded string, or
 //     null only when that specific facet is genuinely absent from the profile).
@@ -80,7 +80,7 @@ const CANDIDATE_VOICE_MODES = new Set([
 export interface CandidatePerspectiveVerdict {
   /** True when the answer to this query must speak AS the candidate/user. */
   expectCandidateVoice: boolean;
-  /** True when an "I am Natively / an AI assistant" answer is a LEAK here. */
+  /** True when an "I am Sneak-Peek / an AI assistant" answer is a LEAK here. */
   assistantIdentityWouldLeak: boolean;
   /** True when the query legitimately asks about the app/assistant itself. */
   isAppIdentityQuestion: boolean;
@@ -226,15 +226,15 @@ export class ProfileTreeService {
   /**
    * CANDIDATE PERSPECTIVE GUARD (prompt Phase 4). Given the active mode and the
    * user query, decide whether the answer must speak AS the candidate — and
-   * therefore whether an "I am Natively / an AI assistant" answer would be a LEAK.
+   * therefore whether an "I am Sneak-Peek / an AI assistant" answer would be a LEAK.
    *
    * This is the deterministic gate that prevents the headline bug ("introduce
-   * yourself → I'm Natively"). It does NOT generate text; a caller uses the verdict
+   * yourself → I'm Sneak-Peek"). It does NOT generate text; a caller uses the verdict
    * to (a) prefer the deterministic ProfileTree answer, and (b) reject/repair any
    * model output that self-identifies as the assistant in a candidate-voice context.
    *
    * Static (no profile needed) so any layer can consult it cheaply. Genuine app
-   * questions ("are you an AI?", "what is Natively?") are exempt — there the
+   * questions ("are you an AI?", "what is Sneak-Peek?") are exempt — there the
    * assistant identity is the correct answer.
    */
   static getCandidatePerspectiveGuard(mode: string | undefined, query: string): CandidatePerspectiveVerdict {

@@ -1,6 +1,6 @@
 // node:test — ProfileTreeService (deterministic Profile Tree facade).
 // Validates spec Phase 2 + acceptance criteria: identity/projects/experience/skills/
-// education/intro/role-fit are deterministic; NEVER "I am Natively"; NEVER "I don't
+// education/intro/role-fit are deterministic; NEVER "I am Sneak-Peek"; NEVER "I don't
 // know" when a profile exists; candidate first-person voice; Alice/Bob isolation.
 //
 // UPDATED 2026-07-11 (Context OS ownership audit): ProfileTreeService.get*() no
@@ -159,7 +159,7 @@ describe('ProfileTreeService', () => {
     assert.match(best, /RecoEngine/);
   });
 
-  test('getCandidatePerspectiveGuard blocks "I am Natively" in candidate-voice modes', () => {
+  test('getCandidatePerspectiveGuard blocks "I am Sneak-Peek" in candidate-voice modes', () => {
     for (const mode of ['technical-interview', 'looking-for-work', '', 'general']) {
       const v = ProfileTreeService.getCandidatePerspectiveGuard(mode, 'introduce yourself');
       assert.equal(v.expectCandidateVoice, true, `mode=${mode} should expect candidate voice`);
@@ -169,7 +169,7 @@ describe('ProfileTreeService', () => {
   });
 
   test('getCandidatePerspectiveGuard exempts genuine app-identity questions', () => {
-    for (const q of ['are you an AI?', 'what is Natively?', 'what model are you?']) {
+    for (const q of ['are you an AI?', 'what is Sneak-Peek?', 'what model are you?']) {
       const v = ProfileTreeService.getCandidatePerspectiveGuard('technical-interview', q);
       assert.equal(v.isAppIdentityQuestion, true, `"${q}" is an app question`);
       assert.equal(v.assistantIdentityWouldLeak, false, `"${q}" may answer as the assistant`);

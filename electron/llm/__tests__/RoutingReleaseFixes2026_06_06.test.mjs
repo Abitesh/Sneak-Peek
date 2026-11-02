@@ -187,7 +187,7 @@ describe('Regression guard: standalone real questions still route correctly (no 
     ['Explain BFS.', 'technical_concept_answer'],
     ['What salary are you expecting?', 'negotiation_answer'],
     ['What are the action items?', 'general_meeting_answer'],
-    ['Tell me about Natively.', 'project_answer'],
+    ['Tell me about Sneak-Peek.', 'project_answer'],
     ['Rate your Python skills out of 10.', 'skill_experience_answer'],
     ['Why should we hire you?', 'jd_fit_answer'],
     ['Where did you study?', 'profile_fact_answer'],

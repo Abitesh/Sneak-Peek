@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const contextEnginePath = path.resolve(__dirname, '../contextEngine.ts');
 const ipcPath = path.resolve(__dirname, '../../ipcHandlers.ts');
-const uiPath = path.resolve(__dirname, '../../../src/components/NativelyInterface.tsx');
+const uiPath = path.resolve(__dirname, '../../../src/components/SneakPeekInterface.tsx');
 
 // Load the pure helper. The electron test runner usually has dist-electron;
 // fall back to asserting the source contract if require fails.

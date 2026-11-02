@@ -127,7 +127,7 @@ describe('RC3 exact benchmark shape: two sequential, non-overlapping manual-chat
   test('contrast: a legitimate project follow-up turn KEEPS the prior assistant content it needs', () => {
     const rollingSnapshot = [
       '[INTERVIEWER]: Tell me about your most impressive project.',
-      '[ASSISTANT (PREVIOUS SUGGESTION)]: I built Natively, an AI-powered interview copilot with real-time transcription.',
+      '[ASSISTANT (PREVIOUS SUGGESTION)]: I built Sneak-Peek, an AI-powered interview copilot with real-time transcription.',
       '[INTERVIEWER]: How did you build that?',
     ].join('\n');
 
@@ -136,6 +136,6 @@ describe('RC3 exact benchmark shape: two sequential, non-overlapping manual-chat
     const filtered = applyHistoryGrant(rollingSnapshot, grant);
 
     assert.equal(grant.included, true);
-    assert.ok(filtered.includes('Natively'), 'project_followup_answer must retain the prior turn\'s content to resolve "that"');
+    assert.ok(filtered.includes('Sneak-Peek'), 'project_followup_answer must retain the prior turn\'s content to resolve "that"');
   });
 });

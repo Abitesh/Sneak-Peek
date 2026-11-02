@@ -84,7 +84,7 @@ test('a full pass KEEPS verdicts for ids it will not attempt (launcher mode)', a
   assert.deepEqual(
     listRegistrationFailures(next),
     [{ id: 'chat:focusInput', accelerator: 'CommandOrControl+Shift+Space' }],
-    'a conflict is a property of the OS, not of which mode Natively is in — an untested id keeps ' +
+    'a conflict is a property of the OS, not of which mode Sneak-Peek is in — an untested id keeps ' +
       'the last verdict actually observed'
   );
 });

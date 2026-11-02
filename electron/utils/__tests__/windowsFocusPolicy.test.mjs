@@ -170,7 +170,7 @@ test('overlay, pill and toggle windows are placed under the no-activate policy a
       windowHelperSource,
       new RegExp(`attachNoActivate\\(${win.replace(/[.$]/g, '\\$&')}\\)`),
       `BUG: ${win} must call attachNoActivate() right after construction — without it, every ` +
-        'click on that window activates Natively on Windows and steals foreground focus.',
+        'click on that window activates Sneak-Peek on Windows and steals foreground focus.',
     );
   }
 });
@@ -287,7 +287,7 @@ test('typing without focus is wired to the native stealth hook on BOTH desktop p
 // input, so it must reproduce all three through the stealth session.
 
 test('Windows: Enter submits WITHOUT ending the session (macOS keeps the caret)', () => {
-  const src = read('src/components/NativelyInterface.tsx');
+  const src = read('src/components/SneakPeekInterface.tsx');
   const enterCase = src.slice(
     src.indexOf('case 36: // Return'),
     src.indexOf('case 51: // Backspace'),
@@ -322,7 +322,7 @@ test('Windows: the idle window is a long backstop, not the 10s macOS tap-mode ti
 });
 
 test('Windows: the engaged input shows the aurora glow, not the green tap-mode ring', () => {
-  const src = read('src/components/NativelyInterface.tsx');
+  const src = read('src/components/SneakPeekInterface.tsx');
   assert.match(
     src,
     /stealthTapActive && isWindows \? 'aurora-focus-active' : ''/,
@@ -370,7 +370,7 @@ test('main registers the hook-availability provider before creating windows (dea
   );
 });
 
-test('the Windows native hook stops stealth on a click outside Natively (outside-click parity)', () => {
+test('the Windows native hook stops stealth on a click outside Sneak-Peek (outside-click parity)', () => {
   // Rust-source assertion (the binary is built out-of-band). The manager already
   // stops on isOutsideMouseDown; the Windows hook must PRODUCE that signal via a
   // WH_MOUSE_LL hook using a process check (DPI-free, no bounds needed).
@@ -389,7 +389,7 @@ test('the Windows native hook stops stealth on a click outside Natively (outside
   assert.match(
     rust,
     /GetWindowThreadProcessId[\s\S]{0,200}GetCurrentProcessId\(\)/,
-    'BUG: outside-vs-inside must be decided by the clicked window PROCESS (clicking any Natively ' +
+    'BUG: outside-vs-inside must be decided by the clicked window PROCESS (clicking any Sneak-Peek ' +
       'window keeps the session; another process stops it) — DPI-free, no bounds math.',
   );
   assert.match(
@@ -402,7 +402,7 @@ test('the Windows native hook stops stealth on a click outside Natively (outside
 test('the Windows native hook stops stealth on Alt+Tab / any app switch (no click involved)', () => {
   // Alt+Tab is PASSED THROUGH by the keyboard hook's system-modifier filter, so
   // the user can leave without ever clicking. Without a foreground watcher the
-  // hook would keep swallowing keys and their typing would land in Natively's
+  // hook would keep swallowing keys and their typing would land in Sneak-Peek's
   // chatbox instead of the app they switched to. macOS gets this free (the
   // panel resigns key when another app activates).
   const rust = read('native-module/src/keyboard_hook_windows.rs');

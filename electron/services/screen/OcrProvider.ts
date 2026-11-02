@@ -2,7 +2,7 @@
 //
 // LEGACY OCR PATH — RUNTIME-DISABLED (2026-05-17)
 // =====================================================================
-// Natively now uses vision-provider screen understanding by default.
+// Sneak-Peek now uses vision-provider screen understanding by default.
 // This module is retained for two reasons:
 //   1. Existing tests still verify the OCR interface contract.
 //   2. A future explicit OCR-only mode could be reintroduced by toggling
@@ -12,7 +12,7 @@
 // =====================================================================
 //
 // Original purpose:
-// Unified OCR provider interface for Natively.
+// Unified OCR provider interface for Sneak-Peek.
 // Supports: macOS Apple Vision, Windows OCR, RapidOCR, Tesseract.js
 
 import { createRequire } from 'node:module';

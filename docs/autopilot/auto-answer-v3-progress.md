@@ -749,7 +749,7 @@ fires the greeting and the CoderPad question, meeting 2 stays silent; Auto Answe
 green (precision 1.0, recall unchanged); full suite 8510 / 8445 / 2 (Ollama pair only); both typechecks clean.
 
 Unrelated live observation, NOT this branch: the STT relay auto-detected `de-DE` mid-session on English video
-audio (gen 5), which degraded every transcript of that meeting — a NativelyProSTT/relay language-pinning issue.
+audio (gen 5), which degraded every transcript of that meeting — a SneakPeekProSTT/relay language-pinning issue.
 
 ### Live-run repairs, round 2 (2026-08-24 — the system-design session)
 Second physical session (meeting 343d1321, a system-design mock interview): 35 candidates, ALL skipped. The full
@@ -1251,7 +1251,7 @@ a colleague, a two-speaker video. For that:
   forwarded to the client, even though the relay already does exactly that pattern for per-token `language`.
   Enabling it is a **server-side** change in `natively-api` (a submodule this campaign must not commit):
   add `enable_speaker_diarization: true` to the Soniox config, and forward the token's speaker beside the text.
-- **Client side is now ready**: `NativelyProSTT` reads `speaker` / `speaker_id` off the relay message in the
+- **Client side is now ready**: `SneakPeekProSTT` reads `speaker` / `speaker_id` off the relay message in the
   shapes it might plausibly send and emits `speakerId`. Absent field → absent label → today's behaviour exactly,
   so this is inert until (and unless) the server sends one.
 - **NVIDIA Nemotron** (the current default provider) does not diarize at all.
@@ -1395,8 +1395,8 @@ Mechanism (confirmed, not inferred):
 
 **Second finding — the endpoint fast path is dead code on the shipped configuration.** `onProviderEndpoint()` /
 `ENDPOINT_CONFIRM_MS = 350` only fire for STT classes that emit `endpoint`: Deepgram, NVIDIA NIM, OpenAI and
-**direct** Soniox. The default provider is `NativelyProSTT` (the Natively relay — the log says
-`[NativelyProSTT] Connected via soniox`), which never emits it: the relay collapses Soniox's token stream to
+**direct** Soniox. The default provider is `SneakPeekProSTT` (the Natively relay — the log says
+`[SneakPeekProSTT] Connected via soniox`), which never emits it: the relay collapses Soniox's token stream to
 `{text, is_final, confidence, speaker}` server-side, so the `<end>` marker `SonioxStreamingSTT` keys on is gone
 before it reaches the client. Net: the app's default path has **no turn-end signal at all**, only the arrival gap.
 Forwarding `<end>` from the relay is a `natively-api` change (submodule — not committed from here), and is the

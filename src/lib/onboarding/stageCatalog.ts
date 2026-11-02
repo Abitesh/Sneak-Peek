@@ -140,11 +140,11 @@ export const STAGES: StageConfig[] = [
     },
     requiresStages: ['modes_manager'],
     skipWhen: (s) =>
-      s.hasNativelyKey ||
+      s.hasSneakPeekKey ||
       s.hasTrialToken ||
       s.isPremium,
     cooldownMs: () => 21 * 24 * 60 * 60 * 1000, // 21 days
-    reEligibility: (s) => !s.hasNativelyKey && !s.hasTrialToken && !s.isPremium,
+    reEligibility: (s) => !s.hasSneakPeekKey && !s.hasTrialToken && !s.isPremium,
   },
 
   // ──────────────────────────────────────────────────────────────

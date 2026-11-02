@@ -1,11 +1,11 @@
 // Regression test for the input-focus / mouse-down guard chain in
-// src/components/NativelyInterface.tsx — the heart of PR #250 (issue #246,
+// src/components/SneakPeekInterface.tsx — the heart of PR #250 (issue #246,
 // "Windows chat input unclickable in stealth mode") plus the M1 / M2 senior-
 // review fixes.
 //
 // The guard chain lives in two places that MUST stay symmetric:
 //
-//   1. blockInputFocus (src/components/NativelyInterface.tsx ~line 3281)
+//   1. blockInputFocus (src/components/SneakPeekInterface.tsx ~line 3281)
 //        const blockInputFocus = useCallback((e) => {
 //          if (!stealthAutoEngageOkRef.current) return;
 //          if (!isCgEventTapAvailableRef.current) return;     // M1
@@ -43,7 +43,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
 const NATIVELY_INTERFACE = path.join(
   root,
-  'src/components/NativelyInterface.tsx',
+  'src/components/SneakPeekInterface.tsx',
 );
 
 // ── Mirrored guard logic ──────────────────────────────────────────────────
@@ -52,14 +52,14 @@ const NATIVELY_INTERFACE = path.join(
 // the truth-table is right next to the assertions.
 
 function shouldBlockFocus(refs) {
-  // Mirrors blockInputFocus in NativelyInterface.tsx (~line 3281).
+  // Mirrors blockInputFocus in SneakPeekInterface.tsx (~line 3281).
   if (!refs.stealthAutoEngageOk) return false;
   if (!refs.isCgEventTapAvailable) return false;
   return true;
 }
 
 function shouldFireStealthTapStart(refs) {
-  // Mirrors the mount-effect onMouseDown in NativelyInterface.tsx (~line 3223).
+  // Mirrors the mount-effect onMouseDown in SneakPeekInterface.tsx (~line 3223).
   if (refs.stealthTapActive) return false;
   if (!refs.stealthAutoEngageOk) return false;
   if (!refs.isCgEventTapAvailable) return false;
@@ -247,7 +247,7 @@ describe('mount-effect onMouseDown: ref-driven tap-engage truth table', () => {
 // checking isCgEventTapAvailableRef in either gate, the file changes and we
 // surface it loud.
 
-describe('NativelyInterface.tsx: guard implementation must keep checking both refs', () => {
+describe('SneakPeekInterface.tsx: guard implementation must keep checking both refs', () => {
   const source = fs.readFileSync(NATIVELY_INTERFACE, 'utf8');
 
   test('isCgEventTapAvailableRef defaults to false (M1 safe default)', () => {

@@ -57,7 +57,7 @@ test('INVARIANT: every gate-only stage is onceEver — stageCatalog.ts (producti
 const DEFAULT_USER_STATE = {
   isPremium: false,
   hasProfile: false,
-  hasNativelyKey: false,
+  hasSneakPeekKey: false,
   hasTrialToken: false,
   extensionConnected: false,
   extensionSupported: true,
@@ -213,7 +213,7 @@ test('modes_manager: skipped when activeModeSet', () => {
 
 test('trial_promo: skipped when hasNativelyKey', () => {
   const ctx = makeCtx({
-    userState: { ...DEFAULT_USER_STATE, hasNativelyKey: true },
+    userState: { ...DEFAULT_USER_STATE, hasSneakPeekKey: true },
     completed: { permissions: 1, browser_extension: 2, profile_intelligence: 3, modes_manager: 4 },
     homepageMountedFor: 7_000,
   });

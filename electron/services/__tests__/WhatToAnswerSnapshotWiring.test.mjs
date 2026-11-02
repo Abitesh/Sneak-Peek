@@ -358,7 +358,7 @@ describe('#3 — live tokens carry the generationId end-to-end', () => {
   });
 
   test('renderer drops superseded live batches via resolveLiveAnswerBatch', () => {
-    const src = read('../../../src/components/NativelyInterface.tsx');
+    const src = read('../../../src/components/SneakPeekInterface.tsx');
     assert.match(src, /resolveLiveAnswerBatch/, 'renderer must use the live-answer batch guard');
     assert.match(src, /liveAnswerGenIdRef/, 'renderer must track an active live-answer generation id');
     assert.match(src, /\(it as any\)\.generationId/, 'the guard must read the per-item generationId');

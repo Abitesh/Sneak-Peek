@@ -36,7 +36,7 @@ const PROFILE = {
     { role: 'Software Engineer', company: 'Acme', bullets: ['Built the data pipeline'] },
     { role: 'Data Intern', company: 'Beta' },
   ],
-  projects: [{ name: 'Natively', description: 'AI meeting copilot', technologies: ['Electron', 'TypeScript'] }],
+  projects: [{ name: 'Sneak-Peek', description: 'AI meeting copilot', technologies: ['Electron', 'TypeScript'] }],
   skills: ['Python', 'SQL', 'React'],
   education: [{ degree: 'BSc', field: 'Computer Science', institution: 'State University' }],
 };
@@ -58,15 +58,15 @@ describe('ProfileTree deterministic fast path — profile-owned JIT prompt, no f
     assert.match(a, /<answer_type>identity_answer<\/answer_type>/);
     assert.match(a, /value=Evin John/, 'evidence must carry the real candidate name');
     assert.match(a, /Do not add facts.*unless present above/, 'must forbid fabrication beyond the listed evidence');
-    assert.doesNotMatch(a, /Natively, an AI|I am Natively/i, 'must never instruct the app-identity voice');
+    assert.doesNotMatch(a, /Sneak-Peek, an AI|I am Sneak-Peek/i, 'must never instruct the app-identity voice');
   });
 
-  test('intro → grounded in the candidate\'s own resume/projects/skills, never "I\'m Natively"', () => {
+  test('intro → grounded in the candidate\'s own resume/projects/skills, never "I\'m Sneak-Peek"', () => {
     const a = svc.getInterviewIntro();
     assert.match(a, /<source_owner>profile<\/source_owner>/);
     assert.match(a, /value=Evin John/);
     assert.match(a, /value=Software Engineer/, 'must surface the candidate\'s real experience as evidence');
-    assert.doesNotMatch(a, /Natively, an AI|I am Natively/i);
+    assert.doesNotMatch(a, /Sneak-Peek, an AI|I am Sneak-Peek/i);
   });
 
   test('skills/projects → profile-owned evidence for the correct answer type', () => {
@@ -74,8 +74,8 @@ describe('ProfileTree deterministic fast path — profile-owned JIT prompt, no f
     const projects = svc.getProjects();
     assert.match(skills, /<answer_type>skills_answer<\/answer_type>/);
     assert.match(skills, /value=\["Python","SQL","React"\]/);
-    assert.match(projects, /value=Natively/);
-    assert.doesNotMatch(skills, /value=Natively/, 'skills evidence must not smuggle in project facts');
+    assert.match(projects, /value=Sneak-Peek/);
+    assert.doesNotMatch(skills, /value=Sneak-Peek/, 'skills evidence must not smuggle in project facts');
   });
 
   // Profile-family sources only — never transcript/reference-files/meeting/browser
@@ -129,7 +129,7 @@ describe('Experience-count evidence is FIRST-PERSON scoped to the candidate prof
 
 describe('App identity vs Candidate identity', () => {
   const CANDIDATE = ['who are you', 'introduce yourself', 'what is your name', 'tell me who you are'];
-  const APP = ['are you an AI', 'are you a bot', 'what is Natively', 'what model are you', 'who built you'];
+  const APP = ['are you an AI', 'are you a bot', 'what is Sneak-Peek', 'what model are you', 'who built you'];
 
   for (const q of CANDIDATE) {
     test(`candidate: "${q}" expects candidate voice (leak guard ON)`, () => {

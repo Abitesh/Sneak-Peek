@@ -110,7 +110,7 @@ describe('the leak guards correctly reject the exact <rewrite_instructions> echo
   });
 
   test('a genuine first-person spoken answer is NOT flagged by either guard', () => {
-    const realAnswer = "I'm Evin, an engineer focused on user-facing AI products. My strongest project is Natively...";
+    const realAnswer = "I'm Evin, an engineer focused on user-facing AI products. My strongest project is Sneak-Peek...";
     assert.equal(isLeakedInternalTagBlock(realAnswer), false);
     assert.equal(isLeakedAnswerArtifact(realAnswer), false);
   });

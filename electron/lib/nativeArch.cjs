@@ -141,7 +141,7 @@ function verifyAll(repoRoot = process.cwd(), opts = {}) {
 // `npm run rebuild:native`; the only action available is to reinstall the
 // DMG that matches their Mac's CPU.
 const PACKAGED_REINSTALL_MESSAGE =
-  'This copy of Natively was built for a different chip than your Mac.\n' +
+  'This copy of Sneak-Peek was built for a different chip than your Mac.\n' +
   'Please download the correct version and reinstall:\n\n' +
   '  https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant/releases/latest\n\n' +
   '  • Apple Silicon (M1–M4): the arm64 DMG\n' +
@@ -153,7 +153,7 @@ const PACKAGED_REINSTALL_MESSAGE =
 // which exists here; the realistic Windows cause is a 32-bit installer on a
 // 64-bit machine. Kept byte-identical to nativeArch.mjs.
 const PACKAGED_REINSTALL_MESSAGE_WINDOWS =
-  'This copy of Natively was built for a different processor architecture\n' +
+  'This copy of Sneak-Peek was built for a different processor architecture\n' +
   'than this PC. Please download the correct installer and reinstall:\n\n' +
   '  https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant/releases/latest\n\n' +
   'Your data is safe — reinstalling over the current app keeps meeting\n' +

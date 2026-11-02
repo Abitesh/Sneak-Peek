@@ -3,7 +3,7 @@
 // Answer-pipeline-rebuild Phase 6 (concurrency/state/cache/stream safety) fix:
 // a NEW rag:query-live / rag:query-meeting / rag:query-global request starting
 // while a PRIOR one of the SAME class was still streaming had no backend-side
-// supersession at all. The renderer (NativelyInterface.tsx's
+// supersession at all. The renderer (SneakPeekInterface.tsx's
 // forceFinalizeStaleRagStream) only finalizes its own local message-bubble
 // state — it never told the backend to stop the old generator. The old
 // generator kept running and kept emitting rag:stream-chunk events, which the
@@ -150,7 +150,7 @@ describe('a superseded (aborted) query never sends a stale rag:stream-complete f
   // The bug: RAGManager's generators `break` (return normally) rather than throw when
   // aborted, so `event.sender.send('rag:stream-complete', ...)` was previously reached
   // UNCONDITIONALLY even for a query that abortPriorRAGQueriesOfClass had just superseded.
-  // NativelyInterface.tsx has no per-query correlation for this event (it acts positionally
+  // SneakPeekInterface.tsx has no per-query correlation for this event (it acts positionally
   // on "whatever is currently the last streaming message"), so a stale complete event for
   // the OLD, aborted query could finalize the NEW, still-empty placeholder as done —
   // silently swallowing the new answer before its first real chunk even arrives. Fixed by

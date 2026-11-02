@@ -160,7 +160,7 @@ const MAX_OUTPUT_TOKENS = 65536
 const CLAUDE_MAX_OUTPUT_TOKENS = 64000
 
 // ── Interactive-path connect timeout (REPORT_TO_CHATGPT §21 L1) ──────────────
-// The Natively SSE connect phase previously used a 10s ceiling. For the live
+// The Sneak-Peek SSE connect phase previously used a 10s ceiling. For the live
 // answer path that is far too long: a healthy connect is sub-second, and a
 // stalled connect should fail over fast. 4s leaves headroom for a transient
 // Railway DNS hiccup (the in-fetch DNS retry adds ~1s) while removing the 10s
@@ -168,7 +168,7 @@ const CLAUDE_MAX_OUTPUT_TOKENS = 64000
 // connect that then prefills slowly. Override per-call for non-interactive use.
 const INTERACTIVE_CONNECT_TIMEOUT_MS = 4_000;
 
-// First-useful-token budget for the Natively gateway on the TEXT path. Larger than
+// First-useful-token budget for the Sneak-Peek gateway on the TEXT path. Larger than
 // the shared 2.5s text default because the gateway's server-side fallback chain can
 // land on MiniMax (first token 3.3-7.7s); a 2.5s cap aborts it before it speaks.
 // 8s == LIVE_TOTAL_HARD_TIMEOUT_MS (the outer live-deadline ceiling), so this inner
@@ -438,7 +438,7 @@ ${IMAGE_TRUST_TRAILER}`
 export type MeetingSummaryCallOpts = {
   /** Routes to the gateway's benchmarked extraction path (larger budget, no MiniMax-M3). */
   purpose?: 'extraction';
-  /** Overrides BOTH the Natively inner fetch cap and the outer race. Default 10s. */
+  /** Overrides BOTH the Sneak-Peek inner fetch cap and the outer race. Default 10s. */
   timeoutMs?: number;
 };
 
@@ -752,8 +752,8 @@ export class LLMHelper {
   private negotiationCoachingHandler: ((payload: unknown) => void) | null = null;
   private aiResponseLanguage: string = 'auto';
   private sttLanguage: string = 'english-us';
-  private nativelyKey: string | null = null;
-  // Last server-chosen model reported by the Natively API SSE stream (e.g.
+  private sneakPeekKey: string | null = null;
+  // Last server-chosen model reported by the Sneak-Peek API SSE stream (e.g.
   // 'gemini-3.1-flash-lite'). Diagnostics / E2E only — never affects routing.
   private lastProviderModel: string | null = null;
 
@@ -1455,12 +1455,12 @@ export class LLMHelper {
     return Math.min(LITELLM_MAX_TOKENS_MAX, Math.max(LITELLM_MAX_TOKENS_MIN, budget));
   }
 
-  public setNativelyKey(key: string | null): void {
-    this.nativelyKey = key || null;
-    console.log(`[LLMHelper] Natively key ${key ? 'set' : 'cleared'}`);
+  public setSneakPeekKey(key: string | null): void {
+    this.sneakPeekKey = key || null;
+    console.log(`[LLMHelper] Sneak-Peek key ${key ? 'set' : 'cleared'}`);
   }
 
-  /** Last server-chosen model reported by the Natively SSE stream (E2E/diagnostics). */
+  /** Last server-chosen model reported by the Sneak-Peek SSE stream (E2E/diagnostics). */
   public getLastProviderModel(): string | null {
     return this.lastProviderModel;
   }
@@ -1484,8 +1484,8 @@ export class LLMHelper {
     return this.isLocalOnlyMode;
   }
 
-  private hasNatively(): boolean {
-    // Natively is completely disabled. This method exists only to prevent
+  private hasSneakPeek(): boolean {
+    // Sneak-Peek is completely disabled. This method exists only to prevent
     // compilation errors in legacy code paths that check hasNatively().
     // These paths should be removed entirely in a follow-up cleanup.
     return false;
@@ -1509,7 +1509,7 @@ export class LLMHelper {
     // Registry calls a global accessor instead of constructing its own LLMHelper, so
     // there is exactly one live helper per Electron process with the user's keys/state.
     try {
-      (global as any).__nativelyGetLLMHelper = () => this;
+      (global as any).__sneakPeekGetLLMHelper = () => this;
     } catch {
       // global isn't writable in some test contexts; ignored.
     }
@@ -1588,7 +1588,7 @@ export class LLMHelper {
     this.claudeApiKey = null;
     this.deepseekApiKey = null;
     this.litellmApiKey = null;
-    this.nativelyKey = null;
+    this.sneakPeekKey = null;
     this.client = null;
     this.groqClient = null;
     this.openaiClient = null;
@@ -1890,7 +1890,7 @@ export class LLMHelper {
   }
 
   /**
-   * Add a configured custom provider as a rung in the Natively TTFT race.
+   * Add a configured custom provider as a rung in the Sneak-Peek TTFT race.
    * Returns a restore thunk (or null if no configured custom was found) — the
    * caller MUST invoke it after the race so `this.customProvider` reflects the
    * user's actual selection, not the temporary fallback install.
@@ -2669,7 +2669,7 @@ ${IMAGE_TRUST_TRAILER}`;
   }
 
   /**
-   * Generate a suggestion based on conversation transcript - Natively-style
+   * Generate a suggestion based on conversation transcript - Sneak-Peek-style
    * This uses Gemini Flash to reason about what the user should say
    * @param context - The full conversation transcript
    * @param lastQuestion - The most recent question from the interviewer
@@ -2854,7 +2854,7 @@ You may mix scripts naturally (e.g. code stays in English even when the explanat
 [END LANGUAGE INSTRUCTION]`;
     }
     // Pinned English is an INSTRUCTION, not the absence of one. This used to
-    // `return ""`, and the two Natively request bodies below used to omit
+    // `return ""`, and the two Sneak-Peek request bodies below used to omit
     // `body.language` for English as well — so an English-pinned turn reached
     // the model with no language directive from any layer (no base system
     // prompt states a response language either). With nothing to follow, the
@@ -2973,7 +2973,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
    *   - Claude/OpenAI/Groq/DeepSeek: automatic prefix caching warms on any call
    *     carrying the same static prefix; a minimal request primes it.
    *   - Ollama: a minimal call loads the model + KV prefix into memory.
-   *   - Natively/custom/curl: server-controlled; we skip (no client-side cache).
+   *   - Sneak-Peek/custom/curl: server-controlled; we skip (no client-side cache).
    *
    * Safety: best-effort and fully swallowed. Never throws, never blocks the
    * caller. Deduped per (provider|model|prompt) so repeated activations are free.
@@ -3041,7 +3041,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
         await warm(this.streamWithOllama('Hi', undefined, staticPrompt) as any).catch((_e: any): void => {});
         console.log(`[LLMHelper] Prewarm: Ollama model ${this.ollamaModel} pinned in memory (keep_alive=-1)`);
       } else {
-        // Natively / custom / curl — server-side caching, nothing to prime client-side.
+        // Sneak-Peek / custom / curl — server-side caching, nothing to prime client-side.
         return;
       }
       console.log(`[LLMHelper] Prewarm: ${model} prefix primed`);
@@ -3610,7 +3610,7 @@ let isMultimodal = !!(imagePaths?.length);
 
       if (providers.length === 0) {
         if (cloudIsMultimodal && this.deepseekClient) {
-          return "DeepSeek is configured for text-only requests. Add a vision-capable provider like Gemini, OpenAI, Claude, Groq, or Natively to analyze images.";
+          return "DeepSeek is configured for text-only requests. Add a vision-capable provider like Gemini, OpenAI, Claude, Groq, or Sneak-Peek to analyze images.";
         }
         this.clearProviderFailureSummary();
         return this.noProviderAvailableMessage();
@@ -3722,7 +3722,7 @@ let isMultimodal = !!(imagePaths?.length);
     // (18 nodes) fastest; 3.7-flash is the correct single fallback; Gemini Pro
     // gives NO quality gain at ~4× latency; MiniMax-M3 severely UNDER-extracts. So
     // Pro/MiniMax/Groq are deliberately excluded from this path. Own-provider keys
-    // (OpenAI/Claude/own-Gemini) are still tried first when present; the Natively
+    // (OpenAI/Claude/own-Gemini) are still tried first when present; the Sneak-Peek
     // fallback carries `purpose:'extraction'` so the server runs its own
     // flash-lite→3.7-flash-only loop (never MiniMax/Pro/Scout). The MAX_ROTATIONS
     // loop below gives the 3-cycle retry-then-fail behavior.
@@ -3736,7 +3736,7 @@ let isMultimodal = !!(imagePaths?.length);
       if (name.startsWith('Claude')) return 'claude';
       if (name.startsWith('Groq')) return 'groq';
       if (name.startsWith('Codex')) return 'codex';
-      if (name.startsWith('Natively')) return 'natively';
+      if (name.startsWith('Natively') || name.startsWith('Sneak-Peek')) return 'natively';
       return name;
     };
     // `opts.preferFast` retained for API compatibility; ordering no longer
@@ -3875,7 +3875,7 @@ let isMultimodal = !!(imagePaths?.length);
     }
 
     if (providers.length === 0) {
-      throw new Error('No reasoning model available. Please configure an API key (OpenAI, Claude, Gemini, Groq, Natively) or a custom provider.');
+      throw new Error('No reasoning model available. Please configure an API key (OpenAI, Claude, Gemini, Groq, Sneak-Peek) or a custom provider.');
     }
 
     const MAX_ROTATIONS = 3;
@@ -5222,7 +5222,7 @@ let isMultimodal = !!(imagePaths?.length);
 
     if (providers.length === 0) {
       if (isMultimodal && imagePaths && this.deepseekClient) {
-        yield "DeepSeek is configured for text-only requests. Add a vision-capable provider like Gemini, OpenAI, Claude, Groq, or Natively to analyze images.";
+        yield "DeepSeek is configured for text-only requests. Add a vision-capable provider like Gemini, OpenAI, Claude, Groq, or Sneak-Peek to analyze images.";
         return;
       }
       yield this.noProviderAvailableMessage();
@@ -5235,7 +5235,7 @@ let isMultimodal = !!(imagePaths?.length);
     // before falling back to others.
     // The user's explicit provider selection is ALWAYS respected.
     // ============================================================
-    const currentFamilyLabel = this.currentModelId === 'natively' ? 'Natively'
+    const currentFamilyLabel = this.currentModelId === 'natively' ? 'Sneak-Peek'
       : this.isClaudeModel(this.currentModelId) ? 'Claude'
         : this.isOpenAiModel(this.currentModelId) ? 'OpenAI'
           : this.isGroqModel(this.currentModelId) ? 'Groq'
@@ -5251,7 +5251,7 @@ let isMultimodal = !!(imagePaths?.length);
       });
     }
 
-    // REMOVED: Legacy code that forcibly reordered Natively to position 0,
+    // REMOVED: Legacy code that forcibly reordered Sneak-Peek to position 0,
     // overriding user's explicit provider selection. User's choice is now respected.
 
     // ============================================================
@@ -5348,7 +5348,7 @@ let isMultimodal = !!(imagePaths?.length);
   //      would duplicate output) — we end the stream gracefully.
   //
   // Priority order (user-specified): OpenAI → Claude → Gemini Flash → Gemini Pro
-  //   → Groq Scout → Natively → (local) Custom → Ollama. Healthy providers are
+  //   → Groq Scout → Sneak-Peek → (local) Custom → Ollama. Healthy providers are
   //   then re-ordered fastest-first by measured TTFT EWMA ("rearrange the queue
   //   in the speed"). Explicitly-selected local providers (Ollama / Custom) are
   //   honored first; local-only mode uses local providers exclusively.
@@ -5526,7 +5526,7 @@ let isMultimodal = !!(imagePaths?.length);
    * rules ban but providers emit anyway. Single-place backstop.
    */
   /**
-   * Pure generation transport for the Natively Intelligence Engine.
+   * Pure generation transport for the Sneak-Peek Intelligence Engine.
    *
    * IMPORTANT: this method receives one already-assembled final prompt and
    * dispatches it to exactly one provider/model. It does not retrieve context,
@@ -5747,7 +5747,7 @@ let isMultimodal = !!(imagePaths?.length);
    * starts from scratch and its answer is appended to the partial, producing one
    * truncated answer immediately followed by a second, different, complete one.
    *
-   * Live capture 2026-08-12 (what_to_answer, Natively fast-mode):
+   * Live capture 2026-08-12 (what_to_answer, Sneak-Peek fast-mode):
    *   stream 1  tokens 8047  chars 22871  -> ai_unavailable during_stream
    *   stream 2                chars  2342  (fell through, fresh answer)
    *   stored assistant message           25210  ≈ 22871 + 2342 − trim
@@ -5841,7 +5841,7 @@ let isMultimodal = !!(imagePaths?.length);
   // A single place that answers "what provider family did the user actually
   // pick" and "if that fails, what verified alternatives exist" — replacing
   // the previous pattern of each cascade rung re-deriving both answers
-  // ad hoc (see the fast-text-override and hardcoded Natively/Gemini/Groq
+  // ad hoc (see the fast-text-override and hardcoded Sneak-Peek/Gemini/Groq
   // cascade this replaced in _streamChatInner, git history pre-S2).
   // ==========================================================================
 
@@ -6459,7 +6459,7 @@ let isMultimodal = !!(imagePaths?.length);
     // MODE-SCOPED answer types (manual regression 2026-06-12): a manual sales/
     // lecture turn NEEDS the active mode's voice + retrieved product material —
     // CHAT_MODE_PROMPT's blanket "universal override" skip left sales-mode
-    // pricing questions answered as "I'm Natively, an AI assistant. I don't have
+    // pricing questions answered as "I'm Sneak-Peek, an AI assistant. I don't have
     // a product." For these types the mode suffix/context is the answer's whole
     // grounding, so the skip is bypassed (the route still scopes sensitivity).
     const isModeScopedAnswer = routeOptions?.answerType === 'sales_answer'
@@ -7253,7 +7253,7 @@ let isMultimodal = !!(imagePaths?.length);
 
     // ── UNIFIED MULTIMODAL PATH ────────────────────────────────────────────
     // Every image-bearing request goes through the single streaming vision
-    // fallback chain (OpenAI → Claude → Gemini → Groq → Natively → local) with
+    // fallback chain (OpenAI → Claude → Gemini → Groq → Sneak-Peek → local) with
     // first-token commit, per-provider retries, circuit breaking, and speed
     // reordering. This replaces the old per-model multimodal branches below,
     // which would dead-end when the selected model (e.g. `natively`) failed and
@@ -8618,7 +8618,7 @@ let isMultimodal = !!(imagePaths?.length);
    * can only give up. Callers use this to pick the deadline; see
    * firstUsefulDeadlineMs(). Mirrors isUsingOllama()/isUsingCodexCli().
    */
-  public isUsingNativelyServerCascade(): boolean {
+  public isUsingSneakPeekServerCascade(): boolean {
     return this.currentModelId === 'natively';
   }
 
@@ -8875,7 +8875,7 @@ let isMultimodal = !!(imagePaths?.length);
   public hasConfiguredProvider(): boolean {
     if (this.useOllama) return Boolean(this.ollamaModel);
     return Boolean(
-      this.customProvider || this.activeCurlProvider || this.nativelyKey
+      this.customProvider || this.activeCurlProvider || this.sneakPeekKey
       || this.client || this.groqClient || this.openaiClient || this.claudeClient
       || this.deepseekClient || this.nvidiaNimClient || this.litellmClient
       || this.isCodexAvailable()
@@ -8890,11 +8890,11 @@ let isMultimodal = !!(imagePaths?.length);
   }
 
   /**
-   * Provider-only routing contract for the Natively Intelligence Engine.
+   * Provider-only routing contract for the Sneak-Peek Intelligence Engine.
    * Context and prompt decisions never enter this method; GenerationController
    * remains the owner of fallback, commit, cancellation and completion.
    */
-  public getNativelyGenerationRouteOptions(
+  public getSneakPeekGenerationRouteOptions(
     dataScopes: ProviderDataScope[] = [],
     multimodal = false,
   ): ProviderRouteOptions | null {
@@ -9305,7 +9305,7 @@ let isMultimodal = !!(imagePaths?.length);
    * Robust Meeting Summary Generation
    * Strategy:
    * 0. Custom / cURL Provider (if user selected one — always takes priority)
-   * 1. Natively API (if configured)
+   * 1. Sneak-Peek API (if configured)
    * 2. Groq (if context text < 100k tokens approx)
    * 3. Gemini Flash (Retry 2x)
    * 4. Gemini Pro (Retry 5x)
@@ -9313,7 +9313,7 @@ let isMultimodal = !!(imagePaths?.length);
   public async generateMeetingSummary(systemPrompt: string, context: string, groqSystemPrompt?: string, opts?: MeetingSummaryCallOpts): Promise<string> {
     console.log(`[LLMHelper] generateMeetingSummary called. Context length: ${context.length}`);
     // Short-circuit on empty/whitespace context. With no transcript content to
-    // summarise, the provider fallback chain (Natively → Codex → Groq → Gemini
+    // summarise, the provider fallback chain (Sneak-Peek → Codex → Groq → Gemini
     // Flash-Lite → Flash → Pro) burns up to ~10 minutes of wall-clock time on retries
     // for a result that will be discarded by the caller anyway. The caller
     // (MeetingPersistence) already checks `transcript.length > 2` before using

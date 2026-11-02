@@ -82,7 +82,7 @@ describe('mode retrieval port', () => {
 const { sourceTypeForFile, classifyDocShape } = await import(
   pathToFileURL(path.join(base, 'retrieval/mode-retrieval-port.js')).href);
 
-const RESUME_TEXT = `# Evin John\n## Summary\nEngineer...\n## Experience\n### Intern\n## Projects\n### Natively\n## Education\n**CGPA:** 7.5/10\n`;
+const RESUME_TEXT = `# Evin John\n## Summary\nEngineer...\n## Experience\n### Intern\n## Projects\n### Sneak-Peek\n## Education\n**CGPA:** 7.5/10\n`;
 const JD_TEXT = `# Software Engineer II — Google\n## Minimum Qualifications\n- 2+ years of professional experience\n## Preferred Qualifications\n## Responsibilities\n# About the Role\n## Compensation\n`;
 
 describe('document typing', () => {

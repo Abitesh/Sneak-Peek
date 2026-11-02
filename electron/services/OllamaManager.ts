@@ -69,11 +69,11 @@ export class OllamaManager {
     // per-bundle copies could run duplicate ensure/spawn/restart loops, the
     // same racing texture as the logo-stuck incident this state serializes.
     const g = globalThis as unknown as Record<string, OllamaManager | undefined>;
-    if (!g.__nativelyOllamaManagerV1__) {
-      g.__nativelyOllamaManagerV1__ = OllamaManager.instance ?? new OllamaManager();
+    if (!g.__sneakPeekOllamaManagerV1__) {
+      g.__sneakPeekOllamaManagerV1__ = OllamaManager.instance ?? new OllamaManager();
     }
-    OllamaManager.instance = g.__nativelyOllamaManagerV1__;
-    return g.__nativelyOllamaManagerV1__;
+    OllamaManager.instance = g.__sneakPeekOllamaManagerV1__;
+    return g.__sneakPeekOllamaManagerV1__;
   }
 
   /**

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel) => fs.readFileSync(path.resolve(__dirname, rel), 'utf8');
 
-const NATIVELY_INTERFACE = read('../../../src/components/NativelyInterface.tsx');
+const NATIVELY_INTERFACE = read('../../../src/components/SneakPeekInterface.tsx');
 const PERSON1_IPC = read('../person1Ipc.ts');
 const PERSONAL_KNOWLEDGE_MANAGER = read('../PersonalKnowledgeManager.ts');
 const MAIN_TS = read('../../main.ts');
@@ -33,7 +33,7 @@ describe('Problem 29-30: voice Analyze answers route through V3 like typed chat'
     assert.doesNotMatch(
       NATIVELY_INTERFACE,
       /skipSystemPrompt:\s*true/,
-      'no call site in NativelyInterface.tsx may opt a chat turn out of Context Intelligence V3 — that was the "voice bypasses RAG" defect',
+      'no call site in SneakPeekInterface.tsx may opt a chat turn out of Context Intelligence V3 — that was the "voice bypasses RAG" defect',
     );
     assert.match(
       NATIVELY_INTERFACE,

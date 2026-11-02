@@ -187,7 +187,7 @@ async function main() {
   }
 
   const llm = new LLMHelper();
-  llm.setNativelyKey(KEY);
+  llm.setSneakPeekKey(KEY);
   llm.setModel(MODEL);
 
   let pass = 0, fail = 0;

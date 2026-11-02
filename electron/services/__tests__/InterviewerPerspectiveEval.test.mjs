@@ -84,7 +84,7 @@ describe('Interviewer-perspective eval — 10 profiles × 10 scenarios (producti
         record(fx.role, 'name', ok, candidateProfile.slice(0, 80));
         assert.ok(ok, `expected ${name} in grounding, got: ${candidateProfile.slice(0, 120)}`);
         // Release-blocker: must never answer as the assistant.
-        assert.doesNotMatch(candidateProfile, /Natively|AI assistant/i);
+        assert.doesNotMatch(candidateProfile, /Sneak-Peek|AI assistant/i);
       });
 
       test('2. interviewer asks projects → loaded projects grounded', async () => {

@@ -7,7 +7,7 @@
 // states ('spawn-failed', 'unreachable'); success states are no-ops (the Settings panel
 // chip already covers them).
 //
-// The banner sits above NativelyInterface in the overlay tree with a high z-index so it's
+// The banner sits above SneakPeekInterface in the overlay tree with a high z-index so it's
 // visible during meetings too — a silently-broken memory server during a meeting would
 // otherwise be invisible until the user opens Settings.
 

@@ -161,7 +161,7 @@ export interface AppSettings {
     liveSessionMemoryRolloutPercent?: number;
 
     // ── Regional STT relay (Phase 7/8) ─────────────────────────────────────
-    // Master switch. When false (DEFAULT), NativelyProSTT behaves byte-for-byte
+    // Master switch. When false (DEFAULT), SneakPeekProSTT behaves byte-for-byte
     // identical to today: it never calls /v1/stt/session and connects directly
     // to the hardcoded Railway WS with the legacy auth frame.
     regionalSttRelayEnabled?: boolean;
@@ -239,11 +239,11 @@ export class SettingsManager {
         // bundle is invisible to reads in another — a flag flipped in the UI
         // never reaches the answering bundle. One process, one settings truth.
         const g = globalThis as unknown as Record<string, SettingsManager | undefined>;
-        if (!g.__nativelySettingsManagerV1__) {
-            g.__nativelySettingsManagerV1__ = SettingsManager.instance ?? new SettingsManager();
+        if (!g.__sneakPeekSettingsManagerV1__) {
+            g.__sneakPeekSettingsManagerV1__ = SettingsManager.instance ?? new SettingsManager();
         }
-        SettingsManager.instance = g.__nativelySettingsManagerV1__;
-        return g.__nativelySettingsManagerV1__;
+        SettingsManager.instance = g.__sneakPeekSettingsManagerV1__;
+        return g.__sneakPeekSettingsManagerV1__;
     }
 
     public get<K extends keyof AppSettings>(key: K): AppSettings[K] {
@@ -385,7 +385,7 @@ export class SettingsManager {
     // ── Regional STT relay (Phase 7/8) typed accessors ─────────────────────
     // These apply the documented defaults consistently so callers never have to
     // remember them. The class is the single source of truth for the relay flag
-    // defaults; NativelyProSTT reads through these.
+    // defaults; SneakPeekProSTT reads through these.
 
     public getRegionalSttRelayEnabled(): boolean {
         return this.settings.regionalSttRelayEnabled === true; // default false

@@ -16,9 +16,9 @@
 // Part 2 of this file is a genuine cross-seam test: it feeds the EXACT
 // payload the real compiled engine emits into the REAL
 // finalizeStreamingByIntentMessages (src/lib/overlayMessagePersistence.mjs —
-// the same function NativelyInterface.tsx's finalizeStreamingByIntent
+// the same function SneakPeekInterface.tsx's finalizeStreamingByIntent
 // callback delegates to for all three of these events, confirmed by
-// reading NativelyInterface.tsx's onIntelligenceRefinedAnswer /
+// reading SneakPeekInterface.tsx's onIntelligenceRefinedAnswer /
 // onIntelligenceRecap / onIntelligenceFollowUpQuestionsUpdate handlers) and
 // asserts a pre-seeded open streaming placeholder is resolved. This
 // validates the actual end-to-end promise ("no forever-spinning bubble"),
@@ -127,7 +127,7 @@ describe('cross-seam: engine fallback payload resolves a real open streaming pla
     await engine.runFollowUp('make_shorter');
     assert.ok(captured, 'engine must have emitted refined_answer');
 
-    // Mirrors NativelyInterface.tsx's prepareIntelligenceStreamPlaceholder('make_shorter')
+    // Mirrors SneakPeekInterface.tsx's prepareIntelligenceStreamPlaceholder('make_shorter')
     // having mounted an open row before the IPC round-trip resolves.
     const rowsWithOpenPlaceholder = [
       { id: 'u1', role: 'user', text: 'make it shorter' },

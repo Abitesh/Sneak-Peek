@@ -167,7 +167,7 @@ test('source: aria attributes for accessibility (dialog, labelled-by, labels)', 
     'must reference labelled-by for the headline');
   assert.ok(source.includes('id="ext-toast-title"'),
     'must set id on the headline for labelled-by');
-  assert.ok(source.includes('aria-label="Install Natively browser extension on Chrome"'),
+  assert.ok(source.includes('aria-label="Install Sneak-Peek browser extension on Chrome"'),
     'CTA must have descriptive aria-label');
   assert.ok(source.includes('aria-label="Dismiss browser extension invitation"'),
     'dismiss must have descriptive aria-label');

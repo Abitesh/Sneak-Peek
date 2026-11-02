@@ -3,7 +3,7 @@
 // OKF Phase 4 — deterministic (no-LLM) relation extraction from OKF cards.
 // Official OKF links are plain Markdown links; OKF itself does not require
 // typed relationships (see docs/investigations/okf-official-spec-notes.md,
-// "Links" section). This module is a Natively EXTENSION on top of that —
+// "Links" section). This module is a Sneak-Peek EXTENSION on top of that —
 // internal typed (subject, predicate, object) triples derived from card
 // text, used only to expand retrieval (Phase 4 goal), never to override
 // direct card/chunk evidence.

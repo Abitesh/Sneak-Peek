@@ -205,7 +205,7 @@ describe('Defect G contract: mode-identity check precedes the user-visible done 
 
 describe('Defect G contract: renderer tears down in-flight chat UI on mode change', () => {
   const rendererSource = fs.readFileSync(
-    path.resolve(__dirname, '../../../src/components/NativelyInterface.tsx'),
+    path.resolve(__dirname, '../../../src/components/SneakPeekInterface.tsx'),
     'utf8',
   );
 

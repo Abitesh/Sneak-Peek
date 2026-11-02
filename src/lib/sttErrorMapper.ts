@@ -66,7 +66,7 @@ export function categorizeSttError(rawError: string): SttErrorCategory {
     if (lower.includes('trial_expired')) {
         return {
             title: 'Trial Expired',
-            body: 'Your Natively Pro trial has ended. Upgrade your plan to continue using STT.',
+            body: 'Your Sneak-Peek Pro trial has ended. Upgrade your plan to continue using STT.',
             category: 'auth',
         };
     }

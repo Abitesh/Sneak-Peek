@@ -113,7 +113,7 @@ against the dark theme.
 Raster marks have no `currentColor` to resolve, so they are imported as URLs and
 rendered with `<img>`. Both consumers split their registries along that line:
 `AI_PROVIDER_MARKS` / `AI_PROVIDER_MARK_IMAGES` in `ui/aiProviderMarks.ts` (for
-`litellm.png` and the Natively app icon), and `BRAND_MARKS` /
+`litellm.png` and the Sneak-Peek app icon), and `BRAND_MARKS` /
 `BRAND_MARK_IMAGES` in `BrandMark.tsx`. Both renderers resolve the vector
 registry first, so an id must not appear in both — the coverage test enforces
 that.
@@ -158,10 +158,10 @@ inventing a brand colour.
 - **Soniox** — publishes no mark in either source package, and no other
   licence-compatible vector exists. Renders the `SO` monogram. Recorded in
   `BRAND_MARK_EXEMPT` so the coverage test can tell this apart from an oversight.
-- **Natively** — our own brand, so nothing is vendored here. The speech selector
+- **Sneak-Peek** — the app mark is supplied separately. The speech selector
   uses the app icon at the repo root (`assets/icon-512.png`) via
   `BRAND_MARK_IMAGES`, the raster registry in `BrandMark.tsx`. There is also
-  `src/components/NativelyLogoMark.tsx`, a `currentColor` vector logomark, if a
+  `src/components/SneakPeekLogoMark.tsx`, a `currentColor` vector logomark, if a
   surface needs one that tints.
 - **Local Models** — not a brand. It is a set of on-device engines (Moonshine,
   Distil-Whisper, Whisper), so it renders the HOST OS mark instead: `apple` on

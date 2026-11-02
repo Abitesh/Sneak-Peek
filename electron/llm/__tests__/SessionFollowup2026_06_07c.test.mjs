@@ -16,13 +16,13 @@ const { SessionMemory, resolveSessionFollowup } = await import(
 const MIN = 60;
 
 describe('C. One-hour-later follow-ups resolve the remembered entity', () => {
-  test('C1: 60-min later "hardest part of that project?" → Natively', () => {
+  test('C1: 60-min later "hardest part of that project?" → Sneak-Peek', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = resolveSessionFollowup({ latestQuestion: 'what was the hardest part of that project?', previousQuestion: 'filler', now: 62 * MIN, mode: 'technical-interview', surface: 'what_to_answer', memory: m });
-    assert.equal(r.recalledEntity, 'Natively');
+    assert.equal(r.recalledEntity, 'Sneak-Peek');
     assert.equal(r.resolvedAnswerType, 'project_followup_answer');
-    assert.match(r.resolvedQuestion, /Natively/);
+    assert.match(r.resolvedQuestion, /Sneak-Peek/);
     assert.ok((r.recalledAgeSeconds || 0) >= 60 * MIN);
   });
   test('C2: 65-min later "how strong are you in that?" → SQL', () => {
@@ -48,11 +48,11 @@ describe('C. One-hour-later follow-ups resolve the remembered entity', () => {
 
 describe('B. Delayed follow-ups after filler still resolve "that/there/it"', () => {
   for (const phrase of ['what was the tech stack there?', 'tell me about that project', 'how did you build it?']) {
-    test(`"${phrase}" after 8 filler turns → Natively`, () => {
+    test(`"${phrase}" after 8 filler turns → Sneak-Peek`, () => {
       const m = new SessionMemory();
-      m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+      m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
       const r = resolveSessionFollowup({ latestQuestion: phrase, previousQuestion: 'small talk filler', now: 12 * MIN, mode: 'technical-interview', surface: 'what_to_answer', memory: m, expectedKind: 'project' });
-      assert.equal(r.recalledEntity, 'Natively', `→ via ${r.resolvedVia}`);
+      assert.equal(r.recalledEntity, 'Sneak-Peek', `→ via ${r.resolvedVia}`);
     });
   }
 });
@@ -60,15 +60,15 @@ describe('B. Delayed follow-ups after filler still resolve "that/there/it"', () 
 describe('D. Cross-mode boundaries — no leak unless explicitly asked', () => {
   test('D1: project NOT recalled in coding mode', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = resolveSessionFollowup({ latestQuestion: 'solve two sum and tell me about that', now: 5 * MIN, mode: 'coding', surface: 'coding', memory: m, expectedKind: 'project' });
     assert.equal(r.recalledEntity, undefined, 'coding must not pull the interview project');
   });
   test('D1b: EXPLICIT cross-mode "have you used that in your project?" recalls it', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'technical-interview');
     const r = resolveSessionFollowup({ latestQuestion: 'have you used that project here?', now: 5 * MIN, mode: 'coding', surface: 'coding', memory: m, explicitCrossMode: true, expectedKind: 'project' });
-    assert.equal(r.recalledEntity, 'Natively');
+    assert.equal(r.recalledEntity, 'Sneak-Peek');
   });
   test('D4: comp NOT recalled in coding (no salary leak)', () => {
     const m = new SessionMemory();
@@ -79,9 +79,9 @@ describe('D. Cross-mode boundaries — no leak unless explicitly asked', () => {
 });
 
 describe('E. Corrections override earlier memory', () => {
-  test('E1: "use TalentScope" correction → that project, not Natively', () => {
+  test('E1: "use TalentScope" correction → that project, not Sneak-Peek', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'looking-for-work');
+    m.note('project', 'Sneak-Peek', 1 * MIN, 'looking-for-work');
     m.note('project', 'TalentScope', 10 * MIN, 'looking-for-work', { corrects: true });
     const r = resolveSessionFollowup({ latestQuestion: 'why is that project your best?', now: 20 * MIN, mode: 'looking-for-work', surface: 'manual', memory: m, expectedKind: 'project' });
     assert.equal(r.recalledEntity, 'TalentScope');

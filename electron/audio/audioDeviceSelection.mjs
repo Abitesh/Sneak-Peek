@@ -20,7 +20,7 @@
  */
 
 /**
- * Devices Natively creates for its OWN capture pipeline and must never offer
+ * Devices Sneak-Peek creates for its OWN capture pipeline and must never offer
  * as a microphone.
  *
  * "NativelySystemAudioTap" is the CoreAudio aggregate device built by
@@ -65,7 +65,7 @@ export function normalizeDeviceName(value) {
   return stripped.replace(/[–—−]/g, '-').toLowerCase();
 }
 
-/** True when the id or name refers to one of Natively's own capture devices. */
+/** True when the id or name refers to one of Sneak-Peek's own capture devices. */
 export function isInternalCaptureDevice(idOrName) {
   if (typeof idOrName !== 'string' || !idOrName.trim()) return false;
   const normalized = normalizeDeviceName(idOrName);
@@ -75,7 +75,7 @@ export function isInternalCaptureDevice(idOrName) {
 }
 
 /**
- * Drop Natively's own capture devices from an enumerated device list.
+ * Drop Sneak-Peek's own capture devices from an enumerated device list.
  *
  * Applied to BOTH pickers at their single choke point (AudioDevices):
  *   - input:  the tap is enumerated by cpal's host.input_devices()

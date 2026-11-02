@@ -108,7 +108,7 @@ export interface TurnPlan {
     /** If set, the assembler MUST inject this literal phrase (the candidate's
      *  full name from the resume) immediately before the identity-answer
      *  template. Closes the C3M-001 live-trace failure: the model answered
-     *  "I'm Natively, an AI assistant" instead of the candidate name because
+     *  "I'm Sneak-Peek, an AI assistant" instead of the candidate name because
      *  CORE_IDENTITY's identity-question rule took precedence over a buried
      *  resume-block mention. */
     candidateIdentityOverride?: string | null;

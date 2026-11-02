@@ -9,7 +9,7 @@ const src = path.join(root, 'electron/intelligence/context-os/evidencePack.ts');
 const outDir = path.join(root, '.change8-testdist');
 execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', src, '--target', 'ES2022', '--module', 'commonjs', '--moduleResolution', 'node', '--esModuleInterop', '--skipLibCheck', '--outDir', outDir], { cwd: root, stdio: 'ignore' });
 const mod = await import(pathToFileURL(path.join(outDir, 'evidencePack.js')).href);
-const { buildEvidencePackFromNativelyEvidence } = mod;
+const { buildEvidencePackFromSneakPeekEvidence } = mod;
 
 function plan(...requiredSources) {
   const all = ['none','recent_conversation','longer_conversation','meeting_transcript','personal_knowledge','project_knowledge','my_files','mode_documents','rag','screen','profile','structured_knowledge'];
@@ -25,7 +25,7 @@ function plan(...requiredSources) {
 const item = (source, id, text, metadata={}) => ({ id, source, content:text, score:0.9, metadata });
 
 test('pack preserves project source identity, scope, relevance, provenance and authority', () => {
-  const pack = buildEvidencePackFromNativelyEvidence({
+  const pack = buildEvidencePackFromSneakPeekEvidence({
     turnId:'t1', query:'Why Redis?', contextPlan:plan('project_knowledge'),
     evidence:{items:[item('project_knowledge','p1','Redis was used for caching',{sourceId:'linkship',scopeId:'project:linkship',relevance:.91,confidence:.88,provenance:{file:'README.md'},authority:'evidence'})],sufficient:true}
   });
@@ -40,7 +40,7 @@ test('pack preserves project source identity, scope, relevance, provenance and a
 });
 
 test('pack preserves personal, meeting and document source identity separately', () => {
-  const p = buildEvidencePackFromNativelyEvidence({turnId:'t2',query:'q',contextPlan:plan('personal_knowledge','meeting_transcript','mode_documents'),evidence:{items:[
+  const p = buildEvidencePackFromSneakPeekEvidence({turnId:'t2',query:'q',contextPlan:plan('personal_knowledge','meeting_transcript','mode_documents'),evidence:{items:[
     item('personal_knowledge','me','My experience',{scopeId:'profile:1'}),
     item('meeting_transcript','m1','We discussed Redis',{scopeId:'meeting:7'}),
     item('mode_documents','d1','Document section',{scopeId:'file:9'})
@@ -50,7 +50,7 @@ test('pack preserves personal, meeting and document source identity separately',
 });
 
 test('personal evidence cannot be relabeled as project evidence', () => {
-  const p = buildEvidencePackFromNativelyEvidence({turnId:'t3',query:'project q',contextPlan:plan('project_knowledge'),evidence:{items:[
+  const p = buildEvidencePackFromSneakPeekEvidence({turnId:'t3',query:'project q',contextPlan:plan('project_knowledge'),evidence:{items:[
     item('personal_knowledge','private','Private fact',{scopeId:'profile:1'})
   ],sufficient:true}});
   assert.equal(p.items.length,0);

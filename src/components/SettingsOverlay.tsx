@@ -50,13 +50,13 @@ import { NVIDIA_NIM_STT_MODELS, DEFAULT_NVIDIA_NIM_STT_MODEL, allowedLanguageKey
 
 
 // ---------------------------------------------------------------------------
-// MockupNativelyInterface — fake in-meeting widget for the opacity preview.
-// Mirrors NativelyInterface.tsx's own theme resolution (isGlassTheme /
+// MockupSneakPeekInterface — fake in-meeting widget for the opacity preview.
+// Mirrors SneakPeekInterface.tsx's own theme resolution (isGlassTheme /
 // isModernTheme / data-interface-theme / GlassEffectLayer) so the preview
 // actually reflects whichever "Meeting Interface Style" the user has picked,
 // instead of always rendering the default theme's appearance.
 // ---------------------------------------------------------------------------
-const MockupNativelyInterface = ({ opacity, theme }: { opacity: number; theme: MeetingInterfaceTheme }) => {
+const MockupSneakPeekInterface = ({ opacity, theme }: { opacity: number; theme: MeetingInterfaceTheme }) => {
     const t = useT();
     const resolvedTheme = useResolvedTheme();
     const isGlassTheme = theme === 'liquid-glass';
@@ -78,13 +78,13 @@ const MockupNativelyInterface = ({ opacity, theme }: { opacity: number; theme: M
             // theme's preview would silently ignore the slider entirely.
             style={{ ['--overlay-opacity' as '--overlay-opacity']: String(opacity) } as React.CSSProperties}
         >
-                {/* NativelyInterface Widget — opacity controlled by the slider.
+                {/* SneakPeekInterface Widget — opacity controlled by the slider.
                     Shifted up enough to clear the opacity-slider-card, which
                     stays visible (and in its normal in-flow position) during
                     the preview — see #opacity-slider-card's z-index override
                     in startPreviewingOpacity(). */}
                 <div
-                    id="mockup-natively-interface"
+                    id="mockup-sneak-peek-interface"
                     data-interface-theme={isGlassTheme ? 'liquid-glass' : isModernTheme ? 'modern' : 'default'}
                     className="flex flex-col items-center pointer-events-none -mt-96"
                 >
@@ -94,7 +94,7 @@ const MockupNativelyInterface = ({ opacity, theme }: { opacity: number; theme: M
                             <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden overlay-icon-surface" style={appearance.iconStyle}>
                                 <img
                                     src={icon}
-                                    alt="Natively"
+                                    alt="Sneak-Peek"
                                     className="w-[24px] h-[24px] object-contain opacity-95 scale-105 force-black-icon"
                                     draggable="false"
                                 />
@@ -426,7 +426,7 @@ interface SettingsOverlayProps {
     onClose: () => void;
     initialTab?: string;
     initialIsPremium?: boolean | null;
-    initialHasNativelyKey?: boolean;
+    initialHasSneakPeekKey?: boolean;
 }
 
 /**
@@ -456,7 +456,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     onClose,
     initialTab = 'general',
     initialIsPremium = null,
-    initialHasNativelyKey = false,
+    initialHasSneakPeekKey = false,
 }) => {
     const isLight = useResolvedTheme() === 'light';
     const { t, lang, setLang } = useLanguage();
@@ -1212,7 +1212,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     // Why the picker rejected the last pick. Without this a rejected file is
     // indistinguishable from a cancelled dialog — the field just stays empty.
     const [googleServiceAccountError, setGoogleServiceAccountError] = useState('');
-    const [hasNativelyKey, setHasNativelyKey] = useState(initialHasNativelyKey);
+    const [hasSneakPeekKey, setHasSneakPeekKey] = useState(initialHasSneakPeekKey);
     const [hasStoredSttGroqKey, setHasStoredSttGroqKey] = useState(false);
     const [hasStoredNvidiaNimKey, setHasStoredNvidiaNimKey] = useState(false);
     const [hasStoredSttOpenaiKey, setHasStoredSttOpenaiKey] = useState(false);
@@ -1259,7 +1259,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                     setHasStoredIbmWatsonKey(creds.hasIbmWatsonKey);
                     setHasStoredSonioxKey(creds.hasSonioxKey || false);
 
-                    setHasNativelyKey(creds.hasNativelyKey || false);
+                    setHasSneakPeekKey(creds.hasSneakPeekKey || false);
                     // Do NOT pre-populate STT key fields from stored credentials.
                     // The backend returns masked values ("sk-...XXXX") for security; pre-populating
                     // them into the input state causes the masked string to be submitted on re-test,
@@ -1277,7 +1277,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
 
     // PR #173: Live-reload settings whenever the backend broadcasts a credentials change
     // (e.g., when the user saves an STT key in a different window, or main fires it after
-    // a provider auto-reconfigure like Natively key clear).
+    // a provider auto-reconfigure like Sneak-Peek key clear).
     useEffect(() => {
         if (!window.electronAPI?.onCredentialsChanged) return;
         const unsubscribe = window.electronAPI.onCredentialsChanged(() => {
@@ -1287,7 +1287,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                     if (!creds) return;
                     setSttProvider(creds.sttProvider || 'none');
                     if (creds.groqSttModel) setGroqSttModel(creds.groqSttModel);
-                    setHasNativelyKey(creds.hasNativelyKey || false);
+                    setHasSneakPeekKey(creds.hasSneakPeekKey || false);
                     setHasStoredSttGroqKey(creds.hasSttGroqKey);
                     setHasStoredSttOpenaiKey(creds.hasSttOpenaiKey);
                     setHasStoredDeepgramKey(creds.hasDeepgramKey);
@@ -1959,7 +1959,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                     onClick={() => window.electronAPI.quitApp()}
                                     className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3"
                                 >
-                                    <LogOut size={16} /> {t('Quit Natively')}
+                                    <LogOut size={16} /> {t('Quit Sneak-Peek')}
                                 </button>
                             </div>
                         </div>
@@ -2006,7 +2006,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                     <div className="space-y-3.5">
                                         <div data-settings-stagger>
                                             <h3 className="text-lg font-bold text-text-primary mb-1">{t('General settings')}</h3>
-                                            <p className="text-xs text-text-secondary mb-2">{t('Customize how Natively works for you')}</p>
+                                            <p className="text-xs text-text-secondary mb-2">{t('Customize how Sneak-Peek works for you')}</p>
 
                                             <div className={`rounded-xl border ${isLight ? 'bg-bg-card border-border-subtle divide-y divide-border-subtle' : 'bg-transparent border-transparent divide-y divide-border-subtle/20'}`}>
                                             <div className="space-y-0">
@@ -2036,7 +2036,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         <div>
                                                             <h3 className="text-sm font-bold text-text-primary">{isUndetectable ? t('Undetectable') : t('Detectable')}</h3>
                                                             <p className="text-xs text-text-secondary mt-0.5">
-                                                                {isUndetectable ? t('Natively is currently undetectable by screen-sharing.') : t('Natively is currently detectable by screen-sharing.')} <button onClick={() => window.electronAPI?.openExternal?.('https://natively.software/supportedapps')} className="text-accent-primary hover:underline">{t('Supported apps here')}</button>
+                                                                {isUndetectable ? t('Sneak-Peek is currently undetectable by screen-sharing.') : t('Sneak-Peek is currently detectable by screen-sharing.')} <button onClick={() => window.electronAPI?.openExternal?.('https://natively.software/supportedapps')} className="text-accent-primary hover:underline">{t('Supported apps here')}</button>
                                                             </p>
                                                         </div>
                                                     </div>
@@ -2061,13 +2061,13 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                             <Power size={20} />
                                                         </div>
                                                         <div>
-                                                            <h3 className="text-sm font-bold text-text-primary">{t('Open Natively when you log in')}</h3>
-                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Natively will open automatically when you log in to your computer')}</p>
+                                                            <h3 className="text-sm font-bold text-text-primary">{t('Open Sneak-Peek when you log in')}</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Sneak-Peek will open automatically when you log in to your computer')}</p>
                                                         </div>
                                                     </div>
                                                     <SettingsToggle
                                                         checked={openOnLogin}
-                                                        label={t('Open Natively when you log in')}
+                                                        label={t('Open Sneak-Peek when you log in')}
                                                         onChange={() => {
                                                             const newState = !openOnLogin;
                                                             setOpenOnLogin(newState);
@@ -2178,7 +2178,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         </div>
                                                         <div>
                                                             <h3 className="text-sm font-bold text-text-primary">{t('Theme')}</h3>
-                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Customize how Natively looks on your device')}</p>
+                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Customize how Sneak-Peek looks on your device')}</p>
                                                         </div>
                                                     </div>
 
@@ -2288,7 +2288,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         </div>
                                                         <div>
                                                             <h3 className="text-sm font-bold text-text-primary">{t('Language')}</h3>
-                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Interface language for Natively')}</p>
+                                                            <p className="text-xs text-text-secondary mt-0.5">{t('Interface language for Sneak-Peek')}</p>
                                                         </div>
                                                     </div>
 
@@ -2342,7 +2342,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         <div>
                                                             <h3 className="text-sm font-bold text-text-primary">{t('Version')}</h3>
                                                             <p className="text-xs text-text-secondary mt-0.5">
-                                                                {t('You are currently using Natively version')} {packageJson.version}
+                                                                {t('You are currently using Sneak-Peek version')} {packageJson.version}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -2623,7 +2623,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                 <h3 className="text-lg font-bold text-text-primary">{t('Process Disguise')}</h3>
                                             </div>
                                             <p className="text-xs text-text-secondary">
-                                                {t('Disguise Natively as another application to prevent detection during screen sharing.')}
+                                                {t('Disguise Sneak-Peek as another application to prevent detection during screen sharing.')}
                                                 <span className="block mt-1 text-text-tertiary">
                                                     {t('Select a disguise to be automatically applied when Undetectable mode is on.')}
                                                 </span>
@@ -2693,14 +2693,14 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                 <SkillsSettings />
                             )}
                             {(activeTab === 'plans' || activeTab === 'natively-api' || activeTab === 'natively-pro') && (
-                                <PlansSettings initialIsPremium={initialIsPremium} initialHasNativelyKey={hasNativelyKey} />
+                                <PlansSettings initialIsPremium={initialIsPremium} initialHasSneakPeekKey={hasSneakPeekKey} />
                             )}
                             {activeTab === 'keybinds' && (
                                 <div className="space-y-5 animated fadeIn select-text pb-4">
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <h3 className="text-lg font-bold text-text-primary mb-1">{t('Keyboard shortcuts')}</h3>
-                                            <p className="text-xs text-text-secondary">{t('Natively works with these easy to remember commands.')}</p>
+                                            <p className="text-xs text-text-secondary">{t('Sneak-Peek works with these easy to remember commands.')}</p>
                                         </div>
                                         <button
                                             onClick={resetShortcuts}
@@ -2713,7 +2713,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
 
                                     {/* Surfaces globalShortcut.register() failures in bulk — e.g. on
                                         Windows, another running app (screenshot tool, clipboard
-                                        manager, IME) can silently claim a combo Natively wants,
+                                        manager, IME) can silently claim a combo Sneak-Peek wants,
                                         which otherwise looks like "the hotkey just doesn't work". */}
                                     {conflicts.size > 0 && (
                                         <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
@@ -2921,7 +2921,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                             /* Icons are each provider's official monochrome brand mark, inlined so it
                                                                inherits the tile's per-provider tint (see src/components/ui/BrandMark.tsx).
                                                                Soniox is a monogram because it publishes no licence-compatible mark;
-                                                               Natively is our own logo component. Every option used to share one
+                                                               Sneak-Peek is our own logo component. Every option used to share one
                                                                generic <Mic>, which made the list unreadable at a glance. */
                                                             { id: 'google', label: 'Google Cloud', badge: googleServiceAccountPath ? 'Saved' : null, desc: t('gRPC streaming via Service Account'), color: 'blue', icon: <BrandMark provider="google" />, neutralTile: true },
                                                             { id: 'groq', label: 'Groq Whisper', badge: hasStoredSttGroqKey ? 'Saved' : null, desc: t('Ultra-fast REST transcription'), color: 'orange', icon: <BrandMark provider="groq" />, neutralTile: true },
@@ -3863,7 +3863,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                 className="fixed inset-0 z-[49] pointer-events-none transition-opacity duration-150"
                 style={{ opacity: isPreviewingOpacity ? 1 : 0 }}
             >
-                <MockupNativelyInterface opacity={previewOverlayOpacity} theme={meetingInterfaceTheme} />
+                <MockupSneakPeekInterface opacity={previewOverlayOpacity} theme={meetingInterfaceTheme} />
             </div>
         </AnimatePresence >
     );

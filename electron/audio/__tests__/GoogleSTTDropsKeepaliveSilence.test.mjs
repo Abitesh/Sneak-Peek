@@ -2,14 +2,14 @@
 //
 // Symptom: after switching the STT provider to Google (service-account JSON),
 // audio transcribed as garbled tiny fragments — "he", "heh", "hehehe" — while
-// the SAME audio devices produced correct transcripts on Deepgram/Natively.
+// the SAME audio devices produced correct transcripts on Deepgram/Sneak-Peek.
 //
 // Root cause (verified against native-module/src/): the Rust DSP injects pure
 // zero-filled keepalive frames into the emitted PCM stream
 // (FrameAction::SendSilence -> `vec![0u8; chunk_size*2]`, lib.rs). For SYSTEM
 // audio the suppressor runs with VAD disabled and a permissive RMS floor, so it
 // oscillates between real low-amplitude `Send` frames and these silent
-// keepalives. Deepgram/Natively endpoint cleanly on the zero frames; Google's
+// keepalives. Deepgram/Sneak-Peek endpoint cleanly on the zero frames; Google's
 // streamingRecognize instead hallucinates short interim tokens from the
 // real-audio/silence interleaving. The audio sample RATE is correct and
 // declared correctly to Google — the keepalive interleaving is the defect.

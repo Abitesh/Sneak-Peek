@@ -187,7 +187,7 @@ export class DeepgramStreamingSTT extends EventEmitter {
             // registering a SECOND Transcript listener on the live connection
             // (every final emitted twice into handleTranscript and the RAG
             // feed), and clearing the live keepalive timers so Deepgram
-            // idle-closes it. Mirrors NativelyProSTT's documented pattern.
+            // idle-closes it. Mirrors SneakPeekProSTT's documented pattern.
             const live = this.live;
 
             this.live.on(LiveTranscriptionEvents.Open, () => {

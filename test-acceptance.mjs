@@ -3,7 +3,7 @@
 /**
  * ACCEPTANCE TEST HARNESS FOR SYSTEM AUDIO PIPELINE
  * 
- * This script runs acceptance tests against the Natively app to verify:
+ * This script runs acceptance tests against the Sneak-Peek app to verify:
  * A) App start without unexpected system audio capture
  * B) Listen lifecycle triggers proper capture
  * C) Real system audio reaches the pipeline  
@@ -30,7 +30,7 @@ console.log(`${'='.repeat(60)}\n`);
 
 // Helper to start the app and capture output
 async function startApp() {
-    console.log('[TEST] Starting Natively app...');
+    console.log('[TEST] Starting Sneak-Peek app...');
     
     return new Promise((resolve) => {
         appProcess = spawn('npx', ['electron', 'dist-electron/electron/main.js'], {

@@ -5,7 +5,7 @@
 // raw key; the Railway url (and the entire flag-off path) must send the exact
 // legacy { key | trial_token, ... } frame.
 //
-// Strategy: load compiled NativelyProSTT, build an instance, install a fake
+// Strategy: load compiled SneakPeekProSTT, build an instance, install a fake
 // `target` (chain + config) directly, and call the (runtime-accessible private)
 // buildAuthFrame() for each url-kind. Also a structural guard so the relay
 // frame can never accidentally include `key`.
@@ -29,7 +29,7 @@ Module._load = function patched(request, _p, _m) {
   return origLoad.apply(this, arguments);
 };
 
-const { NativelyProSTT } = await import(pathToFileURL(path.join(distRoot, 'NativelyProSTT.js')).href);
+const { SneakPeekProSTT } = await import(pathToFileURL(path.join(distRoot, 'SneakPeekProSTT.js')).href);
 
 const RELAY_URL = 'wss://us-relay.natively.software/ws';
 const ALT_URL = 'wss://asia-relay.natively.software/ws';
@@ -51,7 +51,7 @@ function makeConfig() {
 }
 
 function instanceWithTarget(apiKey, config) {
-  const stt = new NativelyProSTT(apiKey, 'system', { appVersion: '2.7.0', platform: 'mac', flags: stubFlags() });
+  const stt = new SneakPeekProSTT(apiKey, 'system', { appVersion: '2.7.0', platform: 'mac', flags: stubFlags() });
   stt.target = { chain: [RELAY_URL, ALT_URL, RAILWAY_URL], index: 0, config, sameUrlFailures: 0, onRailway: false };
   return stt;
 }
@@ -100,7 +100,7 @@ test('railway url → LEGACY frame (key present, session_token absent)', () => {
 });
 
 test('no target (flag off) → LEGACY frame for any url', () => {
-  const stt = new NativelyProSTT('natively_sk_paid', 'system', { flags: stubFlags() });
+  const stt = new SneakPeekProSTT('natively_sk_paid', 'system', { flags: stubFlags() });
   // No target installed → buildAuthFrame must default to legacy regardless of url.
   const frame = stt.buildAuthFrame(RELAY_URL);
   assert.equal(frame.key, 'natively_sk_paid');
@@ -119,7 +119,7 @@ test('config without a token → LEGACY frame even on a relay url', () => {
 });
 
 test('structural guard: buildAuthFrame relay branch never sets baseFrame.key', () => {
-  const src = readFileSync(path.resolve(__dirname, '../NativelyProSTT.ts'), 'utf8');
+  const src = readFileSync(path.resolve(__dirname, '../SneakPeekProSTT.ts'), 'utf8');
   // The relay branch returns an object literal with session_token. Pin that the
   // relay frame literal does NOT include a `key:` field.
   const m = /buildAuthFrame\(url: string\)[\s\S]*?if \(this\.isOnRelayTarget\(url\)\) \{([\s\S]*?)\n {8}\}/.exec(src);

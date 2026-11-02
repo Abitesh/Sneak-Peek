@@ -1,6 +1,6 @@
 // Regression test for the "app hangs / crashes the system right after an STT
 // provider or model change that fires concurrent audio-pipeline rebuilds"
-// bug (2026-06-05; originally triggered by saving a Natively API key).
+// bug (2026-06-05; originally triggered by saving a Sneak-Peek API key).
 //
 // ROOT CAUSE: a single user action could fire up to TWO audio-pipeline
 // rebuilds nearly simultaneously (e.g. main-process auto-promote + renderer
@@ -10,7 +10,7 @@
 // sequences against the same native device handles raced → native deadlock /
 // process crash on BOTH macOS and Windows.
 //
-// The hosted Natively API settings surface (`NativelyApiSettings.tsx` +
+// The hosted Sneak-Peek API settings surface (`NativelyApiSettings.tsx` +
 // `set-natively-api-key`) has since been removed. Live triggers that still
 // call `reconfigureSttProvider` are:
 //   - `set-stt-provider` (SettingsOverlay STT dropdown)

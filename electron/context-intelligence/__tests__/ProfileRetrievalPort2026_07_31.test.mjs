@@ -23,7 +23,7 @@ const { resolveModePolicy } = await import(pathToFileURL(path.join(base, 'polici
 
 // ── fixture: the acceptance-spec documents ──────────────────────────────────
 const RESUME_STRUCTURED = {
-  identity: { name: 'Evin John', summary: 'Engineer shipping user-facing AI products. Built Natively, an open-source AI desktop assistant used by 16,000+ users.', location: 'Kochi, Kerala' },
+  identity: { name: 'Evin John', summary: 'Engineer shipping user-facing AI products. Built Sneak-Peek, an open-source AI desktop assistant used by 16,000+ users.', location: 'Kochi, Kerala' },
   skills: {
     Languages: ['TypeScript', 'JavaScript', 'Python', 'Java', 'SQL', 'C++'],
     Frameworks: ['React', 'Node.js', 'FastAPI', 'Electron'],
@@ -36,7 +36,7 @@ const RESUME_STRUCTURED = {
       bullets: ['Built a Python/FastAPI backend processing voice and touch inputs with sub-100ms latency'] },
   ],
   projects: [
-    { name: 'Natively', description: 'Built and launched an open-source AI meeting copilot. Grew to 16,000+ users, 1,500+ GitHub stars and $25K+ revenue.', technologies: ['Electron', 'TypeScript', 'Rust', 'SQLite'] },
+    { name: 'Sneak-Peek', description: 'Built and launched an open-source AI meeting copilot. Grew to 16,000+ users, 1,500+ GitHub stars and $25K+ revenue.', technologies: ['Electron', 'TypeScript', 'Rust', 'SQLite'] },
     { name: 'TalentScope', description: 'Real-time technical interview platform with RBAC and collaborative coding.', technologies: ['React', 'Node.js'] },
   ],
   education: [{ institution: 'CUSAT', degree: 'B.Tech', field: 'Computer Science Engineering', gpa: '7.5/10' }],

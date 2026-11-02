@@ -212,7 +212,7 @@ hasDeepseekKey: boolean;
 hasNvidiaNimKey?: boolean;
 disabledProviders?: string[];
 cloudEnabledModels?: Record<string, string[]>;
-hasNativelyKey: boolean;
+hasSneakPeekKey: boolean;
 googleServiceAccountPath: string | null;
 sttProvider: string;
 hasSttGroqKey: boolean;
@@ -1205,7 +1205,7 @@ ipcRenderer.invoke('overlay-toggle-anchor', payload),
 // Overlay renderer main: hover hit-test (margins click-through gate).
 setOverlayHoverInteractive: (interactive: boolean) =>
 ipcRenderer.invoke('overlay-hover-interactive', interactive),
-// Any Natively window main: dismiss the overlay dropdowns (settings /
+// Any Sneak-Peek window main: dismiss the overlay dropdowns (settings /
 // model selector). Used by the click-catcher, the aux windows, and the
 // overlay renderer's click-outside handler.
 dismissOverlayPopovers: (opts?: { settings?: boolean; model?: boolean }) =>

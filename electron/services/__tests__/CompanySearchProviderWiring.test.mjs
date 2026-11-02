@@ -1,9 +1,9 @@
 // Guards the company-research search-provider wiring (2026-07-31 fix).
 //
-// Bug: the Tavily → Natively → none provider cascade lived ONLY in the manual
+// Bug: the Tavily → Sneak-Peek → none provider cascade lived ONLY in the manual
 // profile:research-company IPC handler, so the automatic AOT pipeline (JD
 // upload) always ran with searchProvider=null and silently degraded every
-// dossier to LLM-only guesswork — even with a Natively key configured. The
+// dossier to LLM-only guesswork — even with a Sneak-Peek key configured. The
 // degraded dossier was then cached for 24h and consumed by the whole
 // negotiation/gap-analysis/mock-question chain.
 //
@@ -147,11 +147,11 @@ test('manual research-company handler uses the SAME shared resolver (no drift)',
     );
 });
 
-test('shared resolver: Tavily first, Natively fallback, trial-sentinel handled', () => {
+test('shared resolver: Tavily first, Sneak-Peek fallback, trial-sentinel handled', () => {
     const src = read('electron/services/resolveCompanySearchProvider.ts');
     const tavily = src.indexOf('getTavilyApiKey()');
-    const natively = src.indexOf('getNativelyApiKey()');
-    assert.ok(tavily >= 0 && natively > tavily, 'Tavily (user key) must be checked before Natively fallback');
+    const sneakPeek = src.indexOf('getNativelyApiKey()');
+    assert.ok(tavily >= 0 && sneakPeek > tavily, 'Tavily (user key) must be checked before Sneak-Peek fallback');
     assert.ok(
         src.includes('TRIAL_SENTINEL_KEY') && src.includes('getTrialToken()'),
         'trial-sentinel → x-trial-token handling must come along with the cascade'

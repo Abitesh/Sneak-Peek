@@ -25,7 +25,7 @@
 // but the caller (LocalWhisperSTT.resolveAndApplyNemotronLanguage) handles
 // it explicitly by normalizing to 'english-us' before ever calling
 // resolveNemotronLangId(), the same precedent AppState.setRecognitionLanguage
-// already applies for every other non-NativelyProSTT provider. See that
+// already applies for every other non-SneakPeekProSTT provider. See that
 // method's own doc comment for why this matters (a real, disruptive
 // startup-path bug this table's wrong claim would otherwise have hidden).
 //

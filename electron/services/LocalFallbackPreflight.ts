@@ -26,7 +26,7 @@ let latestResult: LocalFallbackPreflightResult | null = null;
 let inFlight: Promise<LocalFallbackPreflightResult> | null = null;
 
 function statusFor(id: string, kind: ProviderKind, health: ProviderHealth, message: string, details?: Record<string, unknown>): ProviderStatus {
-  // No Natively provider is required for the app to start. The packaged local
+  // No Sneak-Peek provider is required for the app to start. The packaged local
   // fallback stack is only required for *core* intelligence features when no
   // cloud key is configured. requiredForCoreFallback: true marks providers
   // that degrade the user experience when absent; requiredForStartup stays
@@ -281,7 +281,7 @@ export async function runLocalFallbackPreflight(options: { ollamaSelected?: bool
     // platform-scoped. They used to be darwin-only paths run unconditionally,
     // which meant every packaged WINDOWS build failed four checks for binaries
     // that are never installed there — flipping `nativeOk` false and telling the
-    // user "Please reinstall Natively" on a perfectly good install. (Dev mode
+    // user "Please reinstall Sneak-Peek" on a perfectly good install. (Dev mode
     // short-circuits checkUnpacked*, which is why it never showed up locally.)
     //
     // The darwin branch is byte-for-byte what shipped before; only the win32
@@ -340,7 +340,7 @@ export async function runLocalFallbackPreflight(options: { ollamaSelected?: bool
       localEmbeddingOk ? 'ready' : 'missing_required_asset',
       localEmbeddingOk
         ? 'Packaged local embedding fallback assets are ready'
-        : 'Natively local embedding fallback assets are missing or corrupted. Please reinstall Natively.',
+        : 'Sneak-Peek local embedding fallback assets are missing or corrupted. Please reinstall Sneak-Peek.',
       {
         checks: checks.filter(c => c.id.includes('minilm') || c.id.includes('import') || c.id.startsWith('rust') || c.id.includes('sharp') || c.id.includes('sqlite-vec') || c.id.includes('better-sqlite3')),
       },
@@ -352,7 +352,7 @@ export async function runLocalFallbackPreflight(options: { ollamaSelected?: bool
       intentOk ? 'ready' : 'missing_required_asset',
       intentOk
         ? 'Packaged zero-shot intent classifier assets are ready'
-        : 'Natively local classifier assets are missing or corrupted. Please reinstall Natively.',
+        : 'Sneak-Peek local classifier assets are missing or corrupted. Please reinstall Sneak-Peek.',
       { checks: checks.filter(c => c.id.includes('mobilebert') || c.id.includes('import')) },
     ));
 
@@ -362,7 +362,7 @@ export async function runLocalFallbackPreflight(options: { ollamaSelected?: bool
       rerankerOk ? 'ready' : 'missing_required_asset',
       rerankerOk
         ? 'Packaged BGE reranker (q8) is ready for offline smart-retrieval'
-        : 'Natively packaged BGE reranker model is missing. Please reinstall Natively.',
+        : 'Sneak-Peek packaged BGE reranker model is missing. Please reinstall Sneak-Peek.',
       { checks: checks.filter(c => c.id === 'reranker model assets') },
     ));
 
@@ -372,7 +372,7 @@ export async function runLocalFallbackPreflight(options: { ollamaSelected?: bool
       nativeOk ? 'ready' : 'missing_required_asset',
       nativeOk
         ? 'Packaged native audio + DB + image processing assets are ready'
-        : 'Natively packaged native assets are missing. Please reinstall Natively.',
+        : 'Sneak-Peek packaged native assets are missing. Please reinstall Sneak-Peek.',
       { checks: checks.filter(c => c.id.startsWith('rust') || c.id.includes('sharp') || c.id.includes('sqlite-vec') || c.id.includes('better-sqlite3')) },
     ));
 

@@ -59,7 +59,7 @@ test('same-surface supersession and id-less back-compat are preserved', () => {
 // ── CR-01 (code-review HIGH, 2026-08-21) ─────────────────────────────────────
 // F-303 was reasoned about in ONE direction: "a phone stream must not steal an
 // active desktop answer". The inverse hits the same branch — the user types on
-// the desktop while a phone-mirror answer streams — and NativelyInterface
+// the desktop while a phone-mirror answer streams — and SneakPeekInterface
 // returns on !honor BEFORE setIsProcessing(false), so the spinner never stops.
 test('a cross-surface done for the LOCAL surface releases the local spinner', () => {
   // Phone answer streaming (adopted id 6); the user types here, stream id 7.

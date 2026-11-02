@@ -1,7 +1,7 @@
 // LEGACY OCR PATH — TESTS SKIPPED (2026-05-17)
 // =====================================================================
 // ScreenContextService is the legacy OCR-backed screen context service.
-// Natively no longer uses it in the default runtime path (vision-first
+// Sneak-Peek no longer uses it in the default runtime path (vision-first
 // pivot). These tests are kept on disk so the OCR contract can be
 // re-validated if a future opt-in OCR mode is reintroduced. Until then,
 // set NATIVELY_RUN_LEGACY_OCR_TESTS=1 to opt in.

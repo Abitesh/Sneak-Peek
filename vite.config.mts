@@ -29,12 +29,12 @@ export default defineConfig({
                 '**/dist-electron/**',
                 '**/release/**',
                 // Browser extension has its own esbuild pipeline
-                // (natively-browser/esbuild.config.mjs) — its .html is NOT a
+                // (sneak-peek-browser/esbuild.config.mjs) — its .html is NOT a
                 // Vite entry. Without this, Vite auto-discovers
-                // natively-browser/src/popup.html on startup and fails because
+                // sneak-peek-browser/src/popup.html on startup and fails because
                 // the script tag references popup.js, which lives in src/ as
-                // popup.ts and is bundled separately to natively-browser/dist/.
-                '**/natively-browser/**',
+                // popup.ts and is bundled separately to sneak-peek-browser/dist/.
+                '**/sneak-peek-browser/**',
             ],
         },
     },
@@ -46,8 +46,8 @@ export default defineConfig({
         chunkSizeWarningLimit: 1500,
         rollupOptions: {
             // Pin the entry to the app's index.html so Vite doesn't auto-
-            // discover natively-browser/src/popup.html (extension builds via
-            // esbuild, not Vite — see natively-browser/esbuild.config.mjs).
+            // discover sneak-peek-browser/src/popup.html (extension builds via
+            // esbuild, not Vite — see sneak-peek-browser/esbuild.config.mjs).
             input: path.resolve(__dirname, 'index.html'),
             output: {
                 // Manual vendor splits — keep the main bundle below ~500kB

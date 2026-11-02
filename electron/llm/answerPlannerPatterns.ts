@@ -330,7 +330,7 @@ const PROJECT_LINK_PATTERNS = [
 ];
 
 export // ── ACTUAL SOURCE CODE evidence requests (release 2026-06-06b) ──
-// "a snippet you used to build Natively", "repo-verifiable code", "actual code
+// "a snippet you used to build Sneak-Peek", "repo-verifiable code", "actual code
 // from your codebase", "we'll cross-verify with github". Must not fabricate real
 // code. Routes to `source_code_evidence_answer`.
 const SOURCE_CODE_EVIDENCE_PATTERNS = [
@@ -356,7 +356,7 @@ const SOURCE_CODE_EVIDENCE_PATTERNS = [
   // look at your code", "I want to see your code for the overlay"), which then
   // routed to coding_question_answer — the generic coding path this pattern
   // exists to keep them off, because it would fabricate a plausible-looking
-  // Natively snippet. Every added lead-in is an explicit speech act, so the
+  // Sneak-Peek snippet. Every added lead-in is an explicit speech act, so the
   // bare-stub-comment case stays unmatched.
   /\b(what does|what'?s|whats|show me|tell me about|can i see|could i see|can you show|could you show|let me see|let me look at|i want to see|i'?d like to see|i wanna see)\s+(your|the natively|natively'?s)\s+(actual\s+|real\s+)?[\w ]*\bcode\b\s*(look|is|for|of)?/i,
   /\byour (real|actual) code\b/i,
@@ -372,7 +372,7 @@ const SOURCE_CODE_EVIDENCE_PATTERNS = [
   /\bdemo code of a snippet you have used\b/i,
   /\b(exact|actual) code from (file|the file|your)\b/i,
   // "write/give a demo snippet FOR NATIVELY" / "demo code for natively" — a request
-  // for code OF the loaded project (even with a write-verb, the "for Natively"
+  // for code OF the loaded project (even with a write-verb, the "for Sneak-Peek"
   // anchor makes it a source-evidence ask, not a generic coding task; the template
   // says "conceptual if not loaded"). Release 2026-06-07: res_src_005.
   /\b(write|give|show|share|make)\b.{0,30}\b(demo |sample |example )?(code|snippet)\b.{0,20}\b(for|of|from)\s+(natively|nativley|your project|the project)\b/i,
@@ -388,11 +388,14 @@ const SOURCE_CODE_EVIDENCE_PATTERNS = [
 ];
 
 export // ── PRODUCT / PROJECT "what is it" questions (release 2026-06-06b) ──
-// "what kind of app is Natively?", "how's its backend?", "what do you think about
-// Natively?", "what tech does it use?". Grounded in loaded project metadata.
+// "what kind of app is Sneak-Peek?", "how's its backend?", "what do you think about
+// Sneak-Peek?", "what tech does it use?". Grounded in loaded project metadata.
 // Distinct from project_answer (which lists the candidate's projects) — this is a
 // drill-in ABOUT the product the user is asking about.
 const PRODUCT_ABOUT_PATTERNS = [
+  /\bwhat\s+(?:is|'?s)\s+(?:sneak[- ]?peek)\b/i,
+  /\bwhat\s+(?:problem|issue|pain\s?point)s?\s+(?:does|do|did)\s+(?:sneak[- ]?peek)\s+solves?\b/i,
+  /\bhow\s+(?:did|do|was)\s+you\s+(?:build|develop|design|architect)\s+(?:sneak[- ]?peek)\b/i,
   /\bwhat\s+(kind|kinda|type|sort)\s+(of\s+)?(app|application|product|tool|project|software)\b/i,
   /\bhow(?:'?s| is| does)\s+(natively|nativley|nativly|it|the (app|product|backend|architecture|frontend|stack))\b/i,
   /\bwhat\s+(do you think about|about)\s+(natively|nativley|nativly)\b/i,
@@ -409,9 +412,9 @@ const PRODUCT_ABOUT_PATTERNS = [
   // part of the product uses a named technology (release 2026-06-07 multimode-1000).
   /\bwhat (uses|runs on|is (written|built) (in|with)|handles|powers)\s+(rust|electron|react|node|python|go|typescript|sqlite|the (backend|frontend|audio|stt|ml))\b/i,
   /\bwhat (does|do) (natively|nativley|it) use\b|\bwhat'?s (natively|nativley|it) (built|made|written) (with|in)\b/i,
-  // Architecture / build-stack questions ABOUT the product: "what is Natively built
-  // with", "what is it made using", "what are the technologies behind Natively",
-  // "what is the architecture of Natively", "how did you build Natively" (release
+  // Architecture / build-stack questions ABOUT the product: "what is Sneak-Peek built
+  // with", "what is it made using", "what are the technologies behind Sneak-Peek",
+  // "what is the architecture of Sneak-Peek", "how did you build Sneak-Peek" (release
   // 2026-06-07: residual pattern #1). Grounded in loaded project metadata. NOTE:
   // "how did you build" about a project = a product-about/architecture question;
   // it's distinct from the project-LIST ("what projects have you built").
@@ -422,7 +425,7 @@ const PRODUCT_ABOUT_PATTERNS = [
   /\bhow (did|do|was) (you|natively|it|this)\s+(build|built|develop\w*|architect\w*|design\w*)\s+(natively|it|this|the (app|product))\b/i,
   /\bhow (is|was) (natively|nativley|it|this) (built|made|developed|architected|designed)\b/i,
   // "how (do you make|to make) it low-distraction / privacy-first / local" — a
-  // product-design question about Natively, grounded in metadata (1000-q
+  // product-design question about Sneak-Peek, grounded in metadata (1000-q
   // benchmark 2026-06-06b). NOT a stealth ask (no evasion/interview object).
   /\bhow (do you |to )?(make|keep|design)\s+(it|natively|this)\s+(low[- ]?distraction|privacy[- ]?first|private|transparent|accessible|local|on[- ]?device|minimal)\b/i,
   /\b(low[- ]?distraction|privacy[- ]?first)\b.{0,30}\b(mode|design|approach|first)\b|\bkeep (it|natively|this) (low[- ]?distraction|privacy)/i,
@@ -715,8 +718,8 @@ const HYPOTHETICAL_TECH_PATTERNS = [
 
 export const PROJECT_PATTERNS = [
   /\b(project|projects|built|shipped|worked on)\b/i,
-  // "Tell me about Natively", "explain Natively", "what is Natively", "talk about
-  // Natively" — direct asks about a named project (benchmark 2026-06-05). The
+  // "Tell me about Sneak-Peek", "explain Sneak-Peek", "what is Sneak-Peek", "talk about
+  // Sneak-Peek" — direct asks about a named project (benchmark 2026-06-05). The
   // known project entity is resolved at runtime; here we recognise the intent.
   /\b(tell me about|talk about|explain|describe|walk me through|what(?:'s| is)?)\s+natively\b/i,
   /\bwhat (did|have) you (build|built|made|create|created|develop)\b/i,

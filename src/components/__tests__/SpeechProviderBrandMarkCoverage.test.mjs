@@ -146,7 +146,7 @@ function parseMarkImports() {
     )) {
         imports.set(m[1], resolve(LOGO_DIR, m[2]));
     }
-    // Raster marks, imported as URLs. The Natively app icon lives at the repo
+    // Raster marks, imported as URLs. The Sneak-Peek app icon lives at the repo
     // root rather than under src/, so this resolves the path rather than
     // assuming a directory.
     for (const m of brandMarkSrc.matchAll(

@@ -2,7 +2,7 @@
 // even when audio IS actively being transcribed (false-positive during meetings).
 //
 // Root cause: two independent writers race on the same `sttNotConfigured` state
-// in NativelyInterface.tsx (~line 1995-2015):
+// in SneakPeekInterface.tsx (~line 1995-2015):
 //
 // 1. Mount-time promise: window.electronAPI.getSttProvider() called when the
 //    component mounts, resolves asynchronously and sets state.
@@ -20,7 +20,7 @@
 // If it has, the mount-time promise result is ignored — the live event is
 // always fresher than a slow mount-time RPC.
 //
-// Strategy: structural assertions against NativelyInterface.tsx source to
+// Strategy: structural assertions against SneakPeekInterface.tsx source to
 // verify the race guard exists.
 
 import { test } from 'node:test';
@@ -30,13 +30,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const componentPath = path.resolve(__dirname, '../../../src/components/NativelyInterface.tsx');
+const componentPath = path.resolve(__dirname, '../../../src/components/SneakPeekInterface.tsx');
 const componentSource = readFileSync(componentPath, 'utf8');
 
-test('NativelyInterface.tsx declares sttNotConfigured state', () => {
+test('SneakPeekInterface.tsx declares sttNotConfigured state', () => {
   assert.ok(
     /const\s+\[sttNotConfigured,\s*setSttNotConfigured\]\s*=\s*useState\s*\(\s*false\s*\)/.test(componentSource),
-    'sanity: NativelyInterface.tsx must declare sttNotConfigured state.',
+    'sanity: SneakPeekInterface.tsx must declare sttNotConfigured state.',
   );
 });
 
@@ -45,7 +45,7 @@ test('sttNotConfigured effect tracks liveListenerHasFired to prevent race', () =
   // The useState for sttNotConfigured should be right before the useEffect
   const effectMatch = /const\s+\[sttNotConfigured,\s*setSttNotConfigured\][\s\S]{0,200}useEffect\s*\(\s*\(\s*\)\s*=>\s*\{/;
   const m = effectMatch.exec(componentSource);
-  assert.ok(m, 'could not locate the sttNotConfigured useEffect in NativelyInterface.tsx');
+  assert.ok(m, 'could not locate the sttNotConfigured useEffect in SneakPeekInterface.tsx');
 
   // Extract the effect body (find matching closing brace)
   let i = m.index + m[0].length;

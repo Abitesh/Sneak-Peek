@@ -122,7 +122,7 @@ const WAIT_FOR_EXTENSION_MS = 1_200;
 //   - the unpacked dev build (deterministic from the manifest `key` → this ID),
 //   - an optional override for contributors loading a differently-keyed build.
 // A web page cannot forge a chrome-extension:// origin, and a different extension
-// won't match any of these exact IDs. See natively-browser/README.md + CONTRACT.md.
+// won't match any of these exact IDs. See sneak-peek-browser/README.md + CONTRACT.md.
 const STORE_EXTENSION_ID = 'lmhgnkbjnelmciecjkleaomjpejcgaln'; // Chrome Web Store
 const DEV_EXTENSION_ID = 'macjecgdfliikhplbbdbpljomcigjnjg'; // unpacked (manifest key)
 const PINNED_EXTENSION_IDS = new Set(
@@ -206,7 +206,7 @@ export class PhoneMirrorService {
   // the hotkey press is used instead of falling back to a screenshot.
   private extWaiters = new Set<() => void>();
   // Resolver for the window that should receive captured DOM (the overlay that
-  // mounts NativelyInterface). When it yields no live window, /dom returns 409.
+  // mounts SneakPeekInterface). When it yields no live window, /dom returns 409.
   private overlayResolver: (() => BrowserWindow | null) | null = null;
   // Smart Browser Context v2 — injected AI metadata classifier (opt-in). When set,
   // the /classify endpoint routes sanitized page metadata through it (which uses
@@ -483,7 +483,7 @@ export class PhoneMirrorService {
 
   /**
    * Set the resolver for the window that should receive captured DOM. This is
-   * the overlay window that mounts NativelyInterface — captured page content is
+   * the overlay window that mounts SneakPeekInterface — captured page content is
    * only meaningful when an active session/overlay exists. When the resolver
    * returns no live window, /dom answers 409 no_active_session.
    */
@@ -708,7 +708,7 @@ export class PhoneMirrorService {
 
   /**
    * The live window that should receive captured DOM. Prefers the configured
-   * overlay resolver (the window mounting NativelyInterface); falls back to any
+   * overlay resolver (the window mounting SneakPeekInterface); falls back to any
    * live BrowserWindow only if no resolver is set (keeps standalone use working).
    * Returns null when no live window exists → /dom answers 409.
    */
@@ -1109,9 +1109,9 @@ export class PhoneMirrorService {
             }
 
             const cappedDom = parsed.dom.substring(0, DOM_CONTEXT_MAX_CHARS);
-            // Deliver to the overlay window (the one that mounts NativelyInterface).
+            // Deliver to the overlay window (the one that mounts SneakPeekInterface).
             // No live overlay → no active session to receive context → 409, so the
-            // extension can tell the user to start a Natively session first.
+            // extension can tell the user to start a Sneak-Peek session first.
             const targetWin = this.resolveDomTargetWindow();
             if (!targetWin) {
               res.writeHead(409, jsonHeaders);

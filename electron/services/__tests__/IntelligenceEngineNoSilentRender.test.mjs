@@ -1,7 +1,7 @@
 // Regression: the manual "What to answer" path must never return a non-null
 // answer string WITHOUT also emitting a render signal.
 //
-// The renderer (NativelyInterface.handleWhatToSay) renders the answer from the
+// The renderer (SneakPeekInterface.handleWhatToSay) renders the answer from the
 // 'suggested_answer' EVENT; the IPC return value's non-null answer is only used
 // to detect the null/empty-feedback case. So an engine return path that returns
 // a non-null string but emits NOTHING leaves the thinking-dots placeholder

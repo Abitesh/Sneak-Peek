@@ -1,7 +1,7 @@
 // F-203 repro: Google/Soniox/Deepgram lack the stale-connection identity
-// guard that NativelyProSTT documents as CRITICAL.
+// guard that SneakPeekProSTT documents as CRITICAL.
 //
-// NativelyProSTT wraps every handler in `if (ws !== this.ws) return;` because
+// SneakPeekProSTT wraps every handler in `if (ws !== this.ws) return;` because
 // "a delayed event from a previously-closed WebSocket can mutate
 // this.isConnected / this.isConnecting / fire scheduleReconnect against the
 // new ws's state". Google, Soniox and Deepgram close over `this` only.

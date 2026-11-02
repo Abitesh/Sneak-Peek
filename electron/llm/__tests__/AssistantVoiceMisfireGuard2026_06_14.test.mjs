@@ -3,7 +3,7 @@
 // Regression for the Groq-scout E2E sprint finding (2026-06-14): smaller models
 // (llama-4-scout) over-apply the prompt's "if asked who you are…" identity reply to
 // short, context-free meeting/sales/follow-up questions, emitting
-// "I'm Natively, an AI assistant. I was developed by Evin John." or the stock
+// "I'm Sneak-Peek, an AI assistant. I was developed by Evin John." or the stock
 // "I can't share that information." instead of a real answer. Those answer types are
 // ASSISTANT-voice, so they bypass sanitizeCandidateAnswer — detectAssistantVoiceMisfire
 // catches the misfire so the caller substitutes an honest line.
@@ -17,7 +17,7 @@ import {
 
 describe('detectAssistantVoiceMisfire — identity misfire', () => {
   test('flags the canned identity reply', () => {
-    const r = detectAssistantVoiceMisfire("I'm Natively, an AI assistant. I was developed by Evin John.");
+    const r = detectAssistantVoiceMisfire("I'm Sneak-Peek, an AI assistant. I was developed by Evin John.");
     assert.equal(r.isMisfire, true);
     assert.equal(r.reason, 'identity');
   });

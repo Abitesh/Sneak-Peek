@@ -128,8 +128,8 @@ describe('HindsightManager.getHindsightConfig', () => {
     // re-import re-ran the module body and still observed the old settings. The
     // anchors have to be cleared in lockstep with the cache for a "fresh
     // construction" to actually be fresh.
-    delete globalThis.__nativelyHindsightManagerV1__;
-    delete globalThis.__nativelySettingsManagerV1__;
+    delete globalThis.__sneakPeekHindsightManagerV1__;
+    delete globalThis.__sneakPeekSettingsManagerV1__;
     // Re-import. This returns the SAME exports object as before but re-executes the
     // module body once (the static `var init_*` fns run again, lazy __esm() returns
     // fresh bindings). HindsightManager.getInstance() now returns a fresh singleton
@@ -145,8 +145,8 @@ describe('HindsightManager.getHindsightConfig', () => {
       fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2));
       // Drop again so the next test re-reads the clean file.
       delete require.cache[hmPath];
-      delete globalThis.__nativelyHindsightManagerV1__;
-      delete globalThis.__nativelySettingsManagerV1__;
+      delete globalThis.__sneakPeekHindsightManagerV1__;
+      delete globalThis.__sneakPeekSettingsManagerV1__;
       for (const k of Object.keys(require.cache)) {
         if (k === hmPath || k.includes('HindsightManager')) delete require.cache[k];
       }

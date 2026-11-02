@@ -1,7 +1,7 @@
 // The display label for LiteLLM-proxied models.
 //
 // LiteLLM ids carry TWO prefixes, and the overlay chip was rendering both:
-// `litellm/openai/gpt-4o`. The first is Natively's routing prefix (load-bearing
+// `litellm/openai/gpt-4o`. The first is Sneak-Peek's routing prefix (load-bearing
 // in the ID — providerFamily()/modelAvailable() key off it), the second is the
 // proxy's own `<upstream>/<model>` naming. Neither is identity, so the label is
 // the last segment.
@@ -73,7 +73,7 @@ describe('litellmModelLabel is wired into every surface that shows a LiteLLM mod
   const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
   test('the overlay chip formats LiteLLM ids ABOVE the displayName fallback', () => {
-    const src = read('src/components/NativelyInterface.tsx');
+    const src = read('src/components/SneakPeekInterface.tsx');
     assert.match(src, /litellmModelLabel/, 'the chip should use the shared helper');
     const chipBranch = src.indexOf("if (m.startsWith('litellm/')) return litellmModelLabel(m)");
     const displayNameBranch = src.indexOf('if (currentModelDisplayName && currentModelDisplayName !== m)');

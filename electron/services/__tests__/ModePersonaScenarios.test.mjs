@@ -321,9 +321,9 @@ describe('Mode: looking-for-work — five realistic candidate scenarios', () => 
       templateType: template,
       customContext: ctx,
       query: 'tell me about a project you built and scaled to many users',
-      transcript: 'Interviewer: walk me through a project you built and scaled — PriceX or Natively for example.',
+      transcript: 'Interviewer: walk me through a project you built and scaled — PriceX or Sneak-Peek for example.',
     });
-    // Either PriceX or Natively scale sentinel is acceptable here.
+    // Either PriceX or Sneak-Peek scale sentinel is acceptable here.
     const haystack = result.formattedContext;
     assert.ok(
       haystack.includes(SENTINELS['looking-for-work'].pricex) ||

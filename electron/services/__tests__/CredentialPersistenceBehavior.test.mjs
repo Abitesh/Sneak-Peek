@@ -77,7 +77,7 @@ function freshManager(env) {
   // field leaves getInstance() returning the FIRST env's manager, which still holds
   // that env's CREDENTIALS_PATH/FALLBACK_PATH and safeStorage mock — so every
   // "restart" after the first silently read and wrote the first test's directory.
-  delete globalThis.__nativelyCredentialsManagerV1__;
+  delete globalThis.__sneakPeekCredentialsManagerV1__;
   const cm = mod.CredentialsManager.getInstance();
   cm.init();
   return cm;

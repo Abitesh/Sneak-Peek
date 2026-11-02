@@ -37,7 +37,7 @@ export function followUpTypeForMode(mode?: string | null): FollowUpDraftType {
 // The draft type (email / project_update / …) controls the SHAPE. This controls the
 // VOICE: who it's addressed to, how it opens and signs off, and its register. A sales
 // follow-up to a prospect must not read like an internal standup recap or a candidate's
-// thank-you note — each of Natively's 7 modes has a distinct sender→recipient relationship.
+// thank-you note — each of Sneak-Peek's 7 modes has a distinct sender→recipient relationship.
 interface ModeMailProfile {
   recipient: string;      // who the message is addressed to (steers salutation + framing)
   salutation: string;     // how it opens

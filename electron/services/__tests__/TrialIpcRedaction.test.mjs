@@ -22,7 +22,7 @@ test('trial IPC handlers do not return raw trial tokens to the renderer', () => 
 
   assert.ok(startStart >= 0, 'trial:start handler should exist');
   assert.ok(localStart >= 0, 'trial:get-local handler should exist');
-  // After Natively backend removal, the handler returns disabled status
+  // After Sneak-Peek backend removal, the handler returns disabled status
   assert.match(startHandler, /natively_api_disabled/);
   // Verify token is not leaked in any form
   assert.doesNotMatch(startHandler, /trial_token:/);

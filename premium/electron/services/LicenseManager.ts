@@ -2,7 +2,7 @@
  * LicenseManager - Premium implementation for the app's Pro entitlement flow.
  *
  * The source-controlled implementation intentionally follows the repo's tests:
- * - `activateWithApiKey` is the server-verification path for Natively API keys.
+ * - `activateWithApiKey` is the server-verification path for Sneak-Peek API keys.
  * - `storeLicense` persists a server-validated license to `license.enc`.
  * - `isPremium` / `getLicenseDetails` read the stored file and do not confuse a
  *   rejected key with a valid plan result.
@@ -159,7 +159,7 @@ export class LicenseManager {
             success: false,
             keyRejected: false,
             status,
-            error: 'Your plan does not include Natively Pro.',
+            error: 'Your plan does not include Sneak-Peek Pro.',
             plan: typeof data.plan === 'string' ? data.plan : 'standard',
           };
         }
@@ -167,7 +167,7 @@ export class LicenseManager {
         return {
           success: false,
           status,
-          error: 'Unable to verify Natively Pro access.',
+          error: 'Unable to verify Sneak-Peek Pro access.',
         };
       }
 
@@ -189,14 +189,14 @@ export class LicenseManager {
         success: false,
         keyRejected: false,
         status,
-        error: 'Unable to verify Natively Pro access.',
+        error: 'Unable to verify Sneak-Peek Pro access.',
       };
     } catch (error: any) {
       return {
         success: false,
         keyRejected: false,
         status: 0,
-        error: error?.message || 'Unable to verify Natively Pro access.',
+        error: error?.message || 'Unable to verify Sneak-Peek Pro access.',
       };
     }
   }
@@ -574,18 +574,18 @@ export class LicenseManager {
 
     const code = String(data?.error || '').toLowerCase();
     if (code.includes('key_not_found') || code.includes('not recognised') || code.includes('not_recognized')) {
-      return 'The Natively API key was not recognised.';
+      return 'The Sneak-Peek API key was not recognised.';
     }
     if (code.includes('subscription_inactive')) {
       return 'Renew at natively.software/api';
     }
     if (code.includes('identity_blocked') || code.includes('blocked')) {
-      return 'This Natively API key is blocked.';
+      return 'This Sneak-Peek API key is blocked.';
     }
     if (code.includes('invalid')) {
-      return 'The Natively API key was not recognised.';
+      return 'The Sneak-Peek API key was not recognised.';
     }
-    return 'The Natively API key was not accepted by the server.';
+    return 'The Sneak-Peek API key was not accepted by the server.';
   }
 }
 

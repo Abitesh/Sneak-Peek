@@ -1,7 +1,7 @@
 // The shared FTS tokenizer, and the numeral equivalence it adds.
 //
-// A-03 regression. "How fast did Natively reach ten thousand users?" retrieved
-// NOTHING from a résumé reading "scaled Natively to 10k users in the first 90
+// A-03 regression. "How fast did Sneak-Peek reach ten thousand users?" retrieved
+// NOTHING from a résumé reading "scaled Sneak-Peek to 10k users in the first 90
 // days", because the lexical arm contributed exactly zero and the vector score
 // alone could not clear the combined-score floor. Measured:
 //
@@ -25,12 +25,12 @@ describe('numeral equivalence', () => {
 
   test('spelled-out and compact forms produce the SAME token', () => {
     assert.ok(has('ten thousand users', '10000'), 'ten thousand -> 10000');
-    assert.ok(has('scaled Natively to 10k users', '10000'), '10k -> 10000');
+    assert.ok(has('scaled Sneak-Peek to 10k users', '10000'), '10k -> 10000');
   });
 
   test('the A-03 pair actually shares a lexical token', () => {
-    const q = new Set(wordsOf('How fast did Natively reach ten thousand users?'));
-    const chunk = wordsOf('Built PriceX; scaled Natively to 10k users in the first 90 days.');
+    const q = new Set(wordsOf('How fast did Sneak-Peek reach ten thousand users?'));
+    const chunk = wordsOf('Built PriceX; scaled Sneak-Peek to 10k users in the first 90 days.');
     const shared = chunk.filter((w) => q.has(w));
     assert.ok(shared.includes('10000'),
       `the quantity must match across phrasings; shared = ${JSON.stringify(shared)}`);

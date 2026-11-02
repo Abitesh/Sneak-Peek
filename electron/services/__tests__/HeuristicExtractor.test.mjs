@@ -42,7 +42,7 @@ AI/ML: PyTorch, LangChain, RAG
 Tools: Git, Docker, Figma
 
 EXPERIENCE
-Founder at Natively (2024-01 - Present)
+Founder at Sneak-Peek (2024-01 - Present)
 - Built a real-time meeting copilot used by thousands.
 - Designed the multi-provider STT and LLM fallback chain.
 Software Engineer Intern at Aetherbot AI (2023-05 - 2023-08)
@@ -81,7 +81,7 @@ describe('heuristicResumeExtract', () => {
   test('extracts experience entries with role and company', () => {
     assert.ok(r.experience.length >= 1);
     const founder = r.experience.find((e) => /natively/i.test(e.company) || /founder/i.test(e.role));
-    assert.ok(founder, 'should find the Natively / Founder entry');
+    assert.ok(founder, 'should find the Sneak-Peek / Founder entry');
   });
 
   test('extracts project names', () => {

@@ -58,7 +58,7 @@ export function recordRegistrationOutcome(
  * likely to be conflicted.
  *
  * A conflict is a property of the OS and the other app, not of which mode
- * Natively happens to be in. When a pass does not re-test an id, the last
+ * Sneak-Peek happens to be in. When a pass does not re-test an id, the last
  * verdict we actually observed is the best answer available, and it is the
  * answer the user needs while they are in Settings trying to fix it.
  *

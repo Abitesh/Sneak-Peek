@@ -276,7 +276,7 @@ export const PhoneMirrorSettings: React.FC = () => {
 
   // "Connect browser extension" — arm the 60s one-click pairing window on the
   // desktop, then run a local countdown so the user knows how long they have to
-  // click "Connect to Natively" in the extension popup.
+  // click "Connect to Sneak-Peek" in the extension popup.
   const onArmExtension = useCallback(async () => {
     setArmError(null);
     try {
@@ -558,7 +558,7 @@ export const PhoneMirrorSettings: React.FC = () => {
                       Waiting for extension
                     </div>
                     <div className="text-text-secondary text-[11px] mt-0.5 leading-snug">
-                      Click <span className="text-accent-primary">Connect to Natively</span> in the browser popup.
+                      Click <span className="text-accent-primary">Connect to Sneak-Peek</span> in the browser popup.
                     </div>
                   </div>
                 </div>

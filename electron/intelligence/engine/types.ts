@@ -1,5 +1,5 @@
 /**
- * Central, provider-independent contracts for the Natively Intelligence Engine.
+ * Central, provider-independent contracts for the Sneak-Peek Intelligence Engine.
  *
  * This module intentionally contains data contracts only.  It does not import
  * RAG, Context OS, provider, renderer, or Electron implementation types.
@@ -58,29 +58,29 @@ export type IntelligenceContextKind =
   | 'files'
   | 'memory';
 
-export interface NativelyConversationTurn {
+export interface SneakPeekConversationTurn {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt?: number;
 }
 
-export interface NativelyTranscriptContext {
+export interface SneakPeekTranscriptContext {
   text: string;
-  turns?: NativelyConversationTurn[];
+  turns?: SneakPeekConversationTurn[];
   startedAt?: number;
   endedAt?: number;
   source?: 'live' | 'meeting' | 'imported';
 }
 
-export interface NativelyScreenContext {
+export interface SneakPeekScreenContext {
   text?: string;
   imageId?: string;
   capturedAt?: number;
   metadata?: Record<string, unknown>;
 }
 
-export interface NativelyActiveContext {
+export interface SneakPeekActiveContext {
   modeId?: string;
   modeName?: string;
   /** Active meeting identity, kept distinct from projectId for retrieval scope. */
@@ -91,7 +91,7 @@ export interface NativelyActiveContext {
   profileName?: string;
 }
 
-export interface NativelyResponseShapeRequest {
+export interface SneakPeekResponseShapeRequest {
   type?: IntelligenceResponseType;
   maxTokens?: number;
   maxSentences?: number;
@@ -101,7 +101,7 @@ export interface NativelyResponseShapeRequest {
   detailed?: boolean;
 }
 
-export interface NativelyProviderPreferences {
+export interface SneakPeekProviderPreferences {
   preferredProvider?: string;
   preferredModel?: string;
   allowedProviders?: string[];
@@ -109,7 +109,7 @@ export interface NativelyProviderPreferences {
   maxAttempts?: number;
 }
 
-export interface NativelyContextPermissions {
+export interface SneakPeekContextPermissions {
   conversation: boolean;
   transcript: boolean;
   screen: boolean;
@@ -121,45 +121,45 @@ export interface NativelyContextPermissions {
   generalKnowledge: boolean;
 }
 
-export interface NativelyIntelligenceRequest {
+export interface SneakPeekIntelligenceRequest {
   requestId: string;
   sessionId: string;
   surface: IntelligenceSurface;
   userMessage: string;
-  currentTurn: NativelyConversationTurn;
-  recentConversation: NativelyConversationTurn[];
-  transcriptContext?: NativelyTranscriptContext;
+  currentTurn: SneakPeekConversationTurn;
+  recentConversation: SneakPeekConversationTurn[];
+  transcriptContext?: SneakPeekTranscriptContext;
   manualQuestion?: string;
-  screenContext?: NativelyScreenContext;
-  activeContext?: NativelyActiveContext;
+  screenContext?: SneakPeekScreenContext;
+  activeContext?: SneakPeekActiveContext;
   cancellationSignal?: AbortSignal;
-  responseShape?: NativelyResponseShapeRequest;
-  providerPreferences?: NativelyProviderPreferences;
-  contextPermissions: NativelyContextPermissions;
+  responseShape?: SneakPeekResponseShapeRequest;
+  providerPreferences?: SneakPeekProviderPreferences;
+  contextPermissions: SneakPeekContextPermissions;
 }
 
-export interface NativelySelectedContextItem {
+export interface SneakPeekSelectedContextItem {
   kind: IntelligenceContextKind;
   selected: boolean;
   reason: string;
   reference?: string;
 }
 
-export interface NativelySelectedContext {
-  items: NativelySelectedContextItem[];
+export interface SneakPeekSelectedContext {
+  items: SneakPeekSelectedContextItem[];
 }
 
-export type NativelyRetrievalMode = 'none' | 'keyword' | 'semantic' | 'hybrid';
+export type SneakPeekRetrievalMode = 'none' | 'keyword' | 'semantic' | 'hybrid';
 
-export interface NativelyRetrievalPlan {
+export interface SneakPeekRetrievalPlan {
   shouldRetrieve: boolean;
-  mode: NativelyRetrievalMode;
+  mode: SneakPeekRetrievalMode;
   query: string;
   sources: ContextSource[];
   maximumResults: number;
 }
 
-export interface NativelyEvidenceItem {
+export interface SneakPeekEvidenceItem {
   id: string;
   source: ContextSource;
   content: string;
@@ -167,12 +167,12 @@ export interface NativelyEvidenceItem {
   metadata?: Record<string, unknown>;
 }
 
-export interface NativelyEvidence {
-  items: NativelyEvidenceItem[];
+export interface SneakPeekEvidence {
+  items: SneakPeekEvidenceItem[];
   sufficient: boolean;
 }
 
-export interface NativelyPrompt {
+export interface SneakPeekPrompt {
   system?: string;
   user: string;
   context?: string;
@@ -184,7 +184,7 @@ export interface NativelyPrompt {
   includedSections?: string[];
 }
 
-export type NativelyProviderAttemptStatus =
+export type SneakPeekProviderAttemptStatus =
   | 'not-started'
   | 'started'
   | 'streaming'
@@ -192,16 +192,16 @@ export type NativelyProviderAttemptStatus =
   | 'failed'
   | 'cancelled';
 
-export interface NativelyProviderAttempt {
+export interface SneakPeekProviderAttempt {
   provider?: string;
   model?: string;
-  status: NativelyProviderAttemptStatus;
+  status: SneakPeekProviderAttemptStatus;
   startedAt?: number;
   endedAt?: number;
   error?: string;
 }
 
-export type NativelyStreamLifecycleStatus =
+export type SneakPeekStreamLifecycleStatus =
   | 'not-started'
   | 'ready'
   | 'streaming'
@@ -209,15 +209,15 @@ export type NativelyStreamLifecycleStatus =
   | 'failed'
   | 'cancelled';
 
-export interface NativelyStreamLifecycle {
-  status: NativelyStreamLifecycleStatus;
+export interface SneakPeekStreamLifecycle {
+  status: SneakPeekStreamLifecycleStatus;
   startedAt?: number;
   firstTokenAt?: number;
   endedAt?: number;
   tokenCount?: number;
 }
 
-export interface NativelyDiagnostics {
+export interface SneakPeekDiagnostics {
   traceId: string;
   stages: string[];
   /** Exact architecture stage names used by the manual-chat migration trace. */
@@ -225,12 +225,12 @@ export interface NativelyDiagnostics {
   warnings: string[];
 }
 
-export interface NativelyFinalAnswer {
+export interface SneakPeekFinalAnswer {
   text: string;
   completed: boolean;
 }
 
-export interface NativelyIntelligenceResult {
+export interface SneakPeekIntelligenceResult {
   requestId: string;
   resolvedQuestion: string;
   /** Canonical Change 5 understanding result used by downstream planning. */
@@ -239,18 +239,18 @@ export interface NativelyIntelligenceResult {
   responsePlan: ResponsePlan;
   intent: IntelligenceIntent;
   responseType: IntelligenceResponseType;
-  selectedContext: NativelySelectedContext;
+  selectedContext: SneakPeekSelectedContext;
   /** Canonical Change 6 decision: what context is actually necessary. */
   contextPlan: ContextPlan;
   /** Bounded recent conversation; retrieval and long-term memory are separate layers. */
   conversationContext: RecentConversationContext;
-  retrievalPlan: NativelyRetrievalPlan;
-  evidence: NativelyEvidence;
+  retrievalPlan: SneakPeekRetrievalPlan;
+  evidence: SneakPeekEvidence;
   /** Canonical Change 8 evidence boundary consumed by prompt assembly. */
   evidencePack: EvidencePack;
-  prompt: NativelyPrompt;
-  providerAttempt: NativelyProviderAttempt;
-  streamLifecycle: NativelyStreamLifecycle;
-  diagnostics: NativelyDiagnostics;
-  finalAnswer: NativelyFinalAnswer | null;
+  prompt: SneakPeekPrompt;
+  providerAttempt: SneakPeekProviderAttempt;
+  streamLifecycle: SneakPeekStreamLifecycle;
+  diagnostics: SneakPeekDiagnostics;
+  finalAnswer: SneakPeekFinalAnswer | null;
 }

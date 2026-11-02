@@ -1,6 +1,6 @@
 // Regression test for: the meeting overlay leaking into screen captures.
 //
-// Bug (issue: "Natively is visible on Google Meet calls"): the overlay chrome
+// Bug (issue: "Sneak-Peek is visible on Google Meet calls"): the overlay chrome
 // (overlay body + pill + toggle) is a ghost surface that must NEVER appear in a
 // screen capture — that is the app's core promise, and the native stealth module
 // force-applies NSWindowSharingNone to exactly those three windows regardless of

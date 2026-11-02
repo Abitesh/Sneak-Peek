@@ -41,7 +41,7 @@ function buildProfileCardMarkdown(card: KnowledgeCard, nowIso: string, slugByCon
   fm.push(`timestamp: ${nowIso}`);
   fm.push(`okf_version: "0.1"`);
   fm.push(`pii: true`);
-  // Natively producer-defined extension fields (OKF allows extra keys).
+  // Sneak-Peek producer-defined extension fields (OKF allows extra keys).
   fm.push(`source_category: ${yamlEscapeScalar(category)}`);
   fm.push(`source_quotes: ${yamlList(card.sourceQuotes.map((q) => q.text))}`);
   fm.push(`confidence: ${card.confidence}`);

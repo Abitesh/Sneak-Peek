@@ -19,7 +19,7 @@ test('main process maps startListen/stopListen onto the overlay global-shortcut 
 });
 
 test('renderer starts on startListen, stops on stopListen, and Enter while listening submits', () => {
-  const ui = readFileSync(path.join(root, 'src/components/NativelyInterface.tsx'), 'utf8');
+  const ui = readFileSync(path.join(root, 'src/components/SneakPeekInterface.tsx'), 'utf8');
   assert.match(ui, /action === 'startListen'\) handlers\.handleStartListening\(\)/);
   assert.match(ui, /action === 'stopListen'\) handlers\.handleStopListening\(\)/);
   assert.match(ui, /isRecordingRef\.current &&\s*\n\s*e\.key === 'Enter'/);

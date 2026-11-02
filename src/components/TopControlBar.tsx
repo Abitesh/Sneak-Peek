@@ -94,7 +94,7 @@ export function TopControlBar({
       data-top-control-bar="true"
       className="no-drag relative z-20 flex w-full min-w-0 items-center gap-1 overflow-x-auto border-b border-white/10 bg-black/25 px-2 py-1.5 select-none pointer-events-auto"
       role="toolbar"
-      aria-label="Natively controls"
+      aria-label="Sneak-Peek controls"
     >
       {collapsed ? (
         <>

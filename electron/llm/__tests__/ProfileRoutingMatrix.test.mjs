@@ -44,7 +44,7 @@ describe('matrix: projects + project follow-ups', () => {
   test('"What projects have you done?" → project_answer', () => {
     assert.equal(p('What projects have you done?').answerType, 'project_answer');
   });
-  for (const q of ['How is Natively developed?', 'What was your role in Natively?', 'What was the hardest part of that project?', 'What tech stack did you use?', 'Why did you build it?', 'What did you learn from that project?']) {
+  for (const q of ['How is Sneak-Peek developed?', 'What was your role in Sneak-Peek?', 'What was the hardest part of that project?', 'What tech stack did you use?', 'Why did you build it?', 'What did you learn from that project?']) {
     test(`"${q}" → project_followup, required, no negotiation/JD`, () => {
       const r = p(q);
       assert.equal(r.answerType, 'project_followup_answer', `got ${r.answerType}`);
@@ -54,7 +54,7 @@ describe('matrix: projects + project follow-ups', () => {
     });
   }
   test('explicit entity is resolved', () => {
-    assert.equal(p('How is Natively developed?').resolvedEntity, 'Natively');
+    assert.equal(p('How is Sneak-Peek developed?').resolvedEntity, 'Sneak-Peek');
   });
 });
 

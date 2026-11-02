@@ -13,7 +13,7 @@ import { STAGES } from '../stageCatalog.mjs';
 const DEFAULT_USER_STATE = {
   isPremium: false,
   hasProfile: false,
-  hasNativelyKey: false,
+  hasSneakPeekKey: false,
   hasTrialToken: false,
   extensionConnected: false,
   extensionSupported: true,

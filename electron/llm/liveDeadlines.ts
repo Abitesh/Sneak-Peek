@@ -88,7 +88,7 @@ export function isCompleteShortAnswer(text: string): boolean {
  * ~6.5s isn't guillotined by this ceiling.
  *
  * MUST ALSO STAY ABOVE natively-api's AI_TTFT_BUDGET_MS (10s), and this is the
- * binding constraint. A Natively-key user's chat goes to
+ * binding constraint. A Sneak-Peek-key user's chat goes to
  * `${NATIVELY_API_URL}/v1/chat` (LLMHelper.ts), where the server runs a
  * SEQUENTIAL provider cascade (Gemini Flash -> MiniMax-M3 -> Gemini Pro) and
  * cuts over to the next provider when one is slow to first token. That cutover

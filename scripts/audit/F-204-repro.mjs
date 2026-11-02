@@ -1,4 +1,4 @@
-// F-204 repro: NativelyProSTT.setSampleRate's gate diverges from its own
+// F-204 repro: SneakPeekProSTT.setSampleRate's gate diverges from its own
 // comment, so a rate change is SKIPPED in the window where it matters most.
 //
 // The comment says only two pre-handshake states need no reconnect:
@@ -34,8 +34,8 @@ Module._load = function patched(request) {
   return origLoad.apply(this, arguments);
 };
 
-const { NativelyProSTT } = await import(pathToFileURL(path.join(distRoot, 'NativelyProSTT.js')).href);
-const stt = new NativelyProSTT('audit-key', 'system');
+const { SneakPeekProSTT } = await import(pathToFileURL(path.join(distRoot, 'SneakPeekProSTT.js')).href);
+const stt = new SneakPeekProSTT('audit-key', 'system');
 stt.on('error', () => {});
 
 let closed = false;

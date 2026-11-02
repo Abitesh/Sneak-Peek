@@ -6,7 +6,7 @@
 //   client  LIVE_TOTAL_HARD_TIMEOUT_MS   8_000ms
 //   server  AI_TTFT_BUDGET_MS           10_000ms   (natively-api/server.js)
 //
-// A Natively-key user's chat goes to `${NATIVELY_API_URL}/v1/chat`
+// A Sneak-Peek-key user's chat goes to `${NATIVELY_API_URL}/v1/chat`
 // (LLMHelper.ts:3462), where the server runs a sequential provider cascade —
 // Gemini Flash -> MiniMax-M3 -> Gemini Pro — cutting over at AI_TTFT_BUDGET_MS
 // when a provider is slow to first token. That cutover is the mechanism that is

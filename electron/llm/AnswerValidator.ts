@@ -136,7 +136,7 @@ const hasExactMarkdownSectionOrder = (answer: string): boolean => {
 };
 
 const containsForbiddenCodingContext = (answer: string): boolean =>
-  /\b(resume|job description|salary|compensation|negotiation|Natively|as an AI|AI assistant)\b/i.test(answer);
+  /\b(resume|job description|salary|compensation|negotiation|Sneak-Peek|as an AI|AI assistant)\b/i.test(answer);
 
 /**
  * Deterministic, content-free coding scaffold for IMMEDIATE display while the

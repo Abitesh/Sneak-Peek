@@ -17,11 +17,11 @@ export class ProviderStatusRegistry {
     // window created after a status change hydrated EMPTY and stayed wrong
     // until the next push.
     const g = globalThis as unknown as Record<string, ProviderStatusRegistry | undefined>;
-    if (!g.__nativelyProviderStatusRegistryV1__) {
-      g.__nativelyProviderStatusRegistryV1__ = ProviderStatusRegistry.instance ?? new ProviderStatusRegistry();
+    if (!g.__sneakPeekProviderStatusRegistryV1__) {
+      g.__sneakPeekProviderStatusRegistryV1__ = ProviderStatusRegistry.instance ?? new ProviderStatusRegistry();
     }
-    ProviderStatusRegistry.instance = g.__nativelyProviderStatusRegistryV1__;
-    return g.__nativelyProviderStatusRegistryV1__;
+    ProviderStatusRegistry.instance = g.__sneakPeekProviderStatusRegistryV1__;
+    return g.__sneakPeekProviderStatusRegistryV1__;
   }
 
   setBroadcaster(broadcaster: Broadcaster | null): void {

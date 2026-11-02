@@ -253,7 +253,7 @@ async function main() {
     // streaming is active, skip the (unreachable-from-sandbox) Natively key
     // wiring entirely. Direct path doesn't use llm.streamChat at all.
     if (!directStream) {
-        llm.setNativelyKey(KEY);
+        llm.setSneakPeekKey(KEY);
         llm.setModel(MODEL);
     }
 

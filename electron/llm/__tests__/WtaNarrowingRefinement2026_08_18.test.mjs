@@ -156,11 +156,11 @@ describe('project drill-in preserves the asked question (wta_project_041)', () =
     const r = resolveFollowUpOrClarify({
       latestQuestion: 'How is it developed?',
       previousQuestion: 'Which is your best project?',
-      lastEntity: 'Natively',
+      lastEntity: 'Sneak-Peek',
       surface: 'what_to_answer',
       hasPriorContext: true,
     });
-    assert.match(r.resolvedQuestion, /Natively/);
+    assert.match(r.resolvedQuestion, /Sneak-Peek/);
   });
 });
 

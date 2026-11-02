@@ -10,7 +10,7 @@
  * This module is the single source of truth for turning the machine reasons
  * that flow back over the capture channel (PhoneMirrorService.requestDomCapture
  * and the extension's capture-ack `error` field — see
- * natively-browser/src/service-worker.ts handleCaptureDom) into one
+ * sneak-peek-browser/src/service-worker.ts handleCaptureDom) into one
  * user-actionable notice, delivered to the overlay on
  * PAGE_CAPTURE_FALLBACK_CHANNEL. Pure and Electron-free so it is testable and
  * shared verbatim by main (sender) and preload (listener) on both platforms.
@@ -73,7 +73,7 @@ export function describePageCaptureFallback(rawReason: unknown): PageCaptureFall
       label: 'Screenshot instead — grant this site',
       detail:
         'The extension is connected but your browser has not granted it access to this site, so a screenshot was attached instead. ' +
-        'Click the Natively extension icon on that tab (it shows a "!" badge) and press Capture once to grant this site — or press "Allow on all sites" there once and the hotkey will capture every site from then on.',
+        'Click the Sneak-Peek extension icon on that tab (it shows a "!" badge) and press Capture once to grant this site — or press "Allow on all sites" there once and the hotkey will capture every site from then on.',
       reason,
     };
   }
@@ -133,7 +133,7 @@ export function describeDoubleCaptureFailure(
     detail:
       `Neither capture worked. Page context: ${base.reason}. Screenshot: ${shot}. ` +
       (base.kind === 'needs-host-permission'
-        ? 'Click the Natively extension icon on that tab and capture once to grant this site. '
+        ? 'Click the Sneak-Peek extension icon on that tab and capture once to grant this site. '
         : base.kind === 'not-connected'
           ? 'Pair the browser extension in Settings → Sync → Browser Extension. '
           : '') +

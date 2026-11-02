@@ -56,7 +56,7 @@ describe('isTrivialQuery / assembleContext — trivial-query gate', () => {
 
 describe('fitPromptToBudget — "hi" stays under 2000 tokens estimated', () => {
   test('trivial query + no layers fits well under 2000 tokens on a cloud model', () => {
-    const system = 'You are Natively, a helpful AI copilot.'.repeat(3); // small, realistic persona snippet
+    const system = 'You are Sneak-Peek, a helpful AI copilot.'.repeat(3); // small, realistic persona snippet
     const { layers } = assembleContext({
       query: 'hi',
       layers: [{ id: 'history', text: 'a'.repeat(50_000), priority: 0 }], // would blow the budget if not gated

@@ -8,7 +8,7 @@
  * speech selector had, on a surface nobody was checking.
  *
  * This pins the link: every provider STANDARD_CLOUD_MODELS can emit, plus the
- * Natively row the picker adds itself, must resolve to a real mark in
+ * Sneak-Peek row the picker adds itself, must resolve to a real mark in
  * ui/aiProviderMarks. A new provider added to modelUtils without a mark fails
  * here instead of shipping as a cloud glyph.
  *
@@ -94,7 +94,7 @@ test('every cloud provider the picker can list resolves to a real brand mark', (
     );
 });
 
-test('the Natively row the picker adds itself also has a mark', () => {
+test('the Sneak-Peek row the picker adds itself also has a mark', () => {
     assert.match(pickerSrc, /provider: 'natively'/, 'picker no longer adds a natively row — update this test');
     assert.ok(markKeys.has('natively'), 'natively must resolve to a mark');
 });

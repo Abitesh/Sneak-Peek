@@ -174,10 +174,10 @@ interface OnnxSemaphore {
 }
 const _sem: OnnxSemaphore = (() => {
     const g = globalThis as unknown as Record<string, OnnxSemaphore | undefined>;
-    if (!g.__nativelyOnnxSemaphoreV1__) {
-        g.__nativelyOnnxSemaphoreV1__ = { inFlightNormal: 0, inFlightHigh: 0, waitersNormal: [], waitersHigh: [] };
+    if (!g.__sneakPeekOnnxSemaphoreV1__) {
+        g.__sneakPeekOnnxSemaphoreV1__ = { inFlightNormal: 0, inFlightHigh: 0, waitersNormal: [], waitersHigh: [] };
     }
-    return g.__nativelyOnnxSemaphoreV1__;
+    return g.__sneakPeekOnnxSemaphoreV1__;
 })();
 
 function readMaxConcurrent(): number {

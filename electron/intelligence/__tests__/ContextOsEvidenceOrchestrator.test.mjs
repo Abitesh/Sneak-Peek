@@ -78,7 +78,7 @@ test('profile pack: mode-context retriever is NEVER CALLED', async () => {
     contract: contractFor({ sourceAuthority: 'profile_only', question: 'What is my best project?' }),
     retrievers: {
       retrieveModeContext: () => { modeCalled = true; return MODE_BLOCK; },
-      retrieveProfileContext: () => '<candidate_profile>Built Natively, an AI assistant project.</candidate_profile>',
+      retrieveProfileContext: () => '<candidate_profile>Built Sneak-Peek, an AI assistant project.</candidate_profile>',
     },
   });
   assert.equal(modeCalled, false, 'mode retriever must not be invoked in profile ownership');

@@ -4,7 +4,7 @@
 // Symptom: pressing Stop ends the meeting, but the launcher window ends up
 // BEHIND the user's meeting app; only Cmd+B (showInactive path) recovers it.
 //
-// Root cause: during a meeting Natively is NOT the active macOS app — the
+// Root cause: during a meeting Sneak-Peek is NOT the active macOS app — the
 // overlay is a non-activating NSPanel (type:'panel' + becomesKeyOnlyIfNeeded)
 // precisely so the user's meeting app stays foreground. The Stop flow's
 // overlay→launcher swap (switchToLauncher) relied on launcherWindow.show() +
@@ -12,7 +12,7 @@
 // activateIgnoringOtherApps:NO (never activates while another app is active),
 // and on macOS 14+ cooperative activation the system may deny Show()'s
 // self-activation from a background app. Hiding the always-on-top overlay then
-// removed the only visible Natively surface, leaving the regular-level
+// removed the only visible Sneak-Peek surface, leaving the regular-level
 // launcher behind the active app.
 //
 // Fix: switchToLauncher() explicitly activates the app via

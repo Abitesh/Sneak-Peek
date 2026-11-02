@@ -529,7 +529,7 @@ export function isContractHonored(check: ContractCheckInput): { honored: true } 
 // ── SourceContractValidator (general v2, blacklist-free) ───────────────────
 //
 // Custom-Mode Source Disambiguation (2026-07-06): the v1 validator hardcoded a
-// per-deployment blacklist (`FORBIDDEN_PROJECT_NAMES = ['Natively', …]`) and a
+// per-deployment blacklist (`FORBIDDEN_PROJECT_NAMES = ['Sneak-Peek', …]`) and a
 // document-specific `validateMercuryControllerAnswerability` function. Those do
 // not generalize to the next uploaded document or the next user's résumé.
 //
@@ -537,7 +537,7 @@ export function isContractHonored(check: ContractCheckInput): { honored: true } 
 //   1. Numeric + list completeness — the existing generic primitives (kept).
 //   2. Unsupported-ENTITY check: extract candidate proper nouns / quoted terms
 //      from the answer and reject any that do NOT appear in the retrieved
-//      evidence block. This catches "Natively", "Jetson", "ESP32" AND any future
+//      evidence block. This catches "Sneak-Peek", "Jetson", "ESP32" AND any future
 //      entity with ZERO hardcoded names — a leaked entity is simply one the
 //      evidence never mentions.
 //   3. Forbidden first-person-source SIGNAL check (generic possessive shapes:
@@ -604,7 +604,7 @@ function evidenceSentences(text: string): string[] {
 //
 // A leaked entity is simply a proper noun / product token in the ANSWER that
 // the evidence never mentions. We extract candidate entities generically:
-//   - Capitalized multi-word or single-word proper nouns ("Natively", "Jetson
+//   - Capitalized multi-word or single-word proper nouns ("Sneak-Peek", "Jetson
 //     Xavier"), excluding sentence-initial common words.
 //   - ALLCAPS / alphanumeric product tokens ("ESP32", "GPT-4", "RQ1").
 //   - Double-quoted spans.
@@ -639,7 +639,7 @@ export function extractCandidateEntities(text: string): string[] {
     // Drop when EVERY word is a stopword (e.g. "The Design").
     const meaningful = words.filter(w => !ENTITY_STOPWORDS.has(w));
     if (meaningful.length === 0) continue;
-    // Use the meaningful span so "In Natively" → "Natively".
+    // Use the meaningful span so "In Sneak-Peek" → "Sneak-Peek".
     const phrase = meaningful.join(' ');
     if (phrase.length >= 3) out.add(phrase);
   }
@@ -784,7 +784,7 @@ export function validateAgainstSourceContract(input: SourceContractValidatorInpu
 
   // 2. GENERAL unsupported-entity check: any proper noun / product token in the
   //    answer that the evidence never mentions is a source leak or hallucination.
-  //    Catches "Natively", "Jetson", "ESP32" AND any future entity — no hardcoded
+  //    Catches "Sneak-Peek", "Jetson", "ESP32" AND any future entity — no hardcoded
   //    names. Gated by `customModeSourceEnforcement` (default OFF) since it is the
   //    new, broader behavior; the numeric/list checks above always run.
   const strictEnforcement = isIntelligenceFlagEnabled('customModeSourceEnforcement');

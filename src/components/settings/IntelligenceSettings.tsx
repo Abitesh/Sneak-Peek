@@ -843,13 +843,13 @@ export const IntelligenceSettings: React.FC = () => {
               </li>
               <li>
                 <span className="font-medium text-text-primary">{t('2. Start it.')}</span>{' '}
-                {t('From the Natively project folder, run the bundled launcher and keep it running while you use the app:')}
+                {t('From the Sneak-Peek project folder, run the bundled launcher and keep it running while you use the app:')}
                 <CopyBlock text="bash scripts/hindsight-start.sh" />
                 <span className="mt-1.5 block">
                   {t('Starts the embedded memory server on port 8888.')}
                 </span>
                 <span className="mt-1 block">
-                  <span className="font-medium text-text-primary">{t('If you start it from inside Natively')}</span> {t('(autoStart toggle ON below), your AI provider key from the AI Providers screen is forwarded to the server automatically — nothing else to do.')}
+                  <span className="font-medium text-text-primary">{t('If you start it from inside Sneak-Peek')}</span> {t('(autoStart toggle ON below), your AI provider key from the AI Providers screen is forwarded to the server automatically — nothing else to do.')}
                 </span>
                 <span className="mt-1 block">
                   <span className="font-medium text-text-primary">{t('If you run the script yourself')}</span> {t('in a Terminal, also export your AI provider key so the server can use it (the script reads your shell environment, not the app’s stored credentials):')}
@@ -878,7 +878,7 @@ export const IntelligenceSettings: React.FC = () => {
                       label="LiteLLM gateway:"
                     />
                     <span className="mt-1 block text-text-tertiary">
-                      {t('We detected a LiteLLM gateway URL in AI Providers. The launcher forwards it automatically when started from inside Natively; if you run the script yourself, also export the URL above.')}
+                      {t('We detected a LiteLLM gateway URL in AI Providers. The launcher forwards it automatically when started from inside Sneak-Peek; if you run the script yourself, also export the URL above.')}
                     </span>
                   </>
                 ) : detectedProvider === 'other' ? (
@@ -961,7 +961,7 @@ export const IntelligenceSettings: React.FC = () => {
               <span className="text-xs text-text-primary">
                 {t('Start memory server automatically at launch')}
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-text-secondary">
-                  {t('When ON and the companion is installed, Natively starts it for you at launch and forwards your AI provider key automatically. Turn OFF to manage the server yourself.')}
+                  {t('When ON and the companion is installed, Sneak-Peek starts it for you at launch and forwards your AI provider key automatically. Turn OFF to manage the server yourself.')}
                 </span>
               </span>
               <SettingsToggle
@@ -1002,7 +1002,7 @@ export const IntelligenceSettings: React.FC = () => {
                 >
                   <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-400" />
                   <span>
-                    {t('You just saved a new')} <span className="font-medium">{restartHint.provider}</span> {t('key, but the running Hindsight server still has the old one. Quit and relaunch Natively, or toggle autoStart off and on to restart the server.')}
+                    {t('You just saved a new')} <span className="font-medium">{restartHint.provider}</span> {t('key, but the running Hindsight server still has the old one. Quit and relaunch Sneak-Peek, or toggle autoStart off and on to restart the server.')}
                   </span>
                 </motion.div>
               ) : null}

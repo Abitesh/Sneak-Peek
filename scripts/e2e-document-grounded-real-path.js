@@ -115,7 +115,7 @@ async function main() {
   console.log('[e2e] documentGroundedCustomModeActive = true ✓');
 
   const llmHelper = new LLMHelper();
-  llmHelper.setNativelyKey(KEY);
+  llmHelper.setSneakPeekKey(KEY);
   llmHelper.setModel('natively');
 
   let pass = 0, fail = 0;

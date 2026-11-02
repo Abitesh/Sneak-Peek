@@ -34,7 +34,7 @@ const NATIVELY_PROJECT_WITH_HIGHLIGHTS = {
   name: 'Evin John',
   projects: [
     {
-      name: 'Natively',
+      name: 'Sneak-Peek',
       description: 'A privacy-first AI meeting assistant featuring local RAG for offline context retention and multi-vendor AI model integration.',
       highlights: [
         'Launched a privacy-first AI assistant that gained 4,000+ users and 500+ stars in one week, managing the full product lifecycle from system design to public release and community support.',
@@ -50,7 +50,7 @@ const NATIVELY_PROJECT_NO_HIGHLIGHTS = {
   name: 'Evin John',
   projects: [
     {
-      name: 'Natively',
+      name: 'Sneak-Peek',
       description: 'A privacy-first AI meeting assistant featuring local RAG for offline context retention and multi-vendor AI model integration.',
       technologies: ['Electron', 'TypeScript', 'Rust'],
     },
@@ -58,9 +58,9 @@ const NATIVELY_PROJECT_NO_HIGHLIGHTS = {
 };
 
 describe('project metric-bearing highlights are recalled when present', () => {
-  test('"How many users and stars did Natively get?" selects the highlights evidence with the real 4,000+/500+ metric', () => {
+  test('"How many users and stars did Sneak-Peek get?" selects the highlights evidence with the real 4,000+/500+ metric', () => {
     const r = tryBuildManualProfileFastPathAnswer({
-      question: 'How many users and stars did Natively get, and in what timeframe?',
+      question: 'How many users and stars did Sneak-Peek get, and in what timeframe?',
       profile: NATIVELY_PROJECT_WITH_HIGHLIGHTS, source: 'manual_input',
     });
     assert.ok(r);
@@ -71,9 +71,9 @@ describe('project metric-bearing highlights are recalled when present', () => {
     assert.deepEqual(r.selectedProjects[0].highlights, NATIVELY_PROJECT_WITH_HIGHLIGHTS.projects[0].highlights);
   });
 
-  test('"Tell me about Natively" still selects the project evidence with a metric highlight present', () => {
+  test('"Tell me about Sneak-Peek" still selects the project evidence with a metric highlight present', () => {
     const r = tryBuildManualProfileFastPathAnswer({
-      question: 'Tell me about Natively.', profile: NATIVELY_PROJECT_WITH_HIGHLIGHTS, source: 'manual_input',
+      question: 'Tell me about Sneak-Peek.', profile: NATIVELY_PROJECT_WITH_HIGHLIGHTS, source: 'manual_input',
     });
     assert.ok(r);
     assert.equal(r.answerType, 'project_answer');
@@ -82,9 +82,9 @@ describe('project metric-bearing highlights are recalled when present', () => {
 });
 
 describe('backward compatibility — profiles without `highlights` are unaffected', () => {
-  test('"Tell me about Natively" selects project evidence normally when highlights is absent', () => {
+  test('"Tell me about Sneak-Peek" selects project evidence normally when highlights is absent', () => {
     const r = tryBuildManualProfileFastPathAnswer({
-      question: 'Tell me about Natively.', profile: NATIVELY_PROJECT_NO_HIGHLIGHTS, source: 'manual_input',
+      question: 'Tell me about Sneak-Peek.', profile: NATIVELY_PROJECT_NO_HIGHLIGHTS, source: 'manual_input',
     });
     assert.ok(r);
     assert.equal(r.answerType, 'project_answer');

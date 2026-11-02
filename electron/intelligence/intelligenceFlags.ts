@@ -1,6 +1,6 @@
 // electron/intelligence/intelligenceFlags.ts
 //
-// Central feature-flag module for the Natively Intelligence OS consolidation
+// Central feature-flag module for the Sneak-Peek Intelligence OS consolidation
 // (spec Phase 15). Follows the EXACT convention already established by
 // profileGroundingV2.ts / liveSessionMemoryConfig.ts / verificationEnabled.ts:
 //   • read process.env.NATIVELY_* first, then SettingsManager opt-in,

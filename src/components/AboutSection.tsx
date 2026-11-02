@@ -60,7 +60,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
         <div className="space-y-6 animated fadeIn pb-10" data-settings-stagger>
             {/* Header */}
             <div>
-                <h3 className="text-lg font-bold text-text-primary mb-1">{t('About Natively')}</h3>
+                <h3 className="text-lg font-bold text-text-primary mb-1">{t('About Sneak-Peek')}</h3>
                 <p className="text-sm text-text-secondary">{t('Designed to be invisible, intelligent, and trusted.')}</p>
             </div>
 
@@ -77,7 +77,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                             <div>
                                 <h5 className="text-sm font-bold text-text-primary mb-1">Auto Answer (Beta)</h5>
                                 <p className="text-xs text-text-secondary leading-relaxed">
-                                    Answers appear on their own the moment the other person finishes a question. Natively judges whether an answer is actually wanted and stays silent when it isn't. Off by default — turn it on in General.
+                                    Answers appear on their own the moment the other person finishes a question. Sneak-Peek judges whether an answer is actually wanted and stays silent when it isn't. Off by default — turn it on in General.
                                 </p>
                             </div>
                         </div>
@@ -137,7 +137,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                             <div>
                                 <h5 className="text-sm font-bold text-text-primary mb-1">Hindsight Long-Term Memory</h5>
                                 <p className="text-xs text-text-secondary leading-relaxed">
-                                    A local vector database that indexes your past meetings, profiles and documents, so Natively can recall what was said weeks ago — not just in this session. Pro, and opt-in from Settings.
+                                    A local vector database that indexes your past meetings, profiles and documents, so Sneak-Peek can recall what was said weeks ago — not just in this session. Pro, and opt-in from Settings.
                                 </p>
                             </div>
                         </div>
@@ -147,7 +147,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
 
             {/* Architecture Section */}
             <div>
-                <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider mb-2 px-1">{t('How Natively Works')}</h4>
+                <h4 className="text-xs font-bold text-text-tertiary uppercase tracking-wider mb-2 px-1">{t('How Sneak-Peek Works')}</h4>
                 <div className="bg-bg-item-surface rounded-xl border border-border-subtle overflow-hidden">
                     <div className="p-3 border-b border-border-subtle bg-bg-card/50">
                         <div className="flex items-start gap-4">
@@ -197,7 +197,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                         <div>
                             <h5 className="text-sm font-medium text-text-primary">{t('No Recording')}</h5>
                             <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                                Natively listens only when active. It does not record video, take arbitrary screenshots without command, or perform background surveillance.
+                                Sneak-Peek listens only when active. It does not record video, take arbitrary screenshots without command, or perform background surveillance.
                             </p>
                         </div>
                     </div>
@@ -248,7 +248,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                         </a>
                     </div>
 
-                    {/* 0.6. Natively LinkedIn */}
+                    {/* 0.6. Sneak-Peek LinkedIn */}
                     <div className="bg-bg-item-surface rounded-xl border border-border-subtle p-5 flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shadow-sm shadow-blue-500/5">
@@ -283,7 +283,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                                     <p className="text-xs text-text-secondary leading-relaxed max-w-lg">
                                         I build software that stays out of the way.
                                         <br />
-                                        <span className="font-bold text-text-primary">Natively</span> is made to feel fast, quiet, and respectful of your privacy.
+                                        <span className="font-bold text-text-primary">Sneak-Peek</span> is made to feel fast, quiet, and respectful of your privacy.
                                     </p>
                                 </div>
                             </div>
@@ -336,7 +336,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                             </div>
                             <div>
                                 <h5 className="text-sm font-bold text-text-primary">{t('Star on GitHub')}</h5>
-                                <p className="text-xs text-text-secondary mt-0.5">{t('Love Natively? Support us by starring the repo.')}</p>
+                                <p className="text-xs text-text-secondary mt-0.5">{t('Love Sneak-Peek? Support us by starring the repo.')}</p>
                             </div>
                         </a>
 
@@ -384,7 +384,7 @@ export const AboutSection: React.FC<AboutSectionProps> = () => {
                             </div>
                             <div>
                                 <h5 className="text-sm font-bold text-text-primary">{t('Support Development')}</h5>
-                                <p className="text-xs text-text-secondary mt-0.5">{t('Natively is independent source-available software.')}</p>
+                                <p className="text-xs text-text-secondary mt-0.5">{t('Sneak-Peek is source-available software.')}</p>
                             </div>
                         </div>
                         <a

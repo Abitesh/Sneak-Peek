@@ -29,7 +29,7 @@ policy: ModePolicy;
 evidence: EvidenceItem[];
 /**
 * The SURFACE's persona and voice contract (2026-08-02) — e.g. the Prompt
-* System v2 composed base for the typed-chat panel, carrying the Natively
+* System v2 composed base for the typed-chat panel, carrying the Sneak-Peek
 * copilot identity, voice laws, and the chat display layout.
 *
 * Rendered FIRST, before every governance section, deliberately: the

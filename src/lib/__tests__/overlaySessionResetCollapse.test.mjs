@@ -5,7 +5,7 @@
 // expanded coding/answer view at its wide shell width, then "refreshed" to the
 // clean collapsed state a second or two later.
 //
-// Root cause: the `onSessionReset` handler in NativelyInterface cleared
+// Root cause: the `onSessionReset` handler in SneakPeekInterface cleared
 // `messages` but never collapsed the code-width expansion. The shell only
 // contracted later via the deferred checkCodeVisibility chain (rAF → 120ms
 // stability gate → 0.7s spring), so the old wide frame was painted on the
@@ -20,7 +20,7 @@
 // and whose setter would trigger hideWindow().
 //
 // Strategy: source-contract assertions against the onSessionReset handler in
-// NativelyInterface.tsx. The reset is component-internal state manipulation
+// SneakPeekInterface.tsx. The reset is component-internal state manipulation
 // (motion values + refs), not a pure function, so a behavioural test would
 // need a full React/DOM harness. These structural assertions pin the
 // load-bearing reset lines so a future refactor that drops the collapse fails
@@ -33,7 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sourcePath = path.resolve(__dirname, '../../components/NativelyInterface.tsx');
+const sourcePath = path.resolve(__dirname, '../../components/SneakPeekInterface.tsx');
 const source = readFileSync(sourcePath, 'utf8');
 
 // Extract the body of the onSessionReset callback: from the
@@ -41,7 +41,7 @@ const source = readFileSync(sourcePath, 'utf8');
 function extractOnSessionResetBody() {
   const marker = 'onSessionReset(() => {';
   const idx = source.indexOf(marker);
-  assert.ok(idx >= 0, 'could not locate the onSessionReset(() => { handler in NativelyInterface.tsx');
+  assert.ok(idx >= 0, 'could not locate the onSessionReset(() => { handler in SneakPeekInterface.tsx');
   let i = idx + marker.length;
   let depth = 1;
   const start = i;

@@ -4,7 +4,7 @@
 //
 // Premium Apple-inspired trial offer card.
 // Shows 5 seconds after launcher is visible on non-first launches,
-// when no Natively API key is stored and no trial is active.
+// when no Sneak-Peek API key is stored and no trial is active.
 // Violet/purple accent — consistent with the trial brand throughout the app.
 
 import React, { useState, useEffect } from 'react';
@@ -32,7 +32,7 @@ const ITEM    = {
 
 interface Props {
   isOpen:         boolean;
-  hasNativelyKey: boolean;
+  hasSneakPeekKey: boolean;
   hasTrialToken:  boolean;
   onDismiss:      () => void;
   onStartTrial:   () => Promise<void>;
@@ -40,7 +40,7 @@ interface Props {
 }
 
 export const TrialPromoToaster: React.FC<Props> = ({
-  isOpen, hasNativelyKey: _hasNativelyKey, hasTrialToken: _hasTrialToken, onDismiss, onStartTrial, onManualSetup,
+  isOpen, hasSneakPeekKey: _hasSneakPeekKey, hasTrialToken: _hasTrialToken, onDismiss, onStartTrial, onManualSetup,
 }) => {
   const [visible,  setVisible]  = useState(false);
   const [starting, setStarting] = useState(false);
@@ -159,7 +159,7 @@ export const TrialPromoToaster: React.FC<Props> = ({
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px', paddingBottom: '16px' }}>
                 <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t3 }}>
-                  Natively Trial
+                  Sneak-Peek Trial
                 </span>
                 <button onClick={handleDismiss} aria-label="Dismiss"
                   style={{ 
@@ -198,7 +198,7 @@ export const TrialPromoToaster: React.FC<Props> = ({
                     Try everything. No card needed.
                   </h2>
                   <p style={{ fontSize: '13px', lineHeight: 1.66, color: t3, margin: '0 auto', maxWidth: '330px' }}>
-                    Full Natively API access — AI chat, meeting transcription, and company research — free for 10 minutes. Bound to this device. No sign-in.
+                    Full Sneak-Peek API access — AI chat, meeting transcription, and company research — free for 10 minutes. Bound to this device. No sign-in.
                   </p>
                 </motion.div>
 

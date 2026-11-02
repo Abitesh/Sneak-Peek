@@ -1,5 +1,5 @@
 /**
- * Canonical context-planning contracts for Natively Intelligence.
+ * Canonical context-planning contracts for Sneak-Peek Intelligence.
  *
  * The planner answers one question only:
  *   "What context is necessary to answer this turn correctly?"

@@ -4,7 +4,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
  *
- * When a customer supplies their own provider key, Natively's backend executes
+ * When a customer supplies their own provider key, Sneak-Peek's backend executes
  * nothing on their behalf and can therefore meter nothing. There is no
  * server-side observation of BYOK feature use to be had. The only signal that a
  * feature ran is this client saying so — which makes a dropped event not a gap
@@ -179,7 +179,7 @@ export class UsageOutbox {
     }
 
     /**
-     * @param getApiKey resolves the Natively API key at DISPATCH time, not at
+     * @param getApiKey resolves the Sneak-Peek API key at DISPATCH time, not at
      * start time — a user who pastes their key after launch must not need a
      * restart before their queued events can drain.
      */
@@ -301,7 +301,7 @@ export class UsageOutbox {
             const live = batch.filter((b) => b.attempt_count < MAX_ATTEMPTS);
             if (live.length === 0) return { sent: 0, delivered: 0, rejected: 0 };
 
-            // The hosted Natively usage endpoint is intentionally disabled in this
+            // The hosted Sneak-Peek usage endpoint is intentionally disabled in this
             // build. Treat queued usage as local-only telemetry; never attempt a
             // network round-trip to the old backend URL.
             const ids = live.map((b) => b.event_id);

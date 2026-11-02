@@ -72,7 +72,7 @@ describe('manual Profile Intelligence evidence selector (Full-JIT)', () => {
     assert.match(values(result), /Acme Analytics/);
     assert.match(values(result), /Data Analyst/);
     assert.match(values(result), /Northstar Labs/);
-    assert.doesNotMatch(values(result), /Natively|AI assistant/i);
+    assert.doesNotMatch(values(result), /Sneak-Peek|AI assistant/i);
   });
 
   test('MANUAL-PI-PROJECTS-001: selects project evidence only', () => {
@@ -144,7 +144,7 @@ describe('manual Profile Intelligence evidence selector (Full-JIT)', () => {
   });
 
   test('GENUINE assistant-meta still bails to the assistant (not hijacked by profile)', () => {
-    for (const question of ['what is Natively?', 'who made you?', 'are you an AI?', 'what model do you use?', 'are you a bot?']) {
+    for (const question of ['what is Sneak-Peek?', 'who made you?', 'are you an AI?', 'what model do you use?', 'are you a bot?']) {
       assert.equal(isAssistantIdentityQuestion(question), true, `${question} should be assistant identity`);
       assert.equal(route(question), null, `${question} must not select candidate profile facts`);
     }
@@ -156,7 +156,7 @@ describe('manual Profile Intelligence evidence selector (Full-JIT)', () => {
       const r = route(question);
       assert.ok(r, `${question} should select candidate identity evidence`);
       assert.match(values(r), /Evin John/);
-      assert.doesNotMatch(values(r), /Natively|AI assistant/i);
+      assert.doesNotMatch(values(r), /Sneak-Peek|AI assistant/i);
     }
   });
 

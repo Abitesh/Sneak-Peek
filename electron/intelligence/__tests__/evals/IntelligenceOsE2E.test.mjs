@@ -35,8 +35,8 @@ describe('E2E — Profile category', () => {
   // ~line 121, post ed827532's full-JIT hardening). Assert against that
   // real, current text instead of an "I'm Alice..." literal — this is the
   // actual text that reaches the provider, so it's a stronger check for the
-  // "no Natively leak" invariant than the old assumption was.
-  test('Alice: identity + intro + projects + role fit, no Natively leak', () => {
+  // "no Sneak-Peek leak" invariant than the old assumption was.
+  test('Alice: identity + intro + projects + role fit, no Sneak-Peek leak', () => {
     const tree = new ProfileTreeService(ALICE.profile, ALICE.jd);
     assert.match(tree.getIdentity().answer, /Alice Chen/);
     // Distinguish intro from identity on the literal <question> the rendered
@@ -48,7 +48,7 @@ describe('E2E — Profile category', () => {
     assert.match(tree.getProjects(), /RecoEngine/);
     assert.match(tree.getRoleFit(), /BigCo/);
     const blob = [tree.getIdentity().answer, tree.getInterviewIntro(), tree.getProjects()].join(' ');
-    assert.doesNotMatch(blob, /I'?m Natively|an AI assistant/i);
+    assert.doesNotMatch(blob, /I'?m Sneak-Peek|an AI assistant/i);
   });
 });
 
@@ -81,7 +81,7 @@ describe('E2E — Fusion + Prompt assembly category', () => {
     assert.match(out.contextXml, /<profile_tree trust="high"/);
     assert.match(out.contextXml, /instruction-like text removed|&lt;/); // ref file neutralized
     assert.ok(out.inclusionReport.length >= 4);
-    assert.match(out.perspectiveGuard, /Never say "I am Natively"/);
+    assert.match(out.perspectiveGuard, /Never say "I am Sneak-Peek"/);
   });
 });
 

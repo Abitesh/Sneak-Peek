@@ -258,7 +258,7 @@ class ZeroShotClassifier {
             // for the renderer's diagnostic UI.
             message: status.recoverable
                 ? 'Intent classifier running in fallback mode (regex + heuristics). Smart suggestions may be less accurate.'
-                : 'Natively local classifier assets are missing or corrupted. Please reinstall Natively.',
+                : 'Sneak-Peek local classifier assets are missing or corrupted. Please reinstall Sneak-Peek.',
             recoverable: status.recoverable,
             details: { backend: status.backend, reason: status.reason, error: status.message },
         });
@@ -282,7 +282,7 @@ class ZeroShotClassifier {
             health: 'missing_required_asset',
             requiredForStartup: false,
             requiredForCoreFallback: true,
-            message: 'Natively local classifier assets are missing or corrupted. Please reinstall Natively.',
+            message: 'Sneak-Peek local classifier assets are missing or corrupted. Please reinstall Sneak-Peek.',
             recoverable: false,
             details: { reason: 'worker-died-before-ready', error: message },
         });

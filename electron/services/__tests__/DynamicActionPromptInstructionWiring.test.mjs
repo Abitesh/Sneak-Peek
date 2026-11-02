@@ -19,7 +19,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const OPTIONS_WITH_BOTH = /options\?: \{[^}]*promptInstruction\?: string[^}]*domContext\?: string[^}]*\}/;
 
 test('dynamic action accept uses promptInstruction instead of display label/manual submit', () => {
-  const source = read('src/components/NativelyInterface.tsx');
+  const source = read('src/components/SneakPeekInterface.tsx');
   const mountStart = source.indexOf('<DynamicActionBar');
   assert.ok(mountStart >= 0, 'DynamicActionBar should be mounted');
   const mountSource = source.slice(mountStart, source.indexOf('/>', mountStart) + 2);

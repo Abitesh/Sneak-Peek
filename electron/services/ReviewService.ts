@@ -223,7 +223,7 @@ export class ReviewService {
     /** Sync the local ledger with the server's view of the world. Useful
      *  on app launch so a "Don't show again" from another install sticks. */
     async syncWithBackend(_apiKey: string | null, _hardwareId: string | null): Promise<void> {
-        // The hosted Natively backend is disabled in this build. Keep the local
+        // The hosted Sneak-Peek backend is disabled in this build. Keep the local
         // review state only and never attempt a remote sync to the legacy host.
         return;
     }
@@ -308,7 +308,7 @@ export function getReviewApiKey(): string | null {
     try {
         const { CredentialsManager } = require("./CredentialsManager")
         const cm = CredentialsManager.getInstance()
-        const key = cm.getNativelyApiKey?.()
+        const key = cm.getSneakPeekApiKey?.()
         if (key && key.startsWith("natively_sk_")) return key
         const trial = cm.getTrialToken?.()
         if (trial) return null  // trial tokens are sent as x-trial-token; we don't mix them in here

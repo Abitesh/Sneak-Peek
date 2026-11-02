@@ -1,5 +1,5 @@
 // Regression test for the permission-routing fix (2026-08) in
-// src/components/NativelyInterface.tsx.
+// src/components/SneakPeekInterface.tsx.
 //
 // Pre-fix the banner picked its macOS System Settings pane from the audio
 // CHANNEL:
@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
 const source = fs.readFileSync(
-  path.join(root, 'src/components/NativelyInterface.tsx'),
+  path.join(root, 'src/components/SneakPeekInterface.tsx'),
   'utf8',
 );
 

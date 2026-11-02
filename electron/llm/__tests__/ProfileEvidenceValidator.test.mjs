@@ -18,7 +18,7 @@ const { validateProfileEvidence } = await import(
 const EVIDENCE = `<candidate_profile>
 Name: Evin John
 EXPERIENCE
-  - Founder at Natively (2024-01 - Present)
+  - Founder at Sneak-Peek (2024-01 - Present)
       • Built a real-time meeting copilot.
   - Software Engineer Intern at Aetherbot AI (2023-05 - 2023-08)
       • Scaled a pixel-streaming pipeline on AWS; drove a 25% increase in customer retention.
@@ -84,8 +84,8 @@ describe('Phase 6: evidence validator — fabricated metrics', () => {
 });
 
 describe('Phase 6: evidence validator — fabricated companies', () => {
-  test('a GROUNDED company (Natively, Aetherbot) passes', () => {
-    const r = run('I worked at Natively as the founder.');
+  test('a GROUNDED company (Sneak-Peek, Aetherbot) passes', () => {
+    const r = run('I worked at Sneak-Peek as the founder.');
     assert.equal(r.ok, true, JSON.stringify(r.violations));
   });
 
@@ -98,7 +98,7 @@ describe('Phase 6: evidence validator — fabricated companies', () => {
 
 describe('Phase 6: evidence validator — composes perspective/identity/refusal checks', () => {
   test('assistant-identity leak still caught', () => {
-    const r = run("I am Natively, an AI assistant.", { answerType: 'identity_answer' });
+    const r = run("I am Sneak-Peek, an AI assistant.", { answerType: 'identity_answer' });
     assert.ok(r.errorCodes.includes('assistant_identity_leak'));
   });
 

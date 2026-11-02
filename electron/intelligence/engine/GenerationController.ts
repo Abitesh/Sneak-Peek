@@ -1,5 +1,5 @@
 /**
- * Provider-agnostic generation lifecycle for Natively Intelligence.
+ * Provider-agnostic generation lifecycle for Sneak-Peek Intelligence.
  *
  * The engine hands this layer one already-assembled final prompt.  This module
  * does not inspect the question, evidence, context plan, or prompt semantics.

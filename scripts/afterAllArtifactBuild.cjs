@@ -52,7 +52,7 @@ const { stapleWithRetry } = require('./staple-with-retry');
 
 const VOLNAME = 'Natively';
 const BACKGROUND = path.resolve(__dirname, '..', 'assets', 'dmg-background.png');
-const VOLICON = path.resolve(__dirname, '..', 'assets', 'natively.icns');
+const VOLICON = path.resolve(__dirname, '..', 'assets', 'sneak-peek.icns');
 
 function sha512base64(file) {
   return crypto.createHash('sha512').update(fs.readFileSync(file)).digest('base64');

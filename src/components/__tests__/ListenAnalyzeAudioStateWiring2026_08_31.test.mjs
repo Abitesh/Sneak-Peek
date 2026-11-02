@@ -2,7 +2,7 @@
 // non-blocking UI. Source-inspection tests — verifies the wiring described in
 // the plan without needing a full Electron/React render harness (the rest of
 // this file's neighbors follow the same pattern, e.g.
-// NativelyInterfaceStreamingMathWiring2026_08_07.test.mjs).
+// SneakPeekInterfaceStreamingMathWiring2026_08_07.test.mjs).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,17 +11,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const nativelyInterfaceSource = fs.readFileSync(path.resolve(here, '../NativelyInterface.tsx'), 'utf8');
+const sneakPeekInterfaceSource = fs.readFileSync(path.resolve(here, '../SneakPeekInterface.tsx'), 'utf8');
 const topControlBarSource = fs.readFileSync(path.resolve(here, '../TopControlBar.tsx'), 'utf8');
 
 test('Listen actually starts the mic/STT pipeline, expands the overlay, and clears buffers', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /const handleStartListening = \(\) => \{[\s\S]*?setIsManualRecording\(true\);[\s\S]*?setIsExpanded\(true\);[\s\S]*?getMeetingActive\(\)[\s\S]*?ensureListenAudioCapture/,
     'BUG: Listen must set isManualRecording, force the overlay open (setIsExpanded(true)), verify meeting active, and ensure mic+system capture (ensureListenAudioCapture).',
   );
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /const handleStartListening = \(\) => \{[\s\S]*?setVoiceInput\(''\);[\s\S]*?voiceInputRef\.current = '';[\s\S]*?setManualTranscript\(''\);[\s\S]*?manualTranscriptRef\.current = '';[\s\S]*?interviewerListenRef\.current = '';/,
     'BUG: Listen must clear user AND interviewer Listen buffers before starting a new turn.',
   );
@@ -29,7 +29,7 @@ test('Listen actually starts the mic/STT pipeline, expands the overlay, and clea
 
 test('Listen ensures system audio capture is running (Ambient AI Chat / failed starts)', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /ensureListenAudioCapture/,
     'BUG: Listen must call ensureListenAudioCapture so system/loopback starts even when Ambient AI Chat skipped capture at meeting start.',
   );
@@ -51,16 +51,16 @@ test('Listen ensures system audio capture is running (Ambient AI Chat / failed s
 
 test('Analyze falls back to SessionTracker interviewer lines when Listen buffers are empty', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /getListenWindowTranscript/,
     'BUG: Analyze must query getListenWindowTranscript when Them/You Listen buffers are empty.',
   );
 });
 
 test('each Listen turn is timestamp-bounded and opts out of rolling chat context', () => {
-  assert.match(nativelyInterfaceSource, /listenStartedAtRef\.current = Date\.now\(\)/);
-  assert.match(nativelyInterfaceSource, /getListenWindowTranscript\?\.\(secs, listenStartedAt\)/);
-  assert.match(nativelyInterfaceSource, /\{ skipRollingContext: true \}/);
+  assert.match(sneakPeekInterfaceSource, /listenStartedAtRef\.current = Date\.now\(\)/);
+  assert.match(sneakPeekInterfaceSource, /getListenWindowTranscript\?\.\(secs, listenStartedAt\)/);
+  assert.match(sneakPeekInterfaceSource, /\{ skipRollingContext: true \}/);
 
   const intelligenceManagerSource = fs.readFileSync(
     path.resolve(here, '../../../electron/IntelligenceManager.ts'),
@@ -76,12 +76,12 @@ test('each Listen turn is timestamp-bounded and opts out of rolling chat context
 
 test('Listen accumulates system/interviewer audio during a session (other person on the call)', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /isRecordingRef\.current && transcript\.speaker === 'interviewer'/,
     'BUG: while Listen is active, interviewer (system audio) transcripts must enter Listen-scoped buffers — not only the rolling bar.',
   );
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /Interviewer: \$\{them\}/,
     'BUG: Analyze must include the other person\'s speech in the question sent to the AI.',
   );
@@ -93,19 +93,19 @@ test('TopControlBar exposes separate Listen and Analyze actions; Answer stays ha
     /onListen:\s*\(\)\s*=>\s*void;[\s\S]*?onAnalyze:\s*\(\)\s*=>\s*void;/,
     'BUG: TopControlBar must declare distinct onListen and onAnalyze props.',
   );
-  assert.match(nativelyInterfaceSource, /onListen=\{\(\) => handleStartListening\(\)\}/);
-  assert.match(nativelyInterfaceSource, /onAnalyze=\{\(\) => void handleAnalyzeNow\(\)\}/);
-  assert.match(nativelyInterfaceSource, /onAnswer=\{\(\) => void handleWhatToSay\(\)\}/);
+  assert.match(sneakPeekInterfaceSource, /onListen=\{\(\) => handleStartListening\(\)\}/);
+  assert.match(sneakPeekInterfaceSource, /onAnalyze=\{\(\) => void handleAnalyzeNow\(\)\}/);
+  assert.match(sneakPeekInterfaceSource, /onAnswer=\{\(\) => void handleWhatToSay\(\)\}/);
 });
 
 test('Analyze auto-stops Listen, finalizes STT, and sends to the AI', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /const handleAnalyzeNow = async \(\) => \{\s*if \(!isManualRecording\) return;/,
     'BUG: Analyze must no-op unless a Listen session is active.',
   );
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /const handleAnalyzeNow = async \(\) => \{[\s\S]*?setIsManualRecording\(false\);[\s\S]*?finalizeMicSTT/,
     'BUG: Analyze must stop recording and finalize the mic STT turn.',
   );
@@ -125,7 +125,7 @@ test('finalizeMicSTT flushes BOTH user mic and system/interviewer STT channels',
 
 test('the legacy combined toggle (hotkey / phone-bridge / quick-action chip) still dispatches to Listen/Analyze', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /const handleAnswerNow = async \(\) => \{\s*if \(isManualRecording\) \{\s*await handleAnalyzeNow\(\);\s*\} else \{\s*handleStartListening\(\);\s*\}\s*\};/,
   );
 });
@@ -133,7 +133,7 @@ test('the legacy combined toggle (hotkey / phone-bridge / quick-action chip) sti
 test('a visible Listen->Analyze audio state machine exists with the four in-session states', () => {
   for (const state of ['listening', 'speaking', 'transcribing', 'processing']) {
     assert.match(
-      nativelyInterfaceSource,
+      sneakPeekInterfaceSource,
       new RegExp(`setAudioSessionState\\([^;]*['"\`]${state}['"\`]`),
       `BUG: missing a transition into audio state "${state}".`,
     );
@@ -141,8 +141,8 @@ test('a visible Listen->Analyze audio state machine exists with the four in-sess
 });
 
 test('the live transcript / audio-state indicator renders independently of showAnswerPanel', () => {
-  const indicatorIdx = nativelyInterfaceSource.indexOf("audioSessionState !== 'idle' && (");
-  const panelIdx = nativelyInterfaceSource.indexOf('{showAnswerPanel && (');
+  const indicatorIdx = sneakPeekInterfaceSource.indexOf("audioSessionState !== 'idle' && (");
+  const panelIdx = sneakPeekInterfaceSource.indexOf('{showAnswerPanel && (');
   assert.ok(indicatorIdx > -1, 'BUG: expected an audioSessionState-gated indicator block.');
   assert.ok(panelIdx > -1, 'BUG: expected the showAnswerPanel-gated chat history block.');
   assert.ok(
@@ -174,17 +174,17 @@ function extractBraceBody(source, marker) {
 }
 
 const handleStartListeningBody = extractBraceBody(
-  nativelyInterfaceSource,
+  sneakPeekInterfaceSource,
   'const handleStartListening = () => {',
 );
 const onSessionResetBody = extractBraceBody(
-  nativelyInterfaceSource,
+  sneakPeekInterfaceSource,
   'onSessionReset(() => {',
 );
 
 test('Listen preserves arming across the session-reset Listen itself caused', () => {
   assert.match(
-    nativelyInterfaceSource,
+    sneakPeekInterfaceSource,
     /preserveListenOnResetRef\s*=\s*useRef\(/,
     'BUG: a one-shot preserveListenOnResetRef must exist so Listen-triggered startMeeting does not disarm the You-channel gate.',
   );

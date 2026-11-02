@@ -1,6 +1,6 @@
 // electron/llm/__tests__/GroqModelLadder2026_08_23.test.mjs
 //
-// Natively's Groq default (`qwen/qwen3.6-27b`) is PREVIEW tier, and Groq's docs
+// Sneak-Peek's Groq default (`qwen/qwen3.6-27b`) is PREVIEW tier, and Groq's docs
 // say preview models can be discontinued without notice. That is exactly how the
 // previous pins died — llama-3.3-70b-versatile (2026-08-16) and llama-4-scout
 // (2026-07-17) — and while they were dead every Groq call 404'd, which the UI

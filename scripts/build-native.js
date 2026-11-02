@@ -160,7 +160,7 @@ if (os.platform() === 'darwin') {
 
   // Windows only: unblock the artifact copy when the app is running.
   //
-  // Windows locks a loaded DLL against being written or deleted, so if Natively
+  // Windows locks a loaded DLL against being written or deleted, so if Sneak-Peek
   // (or an electron dev instance) has the .node loaded, `napi build` dies at the
   // very end with an opaque "Internal Error: Failed to copy artifact" — after a
   // successful compile, which makes it look like a Rust failure. It is not; it
@@ -205,7 +205,7 @@ if (os.platform() === 'darwin') {
       } catch (err) {
         console.warn(
           `Warning: could not move the previous ${artifact} aside (${err.code || err.message}).\n` +
-            '         If the build fails with "Failed to copy artifact", close Natively and retry.'
+            '         If the build fails with "Failed to copy artifact", close Sneak-Peek and retry.'
         );
         continue;
       }
@@ -241,7 +241,7 @@ if (os.platform() === 'darwin') {
         console.warn(`Build failed; restored the previous ${artifact}.`);
       } catch (restoreErr) {
         // The rename back failed (usually: the DLL is mapped by a running
-        // Natively). Mark the copy as a rescue file so the sweep at the top of
+        // Sneak-Peek). Mark the copy as a rescue file so the sweep at the top of
         // the NEXT run leaves it alone — otherwise this message would point the
         // developer at a path that the next build deletes before they get to it.
         // Keep the '.node.stale-' segment so the file still looks like what it
@@ -261,7 +261,7 @@ if (os.platform() === 'darwin') {
           `Build failed AND the previous ${artifact} could not be restored ` +
             `(${restoreErr.code || restoreErr.message}).\n` +
             `         The last-good binary is at:\n           ${rescuePath}\n` +
-            `         Close Natively and rename it back to ${artifact} to recover.`
+            `         Close Sneak-Peek and rename it back to ${artifact} to recover.`
         );
       }
     }
@@ -270,14 +270,14 @@ if (os.platform() === 'darwin') {
 
   // Build succeeded AND the expected artifact was verified present, so the
   // copies are now genuinely stale. An unlink that fails here means the DLL is
-  // still mapped by a running Natively; it is out of the way, gitignored, and
+  // still mapped by a running Sneak-Peek; it is out of the way, gitignored, and
   // swept by the next build.
   for (const { artifact, stalePath } of movedAside) {
     try {
       fs.unlinkSync(stalePath);
     } catch {
       console.log(
-        `Note: ${artifact} is in use (Natively is running); moved it aside so the build can proceed.`
+        `Note: ${artifact} is in use (Sneak-Peek is running); moved it aside so the build can proceed.`
       );
     }
   }

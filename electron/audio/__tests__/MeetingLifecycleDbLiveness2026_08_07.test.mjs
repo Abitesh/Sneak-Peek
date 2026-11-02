@@ -9,7 +9,7 @@
 //
 //     after any amount of start/stop churn, can we still save a meeting?
 //
-// So this test cycles the real NativelyProSTT over real sockets through a fixed
+// So this test cycles the real SneakPeekProSTT over real sockets through a fixed
 // sequence of handshake outcomes, wires main.ts's REAL fatal policy
 // (uncaughtException -> emergencyCloseDatabase), and after EVERY cycle performs
 // a genuine SELECT 1 + insert + read-back + delete against a real SQLite file.
@@ -66,8 +66,8 @@ Module._load = function patchedLoad(request) {
     return origLoad.apply(this, arguments);
 };
 
-const { NativelyProSTT } = await import(
-    path.join(repoRoot, 'dist-electron/electron/audio/NativelyProSTT.js'));
+const { SneakPeekProSTT } = await import(
+    path.join(repoRoot, 'dist-electron/electron/audio/SneakPeekProSTT.js'));
 const { MeetingLifecycleQueue } = await import(
     path.join(repoRoot, 'dist-electron/electron/audio/meetingLifecycleQueue.js'));
 
@@ -125,7 +125,7 @@ test('25 start/stop cycles leave the database live and writable', opts, async ()
     const PLATFORMS = ['darwin', 'win32'];
 
     function makeStt(url, channel) {
-        const stt = new NativelyProSTT('liveness-key', channel);
+        const stt = new SneakPeekProSTT('liveness-key', channel);
         // SEAM: BACKEND_URL survives start(); `target` is nulled by start(), so
         // pinning it would silently fall back to the production endpoint.
         stt.BACKEND_URL = url;

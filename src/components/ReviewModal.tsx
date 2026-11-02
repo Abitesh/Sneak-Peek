@@ -87,7 +87,7 @@ const RATING_WORDS = ["", "Poor", "Fair", "Good", "Great", "Exceptional"] as con
 const ERROR_COPY: Record<string, string> = {
     rate_limited_key: "Too many attempts just now. Try again in a minute.",
     rate_limited: "Too many attempts just now. Try again in a minute.",
-    hardware_id_required: "Couldn't identify this install. Restart Natively and try again.",
+    hardware_id_required: "Couldn't identify this install. Restart Sneak-Peek and try again.",
     rating_required_1_to_5: "Pick a rating from one to five stars.",
     review_text_too_long: "That note is over the 300-character limit.",
     review_not_found: "This review is no longer available.",
@@ -96,7 +96,7 @@ const ERROR_COPY: Record<string, string> = {
     invalid_review_id: "Something went wrong saving your name. Your rating was still recorded.",
     no_db: "Our end is having trouble. Your rating wasn't saved — try again shortly.",
     network_error: "No connection. Check your network and try again.",
-    no_api: "Natively isn't ready yet. Try again in a moment.",
+    no_api: "Sneak-Peek isn't ready yet. Try again in a moment.",
 }
 
 /** Resolve an API error code to user-facing copy. */
@@ -291,14 +291,14 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
     }
 
     // Shared by both attribution buttons. Save credits the review under
-    // `name`; Keep anonymous credits it as "Anonymous Natively user" — either
+    // `name`; Keep anonymous credits it as "Anonymous Sneak-Peek user" — either
     // way the review becomes public, only the byline differs.
     const submitTestimonial = async (credited: boolean) => {
         if (!reviewId) {
             // No id came back from the create call, so there is nothing to
             // attribute. The rating itself WAS recorded, so go to the receipt
             // rather than failing — but flag it, because otherwise the receipt
-            // claims "Published as Anonymous Natively user" when in fact
+            // claims "Published as Anonymous Sneak-Peek user" when in fact
             // can_use_publicly is still false and nothing will be published.
             setAttributionSkipped(true)
             setStep("thanks")
@@ -585,7 +585,7 @@ const StepReview: React.FC<StepReviewProps> = ({
 
             <section className="review-column">
                 <h2 id="review-modal-title-review" className="review-headline">
-                    How is Natively<br />treating you?
+                    How is Sneak-Peek<br />treating you?
                 </h2>
                 <p className="review-standfirst">
                     One rating, thirty seconds. It genuinely shapes what we build next.
@@ -818,7 +818,7 @@ const StepThanks: React.FC<{
     attributionSkipped: boolean
     reduced: boolean
 }> = ({ displayNamePublicly, name, attributionSkipped, reduced }) => {
-    const byline = displayNamePublicly && name.trim() ? name.trim() : "Anonymous Natively user"
+    const byline = displayNamePublicly && name.trim() ? name.trim() : "Anonymous Sneak-Peek user"
     // Staggered so the eye lands seal → headline → byline in one beat.
     const step = (i: number) => ({
         initial: reduced ? { opacity: 0 } : { opacity: 0, transform: "translateY(7px)" },

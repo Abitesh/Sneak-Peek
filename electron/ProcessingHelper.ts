@@ -98,7 +98,7 @@ export class ProcessingHelper {
       this.llmHelper.setLitellmConfig(credManager.getLitellmApiKey() || '', litellmBaseURL, credManager.getLitellmMaxTokens());
     }
 
-    // Natively API is intentionally disabled in this build. The app now uses a
+    // Sneak-Peek API is intentionally disabled in this build. The app now uses a
     // single authoritative Gemini key and the provider list does not include the
     // hosted backend at all.
 

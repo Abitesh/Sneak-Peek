@@ -4,7 +4,7 @@
 // `screenUnderstandingMode` is written by the Privacy panel, whose copy promises
 // "Use a local vision model (Ollama) only. Cloud vision is never called." It was
 // read at ONE runtime call site — generate-what-to-say → ScreenUnderstandingService.
-// The primary Ask-AI-with-screenshot flow (NativelyInterface → gemini-chat-stream
+// The primary Ask-AI-with-screenshot flow (SneakPeekInterface → gemini-chat-stream
 // → LLMHelper.streamChat(imagePaths)), generate-code-hint and generate-brainstorm
 // all forwarded imagePaths into LLMHelper, which had no notion of the enum. So
 // the screenshot went to the cloud cascade while the UI said it never would.

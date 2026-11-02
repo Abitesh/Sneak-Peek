@@ -75,7 +75,7 @@ describe('PromptAssemblerV2 — candidate-perspective guard', () => {
   test('emits the no-assistant-identity guard in candidate-voice modes', () => {
     const contract = contractFrom([{ source: 'profile_tree', content: 'I am Alice.' }]);
     const out = assemblePromptV2({ contract, answerContract: 'interview_short', mode: 'technical-interview', query: 'introduce yourself' });
-    assert.match(out.perspectiveGuard, /Never say "I am Natively"/);
+    assert.match(out.perspectiveGuard, /Never say "I am Sneak-Peek"/);
   });
 
   test('no guard for genuine app questions', () => {

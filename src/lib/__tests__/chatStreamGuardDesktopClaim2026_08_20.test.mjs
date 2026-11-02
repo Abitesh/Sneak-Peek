@@ -20,7 +20,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveChatStreamToken, resolveChatStreamDone } from '../chatStreamGuard.mjs';
 
-// The state NativelyInterface.tsx enters at both streamGeminiChat call sites.
+// The state SneakPeekInterface.tsx enters at both streamGeminiChat call sites.
 const DESKTOP_CLAIM = { activeId: null, activeSource: 'desktop' };
 
 test('a claimed desktop surface is not stolen by an in-flight phone stream', () => {

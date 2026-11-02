@@ -3,7 +3,7 @@
 // Skills: ui-ux-pro-max · ui-design-system · frontend-design
 //
 // Claymorphic "install the browser extension" nudge.
-// Shown ONCE per install/update to v2.8.0+ when the Natively browser
+// Shown ONCE per install/update to v2.8.0+ when the Sneak-Peek browser
 // extension is not yet connected. Indigo accent to differentiate from
 // the violet trial and coral support toasters.
 //
@@ -325,7 +325,7 @@ const IndigoCTA: React.FC<{ label: string; onClick: () => void; disabled: boolea
       onHoverEnd={() => setHovered(false)}
       whileHover={reduced || disabled ? {} : { scale: 1.015, y: -1 }}
       whileTap={{ scale: 0.985 }}
-      aria-label="Install Natively browser extension on Chrome"
+      aria-label="Install Sneak-Peek browser extension on Chrome"
       style={{
         position: 'relative', width: '100%', height: '48px', overflow: 'hidden',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

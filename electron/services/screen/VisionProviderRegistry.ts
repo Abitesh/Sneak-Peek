@@ -34,7 +34,7 @@ export interface VisionProviderBuildInputs {
  *                                → Codex → Custom
  *   private_vision: Ollama → Codex → local Custom only
  *
- * The hosted Natively backend is intentionally disabled in this build and must
+ * The hosted Sneak-Peek backend is intentionally disabled in this build and must
  * never be reintroduced as a live vision provider via this registry.
  */
 export function buildVisionProviders(inputs: VisionProviderBuildInputs): VisionProviderConfig[] {
@@ -63,10 +63,10 @@ export function buildVisionProviders(inputs: VisionProviderBuildInputs): VisionP
 
 // ─── Provider builders ────────────────────────────────────────────────────
 
-// The hosted Natively backend is intentionally disabled in this build. Leave a
+// The hosted Sneak-Peek backend is intentionally disabled in this build. Leave a
 // disabled stub in the registry only as a historical marker, never as a live
 // provider route.
-function natively(_creds: CredentialsManager, _inputs: VisionProviderBuildInputs): null {
+function sneakPeek(_creds: CredentialsManager, _inputs: VisionProviderBuildInputs): null {
   return null;
 }
 
@@ -249,8 +249,8 @@ function custom(creds: CredentialsManager, inputs: VisionProviderBuildInputs): V
 function readActiveCustomProviderSync(): any | null {
   try {
     const g = global as any;
-    if (typeof g.__nativelyGetLLMHelper === 'function') {
-      const helper = g.__nativelyGetLLMHelper();
+    if (typeof g.__sneakPeekGetLLMHelper === 'function') {
+      const helper = g.__sneakPeekGetLLMHelper();
       if (helper && typeof helper.getActiveCustomProvider === 'function') {
         return helper.getActiveCustomProvider() || null;
       }
@@ -358,9 +358,9 @@ async function callOllamaVision(baseUrl: string, model: string, params: VisionIn
  */
 async function getActiveLLMHelper(): Promise<any | null> {
   const g = global as any;
-  if (typeof g.__nativelyGetLLMHelper === 'function') {
+  if (typeof g.__sneakPeekGetLLMHelper === 'function') {
     try {
-      return g.__nativelyGetLLMHelper();
+      return g.__sneakPeekGetLLMHelper();
     } catch {
       return null;
     }

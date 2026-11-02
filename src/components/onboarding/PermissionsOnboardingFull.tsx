@@ -11,8 +11,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, Monitor, Mic, Lightbulb, Check, AlertCircle, ArrowRight, Lock } from 'lucide-react';
-import { NativelyLogoMark } from '../NativelyLogoMark';
-import nativelyIcon from '../../../assets/icon.png';
+import { SneakPeekLogoMark } from '../SneakPeekLogoMark';
+import sneakPeekIcon from '../../../assets/icon.png';
 import { classifyMicStatus } from '../../lib/micPermissionPolicy.mjs';
 
 const STORAGE_KEY  = 'natively_perms_shown_v1';
@@ -419,7 +419,7 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                   fontFamily: "'Inter', sans-serif",
                 }}
               >
-                Allow Natively the following system accesses to enable premium recording, real-time assist tools, and seamless audio transcriptions.
+                Allow Sneak-Peek the following system accesses to enable premium recording, real-time assist tools, and seamless audio transcriptions.
               </motion.p>
 
               {/* High-Fidelity Permission list items */}
@@ -428,8 +428,8 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                 {/* Item 1: Assist Toggle */}
                 <PermRow
                   icon={Lightbulb}
-                  label="Allow Natively to assist"
-                  description="Natively can prompt you to start taking notes when you join a meeting."
+                  label="Allow Sneak-Peek to assist"
+                  description="Sneak-Peek can prompt you to start taking notes when you join a meeting."
                   checked={assistActive}
                   onToggle={() => setAssistActive(!assistActive)}
                   hasBadge={true}
@@ -438,8 +438,8 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                 {/* Item 2: Microphone Permission */}
                 <PermRow
                   icon={Mic}
-                  label="Allow Natively to hear you"
-                  description="Natively needs to capture your voice to transcribe your meetings in real-time."
+                  label="Allow Sneak-Peek to hear you"
+                  description="Sneak-Peek needs to capture your voice to transcribe your meetings in real-time."
                   checked={micStatus === 'granted'}
                   onToggle={micStatus !== 'granted' ? handleMicRequest : () => {}}
                   hasBadge={true}
@@ -448,8 +448,8 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                 {/* Item 3: Screen Capture Permission */}
                 <PermRow
                   icon={Monitor}
-                  label="Allow Natively to see your screen"
-                  description="Natively can answer questions about what you're viewing."
+                  label="Allow Sneak-Peek to see your screen"
+                  description="Sneak-Peek can answer questions about what you're viewing."
                   checked={scrStatus === 'granted'}
                   onToggle={openScreenSettings}
                 />
@@ -566,7 +566,7 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
               gap: '16px',
             }}>
               <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                {/* Natively App Icon with camera well */}
+                {/* Sneak-Peek App Icon with camera well */}
                 <div style={{
                   width: '42px',
                   height: '42px',
@@ -574,8 +574,8 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                   flexShrink: 0,
                 }}>
                   <img
-                    src={nativelyIcon}
-                    alt="Natively Icon"
+                    src={sneakPeekIcon}
+                    alt="Sneak-Peek Icon"
                     style={{
                       width: '42px',
                       height: '42px',
@@ -610,7 +610,7 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                     lineHeight: 1.35,
                     fontFamily: "'Inter', sans-serif",
                   }}>
-                    "Natively" would like to record this computer's screen and audio.
+                    "Sneak-Peek" would like to record this computer's screen and audio.
                   </div>
                   <div style={{
                     fontSize: '10px',
@@ -728,11 +728,11 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                   </div>
                 </div>
 
-                {/* App Row 3: Natively (Active!) */}
+                {/* App Row 3: Sneak-Peek (Active!) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <img
-                    src={nativelyIcon}
-                    alt="Natively"
+                    src={sneakPeekIcon}
+                    alt="Sneak-Peek"
                     style={{
                       width: '22px',
                       height: '22px',
@@ -741,7 +741,7 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
                       flexShrink: 0,
                     }}
                   />
-                  <span style={{ fontSize: '11px', fontWeight: 650, color: COLORS.charcoalInk, flex: 1 }}>Natively</span>
+                  <span style={{ fontSize: '11px', fontWeight: 650, color: COLORS.charcoalInk, flex: 1 }}>Sneak-Peek</span>
                   <div style={{
                     width: '28px',
                     height: '16px',

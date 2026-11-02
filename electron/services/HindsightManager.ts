@@ -74,11 +74,11 @@ export class HindsightManager {
     // `pendingStart`/`serverProcess` — two copies could EACH spawn a hindsight
     // server, and only the spawning copy's kill ran on quit.
     const g = globalThis as unknown as Record<string, HindsightManager | undefined>;
-    if (!g.__nativelyHindsightManagerV1__) {
-      g.__nativelyHindsightManagerV1__ = HindsightManager.instance ?? new HindsightManager();
+    if (!g.__sneakPeekHindsightManagerV1__) {
+      g.__sneakPeekHindsightManagerV1__ = HindsightManager.instance ?? new HindsightManager();
     }
-    HindsightManager.instance = g.__nativelyHindsightManagerV1__;
-    return g.__nativelyHindsightManagerV1__;
+    HindsightManager.instance = g.__sneakPeekHindsightManagerV1__;
+    return g.__sneakPeekHindsightManagerV1__;
   }
 
   /** Cached health result + when it was taken. */

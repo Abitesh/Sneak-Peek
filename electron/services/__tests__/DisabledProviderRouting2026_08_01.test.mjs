@@ -76,7 +76,7 @@ describe('the store id space and the router id space are reconciled', () => {
   test('every provider the router can select has a family mapping', () => {
     const routed = routeLLMProviders({
       capability: 'chat',
-      availability: { hasNatively: true, hasGroq: true, hasCodex: true, hasGemini: true, hasOpenAI: true, hasClaude: true, hasDeepseek: true, hasOllama: true },
+      availability: { hasSneakPeek: true, hasGroq: true, hasCodex: true, hasGemini: true, hasOpenAI: true, hasClaude: true, hasDeepseek: true, hasOllama: true },
     }).map((a) => a.provider);
     const mapped = new Set(Object.values(DISABLED_PROVIDER_FAMILY_MAP).flat());
     for (const p of routed) {

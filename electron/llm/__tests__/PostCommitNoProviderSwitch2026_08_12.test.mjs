@@ -4,12 +4,12 @@
 // initially showing the right answer" — reproduced from a live capture and
 // traced to the CLIENT, not the natively-api provider cascade.
 //
-// what_to_answer, Natively fast-mode, 2026-08-12:
+// what_to_answer, Sneak-Peek fast-mode, 2026-08-12:
 //
 //   [NativelyAPI] stream server error  stage=during_stream tfft=2084ms
 //                                      tokens=8047 chars=22871
 //                                      error=ai_unavailable (aborted at 61s)
-//   [LLMHelper] Natively fast-mode failed, falling back
+//   [LLMHelper] Sneak-Peek fast-mode failed, falling back
 //   [NativelyAPI] stream completed     chars=2342          <- a WHOLE new answer
 //   [SessionTracker] addAssistantMessage length=25210
 //

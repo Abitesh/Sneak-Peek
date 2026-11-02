@@ -71,7 +71,7 @@ export const CODING_CONTRACT_TINY = `Coding/DSA answers MUST use these EXACT mar
  * Technique / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up
  * Points") with a python fence. That is wrong for "write a React stopwatch" or
  * "build me a CSV parser" — the user wants ready-to-run code, not an essay. This
- * contract keeps the no-leak / no-Natively rules but asks for code-first output
+ * contract keeps the no-leak / no-Sneak-Peek rules but asks for code-first output
  * with the CORRECT language tag and a short explanation. The repair layer also
  * sniffs for JSX/React content and corrects a `python` fence to `tsx` defensively.
  */
@@ -118,7 +118,7 @@ export const CODING_TEMPLATE_CONFORMANCE_TINY = `TEMPLATE CONFORMANCE (outranks 
 /**
  * Optional verification-spec instruction. Appended to the coding prompt ONLY
  * when code-execution verification is enabled. Asks the model to emit a hidden
- * machine-readable test block AFTER the six sections so Natively can run the
+ * machine-readable test block AFTER the six sections so Sneak-Peek can run the
  * code against test cases in the background. The block is stripped before the
  * answer is shown (see stripVerificationSpec) — the user never sees it.
  *

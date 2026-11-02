@@ -29,7 +29,7 @@
 import * as crypto from 'crypto';
 
 /** File magic so we can recognise and version the blob format. */
-const MAGIC = Buffer.from('NCF1', 'ascii'); // Natively Credential Fallback v1
+const MAGIC = Buffer.from('NCF1', 'ascii'); // Sneak-Peek Credential Fallback v1
 const VERSION = 1;
 const IV_LEN = 12;   // GCM standard nonce length
 const TAG_LEN = 16;  // GCM auth tag length

@@ -575,7 +575,7 @@ __pycache__/
 venv/
 
 # Generated browser extension test output
-/natively-browser/dist-test/
+/sneak-peek-browser/dist-test/
 
 # Downloaded model binaries; obtained through the model installation workflow
 /resources/models/**/*.onnx

@@ -107,8 +107,8 @@ const ATTR_RING_MAX = 200;
 interface AttrSlot { ring: IntelligenceAttribution[]; seq: number }
 const _attr: AttrSlot = (() => {
   const g = globalThis as unknown as Record<string, AttrSlot | undefined>;
-  if (!g.__nativelyIntelAttributionV1__) g.__nativelyIntelAttributionV1__ = { ring: [], seq: 0 };
-  return g.__nativelyIntelAttributionV1__;
+  if (!g.__sneakPeekIntelAttributionV1__) g.__sneakPeekIntelAttributionV1__ = { ring: [], seq: 0 };
+  return g.__sneakPeekIntelAttributionV1__;
 })();
 
 const SHORT_LABEL_RE = /^[\w .:_/+-]{0,48}$/;

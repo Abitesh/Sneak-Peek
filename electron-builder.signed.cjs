@@ -63,7 +63,7 @@ module.exports = {
   // false there and the manual download-fallback path is used instead.
   extraMetadata: {
     ...(base.extraMetadata || {}),
-    nativelySigned: true,
+    sneakPeekSigned: true,
     // NOTE: `keychainGroupEntitled` used to be baked here to prove the
     // keychain-access-groups entitlement shipped. That entitlement was removed on
     // 2026-08-19 — it is restricted/profile-requiring and, with no embedded

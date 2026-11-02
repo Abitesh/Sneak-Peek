@@ -286,7 +286,7 @@ describe('no-evidence notice requires a private claim', () => {
 // ── Persona base (2026-08-02): surface identity rides FIRST, governance last ─
 
 describe('personaBase composition', () => {
-  const PERSONA = 'You are Natively, a live conversation assistant by Evin John.\n<chat_layout>typed panel</chat_layout>';
+  const PERSONA = 'You are Sneak-Peek, a live conversation assistant by Evin John.\n<chat_layout>typed panel</chat_layout>';
 
   test('absent personaBase composes byte-identically to before the field existed', () => {
     const d = decision();

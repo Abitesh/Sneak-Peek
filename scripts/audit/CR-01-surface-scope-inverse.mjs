@@ -3,7 +3,7 @@
  * directions, but only "phone interrupts desktop" was reasoned about. The
  * inverse — desktop question typed while a phone-mirror answer streams —
  * strands the desktop turn: its tokens are dropped and its done is not honored,
- * and NativelyInterface returns on !honor BEFORE setIsProcessing(false).
+ * and SneakPeekInterface returns on !honor BEFORE setIsProcessing(false).
  */
 import { resolveChatStreamToken, resolveChatStreamDone } from '../../src/lib/chatStreamGuard.mjs';
 

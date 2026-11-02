@@ -164,13 +164,13 @@ export class WindowHelper {
   private overlayHoverInteractive = true;
   // ── Overlay popover (settings / model-selector dropdown) coordination ───
   // Which overlay-anchored popovers are currently open. Non-empty → the
-  // click-catcher window is shown so a click ANYWHERE outside Natively's
+  // click-catcher window is shown so a click ANYWHERE outside Sneak-Peek's
   // windows dismisses them (the app's did-resign-active close path is dead in
   // overlay mode: the nonactivating NSPanel never makes the app active, so it
   // can never resign it).
   private overlayPopoversOpen = new Set<'settings' | 'model'>();
-  // Full-display transparent window shown just BELOW the Natively windows
-  // while a popover is open. Any mousedown on it (i.e. outside Natively's
+  // Full-display transparent window shown just BELOW the Sneak-Peek windows
+  // while a popover is open. Any mousedown on it (i.e. outside Sneak-Peek's
   // painted windows) dismisses the popovers — standard menu semantics (the
   // dismissing click is consumed). Lazily created.
   private popoverCatcher: BrowserWindow | null = null;
@@ -192,7 +192,7 @@ export class WindowHelper {
   // Constants
   // FIXED OVERLAY WINDOW WIDTH — the OS window is BORN at this width, SHOWN at
   // this width, and NEVER width-resized for the lifetime of the overlay. It
-  // MUST equal the renderer's SHELL_WIDTH_EXPANDED (NativelyInterface.tsx):
+  // MUST equal the renderer's SHELL_WIDTH_EXPANDED (SneakPeekInterface.tsx):
   // the panel animates 600↔732 purely in CSS, CENTERED (mx-auto) inside this
   // fixed window. (It used to be 780 — wider than the expanded panel — purely
   // to leave a gutter for the floating resize toggle; the toggle now lives in
@@ -304,7 +304,7 @@ export class WindowHelper {
    * is the sole exception, because in NORMAL mode it is the main app window and
    * belongs in the taskbar. That left undetectable mode only half-applied on
    * Windows: macOS removes the app from the Dock entirely, while Windows still
-   * showed a "Natively" taskbar button whenever the launcher was up (before and
+   * showed a "Sneak-Peek" taskbar button whenever the launcher was up (before and
    * after a meeting — during one the overlay is already skipTaskbar).
    *
    * Called at launcher creation and on every undetectable toggle. No-op off
@@ -476,7 +476,7 @@ export class WindowHelper {
   // width, so every report here is height-only (width delta 0) — top-anchored,
   // X never moves, no width setBounds ever. The expand/contract animation is
   // CSS-only in the renderer (panel tweens 600↔732 centered inside the fixed
-  // window). See NativelyInterface.startTransition for the renderer side.
+  // window). See SneakPeekInterface.startTransition for the renderer side.
 
   public createWindow(): void {
     if (this.launcherWindow !== null) return; // Already created
@@ -547,8 +547,8 @@ export class WindowHelper {
         if (mode === 'none') {
           if (isMac) {
             return app.isPackaged
-              ? path.join(process.resourcesPath, 'natively.icns')
-              : path.resolve(__dirname, '../../assets/natively.icns');
+              ? path.join(process.resourcesPath, 'sneak-peek.icns')
+              : path.resolve(__dirname, '../../assets/sneak-peek.icns');
           } else if (isWin) {
             return app.isPackaged
               ? path.join(process.resourcesPath, 'assets/icons/win/icon.ico')
@@ -571,8 +571,8 @@ export class WindowHelper {
           // Defensive: unknown mode — use the real app icon, matching 'none'.
           if (isMac) {
             return app.isPackaged
-              ? path.join(process.resourcesPath, 'natively.icns')
-              : path.resolve(__dirname, '../../assets/natively.icns');
+              ? path.join(process.resourcesPath, 'sneak-peek.icns')
+              : path.resolve(__dirname, '../../assets/sneak-peek.icns');
           } else if (isWin) {
             return app.isPackaged
               ? path.join(process.resourcesPath, 'assets/icons/win/icon.ico')
@@ -781,7 +781,7 @@ export class WindowHelper {
       skipTaskbar: true, // Don't show separately in dock/taskbar
       hasShadow: false, // Prevent shadow from adding perceived size/artifacts
       // macOS NSPanel + nonactivating: lets the overlay become the key window
-      // (and receive keystrokes for the chat input) without activating Natively
+      // (and receive keystrokes for the chat input) without activating Sneak-Peek
       // in the dock / menu bar / screen-share, so the user's foreground app
       // stays "in front." Required for the chat:focusInput stealth-typing path.
       // Windows/Linux fall back to a regular focusable window.
@@ -791,7 +791,7 @@ export class WindowHelper {
     this.overlayWindow = new BrowserWindow(overlaySettings);
     // Windows counterpart of the mac panel treatment above: WS_EX_NOACTIVATE
     // (setFocusable(false)) so clicking the overlay/buttons never activates
-    // Natively — the user's meeting app keeps foreground focus, exactly like
+    // Sneak-Peek — the user's meeting app keeps foreground focus, exactly like
     // becomesKeyOnlyIfNeeded on macOS. The window is NEVER focused; typing goes
     // through the WH_KEYBOARD_LL stealth hook (StealthKeyboardManager), same as
     // the macOS CGEventTap. No-op on macOS/Linux.
@@ -838,7 +838,7 @@ export class WindowHelper {
       // promote the panel to key window → user's foreground app keeps key
       // state in the dock, menu bar, screen-share, focus-followers),
       // hidesOnDeactivate=NO, and the right collectionBehavior. Without this,
-      // ANY click on the overlay (button, input, anywhere) activates Natively
+      // ANY click on the overlay (button, input, anywhere) activates Sneak-Peek
       // and dims the user's foreground app — even with type:'panel' set.
       //
       // DEFERRED to `ready-to-show`: getNativeWindowHandle() returns the
@@ -1466,7 +1466,7 @@ export class WindowHelper {
     const display = screen.getDisplayMatching(overlay!.getBounds());
     catcher.setBounds(display.bounds);
     if (!catcher.isVisible()) catcher.showInactive();
-    // Same-level windows stack by recency — re-assert the Natively windows
+    // Same-level windows stack by recency — re-assert the Sneak-Peek windows
     // above the catcher (macOS already orders it below via relativeLevel -1;
     // this covers Windows and any level fallback).
     for (const w of [
@@ -1514,8 +1514,8 @@ export class WindowHelper {
     if (isMac) {
       this.popoverCatcher.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       this.popoverCatcher.setHiddenInMissionControl(true);
-      // relativeLevel -1: below the other 'floating' Natively windows, above
-      // normal app windows — clicks on Natively still hit Natively; clicks
+      // relativeLevel -1: below the other 'floating' Sneak-Peek windows, above
+      // normal app windows — clicks on Sneak-Peek still hit Sneak-Peek; clicks
       // anywhere else hit the catcher.
       this.popoverCatcher.setAlwaysOnTop(true, 'floating', -1);
     }
@@ -1572,7 +1572,7 @@ export class WindowHelper {
         preload: path.join(__dirname, 'preload.js'),
       },
       // Same nonactivating-panel treatment as the overlay: clicking the pill's
-      // buttons must not activate Natively over the user's foreground app.
+      // buttons must not activate Sneak-Peek over the user's foreground app.
       ...(isMac ? { type: 'panel' as const } : {}),
     });
 
@@ -2174,7 +2174,7 @@ export class WindowHelper {
     if (this.isWindowVisible) {
       this.hideMainWindow();
     } else {
-      // Always show without stealing focus — Natively is a ghost overlay.
+      // Always show without stealing focus — Sneak-Peek is a ghost overlay.
       // The user is in another app; show the window on top but leave OS focus alone.
       // They can click the window to focus it if they need to type.
       this.showMainWindow(true);
@@ -2409,7 +2409,7 @@ export class WindowHelper {
     }
 
     // ─── EXPLICITLY ACTIVATE THE APP ON OVERLAY→LAUNCHER SWAPS ─────────────
-    // During a meeting Natively is NOT the active macOS app: the overlay is a
+    // During a meeting Sneak-Peek is NOT the active macOS app: the overlay is a
     // non-activating panel (type:'panel' + becomesKeyOnlyIfNeeded) so the
     // user's meeting app stays foreground. show()+focus() above cannot
     // reliably foreground us from that state — Focus() uses
@@ -2440,7 +2440,7 @@ export class WindowHelper {
     // skipTaskbar). show()+focus() above re-activates the app as a foreground
     // app, which on macOS re-registers it and REVEALS the dock tile that
     // app.dock.hide() had suppressed — silently breaking undetectable mode.
-    // This is the root cause of "the Natively icon appears in the dock after
+    // This is the root cause of "the Sneak-Peek icon appears in the dock after
     // Stop meeting" (endMeeting swaps overlay→launcher via this method). It is
     // intermittent because macOS coalesces/drops activation-policy changes.
     //

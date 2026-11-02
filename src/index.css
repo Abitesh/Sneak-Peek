@@ -429,7 +429,7 @@
 
 /* ── Meeting Interface: Liquid Glass Theme ──────────────────────────────────
    Inspired by Apple's visionOS / macOS Sequoia liquid glass aesthetic.
-   Applied via data-interface-theme="liquid-glass" on the NativelyInterface
+   Applied via data-interface-theme="liquid-glass" on the SneakPeekInterface
    outer container. Works by overriding CSS variables so all overlay-* classes
    automatically adopt the glass look without changing their definitions.
    The transparent-window Electron context means backdrop-filter shows real
@@ -1352,10 +1352,10 @@
 
 /* ── Meeting Interface: Modern Theme ────────────────────────────────────────
    Polished dark slate/graphite glass with white gloss highlights and a cobalt
-   blue primary action. Modeled after the marketing-site NativelyInterfaceCard
+   blue primary action. Modeled after the marketing-site SneakPeekInterfaceCard
    (DARK_GLASS recipe). Distinct from liquid-glass: this panel is intentionally
    opaque-ish (low backdrop blur, 0.88–0.97 alpha base) rather than refractive.
-   Applied via data-interface-theme="modern" on the NativelyInterface outer
+   Applied via data-interface-theme="modern" on the SneakPeekInterface outer
    container. CSS variables drive everything else; per-surface jelly recipes
    below mirror the website card's gloss-strip pattern.
    ─────────────────────────────────────────────────────────────────────── */
@@ -2339,15 +2339,15 @@ body {
    Replaces Tailwind's default .animate-bounce (a large springy translateY
    keyframe that reads as generic/childish) with a calmer opacity+scale pulse,
    matching the iMessage/Slack-style typing indicator: the dot barely moves,
-   it breathes. Mounted in two places (see NativelyInterface.tsx) — a single
+   it breathes. Mounted in two places (see SneakPeekInterface.tsx) — a single
    dot, no stagger — that must stay visually identical. */
-@keyframes natively-thinking-pulse {
+@keyframes sneak-peek-thinking-pulse {
   0%, 100% { opacity: 0.35; transform: scale(0.8); }
   45% { opacity: 1; transform: scale(1); }
 }
 
-.natively-thinking-dot {
-  animation: natively-thinking-pulse 0.9s ease-in-out infinite;
+.sneak-peek-thinking-dot {
+  animation: sneak-peek-thinking-pulse 0.9s ease-in-out infinite;
   will-change: opacity, transform;
 }
 
@@ -2356,12 +2356,12 @@ body {
      with only one dot (no siblings to imply motion by contrast), so keep a
      gentle opacity-only cycle instead of freezing it — no transform/scale,
      which is the part reduced-motion users actually want suppressed. */
-  .natively-thinking-dot {
-    animation: natively-thinking-pulse-reduced 1.8s ease-in-out infinite;
+  .sneak-peek-thinking-dot {
+    animation: sneak-peek-thinking-pulse-reduced 1.8s ease-in-out infinite;
   }
 }
 
-@keyframes natively-thinking-pulse-reduced {
+@keyframes sneak-peek-thinking-pulse-reduced {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 0.9; }
 }
@@ -2369,7 +2369,7 @@ body {
 /* ─── Word-level reveal entrance (premium "typing" feel) ──────────────────
    Each newly-revealed word — the imperative reveal-tail path
    (paintRevealedNow/appendRevealTailDelta) AND the JIT-RAG plain-text bubble
-   (renderMessageText), NativelyInterface.tsx — gets wrapped in its own span
+   (renderMessageText), SneakPeekInterface.tsx — gets wrapped in its own span
    with this class the FIRST time it is inserted into the DOM.
    @starting-style fires exactly once, at insertion; a later class/prop
    update on the same DOM node (e.g. React re-rendering with the same key, or
@@ -2413,7 +2413,7 @@ body {
 
 /* ─── Streaming code: per-line reveal entrance ────────────────────────────
    Applied to each completed line row inside StreamingHighlightedCode
-   (NativelyInterface.tsx) — the code-block equivalent of .reveal-word-in
+   (SneakPeekInterface.tsx) — the code-block equivalent of .reveal-word-in
    above, at line granularity instead of word granularity because a
    syntax-highlighted line is the smallest unit that can be safely animated
    without fighting Prism's re-tokenization (see the block comment above
@@ -2556,7 +2556,7 @@ body {
   color: var(--hotword-color, #C4B5FD);
 }
 
-.natively-streaming-answer strong {
+.sneak-peek-streaming-answer strong {
   color: var(--hotword-color, #C4B5FD);
   font-weight: 600;
 }
@@ -2666,7 +2666,7 @@ body {
   to   { opacity: 1; }
 }
 
-.natively-reveal-block-fade {
+.sneak-peek-reveal-block-fade {
   animation: reveal-block-in 140ms ease forwards;
 }
 
@@ -2885,10 +2885,10 @@ html[data-platform="linux"] body {
 }
 
 /* ───────────────────────────────────────────────────────────────────────
-   Natively API - New Interactive Pricing switchboard (Liquid Glass)
+   Sneak-Peek API - New Interactive Pricing switchboard (Liquid Glass)
    ─────────────────────────────────────────────────────────────────────── */
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-bar {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-bar {
   background: rgba(0, 0, 0, 0.32) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow:
@@ -2899,7 +2899,7 @@ html[data-platform="linux"] body {
   -webkit-backdrop-filter: blur(16px) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab {
   position: relative;
   background: transparent !important;
   border: none !important;
@@ -2917,42 +2917,42 @@ html[data-platform="linux"] body {
   justify-content: center;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab:hover {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab:hover {
   color: var(--text-primary) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab:active {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab:active {
   transform: scale(0.96) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab.active {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab.active {
   color: #ffffff !important;
   font-weight: 600 !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab .tab-name {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab .tab-name {
   font-size: 11.5px !important;
   letter-spacing: -0.01em;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-tab .tab-price {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-tab .tab-price {
   font-size: 9.5px !important;
   opacity: 0.65;
   margin-top: 1px;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-pill {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-pill {
   border-radius: 12px !important;
   transition: all 260ms cubic-bezier(0.23, 1, 0.32, 1) !important;
 }
 
 /* FOUR HUES ON ONE LUMINANCE LADDER — Standard 178° teal, Pro 208° azure,
    Max 298° amethyst, Ultra 336° black-cherry. These `background` rules LOSE
-   to the .natively-api-selector-bar block far below (that one is (0,3,0));
+   to the .sneak-peek-api-selector-bar block far below (that one is (0,3,0));
    they are kept in sync anyway so no stale hue can surface if the scoping
    ever changes. See the committed-fill block for the full rationale, the
    measured hue/ΔE separations and the contrast table. */
-[data-interface-theme="liquid-glass"] .natively-api-selector-pill-standard {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-pill-standard {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.15) 100%),
     rgba(103, 164, 162, 0.22) !important;
@@ -2963,7 +2963,7 @@ html[data-platform="linux"] body {
     0 4px 14px rgba(60, 107, 105, 0.25) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-pill-pro {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-pill-pro {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(59, 141, 213, 0.28) !important;
@@ -2974,7 +2974,7 @@ html[data-platform="linux"] body {
     0 5px 16px rgba(17, 89, 153, 0.34) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-pill-max {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-pill-max {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(155, 97, 157, 0.34) !important;
@@ -2985,7 +2985,7 @@ html[data-platform="linux"] body {
     0 5px 16px rgba(103, 60, 104, 0.40) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-selector-pill-ultra {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-selector-pill-ultra {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(162, 64, 103, 0.40) !important;
@@ -2997,7 +2997,7 @@ html[data-platform="linux"] body {
 }
 
 /* Double-Bezel layout */
-[data-interface-theme="liquid-glass"] .natively-api-detail-shell {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-shell {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -3006,7 +3006,7 @@ html[data-platform="linux"] body {
 }
 
 /* Hardware-Accelerated Reveal Keyframes */
-@keyframes natively-api-card-reveal {
+@keyframes sneak-peek-api-card-reveal {
   0% {
     opacity: 0;
     transform: scale(0.985) translateY(6px);
@@ -3019,7 +3019,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card {
   border-radius: 26px !important;
   border: 1.5px solid transparent !important;
   position: relative !important;
@@ -3047,7 +3047,7 @@ html[data-platform="linux"] body {
 }
 
 /* Glass shine gloss highlight on liquid glass detail cards */
-[data-interface-theme="liquid-glass"] .natively-api-detail-card::before {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card::before {
   content: '' !important;
   display: block !important;
   position: absolute !important;
@@ -3076,7 +3076,7 @@ html[data-platform="linux"] body {
    ramp is already at 50% by 12px in, well clear of the 1.5px border and the rim
    hairline inside it. The bands are static, so this is one alpha multiply per
    raster, not per-frame work. */
-.natively-interactive-glow {
+.sneak-peek-interactive-glow {
   border-radius: inherit;
   -webkit-mask-image:
     linear-gradient(to right,  transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%),
@@ -3093,14 +3093,14 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .group:hover > .natively-interactive-glow {
+  .group:hover > .sneak-peek-interactive-glow {
     transition: opacity 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
   }
 }
 
 /* Blueprint tech grid overlay on detail cards */
-[data-interface-theme="liquid-glass"] .natively-api-detail-card::after,
-[data-interface-theme="modern"] .natively-api-detail-card::after {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card::after,
+[data-interface-theme="modern"] .sneak-peek-api-detail-card::after {
   content: '' !important;
   position: absolute !important;
   inset: 0 !important;
@@ -3129,7 +3129,7 @@ html[data-platform="linux"] body {
    declared there, so the borders below are what actually paint — which is why
    they have to move with the fills rather than being left on the old palette.
    Border alpha climbs with tier depth so the edge tracks the ladder too. */
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-standard {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-standard {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.16), transparent 50%),
     radial-gradient(circle at 100% 100%, rgba(103, 164, 162, 0.20), transparent 60%),
@@ -3142,7 +3142,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-pro {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-pro {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.28) 0%, transparent 60%),
     radial-gradient(circle at 100% 100%, rgba(59, 141, 213, 0.30) 0%, transparent 60%),
@@ -3155,7 +3155,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-max {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-max {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.25) 0%, transparent 60%),
     radial-gradient(circle at 100% 100%, rgba(155, 97, 157, 0.32) 0%, transparent 60%),
@@ -3168,7 +3168,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-ultra {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-ultra {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.28) 0%, transparent 60%),
     radial-gradient(circle at 100% 100%, rgba(162, 64, 103, 0.34) 0%, transparent 60%),
@@ -3183,7 +3183,7 @@ html[data-platform="linux"] body {
 
 /* Active State overrides. Each tier's OWN hue, one step brighter, so the
    "this is your plan" edge reads without importing a second colour. */
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-standard[data-active="true"] {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-standard[data-active="true"] {
   border-color: rgba(165, 209, 207, 0.60) !important;
   box-shadow:
     inset 0 1px 0 rgba(165, 209, 207, 0.72),
@@ -3192,7 +3192,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-pro[data-active="true"] {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-pro[data-active="true"] {
   border-color: rgba(151, 199, 241, 0.66) !important;
   box-shadow:
     inset 0 1px 0 rgba(151, 199, 241, 0.78),
@@ -3201,7 +3201,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-max[data-active="true"] {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-max[data-active="true"] {
   border-color: rgba(203, 175, 204, 0.72) !important;
   box-shadow:
     inset 0 1px 0 rgba(203, 175, 204, 0.84),
@@ -3210,7 +3210,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-detail-card-ultra[data-active="true"] {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-detail-card-ultra[data-active="true"] {
   border-color: rgba(207, 160, 179, 0.78) !important;
   box-shadow:
     inset 0 1px 0 rgba(207, 160, 179, 0.90),
@@ -3237,34 +3237,34 @@ html[data-platform="linux"] body {
 /* ──── Premium Graphics & Specular Upgrades (Liquid Glass Theme) ──── */
 
 /* Legacy per-tier accents. These classes are NOT emitted by
-   NativelyApiSettings.tsx (the filled card uses .natively-api-on-fill and
-   .natively-api-feature-badge instead), but they are recoloured with the rest
+   NativelyApiSettings.tsx (the filled card uses .sneak-peek-api-on-fill and
+   .sneak-peek-api-feature-badge instead), but they are recoloured with the rest
    of the set so no stale hue can surface if anything reinstates them. Each
    tier carries its own hue; the ramp runs by CHROMA here rather than by
    luminance, because these are ink on a dark surface and darkening them would
    just make them illegible. */
-.natively-api-price-pro {
+.sneak-peek-api-price-pro {
   background: linear-gradient(135deg, #ffffff 30%, #8cc7fa 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   display: inline-block;
 }
 
-.natively-api-price-max {
+.sneak-peek-api-price-max {
   background: linear-gradient(135deg, #ffffff 30%, #cca6cd 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   display: inline-block;
 }
 
-.natively-api-price-ultra {
+.sneak-peek-api-price-ultra {
   background: linear-gradient(135deg, #ffffff 30%, #d592ad 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   display: inline-block;
 }
 
-.natively-api-price-standard {
+.sneak-peek-api-price-standard {
   background: linear-gradient(135deg, #ffffff 40%, #a1c2c1 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
@@ -3272,21 +3272,21 @@ html[data-platform="linux"] body {
 }
 
 /* Feature Check icon glows */
-.natively-api-check-icon-pro {
+.sneak-peek-api-check-icon-pro {
   filter: drop-shadow(0 0 4.5px rgba(59, 141, 213, 0.55)) !important;
 }
-.natively-api-check-icon-max {
+.sneak-peek-api-check-icon-max {
   filter: drop-shadow(0 0 4.5px rgba(155, 97, 157, 0.55)) !important;
 }
-.natively-api-check-icon-ultra {
+.sneak-peek-api-check-icon-ultra {
   filter: drop-shadow(0 0 4.5px rgba(162, 64, 103, 0.55)) !important;
 }
-.natively-api-check-icon-standard {
+.sneak-peek-api-check-icon-standard {
   filter: drop-shadow(0 0 4.5px rgba(103, 164, 162, 0.35)) !important;
 }
 
 /* Premium Features Glass Panel */
-[data-interface-theme="liquid-glass"] .natively-api-features-panel {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-features-panel {
   background: rgba(0, 0, 0, 0.24) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   box-shadow:
@@ -3296,7 +3296,7 @@ html[data-platform="linux"] body {
   overflow: hidden;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-features-panel::before {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-features-panel::before {
   content: '' !important;
   position: absolute !important;
   top: 0 !important;
@@ -3307,8 +3307,8 @@ html[data-platform="linux"] body {
   pointer-events: none !important;
 }
 
-/* CTA buttons for Natively API pricing cards */
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta {
+/* CTA buttons for Sneak-Peek API pricing cards */
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta {
   border-radius: 9999px !important;
   padding: 12px 24px !important;
   font-size: 13px !important;
@@ -3329,7 +3329,7 @@ html[data-platform="linux"] body {
   border: 1.5px solid transparent !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta-neutral {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-neutral {
   background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
   color: rgba(15, 23, 42, 0.95) !important;
   box-shadow:
@@ -3339,7 +3339,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="liquid-glass"] .natively-api-pricing-cta-neutral:hover {
+  [data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-neutral:hover {
     background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%) !important;
     transform: translateY(-1px) !important;
     box-shadow:
@@ -3349,7 +3349,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta-pro {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-pro {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3365,7 +3365,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="liquid-glass"] .natively-api-pricing-cta-pro:hover {
+  [data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-pro:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3381,7 +3381,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta-max {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-max {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3397,7 +3397,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="liquid-glass"] .natively-api-pricing-cta-max:hover {
+  [data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-max:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3413,7 +3413,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta-ultra {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-ultra {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3429,7 +3429,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="liquid-glass"] .natively-api-pricing-cta-ultra:hover {
+  [data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta-ultra:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3445,12 +3445,12 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-cta:active {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-cta:active {
   transform: translateY(0) scale(0.97) !important;
 }
 
 /* Premium micro-pills */
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -3464,7 +3464,7 @@ html[data-platform="linux"] body {
   user-select: none !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge-standard {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge-standard {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(103, 164, 162, 0.22) !important;
@@ -3476,7 +3476,7 @@ html[data-platform="linux"] body {
     0 3px 8px rgba(0, 0, 0, 0.20) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge-recommended {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge-recommended {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(59, 141, 213, 0.28) !important;
@@ -3488,7 +3488,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(17, 89, 153, 0.40) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge-max {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge-max {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(155, 97, 157, 0.34) !important;
@@ -3500,7 +3500,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(103, 60, 104, 0.44) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge-ultra {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge-ultra {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(162, 64, 103, 0.40) !important;
@@ -3512,7 +3512,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(111, 37, 66, 0.48) !important;
 }
 
-[data-interface-theme="liquid-glass"] .natively-api-pricing-badge-emerald {
+[data-interface-theme="liquid-glass"] .sneak-peek-api-pricing-badge-emerald {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(16, 185, 129, 0.32) !important;
@@ -3524,9 +3524,9 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(16, 185, 129, 0.35) !important;
 }
 
-/* ─── Natively API Pricing Card System - Modern Theme ─────────────────── */
+/* ─── Sneak-Peek API Pricing Card System - Modern Theme ─────────────────── */
 
-[data-interface-theme="modern"] .natively-api-selector-bar {
+[data-interface-theme="modern"] .sneak-peek-api-selector-bar {
   background: rgba(0, 0, 0, 0.32) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow:
@@ -3535,7 +3535,7 @@ html[data-platform="linux"] body {
     0 4px 14px rgba(0, 0, 0, 0.25) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab {
   position: relative;
   background: transparent !important;
   border: none !important;
@@ -3553,36 +3553,36 @@ html[data-platform="linux"] body {
   justify-content: center;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab:hover {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab:hover {
   color: var(--text-primary) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab:active {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab:active {
   transform: scale(0.96) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab.active {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab.active {
   color: #ffffff !important;
   font-weight: 600 !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab .tab-name {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab .tab-name {
   font-size: 11.5px !important;
   letter-spacing: -0.01em;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-tab .tab-price {
+[data-interface-theme="modern"] .sneak-peek-api-selector-tab .tab-price {
   font-size: 9.5px !important;
   opacity: 0.65;
   margin-top: 1px;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-pill {
+[data-interface-theme="modern"] .sneak-peek-api-selector-pill {
   border-radius: 12px !important;
   transition: all 260ms cubic-bezier(0.23, 1, 0.32, 1) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-pill-standard {
+[data-interface-theme="modern"] .sneak-peek-api-selector-pill-standard {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.15) 100%),
     rgba(103, 164, 162, 0.22) !important;
@@ -3593,7 +3593,7 @@ html[data-platform="linux"] body {
     0 4px 14px rgba(60, 107, 105, 0.25) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-pill-pro {
+[data-interface-theme="modern"] .sneak-peek-api-selector-pill-pro {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(59, 141, 213, 0.28) !important;
@@ -3604,7 +3604,7 @@ html[data-platform="linux"] body {
     0 5px 16px rgba(17, 89, 153, 0.34) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-pill-max {
+[data-interface-theme="modern"] .sneak-peek-api-selector-pill-max {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(155, 97, 157, 0.34) !important;
@@ -3615,7 +3615,7 @@ html[data-platform="linux"] body {
     0 5px 16px rgba(103, 60, 104, 0.40) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-selector-pill-ultra {
+[data-interface-theme="modern"] .sneak-peek-api-selector-pill-ultra {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.00) 45%, rgba(0, 0, 0, 0.18) 100%),
     rgba(162, 64, 103, 0.40) !important;
@@ -3627,7 +3627,7 @@ html[data-platform="linux"] body {
 }
 
 /* Double-Bezel layout (Modern) */
-[data-interface-theme="modern"] .natively-api-detail-shell {
+[data-interface-theme="modern"] .sneak-peek-api-detail-shell {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -3635,7 +3635,7 @@ html[data-platform="linux"] body {
   overflow: hidden !important;
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card {
   border-radius: 26px !important;
   border: 1.5px solid transparent !important;
   position: relative !important;
@@ -3665,7 +3665,7 @@ html[data-platform="linux"] body {
 /* Card Specific variations (Modern) — same four hues, same depth ladder as
    the liquid-glass twin above. The `background` loses to the committed-fill block
    on source order (both are (0,2,0)); the border-color is what paints. */
-[data-interface-theme="modern"] .natively-api-detail-card-standard {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-standard {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.16), transparent 50%),
     linear-gradient(160deg, rgba(85, 135, 133, 0.65) 0%, rgba(54, 93, 91, 0.75) 50%, rgba(34, 60, 60, 0.85) 100%) !important;
@@ -3677,7 +3677,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-pro {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-pro {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.22), transparent 50%),
     linear-gradient(160deg, rgba(44, 116, 180, 0.65) 0%, rgba(23, 79, 128, 0.75) 50%, rgba(13, 50, 83, 0.85) 100%) !important;
@@ -3689,7 +3689,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-max {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-max {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.18), transparent 50%),
     linear-gradient(160deg, rgba(125, 83, 126, 0.65) 0%, rgba(86, 54, 87, 0.75) 50%, rgba(55, 33, 56, 0.85) 100%) !important;
@@ -3701,7 +3701,7 @@ html[data-platform="linux"] body {
      superseded; `border-color` is NOT, which is why it stays. */
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-ultra {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-ultra {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.22), transparent 50%),
     linear-gradient(160deg, rgba(131, 57, 87, 0.65) 0%, rgba(88, 36, 57, 0.75) 50%, rgba(54, 20, 33, 0.85) 100%) !important;
@@ -3714,7 +3714,7 @@ html[data-platform="linux"] body {
 }
 
 /* Active State overrides (Modern). Each tier's own hue, one step brighter. */
-[data-interface-theme="modern"] .natively-api-detail-card-standard[data-active="true"] {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-standard[data-active="true"] {
   border-color: rgba(165, 209, 207, 0.60) !important;
   box-shadow:
     inset 0 1px 0 rgba(165, 209, 207, 0.72),
@@ -3723,7 +3723,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-pro[data-active="true"] {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-pro[data-active="true"] {
   border-color: rgba(151, 199, 241, 0.66) !important;
   box-shadow:
     inset 0 1px 0 rgba(151, 199, 241, 0.78),
@@ -3732,7 +3732,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-max[data-active="true"] {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-max[data-active="true"] {
   border-color: rgba(203, 175, 204, 0.72) !important;
   box-shadow:
     inset 0 1px 0 rgba(203, 175, 204, 0.84),
@@ -3741,7 +3741,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-detail-card-ultra[data-active="true"] {
+[data-interface-theme="modern"] .sneak-peek-api-detail-card-ultra[data-active="true"] {
   border-color: rgba(207, 160, 179, 0.78) !important;
   box-shadow:
     inset 0 1px 0 rgba(207, 160, 179, 0.90),
@@ -3754,7 +3754,7 @@ html[data-platform="linux"] body {
    see the note where that one used to be, above the tier-fill variations. */
 
 /* Premium Features Glass Panel (Modern) */
-[data-interface-theme="modern"] .natively-api-features-panel {
+[data-interface-theme="modern"] .sneak-peek-api-features-panel {
   background: rgba(0, 0, 0, 0.24) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   box-shadow:
@@ -3764,7 +3764,7 @@ html[data-platform="linux"] body {
   overflow: hidden;
 }
 
-[data-interface-theme="modern"] .natively-api-features-panel::before {
+[data-interface-theme="modern"] .sneak-peek-api-features-panel::before {
   content: '' !important;
   position: absolute !important;
   top: 0 !important;
@@ -3775,8 +3775,8 @@ html[data-platform="linux"] body {
   pointer-events: none !important;
 }
 
-/* CTA buttons for Natively API pricing cards (Modern) */
-[data-interface-theme="modern"] .natively-api-pricing-cta {
+/* CTA buttons for Sneak-Peek API pricing cards (Modern) */
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta {
   border-radius: 9999px !important;
   padding: 12px 24px !important;
   font-size: 13px !important;
@@ -3798,7 +3798,7 @@ html[data-platform="linux"] body {
 }
 
 /* Neutral bright CTA (Modern) */
-[data-interface-theme="modern"] .natively-api-pricing-cta-neutral {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta-neutral {
   background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
   color: rgba(15, 23, 42, 0.95) !important;
   box-shadow:
@@ -3808,7 +3808,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="modern"] .natively-api-pricing-cta-neutral:hover {
+  [data-interface-theme="modern"] .sneak-peek-api-pricing-cta-neutral:hover {
     background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%) !important;
     transform: translateY(-1px) !important;
     box-shadow:
@@ -3819,7 +3819,7 @@ html[data-platform="linux"] body {
 }
 
 /* Colored Pro CTA (Modern) */
-[data-interface-theme="modern"] .natively-api-pricing-cta-pro {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta-pro {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3835,7 +3835,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="modern"] .natively-api-pricing-cta-pro:hover {
+  [data-interface-theme="modern"] .sneak-peek-api-pricing-cta-pro:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3851,7 +3851,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-cta-max {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta-max {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3867,7 +3867,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="modern"] .natively-api-pricing-cta-max:hover {
+  [data-interface-theme="modern"] .sneak-peek-api-pricing-cta-max:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3883,7 +3883,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-cta-ultra {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta-ultra {
   background:
     linear-gradient(180deg,
       rgba(255, 255, 255, 0.35) 0%,
@@ -3899,7 +3899,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme="modern"] .natively-api-pricing-cta-ultra:hover {
+  [data-interface-theme="modern"] .sneak-peek-api-pricing-cta-ultra:hover {
     background:
       linear-gradient(180deg,
         rgba(255, 255, 255, 0.45) 0%,
@@ -3915,12 +3915,12 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-cta:active {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-cta:active {
   transform: translateY(0) scale(0.97) !important;
 }
 
 /* Premium micro-pills (Modern) */
-[data-interface-theme="modern"] .natively-api-pricing-badge {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -3934,7 +3934,7 @@ html[data-platform="linux"] body {
   user-select: none !important;
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-badge-standard {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge-standard {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(103, 164, 162, 0.25) !important;
@@ -3946,7 +3946,7 @@ html[data-platform="linux"] body {
     0 3px 8px rgba(0, 0, 0, 0.20) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-badge-recommended {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge-recommended {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(59, 141, 213, 0.28) !important;
@@ -3958,7 +3958,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(17, 89, 153, 0.40) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-badge-max {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge-max {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(155, 97, 157, 0.34) !important;
@@ -3970,7 +3970,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(103, 60, 104, 0.44) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-badge-ultra {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge-ultra {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(162, 64, 103, 0.40) !important;
@@ -3982,7 +3982,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(111, 37, 66, 0.48) !important;
 }
 
-[data-interface-theme="modern"] .natively-api-pricing-badge-emerald {
+[data-interface-theme="modern"] .sneak-peek-api-pricing-badge-emerald {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.18) 100%),
     rgba(16, 185, 129, 0.32) !important;
@@ -3997,11 +3997,11 @@ html[data-platform="linux"] body {
 /* The mesh-header rule set was removed here: the header zone it styled is
    gone (see the quiet-surface block below). Only the hairline survives. */
 
-.natively-api-body-rule {
+.sneak-peek-api-body-rule {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent) !important;
 }
 
-[data-theme='light'] .natively-api-body-rule {
+[data-theme='light'] .sneak-peek-api-body-rule {
   background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.12), transparent) !important;
 }
 
@@ -4023,7 +4023,7 @@ html[data-platform="linux"] body {
    exactly where the product's story changes from utility to status.
 
    WHY THESE FOUR, AND WHY HUE DEGREES ARE THE WRONG INSTRUMENT. The wheel is
-   heavily spoken for: the Natively key card's Activate button is 236° and the
+   heavily spoken for: the Sneak-Peek key card's Activate button is 236° and the
    Pro teaser plaque is 263° (both stay), so ~225-275° is unavailable; emerald
    ~160° means "connected / active plan" app-wide; amber ~38-48° means "quota
    running low"; red is destructive. That leaves a cool arc and a jewel arc,
@@ -4095,7 +4095,7 @@ html[data-platform="linux"] body {
    it, never as if the ink were opaque on the top stop.
 
    The single element that sets the ceiling is the LAST feature check glyph:
-   white, inside `.natively-api-feature-badge`, whose translucent white chip
+   white, inside `.sneak-peek-api-feature-badge`, whose translucent white chip
    LIGHTENS the fill under it at ~76% height where the gradient has already
    lifted. That chip was 0.18 and it capped the lightest fill at L* 38, which
    forced the whole family down into the territory that already read as too
@@ -4123,7 +4123,7 @@ html[data-platform="linux"] body {
    measures 17.92, not 6.48. The 6.48 figure describes a state Pro never
    paints.
    The 10px note is the one knowingly sub-AA element and it is NOT a tier
-   problem: it is `.natively-api-on-fill-dim` multiplied by an extra
+   problem: it is `.sneak-peek-api-on-fill-dim` multiplied by an extra
    `opacity: 0.80` in the TSX, i.e. an effective 0.75 (dark) / 0.58 (light)
    alpha. Fixing it means touching shared rules or the JSX and is out of
    scope here.
@@ -4158,7 +4158,7 @@ html[data-platform="linux"] body {
    │ was removed. Hover may move slots 2-4 only. The only thing that ever    │
    │ changes this card's outline is [data-active="true"].                    │
    └─────────────────────────────────────────────────────────────────────────┘ */
-[data-interface-theme] .natively-api-detail-card-standard {
+[data-interface-theme] .sneak-peek-api-detail-card-standard {
   background: linear-gradient(180deg, #325957 0%, #3C6B69 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
@@ -4170,7 +4170,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.18) !important;
 }
 
-[data-interface-theme] .natively-api-detail-card-pro {
+[data-interface-theme] .sneak-peek-api-detail-card-pro {
   background: linear-gradient(180deg, #0E487C 0%, #115999 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.17),
@@ -4179,7 +4179,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.18) !important;
 }
 
-[data-interface-theme] .natively-api-detail-card-max {
+[data-interface-theme] .sneak-peek-api-detail-card-max {
   background: linear-gradient(180deg, #512F52 0%, #663C68 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
@@ -4188,7 +4188,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(0, 0, 0, 0.18) !important;
 }
 
-[data-interface-theme] .natively-api-detail-card-ultra {
+[data-interface-theme] .sneak-peek-api-detail-card-ultra {
   background: linear-gradient(180deg, #551C33 0%, #6F2542 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.20),
@@ -4202,7 +4202,7 @@ html[data-platform="linux"] body {
    with the theme, because the ordering is the whole point. The band is chosen
    so #10162b at the dim-ink 0.72 alpha still clears 4.5 on the deepest tier
    (that caps Ultra at about L* 70; it sits at 73). */
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-standard {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-standard {
   background: linear-gradient(180deg, #DEF0EF 0%, #CAE7E6 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
@@ -4211,7 +4211,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro {
   background: linear-gradient(180deg, #C4E2FD 0%, #ACD7FC 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.60),
@@ -4220,7 +4220,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-max {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-max {
   background: linear-gradient(180deg, #DFCAE0 0%, #D5BAD6 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.65),
@@ -4229,7 +4229,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-ultra {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-ultra {
   background: linear-gradient(180deg, #DEB8C7 0%, #D6A7BA 100%) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.70),
@@ -4239,20 +4239,20 @@ html[data-platform="linux"] body {
 }
 
 /* ── Ink on the fill ─────────────────────────────────────────────────────── */
-[data-interface-theme] .natively-api-detail-card .natively-api-on-fill {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-on-fill {
   color: #ffffff !important;
 }
 
 /* Muted WHITE, not gray — gray on a saturated fill reads as dirt. */
-[data-interface-theme] .natively-api-detail-card .natively-api-on-fill-dim {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-on-fill-dim {
   color: rgba(255, 255, 255, 0.94) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-on-fill {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-on-fill {
   color: #10162b !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-on-fill-dim {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-on-fill-dim {
   color: rgba(16, 22, 43, 0.72) !important;
 }
 
@@ -4261,45 +4261,45 @@ html[data-platform="linux"] body {
    can be (see the contrast note above). The BORDER carries the extra weight
    instead, which costs nothing because the glyph sits in the middle of the
    chip, not on its edge. */
-[data-interface-theme] .natively-api-detail-card .natively-api-feature-badge {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-feature-badge {
   background: rgba(255, 255, 255, 0.13) !important;
   border: 1px solid rgba(255, 255, 255, 0.34) !important;
   color: #ffffff !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-feature-badge {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-feature-badge {
   background: rgba(16, 22, 43, 0.10) !important;
   border: 1px solid rgba(16, 22, 43, 0.16) !important;
   color: #10162b !important;
 }
 
-[data-interface-theme] .natively-api-detail-card .natively-api-fill-pill {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-fill-pill {
   background: rgba(255, 255, 255, 0.13) !important;
   border: 1px solid rgba(255, 255, 255, 0.36) !important;
   color: #ffffff !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-fill-pill {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-fill-pill {
   background: rgba(16, 22, 43, 0.10) !important;
   border: 1px solid rgba(16, 22, 43, 0.18) !important;
   color: #10162b !important;
 }
 
-[data-interface-theme] .natively-api-detail-card .natively-api-body-rule {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-body-rule {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.30), transparent) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-body-rule {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-body-rule {
   background: linear-gradient(90deg, transparent, rgba(16, 22, 43, 0.22), transparent) !important;
 }
 
 /* ── CTA: the one high-contrast element ──────────────────────────────────────
-   0,3,0 so it overrides the per-tier .natively-api-pricing-cta-{tier} fills
+   0,3,0 so it overrides the per-tier .sneak-peek-api-pricing-cta-{tier} fills
    (0,2,0 + !important) without deleting them — they are still the right
    treatment for the Pro cards elsewhere, just not on a filled surface.
    Identical on all four tiers, which is the point: nothing about the CTA's
    colour encodes which tier you are looking at. */
-[data-interface-theme] .natively-api-detail-card .natively-api-pricing-cta {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-pricing-cta {
   background: #ffffff !important;
   color: #10162b !important;
   border: 1px solid rgba(255, 255, 255, 0.9) !important;
@@ -4310,7 +4310,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card .natively-api-pricing-cta:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-pricing-cta:hover {
     background: #f2f7fa !important;
     box-shadow:
       inset 0 -1px 0 rgba(16, 22, 43, 0.10),
@@ -4320,7 +4320,7 @@ html[data-platform="linux"] body {
 
 /* Light theme flips it: a dark button on the light tinted card is the
    higher-contrast option there. */
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-pricing-cta {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-pricing-cta {
   background: #10162b !important;
   color: #ffffff !important;
   border: 1px solid rgba(16, 22, 43, 0.9) !important;
@@ -4330,7 +4330,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-pricing-cta:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-pricing-cta:hover {
     background: #1c2440 !important;
   }
 }
@@ -4338,7 +4338,7 @@ html[data-platform="linux"] body {
 /* 0.13 for the same reason as the chips above — it is the Active Plan tag's
    own label that has to clear 4.5 on the SHALLOWEST tier, and at the old 0.22
    it measured 3.77 there. The border carries the weight the fill gave up. */
-[data-interface-theme] .natively-api-detail-card .natively-api-active-tag {
+[data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-active-tag {
   background: rgba(255, 255, 255, 0.13) !important;
   border: 1px solid rgba(255, 255, 255, 0.40) !important;
   color: #ffffff !important;
@@ -4346,7 +4346,7 @@ html[data-platform="linux"] body {
   box-shadow: none !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card .natively-api-active-tag {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-active-tag {
   background: rgba(16, 22, 43, 0.10) !important;
   border: 1px solid rgba(16, 22, 43, 0.20) !important;
   color: #10162b !important;
@@ -4378,21 +4378,21 @@ html[data-platform="linux"] body {
    that would make it (0,2,0) and it would silently stop winning. The light
    variants are restated at (0,4,0) rather than left to inherit, because the
    light tier-agnostic rules above are also (0,4,0) and would otherwise win. */
-[data-interface-theme] .natively-api-detail-card-pro .natively-api-fill-pill {
+[data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-fill-pill {
   background: #ffffff !important;
   border: 1px solid #ffffff !important;
   color: #10162b !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro .natively-api-fill-pill {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-fill-pill {
   background: #10162b !important;
   border: 1px solid #10162b !important;
   color: #ffffff !important;
   box-shadow: 0 1px 4px rgba(16, 22, 43, 0.18) !important;
 }
 
-[data-interface-theme] .natively-api-detail-card-pro .natively-api-pricing-cta {
+[data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-pricing-cta {
   box-shadow:
     inset 0 -1px 0 rgba(16, 22, 43, 0.10),
     0 0 0 3px rgba(255, 255, 255, 0.16),
@@ -4402,7 +4402,7 @@ html[data-platform="linux"] body {
 /* ENTER half for the CTA. `transition` only, so it never competes with any
    tier's box-shadow values. */
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card .natively-api-pricing-cta:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card .sneak-peek-api-pricing-cta:hover {
     transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
                 box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1),
                 background-color 220ms cubic-bezier(0.32, 0.72, 0, 1) !important;
@@ -4420,7 +4420,7 @@ html[data-platform="linux"] body {
    animating is why "border highlighting" survived that fix.
    Hover now lives entirely in the ambient shadow (slot 3). */
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card-pro .natively-api-pricing-cta:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-pricing-cta:hover {
     box-shadow:
       inset 0 -1px 0 rgba(16, 22, 43, 0.10),
       0 0 0 3px rgba(255, 255, 255, 0.16),
@@ -4428,7 +4428,7 @@ html[data-platform="linux"] body {
   }
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro .natively-api-pricing-cta {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-pricing-cta {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 0 0 3px rgba(16, 22, 43, 0.14),
@@ -4437,7 +4437,7 @@ html[data-platform="linux"] body {
 
 @media (hover: hover) and (pointer: fine) {
   /* Ring frozen — see the dark rule above. */
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro .natively-api-pricing-cta:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro .sneak-peek-api-pricing-cta:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.14),
       0 0 0 3px rgba(16, 22, 43, 0.14),
@@ -4452,8 +4452,8 @@ html[data-platform="linux"] body {
    is the crosshatch backdrop and is wanted — it was collateral damage from a
    rule that killed both pseudos to remove the veil. Its own opacity (0.55, and
    0.8 on hover) is declared with the grid above. */
-[data-interface-theme] .natively-api-detail-card::before,
-[data-theme='light'] [data-interface-theme] .natively-api-detail-card::before {
+[data-interface-theme] .sneak-peek-api-detail-card::before,
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card::before {
   opacity: 0 !important;
 }
 
@@ -4475,13 +4475,13 @@ html[data-platform="linux"] body {
    640px only because the modal already hit its 896px `max-w-4xl` cap, which
    requires a viewport far above 768px. */
 @media (min-width: 768px) {
-  .natively-api-details-wrapper {
+  .sneak-peek-api-details-wrapper {
     height: 234px !important;
   }
-  .natively-api-detail-shell {
+  .sneak-peek-api-detail-shell {
     height: 100% !important;
   }
-  .natively-api-detail-card {
+  .sneak-peek-api-detail-card {
     height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
@@ -4490,13 +4490,13 @@ html[data-platform="linux"] body {
 }
 
 @media (max-width: 767px) {
-  .natively-api-details-wrapper {
+  .sneak-peek-api-details-wrapper {
     min-height: 234px !important;
   }
-  .natively-api-detail-shell {
+  .sneak-peek-api-detail-shell {
     height: 100% !important;
   }
-  .natively-api-detail-card {
+  .sneak-peek-api-detail-card {
     min-height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
@@ -4504,13 +4504,13 @@ html[data-platform="linux"] body {
   }
 }
 
-.natively-api-detail-card > .grid {
+.sneak-peek-api-detail-card > .grid {
   flex: 1 !important;
 }
 
-.natively-api-pricing-cta,
-.natively-api-pricing-active-tag,
-.natively-api-active-tag {
+.sneak-peek-api-pricing-cta,
+.sneak-peek-api-pricing-active-tag,
+.sneak-peek-api-active-tag {
   height: 38px !important;
   box-sizing: border-box !important;
 }
@@ -4523,22 +4523,22 @@ html[data-platform="linux"] body {
    A stylesheet !important declaration outranks framer-motion's inline styles,
    which is what makes gating a JS-driven animation from CSS work at all. */
 @media (prefers-reduced-motion: reduce) {
-  .natively-api-selector-pill,
-  .natively-api-selector-pill-track {
+  .sneak-peek-api-selector-pill,
+  .sneak-peek-api-selector-pill-track {
     transition: none !important;
   }
-  .natively-api-selector-tab:active {
+  .sneak-peek-api-selector-tab:active {
     transform: none !important;
   }
-  .natively-api-detail-card > div,
-  .natively-api-detail-card > div * {
+  .sneak-peek-api-detail-card > div,
+  .sneak-peek-api-detail-card > div * {
     filter: none !important;
     transform: none !important;
   }
 }
 
 /* ───────────────────────────────────────────────────────────────────────
-   Natively Pro Purchase UI Redesign (Tactile 3D Jelly-Clay / Liquid-Glass)
+   Sneak-Peek Pro Purchase UI Redesign (Tactile 3D Jelly-Clay / Liquid-Glass)
    ─────────────────────────────────────────────────────────────────────── */
 
 .perspective-1000 {
@@ -4766,7 +4766,7 @@ html[data-platform="linux"] body {
    20px radius against their 28px, roughly a third of their height, and
    only one piece of high-contrast ink in it (the CTA pill). It must be
    impossible to mistake for a footnote and impossible to mistake for the
-   primary Natively API card directly above it.
+   primary Sneak-Peek API card directly above it.
    ─────────────────────────────────────────────────────────────────────── */
 [data-interface-theme="liquid-glass"] .pro-teaser,
 [data-interface-theme="modern"] .pro-teaser {
@@ -5870,11 +5870,11 @@ html[data-platform="linux"] body {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ──── Natively Pro Pricing Interface: Light Mode Optimization Overrides ───
+   ──── Sneak-Peek Pro Pricing Interface: Light Mode Optimization Overrides ───
    ────────────────────────────────────────────────────────────────────────── */
 
 /* 1. Selector Segmented Control Bar */
-[data-theme='light'] .natively-api-selector-bar {
+[data-theme='light'] .sneak-peek-api-selector-bar {
   background: rgba(15, 23, 42, 0.05) !important;
   border-color: rgba(15, 23, 42, 0.06) !important;
   box-shadow:
@@ -5882,41 +5882,41 @@ html[data-platform="linux"] body {
     0 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab {
+[data-theme='light'] .sneak-peek-api-selector-tab {
   color: rgba(15, 23, 42, 0.68) !important;
   font-weight: 500 !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab:hover {
+[data-theme='light'] .sneak-peek-api-selector-tab:hover {
   color: #0f172a !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab.active,
-[data-theme='light'] .natively-api-selector-tab[data-active="true"] {
+[data-theme='light'] .sneak-peek-api-selector-tab.active,
+[data-theme='light'] .sneak-peek-api-selector-tab[data-active="true"] {
   color: #000000 !important;
   font-weight: 700 !important;
   opacity: 1 !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab.active .tab-name,
-[data-theme='light'] .natively-api-selector-tab[data-active="true"] .tab-name {
+[data-theme='light'] .sneak-peek-api-selector-tab.active .tab-name,
+[data-theme='light'] .sneak-peek-api-selector-tab[data-active="true"] .tab-name {
   color: #000000 !important;
   font-weight: 700 !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab.active .tab-price,
-[data-theme='light'] .natively-api-selector-tab[data-active="true"] .tab-price {
+[data-theme='light'] .sneak-peek-api-selector-tab.active .tab-price,
+[data-theme='light'] .sneak-peek-api-selector-tab[data-active="true"] .tab-price {
   color: rgba(15, 23, 42, 0.85) !important;
   font-weight: 600 !important;
 }
 
-[data-theme='light'] .natively-api-selector-tab .tab-price {
+[data-theme='light'] .sneak-peek-api-selector-tab .tab-price {
   color: rgba(15, 23, 42, 0.58) !important;
   font-weight: 500 !important;
 }
 
 /* 2. Light Mode Dynamic Jelly-Clay Selector Pills */
-[data-theme='light'] .natively-api-selector-pill-standard {
+[data-theme='light'] .sneak-peek-api-selector-pill-standard {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.04) 100%),
     rgba(103, 164, 162, 0.18) !important;
@@ -5927,7 +5927,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(60, 107, 105, 0.15) !important;
 }
 
-[data-theme='light'] .natively-api-selector-pill-pro {
+[data-theme='light'] .sneak-peek-api-selector-pill-pro {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.04) 100%),
     rgba(59, 141, 213, 0.24) !important;
@@ -5938,7 +5938,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(17, 89, 153, 0.18) !important;
 }
 
-[data-theme='light'] .natively-api-selector-pill-max {
+[data-theme='light'] .sneak-peek-api-selector-pill-max {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.04) 100%),
     rgba(155, 97, 157, 0.30) !important;
@@ -5949,7 +5949,7 @@ html[data-platform="linux"] body {
     0 4px 12px rgba(103, 60, 104, 0.20) !important;
 }
 
-[data-theme='light'] .natively-api-selector-pill-ultra {
+[data-theme='light'] .sneak-peek-api-selector-pill-ultra {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.04) 100%),
     rgba(162, 64, 103, 0.36) !important;
@@ -5963,25 +5963,25 @@ html[data-platform="linux"] body {
 /* 3. Light Mode Specular Price Gradients. Each tier's own hue; the far stop
    deepens with the tier so the ladder survives even here. NOT EMITTED by the
    current TSX — kept in sync so no stale hue can surface. */
-[data-theme='light'] .natively-api-price-pro {
+[data-theme='light'] .sneak-peek-api-price-pro {
   background: linear-gradient(135deg, #0f172a 20%, #1f6098 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
 
-[data-theme='light'] .natively-api-price-max {
+[data-theme='light'] .sneak-peek-api-price-max {
   background: linear-gradient(135deg, #0f172a 20%, #69416a 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
 
-[data-theme='light'] .natively-api-price-ultra {
+[data-theme='light'] .sneak-peek-api-price-ultra {
   background: linear-gradient(135deg, #0f172a 20%, #6c2843 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
 
-[data-theme='light'] .natively-api-price-standard {
+[data-theme='light'] .sneak-peek-api-price-standard {
   background: linear-gradient(135deg, #0f172a 30%, #476d6c 100%) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
@@ -5992,12 +5992,12 @@ html[data-platform="linux"] body {
    of this card carries a tier class (NativelyApiSettings.tsx:896), and the
    per-tier light fills are (0,3,0) against this rule's (0,2,0). */
 
-[data-theme='light'] .natively-api-detail-card::before {
+[data-theme='light'] .sneak-peek-api-detail-card::before {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, transparent 60%) !important;
 }
 
 /* Soft blueprint mesh grid lines for light mode */
-[data-theme='light'] .natively-api-detail-card::after {
+[data-theme='light'] .sneak-peek-api-detail-card::after {
   opacity: 0.22 !important;
   background-image:
     linear-gradient(to right, rgba(15, 23, 42, 0.08) 1.5px, transparent 1.5px),
@@ -6007,7 +6007,7 @@ html[data-platform="linux"] body {
 /* Light tier cards. `background` loses to the light committed-fill block
    (0,3,0); the 1.5px border is only declared here, so it paints — which is
    why it has to track the ramp. Border alpha climbs with depth. */
-[data-theme='light'] .natively-api-detail-card-standard {
+[data-theme='light'] .sneak-peek-api-detail-card-standard {
   background:
     radial-gradient(circle at 50% 0%, rgba(103, 164, 162, 0.14) 0%, transparent 65%),
     radial-gradient(circle at 100% 100%, rgba(103, 164, 162, 0.18) 0%, transparent 65%),
@@ -6015,7 +6015,7 @@ html[data-platform="linux"] body {
   border: 1.5px solid rgba(85, 147, 145, 0.30) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-pro {
+[data-theme='light'] .sneak-peek-api-detail-card-pro {
   background:
     radial-gradient(circle at 50% 0%, rgba(59, 141, 213, 0.15) 0%, transparent 65%),
     radial-gradient(circle at 100% 100%, rgba(59, 141, 213, 0.18) 0%, transparent 65%),
@@ -6023,7 +6023,7 @@ html[data-platform="linux"] body {
   border: 1.5px solid rgba(22, 119, 205, 0.36) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-max {
+[data-theme='light'] .sneak-peek-api-detail-card-max {
   background:
     radial-gradient(circle at 50% 0%, rgba(155, 97, 157, 0.15) 0%, transparent 65%),
     radial-gradient(circle at 100% 100%, rgba(155, 97, 157, 0.18) 0%, transparent 65%),
@@ -6031,7 +6031,7 @@ html[data-platform="linux"] body {
   border: 1.5px solid rgba(136, 77, 138, 0.42) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-ultra {
+[data-theme='light'] .sneak-peek-api-detail-card-ultra {
   background:
     radial-gradient(circle at 50% 0%, rgba(162, 64, 103, 0.15) 0%, transparent 65%),
     radial-gradient(circle at 100% 100%, rgba(162, 64, 103, 0.18) 0%, transparent 65%),
@@ -6040,7 +6040,7 @@ html[data-platform="linux"] body {
 }
 
 /* 5. Light Mode Active Plan Ambient Halos. Each tier's own hue, deepening. */
-[data-theme='light'] .natively-api-detail-card-standard[data-active="true"] {
+[data-theme='light'] .sneak-peek-api-detail-card-standard[data-active="true"] {
   border-color: rgba(71, 109, 108, 0.70) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -6049,7 +6049,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-pro[data-active="true"] {
+[data-theme='light'] .sneak-peek-api-detail-card-pro[data-active="true"] {
   border-color: rgba(31, 96, 152, 0.75) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -6058,7 +6058,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-max[data-active="true"] {
+[data-theme='light'] .sneak-peek-api-detail-card-max[data-active="true"] {
   border-color: rgba(105, 65, 106, 0.80) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -6067,7 +6067,7 @@ html[data-platform="linux"] body {
     0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
-[data-theme='light'] .natively-api-detail-card-ultra[data-active="true"] {
+[data-theme='light'] .sneak-peek-api-detail-card-ultra[data-active="true"] {
   border-color: rgba(108, 40, 67, 0.85) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -6077,7 +6077,7 @@ html[data-platform="linux"] body {
 }
 
 /* 6. Light Mode Features Columns & Scope Panels */
-[data-theme='light'] .natively-api-features-panel {
+[data-theme='light'] .sneak-peek-api-features-panel {
   background: rgba(255, 255, 255, 0.60) !important;
   border-color: rgba(15, 23, 42, 0.05) !important;
   box-shadow:
@@ -6085,17 +6085,17 @@ html[data-platform="linux"] body {
     0 1px 0 rgba(255, 255, 255, 0.9) !important;
 }
 
-[data-theme='light'] .natively-api-features-panel::before {
+[data-theme='light'] .sneak-peek-api-features-panel::before {
   background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.06), transparent) !important;
 }
 
 /* 7. What's included font color fix in light mode */
-[data-theme='light'] .natively-api-features-panel p.uppercase {
+[data-theme='light'] .sneak-peek-api-features-panel p.uppercase {
   color: rgba(15, 23, 42, 0.50) !important;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ──── Natively Pro Pricing: Theme-Responsive Contrast & Glow Enhancements ─
+   ──── Sneak-Peek Pro Pricing: Theme-Responsive Contrast & Glow Enhancements ─
    ────────────────────────────────────────────────────────────────────────── */
 
 /* A. Default / Dark Mode Badge Text & Icons */
@@ -6105,54 +6105,54 @@ html[data-platform="linux"] body {
    the measured values on #1E1E21 are unchanged: 8.73 / 9.21 / 7.85 / 6.77.
    NOT EMITTED by the current TSX. Emerald is untouched — it is the
    active-plan semantic, not a tier. */
-.natively-api-badge-text-recommended {
+.sneak-peek-api-badge-text-recommended {
   color: #8cc7fa !important;
 }
-.natively-api-badge-text-max {
+.sneak-peek-api-badge-text-max {
   color: #cca6cd !important;
 }
-.natively-api-badge-text-ultra {
+.sneak-peek-api-badge-text-ultra {
   color: #d592ad !important;
 }
-.natively-api-badge-text-standard {
+.sneak-peek-api-badge-text-standard {
   color: #a1c2c1 !important;
 }
-.natively-api-badge-text-emerald {
+.sneak-peek-api-badge-text-emerald {
   color: #a7f3d0 !important;
 }
 
 /* Feature Check icon sheens (Dark Mode) */
-.natively-api-check-icon-pro {
+.sneak-peek-api-check-icon-pro {
   color: #8cc7fa !important;
   filter: drop-shadow(0 0 4.5px rgba(59, 141, 213, 0.55)) !important;
 }
-.natively-api-check-icon-max {
+.sneak-peek-api-check-icon-max {
   color: #cca6cd !important;
   filter: drop-shadow(0 0 4.5px rgba(155, 97, 157, 0.55)) !important;
 }
-.natively-api-check-icon-ultra {
+.sneak-peek-api-check-icon-ultra {
   color: #d592ad !important;
   filter: drop-shadow(0 0 4.5px rgba(162, 64, 103, 0.55)) !important;
 }
-.natively-api-check-icon-standard {
+.sneak-peek-api-check-icon-standard {
   color: #a1c2c1 !important;
   filter: drop-shadow(0 0 4.5px rgba(103, 164, 162, 0.35)) !important;
 }
 
 /* Promo Voucher badge (Dark Mode) */
-.natively-api-pricing-promo-wrapper {
+.sneak-peek-api-pricing-promo-wrapper {
   background: rgba(139, 92, 246, 0.10) !important;
   border-color: rgba(139, 92, 246, 0.20) !important;
 }
-.natively-api-pricing-promo-text {
+.sneak-peek-api-pricing-promo-text {
   color: #c4b5fd !important;
 }
-.natively-api-pricing-promo-bold {
+.sneak-peek-api-pricing-promo-bold {
   color: #a78bfa !important;
 }
 
 /* Active tag state (Dark Mode - Emerald Jelly Pill) */
-.natively-api-active-tag {
+.sneak-peek-api-active-tag {
   color: #34d399 !important;
   background: linear-gradient(180deg, rgba(52, 211, 153, 0.22) 0%, rgba(16, 185, 129, 0.12) 100%) !important;
   border: 1px solid rgba(52, 211, 153, 0.38) !important;
@@ -6166,54 +6166,54 @@ html[data-platform="linux"] body {
 /* B. Light Mode High-Contrast Overrides (WCAG Compliant 4.5:1 Ratio) */
 /* Light mode: the ramp runs by LUMINANCE again, because here darker means
    more legible. Measured on #ffffff: 5.71 / 6.63 / 8.21 / 10.37. */
-[data-theme='light'] .natively-api-badge-text-recommended {
+[data-theme='light'] .sneak-peek-api-badge-text-recommended {
   color: #1f6098 !important;
 }
-[data-theme='light'] .natively-api-badge-text-max {
+[data-theme='light'] .sneak-peek-api-badge-text-max {
   color: #69416a !important;
 }
-[data-theme='light'] .natively-api-badge-text-ultra {
+[data-theme='light'] .sneak-peek-api-badge-text-ultra {
   color: #6c2843 !important;
 }
-[data-theme='light'] .natively-api-badge-text-standard {
+[data-theme='light'] .sneak-peek-api-badge-text-standard {
   color: #476d6c !important;
 }
-[data-theme='light'] .natively-api-badge-text-emerald {
+[data-theme='light'] .sneak-peek-api-badge-text-emerald {
   color: #065f46 !important; /* Dark Forest Green */
 }
 
 /* Feature Check icon sheens (Light Mode) */
-[data-theme='light'] .natively-api-check-icon-pro {
+[data-theme='light'] .sneak-peek-api-check-icon-pro {
   color: #1f6098 !important;
   filter: drop-shadow(0 0 3px rgba(31, 96, 152, 0.22)) !important;
 }
-[data-theme='light'] .natively-api-check-icon-max {
+[data-theme='light'] .sneak-peek-api-check-icon-max {
   color: #69416a !important;
   filter: drop-shadow(0 0 3px rgba(105, 65, 106, 0.22)) !important;
 }
-[data-theme='light'] .natively-api-check-icon-ultra {
+[data-theme='light'] .sneak-peek-api-check-icon-ultra {
   color: #6c2843 !important;
   filter: drop-shadow(0 0 3px rgba(108, 40, 67, 0.22)) !important;
 }
-[data-theme='light'] .natively-api-check-icon-standard {
+[data-theme='light'] .sneak-peek-api-check-icon-standard {
   color: #476d6c !important;
   filter: drop-shadow(0 0 3px rgba(71, 109, 108, 0.12)) !important;
 }
 
 /* Promo Voucher badge (Light Mode) */
-[data-theme='light'] .natively-api-pricing-promo-wrapper {
+[data-theme='light'] .sneak-peek-api-pricing-promo-wrapper {
   background: rgba(139, 92, 246, 0.08) !important;
   border-color: rgba(139, 92, 246, 0.16) !important;
 }
-[data-theme='light'] .natively-api-pricing-promo-text {
+[data-theme='light'] .sneak-peek-api-pricing-promo-text {
   color: #6d28d9 !important;
 }
-[data-theme='light'] .natively-api-pricing-promo-bold {
+[data-theme='light'] .sneak-peek-api-pricing-promo-bold {
   color: #4c1d95 !important;
 }
 
 /* Active tag state (Light Mode - Emerald Jelly Pill) */
-[data-theme='light'] .natively-api-active-tag {
+[data-theme='light'] .sneak-peek-api-active-tag {
   color: #064e3b !important;
   background: linear-gradient(180deg, rgba(52, 211, 153, 0.25) 0%, rgba(16, 185, 129, 0.14) 100%) !important;
   border: 1px solid rgba(16, 185, 129, 0.35) !important;
@@ -6226,26 +6226,26 @@ html[data-platform="linux"] body {
 }
 
 /* Header Promo Banner (Dark Mode Default) */
-.natively-api-header-promo-banner {
+.sneak-peek-api-header-promo-banner {
   background: rgba(139, 92, 246, 0.15) !important;
   border-color: rgba(139, 92, 246, 0.30) !important;
 }
-.natively-api-header-promo-text {
+.sneak-peek-api-header-promo-text {
   color: #c4b5fd !important;
 }
-.natively-api-header-promo-code {
+.sneak-peek-api-header-promo-code {
   color: #a78bfa !important;
 }
 
 /* Header Promo Banner (Light Mode WCAG compliant) */
-[data-theme='light'] .natively-api-header-promo-banner {
+[data-theme='light'] .sneak-peek-api-header-promo-banner {
   background: rgba(109, 40, 217, 0.08) !important;
   border-color: rgba(109, 40, 217, 0.20) !important;
 }
-[data-theme='light'] .natively-api-header-promo-text {
+[data-theme='light'] .sneak-peek-api-header-promo-text {
   color: #5b21b6 !important;
 }
-[data-theme='light'] .natively-api-header-promo-code {
+[data-theme='light'] .sneak-peek-api-header-promo-code {
   color: #3b0764 !important;
 }
 
@@ -6777,7 +6777,7 @@ html[data-platform="linux"] body {
 
    Specificity note: `index.css` is saturated with `!important` around this
    component and other processes append to this file, so every rule below
-   is anchored on `.natively-api-selector-bar` to outrank the earlier
+   is anchored on `.sneak-peek-api-selector-bar` to outrank the earlier
    per-interface-theme rules (0-2-0) and the earlier light overrides
    (0-3-0) on specificity rather than on source order. Selectors key off
    attribute PRESENCE, matching the card's own `[data-interface-theme]`
@@ -6785,9 +6785,9 @@ html[data-platform="linux"] body {
    ───────────────────────────────────────────────────────────────────── */
 
 /* ── Pill: dark theme (card fill × 0.86) ─────────────────────────────── */
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill {
   /* Not `all`: only the properties that actually change on a tier switch.
-     The slide itself lives on .natively-api-selector-pill-track and is
+     The slide itself lives on .sneak-peek-api-selector-pill-track and is
      deliberately left alone. */
   transition:
     background 260ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -6807,7 +6807,7 @@ html[data-platform="linux"] body {
    8.09. Every tier carries the SAME white ink now — there is no inverted
    tier left, which is why the old `[data-selected-tier="pro"]` dark-ink
    override that used to sit further down is gone. */
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-standard {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-standard {
   background: linear-gradient(180deg, #2D504F 0%, #376260 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow:
@@ -6815,7 +6815,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(0, 0, 0, 0.35) !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-pro {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-pro {
   background: linear-gradient(180deg, #0C416F 0%, #0F518A 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.09) !important;
   box-shadow:
@@ -6823,7 +6823,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(0, 0, 0, 0.35) !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-max {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-max {
   background: linear-gradient(180deg, #472948 0%, #5C365D 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
   box-shadow:
@@ -6831,7 +6831,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(0, 0, 0, 0.35) !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-ultra {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-ultra {
   background: linear-gradient(180deg, #48182B 0%, #62213B 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.11) !important;
   box-shadow:
@@ -6840,7 +6840,7 @@ html[data-platform="linux"] body {
 }
 
 /* ── Pill: light theme (card fill, unchanged) ────────────────────────── */
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-standard {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-standard {
   background: linear-gradient(180deg, #DEF0EF 0%, #CAE7E6 100%) !important;
   border: 1px solid rgba(16, 22, 43, 0.08) !important;
   box-shadow:
@@ -6848,7 +6848,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(15, 23, 42, 0.10) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-pro {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-pro {
   background: linear-gradient(180deg, #C4E2FD 0%, #ACD7FC 100%) !important;
   border: 1px solid rgba(16, 22, 43, 0.09) !important;
   box-shadow:
@@ -6856,7 +6856,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(15, 23, 42, 0.10) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-max {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-max {
   background: linear-gradient(180deg, #DFCAE0 0%, #D5BAD6 100%) !important;
   border: 1px solid rgba(16, 22, 43, 0.10) !important;
   box-shadow:
@@ -6864,7 +6864,7 @@ html[data-platform="linux"] body {
     0 1px 2px rgba(15, 23, 42, 0.10) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill-ultra {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill-ultra {
   background: linear-gradient(180deg, #DEB8C7 0%, #D6A7BA 100%) !important;
   border: 1px solid rgba(16, 22, 43, 0.11) !important;
   box-shadow:
@@ -6889,53 +6889,53 @@ html[data-platform="linux"] body {
    so the hierarchy survives the accessibility floor.
    ───────────────────────────────────────────────────────────────────── */
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab .tab-name {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab .tab-name {
   color: rgba(255, 255, 255, 0.62) !important;
   font-weight: 500 !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab .tab-price {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab .tab-price {
   color: rgba(255, 255, 255, 0.48) !important;
   font-weight: 500 !important;
   opacity: 1 !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab:hover .tab-name {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab:hover .tab-name {
   color: rgba(255, 255, 255, 0.86) !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab.active .tab-name {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab.active .tab-name {
   color: #ffffff !important;
   font-weight: 600 !important;
 }
 
-[data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab.active .tab-price {
+[data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab.active .tab-price {
   color: rgba(255, 255, 255, 0.80) !important;
   font-weight: 500 !important;
   opacity: 1 !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab .tab-name {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab .tab-name {
   color: rgba(15, 23, 42, 0.74) !important;
   font-weight: 500 !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab .tab-price {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab .tab-price {
   color: rgba(15, 23, 42, 0.62) !important;
   font-weight: 500 !important;
   opacity: 1 !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab:hover .tab-name {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab:hover .tab-name {
   color: rgba(15, 23, 42, 0.92) !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab.active .tab-name {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab.active .tab-name {
   color: #10162B !important;
   font-weight: 600 !important;
 }
 
-[data-theme='light'] [data-interface-theme] .natively-api-selector-bar .natively-api-selector-tab.active .tab-price {
+[data-theme='light'] [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-tab.active .tab-price {
   color: rgba(16, 22, 43, 0.72) !important;
   font-weight: 500 !important;
   opacity: 1 !important;
@@ -6951,17 +6951,17 @@ html[data-platform="linux"] body {
    so this file owns no TSX dependency. */
 
 /* Reduced motion. Restated at this block's specificity: the earlier
-   `.natively-api-selector-pill { transition: none !important }` is 0-1-0
+   `.sneak-peek-api-selector-pill { transition: none !important }` is 0-1-0
    and would otherwise LOSE to the 0-3-0 transition declared above. */
 @media (prefers-reduced-motion: reduce) {
-  [data-interface-theme] .natively-api-selector-bar .natively-api-selector-pill {
+  [data-interface-theme] .sneak-peek-api-selector-bar .sneak-peek-api-selector-pill {
     transition: none !important;
   }
 }
 
 
 /* ──────────────────────────────────────────────────────────────────────────
-   ──── Natively Pro Yearly & Lifetime Cards: Light Mode Overrides ──────────
+   ──── Sneak-Peek Pro Yearly & Lifetime Cards: Light Mode Overrides ──────────
    ────────────────────────────────────────────────────────────────────────── */
 
 /* 1. Card Backgrounds & Specular 3D Borders (No cheap flat white borders) */
@@ -7104,8 +7104,8 @@ html[data-platform="linux"] body {
    Dark mode keeps the bright neutral jelly. Light mode does NOT: a white
    pill on the pale ice-blue Yearly card was the lowest-contrast element on
    the whole surface, so the card that is supposed to offer a purchase read
-   as disabled. It flips to the same near-black ink the accepted Natively API
-   card already uses for its light-mode CTA (`.natively-api-pricing-cta`,
+   as disabled. It flips to the same near-black ink the accepted Sneak-Peek API
+   card already uses for its light-mode CTA (`.sneak-peek-api-pricing-cta`,
    #10162b), which keeps one high-contrast action per card in both themes
    without dulling anything. Lifetime stays violet, so the two remain
    distinguishable and Lifetime keeps the recommendation. */
@@ -7147,7 +7147,7 @@ html[data-platform="linux"] body {
 }
 
 /* ─── Pro teaser plaque: light mode ────────────────────────────────────
-   Follows the convention the light Natively API card already sets: a pale
+   Follows the convention the light Sneak-Peek API card already sets: a pale
    tinted fill with dark ink and one near-black action, rather than the
    saturated fill used in dark mode. Going saturated here would have made
    the secondary option louder than the primary product above it. */
@@ -7344,23 +7344,23 @@ html[data-platform="linux"] body {
 
 
 /* ══════════════════════════════════════════════════════════════════════════
-   ──── Natively key card: tactile credential plaque (Plans & Billing) ──────
+   ──── Sneak-Peek key card: tactile credential plaque (Plans & Billing) ──────
    ══════════════════════════════════════════════════════════════════════════
 
    THE PROBLEM THIS SOLVES: everything else on the Plans & Billing tab is
    built out of one material — layered (never flat) fills, a specular top
    hairline, generous radii, and buttons that lift on hover and compress on
-   press. The "Natively key" card was a flat neutral box holding a flat
+   press. The "Sneak-Peek key" card was a flat neutral box holding a flat
    hairline input and a flat solid button, so it read as a different design
    system parked above the plan chooser.
 
-   THE HUE: periwinkle/indigo, anchored on `.natively-api-detail-card-max`
+   THE HUE: periwinkle/indigo, anchored on `.sneak-peek-api-detail-card-max`
    (#2C4EAE → #3F68CE). Borrowing an existing tier family instead of inventing
    a new hue is what makes this card read as part of the same product surface.
 
    Max is no longer an anchor either — this button KEEPS 236° while the whole
    tier family has moved, repeatedly. The block originally cited
-   `.natively-api-detail-card-pro` (#454FB8 → #5762CE) alongside Max, but Pro
+   `.sneak-peek-api-detail-card-pro` (#454FB8 → #5762CE) alongside Max, but Pro
    moved away — magenta, then gold, then a 196° teal ramp — precisely because
    this button's 236° made the old Pro/Max/pill cluster read as one colour.
 
@@ -7406,7 +7406,7 @@ html[data-platform="linux"] body {
    feeling flat and out of place next to the pricing surfaces; the tint was
    never doing that work. Shadows are black now rather than indigo, since a
    tinted shadow under an untinted card reads as a colour cast. */
-.natively-key-card {
+.sneak-peek-key-card {
   background: linear-gradient(180deg, #313134 0%, #232326 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.10) !important;
   border-radius: 22px !important;
@@ -7421,7 +7421,7 @@ html[data-platform="linux"] body {
 /* The same 24px blueprint grid the pricing surfaces carry, in neutral ink.
    Individually invisible; it is one of the things that makes them read as a
    set, and it costs no colour to keep. */
-.natively-key-card::before {
+.sneak-peek-key-card::before {
   content: '' !important;
   position: absolute !important;
   inset: 0 !important;
@@ -7433,7 +7433,7 @@ html[data-platform="linux"] body {
   z-index: 0 !important;
 }
 
-.natively-key-card > * {
+.sneak-peek-key-card > * {
   position: relative !important;
   z-index: 1 !important;
 }
@@ -7441,7 +7441,7 @@ html[data-platform="linux"] body {
 /* Light: same construction, no hue. Bottom stop lands on --bg-item-surface
    (#EAECEF) so the plaque resolves into the section's own card colour instead
    of a tint of it; the top stays near-white to keep the vertical lift. */
-[data-theme='light'] .natively-key-card {
+[data-theme='light'] .sneak-peek-key-card {
   background: linear-gradient(180deg, #FDFDFD 0%, #EAECEF 100%) !important;
   border: 1px solid rgba(0, 0, 0, 0.09) !important;
   box-shadow:
@@ -7450,7 +7450,7 @@ html[data-platform="linux"] body {
     0 6px 18px rgba(0, 0, 0, 0.07) !important;
 }
 
-[data-theme='light'] .natively-key-card::before {
+[data-theme='light'] .sneak-peek-key-card::before {
   background-image:
     linear-gradient(rgba(0, 0, 0, 0.028) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 0, 0, 0.028) 1px, transparent 1px) !important;
@@ -7460,7 +7460,7 @@ html[data-platform="linux"] body {
    A hairline box on a flat card was the flattest thing on the flattest
    surface. Sinking it gives the plaque somewhere for the credential to go,
    and it is the same inset-shadow vocabulary as the jelly controls. */
-.natively-key-input {
+.sneak-peek-key-input {
   background: linear-gradient(180deg, #161618 0%, #1C1C1F 100%) !important;
   border: 1px solid rgba(0, 0, 0, 0.55) !important;
   border-radius: 14px !important;
@@ -7478,7 +7478,7 @@ html[data-platform="linux"] body {
    and a soft light ring replaces the coloured one. Removing the indicator
    outright is not an option — this is a text field, and keyboard users need to
    see where focus landed. */
-.natively-key-input:focus {
+.sneak-peek-key-input:focus {
   outline: none !important;
   border-color: rgba(255, 255, 255, 0.30) !important;
   box-shadow:
@@ -7486,7 +7486,7 @@ html[data-platform="linux"] body {
     0 0 0 2px rgba(255, 255, 255, 0.10) !important;
 }
 
-[data-theme='light'] .natively-key-input {
+[data-theme='light'] .sneak-peek-key-input {
   background: linear-gradient(180deg, #EFEFF1 0%, #FDFDFD 100%) !important;
   border: 1px solid rgba(0, 0, 0, 0.12) !important;
   box-shadow:
@@ -7494,7 +7494,7 @@ html[data-platform="linux"] body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.9) !important;
 }
 
-[data-theme='light'] .natively-key-input:focus {
+[data-theme='light'] .sneak-peek-key-input:focus {
   border-color: rgba(0, 0, 0, 0.34) !important;
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.06),
@@ -7504,8 +7504,8 @@ html[data-platform="linux"] body {
 /* Last, and at (0,3,0): the per-theme rules above use the `border` shorthand,
    which resets border-color, so an invalid-state rule declared before them
    would lose the red edge in light theme even though it matched. */
-.natively-key-input[data-invalid='true'],
-[data-theme] .natively-key-input[data-invalid='true'] {
+.sneak-peek-key-input[data-invalid='true'],
+[data-theme] .sneak-peek-key-input[data-invalid='true'] {
   border-color: var(--text-danger) !important;
 }
 
@@ -7524,7 +7524,7 @@ html[data-platform="linux"] body {
    `data-state` mirrors the four states the button already had (idle / ready /
    saving / done) — it is derived from the existing booleans in the JSX and
    drives nothing but paint. */
-.natively-key-cta {
+.sneak-peek-key-cta {
   border: 1px solid transparent !important;
   border-radius: 9999px !important;
   transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -7542,7 +7542,7 @@ html[data-platform="linux"] body {
    fill colour instead of a washed-out white blend, which is exactly where
    white-on-periwinkle quietly drops under 4.5:1. The darkening gradient
    starts at 55% for the same reason — below the label, not through it. */
-.natively-key-cta[data-state='ready'] {
+.sneak-peek-key-cta[data-state='ready'] {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.16) 100%),
     #5C65DB !important;
@@ -7555,7 +7555,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .natively-key-cta[data-state='ready']:hover {
+  .sneak-peek-key-cta[data-state='ready']:hover {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.10) 100%),
       #656EE4 !important;
@@ -7567,7 +7567,7 @@ html[data-platform="linux"] body {
   }
 }
 
-.natively-key-cta[data-state='ready']:active {
+.sneak-peek-key-cta[data-state='ready']:active {
   transform: translateY(0) scale(0.97) !important;
   box-shadow:
     inset 0 2px 5px rgba(6, 8, 28, 0.38),
@@ -7576,7 +7576,7 @@ html[data-platform="linux"] body {
 
 /* Light: the darker end of the same hue, so it is the darkest thing on a pale
    plaque the way the dark-theme button is the brightest thing on a dark one. */
-[data-theme='light'] .natively-key-cta[data-state='ready'] {
+[data-theme='light'] .sneak-peek-key-cta[data-state='ready'] {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.16) 100%),
     #454FB8 !important;
@@ -7589,7 +7589,7 @@ html[data-platform="linux"] body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-theme='light'] .natively-key-cta[data-state='ready']:hover {
+  [data-theme='light'] .sneak-peek-key-cta[data-state='ready']:hover {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.10) 100%),
       #3E47AC !important;
@@ -7609,15 +7609,15 @@ html[data-platform="linux"] body {
    the accent was always faintly present and therefore signalled nothing. With
    this neutral, colour arrives exactly when `ready` does — when there is
    actually something to press. */
-.natively-key-cta[data-state='idle'],
-.natively-key-cta[data-state='saving'] {
+.sneak-peek-key-cta[data-state='idle'],
+.sneak-peek-key-cta[data-state='saving'] {
   background: rgba(255, 255, 255, 0.07) !important;
   border-color: rgba(255, 255, 255, 0.13) !important;
   color: rgba(255, 255, 255, 0.50) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
 }
 
-.natively-key-cta[data-state='saving'] {
+.sneak-peek-key-cta[data-state='saving'] {
   color: rgba(255, 255, 255, 0.78) !important;
 }
 
@@ -7630,7 +7630,7 @@ html[data-platform="linux"] body {
    this measures 5.48:1. Dark enough to hold white ink under both themes, so it
    needs no light-theme counterpart — the override that used to sit further
    down was deleted with this change. */
-.natively-key-cta[data-state='done'] {
+.sneak-peek-key-cta[data-state='done'] {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.16) 100%),
     #047857 !important;
@@ -7642,15 +7642,15 @@ html[data-platform="linux"] body {
     0 4px 14px rgba(4, 120, 87, 0.40) !important;
 }
 
-[data-theme='light'] .natively-key-cta[data-state='idle'],
-[data-theme='light'] .natively-key-cta[data-state='saving'] {
+[data-theme='light'] .sneak-peek-key-cta[data-state='idle'],
+[data-theme='light'] .sneak-peek-key-cta[data-state='saving'] {
   background: rgba(0, 0, 0, 0.05) !important;
   border-color: rgba(0, 0, 0, 0.14) !important;
   color: rgba(0, 0, 0, 0.45) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
 }
 
-[data-theme='light'] .natively-key-cta[data-state='saving'] {
+[data-theme='light'] .sneak-peek-key-cta[data-state='saving'] {
   color: rgba(0, 0, 0, 0.68) !important;
 }
 
@@ -7669,15 +7669,15 @@ html[data-platform="linux"] body {
    Dark keeps an explicit alpha rather than the token: white at 0.74 over the
    #313134 top stop resolves to ~#CACACA for 8.9:1, comfortably clear, and an
    alpha ink stays correct across the gradient in a way a fixed hex would not. */
-.natively-key-sub {
+.sneak-peek-key-sub {
   color: rgba(255, 255, 255, 0.74) !important;
 }
 
-[data-theme='light'] .natively-key-sub {
+[data-theme='light'] .sneak-peek-key-sub {
   color: var(--text-secondary) !important;
 }
 
-/* ── 5. The Natively mark ─────────────────────────────────────────────────
+/* ── 5. The Sneak-Peek mark ─────────────────────────────────────────────────
    src/assets/logo.webp is a WHITE monochrome glyph on transparency, so on the
    pale light plaque an <img> would be invisible. It is painted as a MASK
    instead, which lets the mark take the plaque's own ink per theme. Both inks
@@ -7687,13 +7687,13 @@ html[data-platform="linux"] body {
    No squircle, no tinted well, no boxed header — just the mark, set on the
    supporting-copy line. The URL arrives as a custom property set from the
    TSX import so the bundler still fingerprints the asset. */
-.natively-key-mark {
+.sneak-peek-key-mark {
   width: 22px !important;
   height: 22px !important;
   flex-shrink: 0 !important;
   background-color: rgba(255, 255, 255, 0.92) !important;
-  -webkit-mask-image: var(--natively-key-mark-src) !important;
-  mask-image: var(--natively-key-mark-src) !important;
+  -webkit-mask-image: var(--sneak-peek-key-mark-src) !important;
+  mask-image: var(--sneak-peek-key-mark-src) !important;
   -webkit-mask-size: contain !important;
   mask-size: contain !important;
   -webkit-mask-repeat: no-repeat !important;
@@ -7702,7 +7702,7 @@ html[data-platform="linux"] body {
   mask-position: center !important;
 }
 
-[data-theme='light'] .natively-key-mark {
+[data-theme='light'] .sneak-peek-key-mark {
   background-color: #4B5563 !important;
 }
 
@@ -7714,7 +7714,7 @@ html[data-platform="linux"] body {
    inset crown, coloured drop shadow, lift on hover, compress on press).
 
    Emerald rather than the Pro tier's periwinkle for one reason: this card sits
-   directly under the Natively key plaque, whose Activate button is periwinkle
+   directly under the Sneak-Peek key plaque, whose Activate button is periwinkle
    jelly. Two saturated periwinkle objects stacked would read as one region.
    Emerald also happens to be what a confirmation wants.
 
@@ -7774,7 +7774,7 @@ html[data-platform="linux"] body {
   z-index: 3 !important;
 }
 
-/* Jelly clay, same construction as .natively-key-cta[data-state='ready'] but
+/* Jelly clay, same construction as .sneak-peek-key-cta[data-state='ready'] but
    in near-black: on a saturated slab the pricing cards make their CTA the one
    near-neutral object, and a green button on a green card would have no edge.
    Rest is neutral for the reason it always was — a destructive control should
@@ -7889,13 +7889,13 @@ html[data-platform="linux"] body {
     animation-duration: 1100ms !important;
   }
 
-  .natively-key-input,
-  .natively-key-cta {
+  .sneak-peek-key-input,
+  .sneak-peek-key-cta {
     transition: none !important;
   }
 
-  .natively-key-cta[data-state='ready']:hover,
-  .natively-key-cta[data-state='ready']:active {
+  .sneak-peek-key-cta[data-state='ready']:hover,
+  .sneak-peek-key-cta[data-state='ready']:active {
     transform: none !important;
   }
 }
@@ -7918,7 +7918,7 @@ html[data-platform="linux"] body {
    but spreads the travel across the middle (~55% at the 30% mark, against the
    old curve's 83%), which is what makes the arrival legible rather than instant. */
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card:hover {
     transition: box-shadow 260ms cubic-bezier(0.32, 0.72, 0, 1),
                 border-color 260ms cubic-bezier(0.32, 0.72, 0, 1) !important;
   }
@@ -7934,28 +7934,28 @@ html[data-platform="linux"] body {
    move; hover lives entirely in the floor (slot 2), the tier-hued ambient
    bloom (slot 3) and the contact shadow (slot 4). */
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card-standard:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-standard:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.16),
       inset 0 -3px 8px rgba(0, 0, 0, 0.40),
       0 12px 32px rgba(60, 107, 105, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-pro:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-pro:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.17),
       inset 0 -3px 8px rgba(0, 0, 0, 0.40),
       0 12px 32px rgba(17, 89, 153, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-max:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-max:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
       inset 0 -3px 8px rgba(0, 0, 0, 0.40),
       0 12px 32px rgba(102, 60, 104, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-ultra:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-ultra:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.20),
       inset 0 -3px 8px rgba(0, 0, 0, 0.40),
@@ -7973,28 +7973,28 @@ html[data-platform="linux"] body {
    that slot 1 never moves. These sit at (0,4,0) so they outrank it, repeat the
    active rim verbatim, and let hover act only on slots 2-4. */
 @media (hover: hover) and (pointer: fine) {
-  [data-interface-theme] .natively-api-detail-card-standard[data-active="true"]:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-standard[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(165, 209, 207, 0.72),
       inset 0 -3px 8px rgba(0, 0, 0, 0.50),
       0 12px 32px rgba(60, 107, 105, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-pro[data-active="true"]:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-pro[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(151, 199, 241, 0.78),
       inset 0 -3px 8px rgba(0, 0, 0, 0.50),
       0 12px 32px rgba(17, 89, 153, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-max[data-active="true"]:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-max[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(203, 175, 204, 0.84),
       inset 0 -3px 8px rgba(0, 0, 0, 0.50),
       0 12px 32px rgba(102, 60, 104, 0.28),
       0 4px 12px rgba(0, 0, 0, 0.25) !important;
   }
-  [data-interface-theme] .natively-api-detail-card-ultra[data-active="true"]:hover {
+  [data-interface-theme] .sneak-peek-api-detail-card-ultra[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(207, 160, 179, 0.90),
       inset 0 -3px 8px rgba(0, 0, 0, 0.50),
@@ -8007,28 +8007,28 @@ html[data-platform="linux"] body {
 /* Light-theme per-tier hover bloom (mirrors the dark rules above and the
    Pro cards' own light hovers). */
 @media (hover: hover) and (pointer: fine) {
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-standard:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-standard:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.55),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.06),
       0 12px 28px rgba(60, 107, 105, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.60),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.06),
       0 12px 28px rgba(17, 89, 153, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-max:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-max:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.65),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.06),
       0 12px 28px rgba(102, 60, 104, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-ultra:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-ultra:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.70),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.06),
@@ -8041,28 +8041,28 @@ html[data-platform="linux"] body {
 /* Light active + hover — (0,5,0), outranking the light per-tier bloom (0,4,0)
    for the same reason as the dark pair above. */
 @media (hover: hover) and (pointer: fine) {
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-standard[data-active="true"]:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-standard[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.05),
       0 12px 28px rgba(60, 107, 105, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-pro[data-active="true"]:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-pro[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.05),
       0 12px 28px rgba(17, 89, 153, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-max[data-active="true"]:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-max[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.05),
       0 12px 28px rgba(102, 60, 104, 0.18),
       0 4px 12px rgba(15, 23, 42, 0.05) !important;
   }
-  [data-theme='light'] [data-interface-theme] .natively-api-detail-card-ultra[data-active="true"]:hover {
+  [data-theme='light'] [data-interface-theme] .sneak-peek-api-detail-card-ultra[data-active="true"]:hover {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       inset 0 -2.5px 6px rgba(0, 0, 0, 0.05),

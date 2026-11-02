@@ -113,8 +113,8 @@ describe('Skeptic-pass finding (2026-07-17): bare "to"/"on" cues mis-tag person/
   test('"use X" / "using X" / "back to X" cues are still preserved (genuine project-adoption cues)', () => {
     const useText = 'Actually use TalentScope.';
     const usingText = 'I built it using Tinroof under the hood.';
-    const backToText = 'Actually back to Natively.';
-    for (const [text, expected] of [[useText, 'TalentScope'], [usingText, 'Tinroof'], [backToText, 'Natively']]) {
+    const backToText = 'Actually back to Sneak-Peek.';
+    for (const [text, expected] of [[useText, 'TalentScope'], [usingText, 'Tinroof'], [backToText, 'Sneak-Peek']]) {
       const entities = extractTranscriptEntities(text, 'user');
       const projects = entities.filter((e) => e.kind === 'project').map((e) => e.value);
       assert.ok(projects.includes(expected), `"${text}" must still tag ${expected} as a project (got: ${JSON.stringify(projects)})`);

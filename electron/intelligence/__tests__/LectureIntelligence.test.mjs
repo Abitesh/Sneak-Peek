@@ -75,7 +75,7 @@ describe('LectureNoteGenerator — structured notes', () => {
   test('NO interview/sales contamination (lecture stays a learning artifact)', () => {
     const notes = gen.build({ lectureId: 'l1', segments: TCP, title: 'TCP' });
     const blob = JSON.stringify(notes);
-    assert.doesNotMatch(blob, /candidate|resume|hire|salary|objection|I am Natively/i);
+    assert.doesNotMatch(blob, /candidate|resume|hire|salary|objection|I am Sneak-Peek/i);
   });
 
   test('never throws on empty transcript', () => {

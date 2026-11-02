@@ -61,7 +61,7 @@ describe('isClarificationStall', () => {
   for (const s of ['Could you repeat that?', 'Sorry, could you repeat the question?', "I'm sorry, I didn't catch that.", 'Please clarify what you mean.']) {
     test(`"${s.slice(0, 30)}…" is a stall`, () => assert.equal(isClarificationStall(s), true));
   }
-  for (const s of ['I have 3 years of Python experience.', 'My best project is Natively.', 'You would rate Python an 8/10.', '']) {
+  for (const s of ['I have 3 years of Python experience.', 'My best project is Sneak-Peek.', 'You would rate Python an 8/10.', '']) {
     test(`"${s.slice(0, 30)}…" is NOT a stall`, () => assert.equal(isClarificationStall(s), false));
   }
   test('a long answer that happens to contain "repeat" is not a stall', () => {

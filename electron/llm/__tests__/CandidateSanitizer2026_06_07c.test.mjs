@@ -14,12 +14,12 @@ const { sanitizeCandidateAnswer, CANDIDATE_VOICE_ANSWER_TYPES } = await import(
   pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/llm/index.js')).href
 );
 
-const META = /\bas an AI\b|\bI(?:'m| am)\s+(?:an?\s+)?(?:AI|Natively)\b|\bcan(?:not| ?not|'?t)\s+share\b|\bdo(?:n'?t| not)\s+have\s+(?:access|your resume|your profile)\b|\bdo(?:n'?t| not)\s+(?:have|assign)\s+(?:numerical\s+)?ratings?\b/i;
+const META = /\bas an AI\b|\bI(?:'m| am)\s+(?:an?\s+)?(?:AI|Sneak-Peek)\b|\bcan(?:not| ?not|'?t)\s+share\b|\bdo(?:n'?t| not)\s+have\s+(?:access|your resume|your profile)\b|\bdo(?:n'?t| not)\s+(?:have|assign)\s+(?:numerical\s+)?ratings?\b/i;
 
 describe('sanitizeCandidateAnswer — strips meta tail, keeps valid content', () => {
   const cases = [
     ['tail "as an AI assistant"', 'I have 3 years of Python experience building FastAPI backends. As an AI assistant, I cannot assign ratings.', /Python experience/],
-    ['tail "I\'m Natively"', 'My strongest skill is backend engineering with Python and SQL. I am Natively, an AI assistant.', /backend engineering/],
+    ['tail "I\'m Sneak-Peek"', 'My strongest skill is backend engineering with Python and SQL. I am Sneak-Peek, an AI assistant.', /backend engineering/],
     ['tail "I can\'t share"', 'I bring strong data analysis skills and system design experience. I can\'t share that information.', /data analysis/],
     ['tail "I can not share" (spaced)', 'I bring strong data analysis skills. I can not share that information.', /data analysis/],
     ['jd-fit + "no resume" tail', 'I am a strong fit because I built high-performance data pipelines. As an AI, I do not have your resume loaded.', /data pipelines/],
@@ -47,7 +47,7 @@ describe('sanitizeCandidateAnswer — does NOT damage legitimate content', () =>
     // code-review 2026-06-07c false-positive guards — these must be PRESERVED:
     'I cannot share the exact revenue figure but it grew 30% year over year.',
     'I do not have ratings yet for that framework, but I am learning it quickly.',
-    'I provide the resume screening feature in my product, Natively.',
+    'I provide the resume screening feature in my product, Sneak-Peek.',
     'I am an AI researcher focusing on large language models.',
     'I am an AI scientist with a background in statistics.',
     'I am an AI lead at my current company.',
@@ -104,7 +104,7 @@ describe('sanitizeCandidateAnswer — "AI assistant" self-reference stripped, pr
     });
   }
   for (const keep of [
-    'I built an AI assistant product called Natively that screens resumes.',
+    'I built an AI assistant product called Sneak-Peek that screens resumes.',
     'I work on an AI assistant tool for recruiters.',
     'I am an AI Engineer who built an AI assistant application.',
     'I have deep experience in the AI assistant space.',
@@ -117,7 +117,7 @@ describe('sanitizeCandidateAnswer — "AI assistant" self-reference stripped, pr
 
 describe('sanitizeCandidateAnswer — all-meta answer flags needsFallback', () => {
   for (const allMeta of [
-    'I am Natively, an AI assistant. I cannot share that information.',
+    'I am Sneak-Peek, an AI assistant. I cannot share that information.',
     'As an AI assistant, I do not assign numerical ratings.',
     "I'm an AI language model and I don't have access to your resume.",
   ]) {

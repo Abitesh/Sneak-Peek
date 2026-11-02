@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Natively Fallback Models Installer for macOS
+# Sneak-Peek Fallback Models Installer for macOS
 # This script downloads and installs the required local fallback models (MiniLM, MobileBERT, Reranker)
-# for the Natively desktop application into the application resources bundle.
+# for the Sneak-Peek desktop application into the application resources bundle.
 #
 # Exit immediately if a command exits with a non-zero status.
 set -e
@@ -32,13 +32,13 @@ log_error() {
 
 # Print header
 echo -e "${CYAN}${BOLD}=====================================================${NC}"
-echo -e "${CYAN}${BOLD}     Natively Fallback Models Installer (macOS)      ${NC}"
+echo -e "${CYAN}${BOLD}     Sneak-Peek Fallback Models Installer (macOS)      ${NC}"
 echo -e "${CYAN}${BOLD}=====================================================${NC}"
 echo ""
 
-# 1. Detect Natively.app path
+# 1. Detect Sneak-Peek.app path
 detect_natively_app() {
-    log_info "Detecting Natively.app path..."
+    log_info "Detecting Sneak-Peek.app path..."
     
     # Search using mdfind (macOS Spotlight search)
     local mdfind_res
@@ -50,14 +50,14 @@ detect_natively_app() {
     fi
     
     # Check standard Applications folder
-    if [ -d "/Applications/Natively.app" ]; then
-        echo "/Applications/Natively.app"
+    if [ -d "/Applications/Sneak-Peek.app" ]; then
+        echo "/Applications/Sneak-Peek.app"
         return 0
     fi
     
     # Check User's Applications folder
-    if [ -d "$HOME/Applications/Natively.app" ]; then
-        echo "$HOME/Applications/Natively.app"
+    if [ -d "$HOME/Applications/Sneak-Peek.app" ]; then
+        echo "$HOME/Applications/Sneak-Peek.app"
         return 0
     fi
     
@@ -68,10 +68,10 @@ detect_natively_app() {
 NATIVELY_APP_PATH=$(detect_natively_app || true)
 
 if [ -n "$NATIVELY_APP_PATH" ]; then
-    log_success "Found Natively.app at: ${BOLD}$NATIVELY_APP_PATH${NC}"
+    log_success "Found Sneak-Peek.app at: ${BOLD}$NATIVELY_APP_PATH${NC}"
 else
-    log_warning "Could not automatically locate Natively.app."
-    echo -n "Please drag & drop your Natively.app here (or enter its path): "
+    log_warning "Could not automatically locate Sneak-Peek.app."
+    echo -n "Please drag & drop your Sneak-Peek.app here (or enter its path): "
     read -r user_path
     
     # Clean up drag-and-drop formatting (remove trailing spaces, backslashes, quotes)
@@ -86,7 +86,7 @@ else
     fi
 fi
 
-# Ensure Natively.app matches expected structure
+# Ensure Sneak-Peek.app matches expected structure
 RESOURCES_DIR="$NATIVELY_APP_PATH/Contents/Resources"
 if [ ! -d "$RESOURCES_DIR" ]; then
     log_error "The path does not appear to be a valid macOS app bundle (missing Contents/Resources): $NATIVELY_APP_PATH"
@@ -94,7 +94,7 @@ if [ ! -d "$RESOURCES_DIR" ]; then
 fi
 
 # 2. Setup temporary directory for downloading
-TEMP_DIR="$HOME/Downloads/Natively-Fallback-Models-Temp"
+TEMP_DIR="$HOME/Downloads/Sneak-Peek-Fallback-Models-Temp"
 log_info "Creating temporary download directory at: ${BOLD}$TEMP_DIR${NC}"
 mkdir -p "$TEMP_DIR"
 
@@ -169,7 +169,7 @@ for file in "${MODELS_TO_DOWNLOAD[@]}"; do
 done
 log_success "All model files downloaded successfully to temporary folder."
 
-# 5. Copy to Natively.app Resources
+# 5. Copy to Sneak-Peek.app Resources
 DEST_DIR="$RESOURCES_DIR/models"
 log_info "Preparing to install models to: ${BOLD}$DEST_DIR${NC}"
 
@@ -186,12 +186,12 @@ else
     sudo mkdir -p "$DEST_DIR"
     sudo cp -R "$TEMP_DIR/Xenova" "$DEST_DIR/"
     
-    # Ensure standard permissions so Natively can read the files
+    # Ensure standard permissions so Sneak-Peek can read the files
     sudo chmod -R 755 "$DEST_DIR"
 fi
 
 # 6. Verification
-log_info "Verifying installed model files inside Natively.app..."
+log_info "Verifying installed model files inside Sneak-Peek.app..."
 ALL_OK=true
 for rel_path in "${MODELS_TO_DOWNLOAD[@]}"; do
     FILE_PATH="$DEST_DIR/$rel_path"
@@ -206,7 +206,7 @@ if [ "$ALL_OK" = true ]; then
     echo ""
     echo -e "${GREEN}${BOLD}=====================================================${NC}"
     echo -e "${GREEN}${BOLD}  INSTALLATION SUCCESSFUL!                          ${NC}"
-    echo -e "${GREEN}${BOLD}  Please restart Natively to activate the local      ${NC}"
+    echo -e "${GREEN}${BOLD}  Please restart Sneak-Peek to activate the local      ${NC}"
     echo -e "${GREEN}${BOLD}  fallback stack.                                   ${NC}"
     echo -e "${GREEN}${BOLD}=====================================================${NC}"
 else

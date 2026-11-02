@@ -4,7 +4,7 @@
 // Chain: speaker/core_audio.rs builds a PRIVATE CoreAudio aggregate named
 // NativelySystemAudioTap to capture system audio. "Private" hides it from other
 // processes, NOT from ours — cpal's host.input_devices() enumerates it inside
-// the Natively main process while the tap is live, so it appeared in the
+// the Sneak-Peek main process while the tap is live, so it appeared in the
 // microphone dropdown and could be persisted as preferredInputDeviceId. The mic
 // channel starts BEFORE the tap is created, so every later meeting resolved a
 // device that did not exist, and Rust's resolve_input_device() hard-errors with

@@ -115,7 +115,7 @@ export const isModelAllowed = (provider: string, modelId: string, allowList: str
  * The display label for a LiteLLM-proxied model.
  *
  * TWO prefixes stack on these ids, and neither is identity:
- *   1. `litellm/` — Natively's own routing prefix. providerFamily() and
+ *   1. `litellm/` — Sneak-Peek's own routing prefix. providerFamily() and
  *      modelAvailable() (ipcHandlers.ts) key off it, so it can never be
  *      dropped from the ID; it just has no business being on screen.
  *   2. `<upstream>/` — the PROXY's own model id. Most LiteLLM configs name

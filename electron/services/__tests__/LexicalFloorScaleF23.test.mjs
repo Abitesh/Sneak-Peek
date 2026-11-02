@@ -37,7 +37,7 @@ const candidate = (text) => ({ sourceId: 'f1', fileName: 'lfw_resume.txt', text,
 describe('F23 — lexical floor is on the lexical scale', () => {
   // The exact text and query that produced the zero-result failure.
   const RESUME = 'Evin J — Resume Summary Senior product engineer with 8 years experience across '
-    + 'consumer and developer tooling. Built PriceX, a price-comparison website; scaled Natively to '
+    + 'consumer and developer tooling. Built PriceX, a price-comparison website; scaled Sneak-Peek to '
     + '10k users in the first 90 days. Founder, PriceX (2022–2024). Price-comparison website '
     + 'covering 14 retailers; sold to a strategic acquirer.';
   const QUERY = 'How many retailers did PriceX cover?';

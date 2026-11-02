@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react" // forcing refresh
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ToastProvider, ToastViewport } from "./components/ui/toast"
-import NativelyInterface from "./components/NativelyInterface"
+import SneakPeekInterface from "./components/SneakPeekInterface"
 import HindsightStatusBanner from "./components/HindsightStatusBanner"
 import SettingsPopup from "./components/SettingsPopup" // Keeping for legacy/specific window support if needed
 import Launcher from "./components/Launcher"
@@ -297,7 +297,7 @@ const App: React.FC = () => {
   const [reindexProgress, setReindexProgress] = useState<{done: number; total: number} | null>(null);
   
   // API check
-  const [hasNativelyApi, setHasNativelyApi] = useState<boolean>(false);
+  const [hasSneakPeekApi, setHasSneakPeekApi] = useState<boolean>(false);
 
   // ── Onboarding toasters now handled by OnboardingOrchestrator ──
   // (No local state for permissions / trial promo toasters.)
@@ -392,10 +392,10 @@ useEffect(() => {
   setOrchestratorUserState({
     isPremium: true,
     hasProfile,
-    hasNativelyKey: hasNativelyApi,
+    hasSneakPeekKey: hasSneakPeekApi,
     hasTrialToken: false,
   });
-}, [hasProfile, hasNativelyApi]);
+}, [hasProfile, hasSneakPeekApi]);
   // Pause the orchestrator while a foreground settings surface is open so
   // toasters never appear over the user's settings interaction.
   useEffect(() => {
@@ -490,9 +490,9 @@ useEffect(() => {
 
     // Basic status check for campaign targeting
     window.electronAPI?.profileGetStatus?.().then(s => setHasProfile(s?.hasProfile || false)).catch(() => {});
-    // Also check for Natively API key
+    // Also check for Sneak-Peek API key
     window.electronAPI?.getStoredCredentials?.()
-      .then((creds) => setHasNativelyApi(!!creds?.hasNativelyKey))
+      .then((creds) => setHasSneakPeekApi(!!creds?.hasSneakPeekKey))
       .catch(() => {});
 
     
@@ -712,7 +712,7 @@ useEffect(() => {
     try {
       localStorage.setItem('natively_last_meeting_start', Date.now().toString());
       // Self-heal a poisoned preference. Until the picker started filtering
-      // them, Natively's own system-audio tap aggregate could be enumerated as
+      // them, Sneak-Peek's own system-audio tap aggregate could be enumerated as
       // an input device (private CoreAudio aggregates are hidden from other
       // processes, not from ours) and saved here. It is not a microphone and
       // never exists at mic-start time, so every meeting failed with
@@ -721,7 +721,7 @@ useEffect(() => {
       // being shown as the user's choice in Settings forever.
       let inputDeviceId = localStorage.getItem('preferredInputDeviceId');
       if (isInternalCaptureDevice(inputDeviceId)) {
-        console.warn(`[App] Discarding saved input device "${inputDeviceId}" — it is one of Natively's own capture devices, not a microphone.`);
+        console.warn(`[App] Discarding saved input device "${inputDeviceId}" — it is one of Sneak-Peek's own capture devices, not a microphone.`);
         localStorage.removeItem('preferredInputDeviceId');
         inputDeviceId = null;
       }
@@ -761,7 +761,7 @@ useEffect(() => {
         // left on the launcher with nothing actionable. Re-open the permissions
         // card, which checks live mic/screen status, re-requests the mic, and
         // deep-links to System Settings. This is the recoverable surface for
-        // the "I press Start Natively and nothing happens" report.
+        // the "I press Start Sneak-Peek and nothing happens" report.
         if (result.code === 'mic-permission-denied') {
           // Route through the orchestrator: mark mac TCC as blocked so the
           // permissions stage becomes re-eligible.
@@ -890,7 +890,7 @@ useEffect(() => {
                 } as React.CSSProperties}
               >
                 <HindsightStatusBanner />
-                <NativelyInterface
+                <SneakPeekInterface
                   onEndMeeting={handleEndMeeting}
                   overlayOpacity={overlayOpacity}
                   interfaceTheme={meetingInterfaceTheme}
@@ -964,7 +964,7 @@ useEffect(() => {
                   }}
                   initialTab={settingsInitialTab}
                   initialIsPremium={hasLoadedLicense ? isPremiumActive : null}
-                  initialHasNativelyKey={hasNativelyApi}
+                  initialHasSneakPeekKey={hasSneakPeekApi}
                 />
                 <AnimatePresence>
                   {activeManagerPanel && (

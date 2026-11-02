@@ -5,7 +5,7 @@
 // answerable question + the answer type it should inherit from the prior turn.
 //
 // The transcript extractor already resolves demonstrative follow-ups that name a
-// topic ("how is IT developed?" → project "Natively"). This resolver covers the
+// topic ("how is IT developed?" → project "Sneak-Peek"). This resolver covers the
 // HARDER bare fragments that carry almost no signal on their own and MUST inherit
 // the prior question's subject/answer-type to route correctly — otherwise they
 // fall through to general_meeting/unknown and (worse) can pull the wrong context.
@@ -140,7 +140,7 @@ export function isSameSessionFollowUp(question: string): boolean {
 
 /**
  * A safe, mode-appropriate clarification for a bare follow-up with NO resolvable
- * prior context. NEVER says "I'm Natively / an AI assistant", never dumps profile,
+ * prior context. NEVER says "I'm Sneak-Peek / an AI assistant", never dumps profile,
  * never refuses — it asks for the missing topic. Deterministic; no LLM.
  */
 export function buildContextFreeClarification(surface?: FollowUpSurface): string {

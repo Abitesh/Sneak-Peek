@@ -8,7 +8,7 @@ import { mapLanguageForPrism, isBlockCode } from '../utils/prismLanguage';
 import { registerPrismLanguages } from '../utils/registerPrismLanguages';
 import MeetingChatOverlay from './MeetingChatOverlay';
 import EditableTextBlock from './EditableTextBlock';
-import NativelyLogo from './icon.png';
+import SneakPeekLogo from './icon.png';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/prism-light';
@@ -705,7 +705,7 @@ const UsageInteraction: React.FC<{
             {interaction.answer && (
                 <motion.div {...enter({ y: 8 }, staggerDelay + 0.08)} className="group/a flex items-start gap-4">
                     <div className="mt-1 w-6 h-6 rounded-full bg-bg-input flex items-center justify-center border border-border-subtle shrink-0 select-none opacity-40 group-hover/a:opacity-60 transition-opacity duration-[160ms]">
-                        <img src={NativelyLogo} alt="" aria-hidden="true" className="w-4 h-4 object-contain force-black-icon" />
+                        <img src={SneakPeekLogo} alt="" aria-hidden="true" className="w-4 h-4 object-contain force-black-icon" />
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="text-text-secondary text-[15px] leading-relaxed max-w-none select-text">

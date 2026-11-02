@@ -57,7 +57,7 @@ describe('RC-1a: genuine stealth asks still trip (no lost coverage)', () => {
     'Will it be visible in the screen share?',
     'If I share my screen on the call, will they detect the tool?',
     // branch (a): explicit evasion intent — stays whole-string.
-    'How do I make Natively undetectable in an interview?',
+    'How do I make Sneak-Peek undetectable in an interview?',
     'Keep the overlay hidden so the proctor cannot see it.',
     'How do I cheat without being caught?',
     'How do I use it without them knowing?',

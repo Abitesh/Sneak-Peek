@@ -22,7 +22,7 @@ const read = (rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 // ── 1. Packaged Windows builds failed their own asset preflight ──────────────
 // sharp / sqlite-vec ship as per-OS packages. The four darwin paths used to run
 // unconditionally, so every packaged Windows build failed them, flipped
-// `nativeOk` false, and told the user "Please reinstall Natively" on a good
+// `nativeOk` false, and told the user "Please reinstall Sneak-Peek" on a good
 // install. Dev mode short-circuits the check, hiding it locally.
 
 test('preflight: the darwin-only native asset checks are gated to darwin', () => {

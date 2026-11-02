@@ -5,7 +5,7 @@
  * calling the control-plane endpoint `POST {controlPlaneBaseUrl}/v1/stt/session`
  * (contract: docs/03-relay-session-token.md §2). It NEVER opens a WebSocket and
  * NEVER touches Electron windows — it returns a plain config object (or null)
- * that NativelyProSTT consumes to build its connection fallback chain.
+ * that SneakPeekProSTT consumes to build its connection fallback chain.
  *
  * Design contract (docs/01 §5, §1.3 fallback ladder):
  *   1. Client POSTs /v1/stt/session with key|trial_token + channel + hints.

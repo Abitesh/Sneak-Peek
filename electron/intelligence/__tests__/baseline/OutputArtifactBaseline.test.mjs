@@ -38,7 +38,7 @@ describe('PHASE2 baseline — answer diversity guard', () => {
   test('flags a repeated opening sentence across DIFFERENT asks', () => {
     const guard = new AnswerDiversityGuard();
     const opener = 'I bring a strong mix of engineering and product sense to the table.';
-    guard.record(`${opener} I shipped Natively.`, 'jd_fit_answer', 'why should we hire you?');
+    guard.record(`${opener} I shipped Sneak-Peek.`, 'jd_fit_answer', 'why should we hire you?');
     const verdict = guard.check(`${opener} I led the data team.`, 'experience_answer', 'what is your experience?');
     assert.equal(verdict.repeated, true);
     assert.equal(verdict.reason, 'same_first_sentence');

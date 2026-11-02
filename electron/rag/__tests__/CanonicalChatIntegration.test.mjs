@@ -7,7 +7,7 @@ const root = path.resolve(process.cwd());
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 test('normal chat UI talks to gemini-chat-stream, not rag:query-*', () => {
-  const ui = read('src/components/NativelyInterface.tsx');
+  const ui = read('src/components/SneakPeekInterface.tsx');
   assert.match(ui, /electronAPI\.streamGeminiChat\(/);
   assert.doesNotMatch(ui, /invoke\(['"]rag:query-/);
   const preload = read('electron/preload.ts');

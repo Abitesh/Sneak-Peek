@@ -5,7 +5,7 @@
 // path (src/lib/textRevealPacing.mjs) — rather than committing the whole
 // backlog to state in one shot.
 //
-// THE ORIGINAL BUG THIS PINS: NativelyInterface.tsx's onRAGStreamChunk
+// THE ORIGINAL BUG THIS PINS: SneakPeekInterface.tsx's onRAGStreamChunk
 // handler called setMessages() directly per chunk. RAG chunks stream from
 // the SAME async-generator-over-SSE mechanism as onGeminiStreamToken
 // (ipcHandlers.ts `for await (const chunk of stream) event.sender.send('rag:
@@ -59,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const source = fs.readFileSync(
-  path.resolve(__dirname, '../../components/NativelyInterface.tsx'),
+  path.resolve(__dirname, '../../components/SneakPeekInterface.tsx'),
   'utf8',
 );
 

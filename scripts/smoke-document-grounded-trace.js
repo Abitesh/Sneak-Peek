@@ -551,7 +551,7 @@ async function main() {
 
   // Set up the LLM helper to use the natively backend with the real key.
   const llmHelper = new LLMHelper();
-  llmHelper.setNativelyKey(KEY);
+  llmHelper.setSneakPeekKey(KEY);
   llmHelper.setModel('natively');
 
   // LLM factory: drive the production streamChat so we get the full

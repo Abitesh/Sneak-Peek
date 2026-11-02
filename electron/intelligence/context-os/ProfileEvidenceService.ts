@@ -2,7 +2,7 @@
 //
 // Context OS (Phase 13) — Profile Intelligence unification facade.
 //
-// Natively has two parallel profile systems (legacy manualProfileIntelligence
+// Sneak-Peek has two parallel profile systems (legacy manualProfileIntelligence
 // fast path + ProfileTree/OKF). This facade is the ONE door both must pass
 // through under the Context OS: every profile access is gated by the
 // TurnContextContract's capability grants, so a doc-grounded turn cannot

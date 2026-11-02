@@ -15,7 +15,7 @@
 - DO NOT upload any documents yet
 
 **Steps**:
-1. Open Natively chat overlay
+1. Open Sneak-Peek chat overlay
 2. Type or speak: "Hello, can you hear me?"
 3. Get the answer
 
@@ -108,16 +108,16 @@
 **Objective**: Verify provider fallback chain works
 
 **Setup**:
-- Note: May require intentionally breaking Natively API key to test
-- OR: Observe logs when Natively fails naturally
+- Note: May require intentionally breaking Sneak-Peek API key to test
+- OR: Observe logs when Sneak-Peek fails naturally
 
 **Steps**:
-1. Ask a question while Natively provider might fail (optional: disable Natively in settings)
+1. Ask a question while Sneak-Peek provider might fail (optional: disable Sneak-Peek in settings)
 2. Verify Gemini Flash-Lite is tried as fallback
 3. Check logs for provider rotation
 
 **Expected Result** ✅:
-- Natively 401 → falls back to Gemini successfully
+- Sneak-Peek 401 → falls back to Gemini successfully
 - No error message blocking the answer
 - Fallback provider streams answer
 
@@ -228,5 +228,5 @@ If all tests pass:
 
 If any critical test fails:
 1. Check browser console for errors
-2. Review logs in `~/Library/Application Support/Natively/natively.log`
+2. Review logs in `~/Library/Application Support/Sneak-Peek/natively.log`
 3. Report specific test failure with log snippet
