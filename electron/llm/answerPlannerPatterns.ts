@@ -334,6 +334,7 @@ export // ── ACTUAL SOURCE CODE evidence requests (release 2026-06-06b) ─�
 // from your codebase", "we'll cross-verify with github". Must not fabricate real
 // code. Routes to `source_code_evidence_answer`.
 const SOURCE_CODE_EVIDENCE_PATTERNS = [
+  /\b(?:show|give|provide)\s+(?:me\s+)?(?:the\s+)?(?:actual|real|exact)\s+(?:source\s+)?code\b(?=\s+(?:from|of)\s+sneak[- ]?peek\b|[?.!]?\s*$)/i,
   // "actual/real/exact code ... of NATIVELY / your repo / the codebase / github" —
   // the real code OF THE LOADED PROJECT. Requires a project/repo anchor so a
   // generic "write the exact code for binary search" stays a coding task
@@ -393,6 +394,7 @@ export // ── PRODUCT / PROJECT "what is it" questions (release 2026-06-06b) 
 // Distinct from project_answer (which lists the candidate's projects) — this is a
 // drill-in ABOUT the product the user is asking about.
 const PRODUCT_ABOUT_PATTERNS = [
+  /\bis\s+sneak[- ]?peek\s+(?:open[- ]?source|source[- ]?available)\b/i,
   /\bwhat\s+(?:is|'?s)\s+(?:sneak[- ]?peek)\b/i,
   /\bwhat\s+(?:problem|issue|pain\s?point)s?\s+(?:does|do|did)\s+(?:sneak[- ]?peek)\s+solves?\b/i,
   /\bhow\s+(?:did|do|was)\s+you\s+(?:build|develop|design|architect)\s+(?:sneak[- ]?peek)\b/i,

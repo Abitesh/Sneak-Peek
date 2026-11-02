@@ -126,7 +126,7 @@ export function extractTranscriptEntities(text: string, speakerRole?: 'interview
   // — cheap enough to check per-match, and doesn't touch the CamelCase/
   // short-answer rules (a real project name mentioned this way, e.g. "use
   // TalentScope.", has no such continuation).
-  const cued = t.match(/\b(?:tell me about|about|project called|called|use|using|back to)\s+([A-Z][a-z][a-zA-Z0-9]{2,})\b/);
+  const cued = t.match(/\b(?:tell me about|about|project called|called|use|using|back to)\s+([A-Z][a-z][a-zA-Z0-9]{2,}(?:-[a-zA-Z0-9]+)*)\b/);
   const cuedIsToolList = cued ? /^\s+and\s+[A-Z]/.test(t.slice(cued.index! + cued[0].length)) : false;
   if (cued && !cuedIsToolList && !STOP_PROPER.has(cued[1]) && !isSkillToken(cued[1]) && !out.some(e => e.value === cued[1])) out.push({ kind: 'project', value: cued[1] });
   // a SHORT candidate answer that is just a proper noun ("Sneak-Peek.") names a project.
@@ -134,7 +134,7 @@ export function extractTranscriptEntities(text: string, speakerRole?: 'interview
     const words = t.trim().replace(/[.?!,]/g, '').split(/\s+/).filter(Boolean);
     if (words.length <= 3) {
       for (const w of words) {
-        if (/^[A-Z][a-z][a-zA-Z0-9]{2,}$/.test(w) && !STOP_PROPER.has(w) && !isSkillToken(w) && !out.some(e => e.value === w)) {
+        if (/^[A-Z][a-z][a-zA-Z0-9]{2,}(?:-[a-zA-Z0-9]+)*$/.test(w) && !STOP_PROPER.has(w) && !isSkillToken(w) && !out.some(e => e.value === w)) {
           out.push({ kind: 'project', value: w });
         }
       }
@@ -167,7 +167,7 @@ export function isCorrectionTurn(text: string): boolean {
  * college" / "in the project structure" doesn't falsely relax the boundary. */
 export function isExplicitCrossModeInvite(text: string): boolean {
   const t = String(text || '');
-  return /\b(use|using|with|in|from)\s+(my|your|this|that|the)\s+(natively|project|portfolio|own (project|code|app))\b/i.test(t)
-    || /\bin natively\b/i.test(t)
+  return /\b(use|using|with|in|from)\s+(my|your|this|that|the)\s+(natively|sneak-peek|project|portfolio|own (project|code|app))\b/i.test(t)
+    || /\bin (?:natively|sneak-peek)\b/i.test(t)
     || /\bhave you (?:used|done|built|implemented|applied)\b[^.?!]*\bin\s+(your|my|this|that|the)\s+(natively|project|portfolio|app|product|work|experience)\b/i.test(t);
 }
