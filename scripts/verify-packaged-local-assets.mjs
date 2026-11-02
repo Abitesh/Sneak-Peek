@@ -41,6 +41,13 @@ const REQUIRED_MODEL_FILES = [
   'Xenova/bge-reranker-base/tokenizer.json',
   'Xenova/bge-reranker-base/tokenizer_config.json',
   'Xenova/bge-reranker-base/onnx/model_quantized.onnx',
+];
+
+// Smart Turn is an optional audio end-of-turn enhancement. The runtime has a
+// deterministic fallback when it is unavailable, and download-models.js treats
+// a blocked download as non-fatal. Keep it observable without making clean CI
+// or packaging depend on an ignored, large binary being present in the repo.
+const OPTIONAL_MODEL_FILES = [
   'pipecat-ai/smart-turn-v3/manifest.json',
   'pipecat-ai/smart-turn-v3/smart-turn-v3.1-cpu.onnx',
 ];
@@ -137,6 +144,9 @@ function verifySource() {
   console.log('[verify-packaged-local-assets] source mode');
   const modelsRoot = path.join(repoRoot, 'resources', 'models');
   for (const rel of REQUIRED_MODEL_FILES) checkFile(modelsRoot, rel, 'required model file');
+  for (const rel of OPTIONAL_MODEL_FILES) {
+    if (!exists(path.join(modelsRoot, rel))) notes.push(`optional model file missing: ${rel}`);
+  }
   for (const dir of REQUIRED_PACKAGE_DIRS) {
     if (!exists(path.join(repoRoot, dir))) errors.push(`Missing required dependency dir: ${dir} (run npm ci)`);
   }
@@ -177,6 +187,9 @@ function verifyPackaged(appArg) {
 
   const modelsRoot = path.join(resources, 'models');
   for (const rel of REQUIRED_MODEL_FILES) checkFile(modelsRoot, rel, 'packaged model file');
+  for (const rel of OPTIONAL_MODEL_FILES) {
+    if (!exists(path.join(modelsRoot, rel))) notes.push(`optional packaged model file missing: ${rel}`);
+  }
 
   const unpacked = path.join(resources, 'app.asar.unpacked');
   for (const dir of REQUIRED_PACKAGE_DIRS) {
