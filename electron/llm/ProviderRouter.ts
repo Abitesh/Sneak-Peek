@@ -636,7 +636,7 @@ export class ProviderRouter {
             'gemini': 'gemini-3.7-flash',
             'groq': 'qwen/qwen3.8-27b',
             'openai': 'gpt-4o',
-            'claude': 'claude-sonnet-4-20250514',
+            'claude': 'claude-sonnet-4-6',
             'deepseek': 'deepseek-v4-flash',
             'natively': 'default',
             'codex': 'default'

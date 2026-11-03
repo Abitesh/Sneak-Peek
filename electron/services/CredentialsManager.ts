@@ -807,6 +807,15 @@ export class CredentialsManager {
         return this.credentials.aiResponseLanguage || 'auto';
     }
     public getDefaultModel(): string {
+        // Compatibility alias: older builds persisted Claude Sonnet 4.0 as a
+        // default. Anthropic has retired that id, while the current renderer
+        // and model catalogue already use Sonnet 4.6. Resolve it at read time
+        // so an upgrade cannot stay pinned to a model that will reject calls.
+        // Do not mutate the credential file here; setDefaultModel() remains the
+        // explicit persistence boundary.
+        if (this.credentials.defaultModel === 'claude-sonnet-4-20250514') {
+            return 'claude-sonnet-4-6';
+        }
         // Default to Flash-Lite: ~0.65s first-token vs ~2.3s for full Flash on
         // the same prompt (measured), and faster output streaming — the
         // Cluely-class interactive latency target. Full Flash / Pro remain
@@ -948,52 +957,51 @@ export class CredentialsManager {
     // Setters (auto-save)
     // =========================================================================
 
-    public setGeminiApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set gemini api key')) return;
+    /**
+     * Persist one cloud-provider API key and report whether the write actually
+     * reached durable storage.  The Settings IPC must never return a false
+     * "Saved" when safeStorage/fallback persistence failed.  If the disk write
+     * fails after the in-memory mutation, roll that field back so runtime state
+     * still matches what will survive the next launch.
+     */
+    private setCloudApiKey(
+        field: 'geminiApiKey' | 'groqApiKey' | 'openaiApiKey' | 'claudeApiKey' | 'deepseekApiKey' | 'nvidiaNimApiKey',
+        key: string,
+        op: string,
+        label: string,
+    ): boolean {
+        if (this.refuseWriteWhileDegraded(op)) return false;
+        const previous = this.credentials[field];
         const trimmed = (key || '').trim();
-        this.credentials.geminiApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] Gemini API Key updated');
+        this.credentials[field] = trimmed || undefined;
+        const persisted = this.saveCredentials();
+        if (!persisted) this.credentials[field] = previous;
+        console.log(`[CredentialsManager] ${label} ${trimmed ? 'updated' : 'cleared'} (persisted=${persisted})`);
+        return persisted;
     }
 
-    public setGroqApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set groq api key')) return;
-        const trimmed = (key || '').trim();
-        this.credentials.groqApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] Groq API Key updated');
+    public setGeminiApiKey(key: string): boolean {
+        return this.setCloudApiKey('geminiApiKey', key, 'set gemini api key', 'Gemini API Key');
     }
 
-    public setOpenaiApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set openai api key')) return;
-        const trimmed = (key || '').trim();
-        this.credentials.openaiApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] OpenAI API Key updated');
+    public setGroqApiKey(key: string): boolean {
+        return this.setCloudApiKey('groqApiKey', key, 'set groq api key', 'Groq API Key');
     }
 
-    public setClaudeApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set claude api key')) return;
-        const trimmed = (key || '').trim();
-        this.credentials.claudeApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] Claude API Key updated');
+    public setOpenaiApiKey(key: string): boolean {
+        return this.setCloudApiKey('openaiApiKey', key, 'set openai api key', 'OpenAI API Key');
     }
 
-    public setDeepseekApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set deepseek api key')) return;
-        const trimmed = key.trim();
-        this.credentials.deepseekApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] DeepSeek API Key updated');
+    public setClaudeApiKey(key: string): boolean {
+        return this.setCloudApiKey('claudeApiKey', key, 'set claude api key', 'Claude API Key');
     }
 
-    public setNvidiaNimApiKey(key: string): void {
-        if (this.refuseWriteWhileDegraded('set NVIDIA NIM api key')) return;
-        const trimmed = (key || '').trim();
-        this.credentials.nvidiaNimApiKey = trimmed || undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] NVIDIA NIM API Key updated');
+    public setDeepseekApiKey(key: string): boolean {
+        return this.setCloudApiKey('deepseekApiKey', key, 'set deepseek api key', 'DeepSeek API Key');
+    }
+
+    public setNvidiaNimApiKey(key: string): boolean {
+        return this.setCloudApiKey('nvidiaNimApiKey', key, 'set NVIDIA NIM api key', 'NVIDIA NIM API Key');
     }
 
     /**
@@ -1015,19 +1023,31 @@ export class CredentialsManager {
      * maxTokens is the optional user-set output ceiling (0/undefined → default).
      * Passing an empty baseURL clears everything, disabling the provider.
      */
-    public setLitellmConfig(apiKey: string, baseURL: string, maxTokens?: number): void {
-        if (this.refuseWriteWhileDegraded('set litellm config')) return;
+    public setLitellmConfig(apiKey: string, baseURL: string, maxTokens?: number): boolean {
+        if (this.refuseWriteWhileDegraded('set litellm config')) return false;
         const trimmedURL = (baseURL || '').trim();
         const trimmedKey = (apiKey || '').trim();
-        const previousURL = (this.credentials.litellmBaseURL || '').trim();
+        const previous = {
+            apiKey: this.credentials.litellmApiKey,
+            baseURL: this.credentials.litellmBaseURL,
+            maxTokens: this.credentials.litellmMaxTokens,
+            preferredModel: this.credentials.litellmPreferredModel,
+        };
+        const previousURL = (previous.baseURL || '').trim();
         if (!trimmedURL) {
             this.credentials.litellmApiKey = undefined;
             this.credentials.litellmBaseURL = undefined;
             this.credentials.litellmMaxTokens = undefined;
             this.credentials.litellmPreferredModel = undefined;
-            this.saveCredentials();
-            console.log('[CredentialsManager] LiteLLM config cleared');
-            return;
+            const persisted = this.saveCredentials();
+            if (!persisted) {
+                this.credentials.litellmApiKey = previous.apiKey;
+                this.credentials.litellmBaseURL = previous.baseURL;
+                this.credentials.litellmMaxTokens = previous.maxTokens;
+                this.credentials.litellmPreferredModel = previous.preferredModel;
+            }
+            console.log(`[CredentialsManager] LiteLLM config cleared (persisted=${persisted})`);
+            return persisted;
         }
         // Repointing at a different proxy invalidates the default the same way it
         // invalidates the discovered-model cache (dropped by the IPC handler): the
@@ -1043,8 +1063,15 @@ export class CredentialsManager {
         this.credentials.litellmBaseURL = trimmedURL;
         const mt = Number(maxTokens);
         this.credentials.litellmMaxTokens = Number.isFinite(mt) && mt > 0 ? Math.floor(mt) : undefined;
-        this.saveCredentials();
-        console.log('[CredentialsManager] LiteLLM config updated');
+        const persisted = this.saveCredentials();
+        if (!persisted) {
+            this.credentials.litellmApiKey = previous.apiKey;
+            this.credentials.litellmBaseURL = previous.baseURL;
+            this.credentials.litellmMaxTokens = previous.maxTokens;
+            this.credentials.litellmPreferredModel = previous.preferredModel;
+        }
+        console.log(`[CredentialsManager] LiteLLM config updated (persisted=${persisted})`);
+        return persisted;
     }
 
     /**
@@ -1288,7 +1315,13 @@ export class CredentialsManager {
 
     public getPreferredModel(provider: PreferredModelProvider): string | undefined {
         const key = `${provider}PreferredModel` as keyof StoredCredentials;
-        return this.credentials[key] as string | undefined;
+        const stored = this.credentials[key] as string | undefined;
+        // Same upgrade compatibility as getDefaultModel(): a preferred model
+        // saved by an older build must not keep selecting a retired Claude id.
+        if (provider === 'claude' && stored === 'claude-sonnet-4-20250514') {
+            return 'claude-sonnet-4-6';
+        }
+        return stored;
     }
 
     public setPreferredModel(provider: PreferredModelProvider, modelId: string): void {
@@ -1561,8 +1594,10 @@ export class CredentialsManager {
     /**
      * Reject a mutation BEFORE it touches `this.credentials`.
      *
-     * 21 of the setters on this class are `void` — they mutate in-memory state,
-     * call saveCredentials(), and discard the result. Before the degraded-store
+     * Many setters on this class are still `void` — they mutate in-memory state,
+     * call saveCredentials(), and cannot surface the result. Cloud-provider setters
+     * now return a boolean, but the pre-mutation guard remains required for every path.
+     * Before the degraded-store
      * guard existed, saveCredentials() effectively always succeeded, so that was
      * harmless. Now it can refuse, and a `void` setter would leave the in-memory
      * value diverged from disk: Settings would show a key as saved that vanishes

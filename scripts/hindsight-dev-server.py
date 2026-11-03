@@ -24,23 +24,40 @@ import time
 
 PORT = int(os.environ.get("HINDSIGHT_PORT", "8888"))
 
-# Provider + key. Gemini is supported by the Hindsight server; the app already has
-# GEMINI_API_KEY. Fall back to other common keys if a different provider is preferred.
-PROVIDER = os.environ.get("HINDSIGHT_LLM_PROVIDER", "gemini")
+# Provider + key. Prefer Hindsight's canonical env names; retain the older
+# HINDSIGHT_LLM_* aliases for local developer compatibility. When a LiteLLM Router
+# config is present, the per-deployment provider keys live in the Router environment
+# and no single scalar API key is authoritative.
+ROUTER_CONFIG = os.environ.get("HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG", "").strip()
+PROVIDER = (
+    os.environ.get("HINDSIGHT_API_LLM_PROVIDER")
+    or os.environ.get("HINDSIGHT_LLM_PROVIDER")
+    or ("litellmrouter" if ROUTER_CONFIG else "gemini")
+)
+MODEL = (
+    os.environ.get("HINDSIGHT_API_LLM_MODEL")
+    or os.environ.get("HINDSIGHT_LLM_MODEL")
+    or ("default" if PROVIDER.lower() == "litellmrouter" else "gemini-3.1-flash-lite")
+)
 API_KEY = (
     os.environ.get("HINDSIGHT_API_LLM_API_KEY")
     or os.environ.get("GEMINI_API_KEY")
     or os.environ.get("GOOGLE_API_KEY")
     or os.environ.get("OPENAI_API_KEY")
+    or os.environ.get("ANTHROPIC_API_KEY")
+    or os.environ.get("DEEPSEEK_API_KEY")
+    or os.environ.get("GROQ_API_KEY")
 )
-# A sensible default Gemini model; override via HINDSIGHT_LLM_MODEL if the server
-# rejects it (the smoke test will surface that).
-MODEL = os.environ.get("HINDSIGHT_LLM_MODEL", "gemini-3.1-flash-lite")
 
-if not API_KEY:
-    print("[hindsight-dev-server] ERROR: no LLM API key found "
-          "(set GEMINI_API_KEY or HINDSIGHT_API_LLM_API_KEY).", file=sys.stderr)
+if not API_KEY and not ROUTER_CONFIG:
+    print("[hindsight-dev-server] ERROR: no LLM provider credential/config found "
+          "(save a provider key in Sneak-Peek or set HINDSIGHT_API_LLM_API_KEY).", file=sys.stderr)
     sys.exit(1)
+
+# Hindsight's Router implementation reads credentials from each LiteLLM deployment.
+# The constructor still accepts the generic api-key argument, so provide a non-secret
+# sentinel only when router mode has no scalar key. It is never sent as a provider key.
+SERVER_API_KEY = API_KEY or "router-managed"
 
 try:
     from hindsight import HindsightServer
@@ -60,11 +77,9 @@ START_TIMEOUT = float(os.environ.get("HINDSIGHT_START_TIMEOUT", "180"))
 # scripts/hindsight-llm-config.mjs), Hindsight forwards it verbatim to litellm.Router,
 # which governs model selection with automatic fallback across the provider chain
 # (Gemini → OpenAI → Claude → DeepSeek → Groq → Ollama) and retries transient errors.
-# In that case the single llm_provider/llm_model below is just a baseline; the router
-# wins. We also set Hindsight-level retry/backoff/timeout + a larger consolidation token
+# The launcher selects provider=litellmrouter and model=default whenever this config is
+# present. We also set Hindsight-level retry/backoff/timeout + a larger consolidation token
 # budget (small-context fallback models truncate consolidation JSON otherwise).
-ROUTER_CONFIG = os.environ.get("HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG", "").strip()
-
 def _set_default(name, value):
     if not os.environ.get(name):
         os.environ[name] = str(value)
@@ -92,7 +107,7 @@ def main():
     server = HindsightServer(
         llm_provider=PROVIDER,
         llm_model=MODEL,
-        llm_api_key=API_KEY,
+        llm_api_key=SERVER_API_KEY,
         port=PORT,
     )
     # Call start() explicitly so we can pass a longer timeout than the context
@@ -101,7 +116,7 @@ def main():
     try:
         url = getattr(server, "url", f"http://localhost:{PORT}")
         print(f"[hindsight-dev-server] READY at {url}")
-        print(f"[hindsight-dev-server] set HINDSIGHT_BASE_URL={url} for Natively")
+        print(f"[hindsight-dev-server] set HINDSIGHT_BASE_URL={url} for Sneak-Peek")
         print("[hindsight-dev-server] Ctrl-C to stop.")
 
         stop = {"flag": False}

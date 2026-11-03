@@ -57,12 +57,13 @@ describe('buildHindsightRouterConfig', () => {
     assert.equal(oll.litellm_params.api_base, 'http://localhost:11434', 'ollama carries api_base');
   });
 
-  test('retry + fallbacks + routing present and well-formed', () => {
+  test('Hindsight-addressable default + ordered fallback aliases are well-formed', () => {
     const cfg = buildHindsightRouterConfig({ GEMINI_API_KEY: 'g' });
-    assert.equal(cfg.num_retries, 3);
-    assert.equal(cfg.routing_strategy, 'simple-shuffle');
-    assert.ok(Array.isArray(cfg.fallbacks) && cfg.fallbacks.length >= 1, 'fallbacks present');
-    assert.ok(Array.isArray(cfg.context_window_fallbacks), 'context-window fallbacks present');
+    assert.equal(cfg.model_list[0].model_name, 'default', 'Hindsight always calls logical model default');
+    assert.deepEqual(cfg.model_list.slice(1).map((x) => x.model_name), ['fallback-1', 'fallback-2']);
+    assert.deepEqual(cfg.fallbacks, [{ default: ['fallback-1', 'fallback-2'] }]);
+    assert.deepEqual(cfg.context_window_fallbacks, [{ default: ['fallback-1', 'fallback-2'] }]);
+    assert.equal(cfg.num_retries, 0, 'Router retries are off by default because Hindsight retries operations');
     assert.equal(typeof cfg.timeout, 'number');
     // The whole thing must be JSON-serializable (it goes into an env var verbatim).
     assert.doesNotThrow(() => JSON.stringify(cfg));

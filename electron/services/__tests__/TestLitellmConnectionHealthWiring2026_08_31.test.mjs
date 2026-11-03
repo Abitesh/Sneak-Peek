@@ -166,3 +166,32 @@ describe('LiteLLM Settings UI — Test Connection button + status badge (Problem
     assert.match(body, /'degraded'/);
   });
 });
+
+
+describe('LiteLLM Base URL validation and secret-safe logging', () => {
+  const ipc = read(IPC);
+  const settings = read('src/components/settings/AIProvidersSettings.tsx');
+
+  test('main process rejects cURL text and accepts only absolute http(s) URLs before persistence/fetch', () => {
+    const start = ipc.indexOf('function normalizeLitellmBaseURL');
+    const end = ipc.indexOf("safeHandle('set-litellm-config'", start);
+    assert.ok(start >= 0 && end > start, 'normalizeLitellmBaseURL should guard the save handler');
+    const body = ipc.slice(start, end);
+    assert.match(body, /\^curl/);
+    assert.match(body, /parsed\.protocol !== 'http:' && parsed\.protocol !== 'https:'/);
+    assert.match(body, /parsed\.username \|\| parsed\.password/);
+  });
+
+  test('renderer validates before Save/Test, so malformed shell text never needs to cross IPC', () => {
+    assert.match(settings, /const validateLitellmBaseURL =/);
+    assert.match(settings, /Enter only the LiteLLM proxy URL, not a cURL command/);
+    assert.match(settings, /const validated = validateLitellmBaseURL\(litellmBaseURL\)/);
+  });
+
+  test('connection-test logs use a safe proxy origin, never the raw Base URL', () => {
+    const body = handlerSource();
+    assert.match(body, /proxy: safeLitellmLogTarget\(baseURL\)/);
+    assert.doesNotMatch(body, /\{ baseURL, status:/);
+    assert.doesNotMatch(body, /\{ baseURL, code:/);
+  });
+});

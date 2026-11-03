@@ -120,7 +120,7 @@ function claude(creds: CredentialsManager, _inputs: VisionProviderBuildInputs): 
   return {
     id: 'claude',
     displayName: 'Claude',
-    modelId: 'claude-sonnet-4-20250514',
+    modelId: 'claude-sonnet-4-6',
     isLocal: false,
     isConfigured: !!apiKey,
     supportsVision: !!apiKey,

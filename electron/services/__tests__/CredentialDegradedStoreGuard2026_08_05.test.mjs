@@ -185,8 +185,9 @@ test('a refused write does not mutate in-memory state either', () => {
   const cm2 = freshManager(env);
   assert.equal(cm2.isCredentialStoreDegraded(), true);
 
-  // A void setter (no way to report failure) must leave memory untouched.
-  cm2.setGeminiApiKey('sk-gemini-SHOULD-NOT-STICK');
+  // Cloud-provider setters now report persistence failure to Settings and must
+  // also leave memory untouched.
+  assert.equal(cm2.setGeminiApiKey('sk-gemini-SHOULD-NOT-STICK'), false);
   assert.notEqual(cm2.getGeminiApiKey(), 'sk-gemini-SHOULD-NOT-STICK',
     'a void setter must not leave an unpersisted value live in memory — the UI reads this back '
     + 'and would report a save that never reached disk');

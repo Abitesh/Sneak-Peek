@@ -38,7 +38,7 @@ describe('AIProvidersSettings credential synchronization', () => {
         'Codex model options must be added only inside a block gated on isCodexReady',
     );
     assert.doesNotMatch(source, /codexOauthStatus\.signedIn\s*\|\|\s*codexCliConfig\.enabled/, 'old signedIn || enabled availability check must not return');
-    assert.match(source, /hasStoredKey\.groq \|\| hasStoredKey\.natively \|\| \(codexCliConfig\.enabled && codexOauthStatus\.signedIn\)/, 'fast mode should not be enabled by a signed-out Codex flag');
+    assert.match(source, /hasStoredKey\.groq \|\| hasStoredKey\.sneakPeek \|\| \(codexCliConfig\.enabled && codexOauthStatus\.signedIn\)/, 'fast mode should not be enabled by a signed-out Codex flag');
   });
 
   test('unavailable current default model is not reinserted into the active-model dropdown', () => {

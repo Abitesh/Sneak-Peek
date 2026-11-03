@@ -268,7 +268,7 @@ if (chosen) litellmFallbackModel = `litellm/${chosen}`;
 const next = modelAvailable('natively') ? 'natively'
 : modelAvailable('gemini-3.7-flash') ? 'gemini-3.7-flash'
 : modelAvailable('gpt-4o') ? 'gpt-4o'
-: modelAvailable('claude-sonnet-4-20250514') ? 'claude-sonnet-4-20250514'
+: modelAvailable('claude-sonnet-4-6') ? 'claude-sonnet-4-6'
 : modelAvailable('qwen/qwen3.6-27b') ? 'qwen/qwen3.6-27b'
 : modelAvailable('deepseek-v4-flash') ? 'deepseek-v4-flash'
 : (codexConfig.enabled === true && codexSignedIn && modelAvailable('codex-cli')) ? 'codex-cli'
@@ -7610,11 +7610,15 @@ const cm = CredentialsManager.getInstance();
 // Detect a genuine change so the Hindsight restart-nudge only fires when the key
 // actually differs — re-saving the same key (common when the user edits an
 // unrelated field) shouldn't nag the user to restart the server.
-const keyChanged = cm.getGeminiApiKey() !== apiKey;
-cm.setGeminiApiKey(apiKey);
+const normalizedKey = (apiKey || '').trim();
+const keyChanged = (cm.getGeminiApiKey() || '') !== normalizedKey;
+const persisted = cm.setGeminiApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'Gemini API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 // Also update the LLMHelper immediately
 const llmHelper = appState.processingHelper.getLLMHelper();
-llmHelper.setApiKey(apiKey);
+llmHelper.setApiKey(normalizedKey);
 // CQ-06 fix: cancel any in-flight LLM stream before swapping LLM clients.
 // Use resetEngine() (NOT reset()) so session transcript is preserved mid-meeting.
 // initializeLLMs() now also calls engine.reset() internally for double-safety.
@@ -7634,7 +7638,7 @@ const ragManager = appState.getRAGManager();
 if (ragManager) {
 ragManager.initializeEmbeddings({
 openaiKey: cm.getOpenaiApiKey() || undefined,
-geminiKey: apiKey || undefined,
+geminiKey: normalizedKey || undefined,
 ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
 providerDataScopes: (() => { try { const { SettingsManager } = require('./services/SettingsManager'); return SettingsManager.getInstance().get('providerDataScopes'); } catch { return undefined; } })(),
 explicitKeyManagement: true,
@@ -7660,11 +7664,15 @@ safeHandle('set-groq-api-key', async (_, apiKey: string) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
-const keyChanged = cm.getGroqApiKey() !== apiKey;
-cm.setGroqApiKey(apiKey);
+const normalizedKey = (apiKey || '').trim();
+const keyChanged = (cm.getGroqApiKey() || '') !== normalizedKey;
+const persisted = cm.setGroqApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'Groq API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 // Also update the LLMHelper immediately
 const llmHelper = appState.processingHelper.getLLMHelper();
-llmHelper.setGroqApiKey(apiKey);
+llmHelper.setGroqApiKey(normalizedKey);
 // CQ-06 fix: cancel in-flight stream before re-init (engine only, not session)
 appState.getIntelligenceManager().resetEngine();
 // Re-init IntelligenceManager
@@ -7685,11 +7693,15 @@ safeHandle('set-openai-api-key', async (_, apiKey: string) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
-const keyChanged = cm.getOpenaiApiKey() !== apiKey;
-cm.setOpenaiApiKey(apiKey);
+const normalizedKey = (apiKey || '').trim();
+const keyChanged = (cm.getOpenaiApiKey() || '') !== normalizedKey;
+const persisted = cm.setOpenaiApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'OpenAI API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 // Also update the LLMHelper immediately
 const llmHelper = appState.processingHelper.getLLMHelper();
-llmHelper.setOpenaiApiKey(apiKey);
+llmHelper.setOpenaiApiKey(normalizedKey);
 // CQ-06 fix: cancel in-flight stream before re-init (engine only, not session)
 appState.getIntelligenceManager().resetEngine();
 // Re-init IntelligenceManager
@@ -7702,7 +7714,7 @@ if (keyChanged) {
 const ragManager = appState.getRAGManager();
 if (ragManager) {
 ragManager.initializeEmbeddings({
-openaiKey: apiKey || undefined,
+openaiKey: normalizedKey || undefined,
 geminiKey: cm.getGeminiApiKey() || undefined,
 ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
 providerDataScopes: (() => { try { const { SettingsManager } = require('./services/SettingsManager'); return SettingsManager.getInstance().get('providerDataScopes'); } catch { return undefined; } })(),
@@ -7727,11 +7739,15 @@ safeHandle('set-claude-api-key', async (_, apiKey: string) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
-const keyChanged = cm.getClaudeApiKey() !== apiKey;
-cm.setClaudeApiKey(apiKey);
+const normalizedKey = (apiKey || '').trim();
+const keyChanged = (cm.getClaudeApiKey() || '') !== normalizedKey;
+const persisted = cm.setClaudeApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'Claude API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 // Also update the LLMHelper immediately
 const llmHelper = appState.processingHelper.getLLMHelper();
-llmHelper.setClaudeApiKey(apiKey);
+llmHelper.setClaudeApiKey(normalizedKey);
 // CQ-06 fix: cancel in-flight stream before re-init (engine only, not session)
 appState.getIntelligenceManager().resetEngine();
 // Re-init IntelligenceManager
@@ -7752,11 +7768,15 @@ safeHandle('set-deepseek-api-key', async (_, apiKey: string) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
-const keyChanged = cm.getDeepseekApiKey() !== apiKey;
-cm.setDeepseekApiKey(apiKey);
+const normalizedKey = (apiKey || '').trim();
+const keyChanged = (cm.getDeepseekApiKey() || '') !== normalizedKey;
+const persisted = cm.setDeepseekApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'DeepSeek API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 // Also update the LLMHelper immediately
 const llmHelper = appState.processingHelper.getLLMHelper();
-llmHelper.setDeepseekApiKey(apiKey);
+llmHelper.setDeepseekApiKey(normalizedKey);
 // Cancel in-flight stream before re-init (engine only, not session)
 appState.getIntelligenceManager().resetEngine();
 // Re-init IntelligenceManager
@@ -7779,7 +7799,10 @@ const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
 const normalizedKey = (apiKey || '').trim();
 const keyChanged = cm.getNvidiaNimApiKey() !== normalizedKey;
-cm.setNvidiaNimApiKey(normalizedKey);
+const persisted = cm.setNvidiaNimApiKey(normalizedKey);
+if (!persisted) {
+return { success: false, error: 'NVIDIA NIM API key could not be saved to credential storage. The existing saved key was left unchanged.' };
+}
 appState.processingHelper.getLLMHelper().setNvidiaNimApiKey(normalizedKey);
 // One NVIDIA key backs BOTH the chat provider and speech recognition
 // (verified: the same nvapi- credential authenticates integrate.api
@@ -7809,6 +7832,42 @@ broadcastCredentialsChanged();
 return { success: true, sttProviderCleared: sttWasNvidia };
 } catch (error: any) { return { success: false, error: error.message }; }
 });
+/**
+ * Validate and canonicalize a LiteLLM OpenAI-compatible base URL.
+ *
+ * Settings previously accepted arbitrary pasted shell text. That meant a whole
+ * `curl ... -H "Authorization: ..."` command could be persisted as the URL,
+ * then echoed by fetch/log errors. Only an absolute http(s) endpoint is valid.
+ * Empty remains valid because it is the explicit Remove/disable operation.
+ */
+function normalizeLitellmBaseURL(raw: unknown): { ok: true; value: string } | { ok: false; error: string } {
+const value = typeof raw === 'string' ? raw.trim() : '';
+if (!value) return { ok: true, value: '' };
+if (/\r|\n/.test(value) || /^curl(?:\s|$)/i.test(value)) {
+return { ok: false, error: 'Enter only the LiteLLM proxy URL, not a cURL command.' };
+}
+try {
+const parsed = new URL(value);
+if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+return { ok: false, error: 'LiteLLM Base URL must start with http:// or https://.' };
+}
+if (parsed.username || parsed.password) {
+return { ok: false, error: 'Do not put credentials in the LiteLLM Base URL. Use the Virtual Key field.' };
+}
+if (parsed.search || parsed.hash) {
+return { ok: false, error: 'LiteLLM Base URL cannot contain query parameters or a fragment.' };
+}
+parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+return { ok: true, value: parsed.toString().replace(/\/$/, '') };
+} catch {
+return { ok: false, error: 'Enter a valid LiteLLM proxy URL such as http://localhost:4000/v1.' };
+}
+}
+
+function safeLitellmLogTarget(baseURL: string): string {
+try { return new URL(baseURL).origin; } catch { return '[invalid LiteLLM URL]'; }
+}
+
 safeHandle('set-litellm-config', async (_, config: { apiKey: string; baseURL: string; maxTokens?: number }) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
@@ -7821,9 +7880,11 @@ const cm = CredentialsManager.getInstance();
 const prevKey = cm.getLitellmApiKey() || '';
 const prevUrl = cm.getLitellmBaseURL() || '';
 const prevMaxTokens = cm.getLitellmMaxTokens();
-const newUrl = config?.baseURL || '';
+const normalizedURL = normalizeLitellmBaseURL(config?.baseURL);
+if (!normalizedURL.ok) return { success: false, error: normalizedURL.error };
+const newUrl = normalizedURL.value;
 const requestedKey = config?.apiKey || '';
-const effectiveNewKey = newUrl.trim() ? (requestedKey.trim() || prevKey) : '';
+const effectiveNewKey = newUrl ? (requestedKey.trim() || prevKey) : '';
 const requestedMaxTokens = Number(config?.maxTokens);
 const effectiveNewMaxTokens = Number.isFinite(requestedMaxTokens) && requestedMaxTokens > 0
 ? Math.floor(requestedMaxTokens)
@@ -7831,12 +7892,15 @@ const effectiveNewMaxTokens = Number.isFinite(requestedMaxTokens) && requestedMa
 const changed = prevKey !== effectiveNewKey
 || prevUrl !== newUrl
 || (prevMaxTokens || undefined) !== effectiveNewMaxTokens;
-cm.setLitellmConfig(requestedKey, newUrl, config?.maxTokens);
+const persisted = cm.setLitellmConfig(requestedKey, newUrl, config?.maxTokens);
+if (!persisted) {
+return { success: false, error: 'LiteLLM configuration could not be saved to credential storage. The existing saved configuration was left unchanged.' };
+}
 // The discovered-model cache belongs to one specific proxy. Drop it when the
 // proxy is removed (its models would otherwise keep appearing in the picker
 // with nothing behind them) or when the URL changes (they belong to the old
 // host). A same-URL re-save keeps the cache so the picker stays populated.
-if (!newUrl.trim() || prevUrl !== newUrl) {
+if (!newUrl || prevUrl !== newUrl) {
 cm.setLitellmModels([]);
 }
 // Update the LLMHelper with the EFFECTIVE stored key — a blank apiKey on
@@ -7876,9 +7940,9 @@ const discoverLitellmModels = async (timeoutMs: number): Promise<string[]> => {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
 // No proxy configured -> don't probe localhost:4000 at all.
-const configuredURL = (cm.getLitellmBaseURL() || '').trim();
-if (!configuredURL) return [];
-const baseURL = configuredURL.replace(/\/+$/, '');
+const configuredURL = normalizeLitellmBaseURL(cm.getLitellmBaseURL());
+if (!configuredURL.ok || !configuredURL.value) return [];
+const baseURL = configuredURL.value;
 const apiKey = cm.getLitellmApiKey();
 const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
@@ -7957,9 +8021,14 @@ return { code: 'UNKNOWN_ERROR', message: err?.message || 'LiteLLM connection tes
 safeHandle('test-litellm-connection', async (_, config?: { baseURL?: string; apiKey?: string }) => {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const creds = CredentialsManager.getInstance();
-const baseURL = (config?.baseURL?.trim() || creds.getLitellmBaseURL() || '').replace(/\/+$/, '');
+const requestedBaseURL = config?.baseURL?.trim() || creds.getLitellmBaseURL() || '';
+const normalizedURL = normalizeLitellmBaseURL(requestedBaseURL);
 const apiKey = config?.apiKey?.trim() || creds.getLitellmApiKey() || '';
 const now = Date.now();
+if (!normalizedURL.ok) {
+return { success: false, error: normalizedURL.error };
+}
+const baseURL = normalizedURL.value;
 if (!baseURL) {
 return { success: false, error: 'No LiteLLM proxy configured' };
 }
@@ -7972,7 +8041,7 @@ try {
 const resp = await fetch(`${baseURL}/models`, { method: 'GET', headers, signal: AbortSignal.timeout(8000) });
 if (!resp.ok) {
 const normalized = normalizeLitellmError('list', resp.status, null);
-console.error('LiteLLM connection test failed (list):', { baseURL, status: resp.status });
+console.error('LiteLLM connection test failed (list):', { proxy: safeLitellmLogTarget(baseURL), status: resp.status });
 const health: ProviderHealth = { status: 'disconnected', authOk: false, lastProbeAt: now, lastError: normalized, models: [] };
 creds.setProviderHealth('litellm', health);
 return { success: false, error: normalized.message, health };
@@ -7980,7 +8049,7 @@ return { success: false, error: normalized.message, health };
 const data: any = await resp.json();
 fetchedIds = (data?.data || []).map((m: any) => m?.id).filter(Boolean);
 } catch (error: any) {
-console.error('LiteLLM connection test failed (list):', { baseURL, code: error?.code, message: error?.message });
+console.error('LiteLLM connection test failed (list):', { proxy: safeLitellmLogTarget(baseURL), code: error?.code, message: error?.message });
 const normalized = normalizeLitellmError('list', undefined, error);
 const health: ProviderHealth = { status: 'disconnected', authOk: false, lastProbeAt: now, lastError: normalized, models: [] };
 creds.setProviderHealth('litellm', health);
@@ -9623,15 +9692,23 @@ const PREFERRED_PROBE_MODELS: Record<string, string[]> = {
 gemini: ['gemini-3.7-flash'],
 groq: [...(require('./llm/groqModels').GROQ_TEXT_MODEL_LADDER as string[])],
 openai: ['gpt-4o', 'gpt-4o-mini'],
-claude: ['claude-sonnet-4-20250514', 'claude-opus-4-1'],
+claude: ['claude-sonnet-4-6'],
 deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
 nvidia_nim: ['meta/llama-3.1-8b-instruct', 'z-ai/glm4.7'],
 };
+function providerProbeModelId(provider: string, modelId: string): string {
+// modelFetcher intentionally prefixes NVIDIA ids for the app's routing layer,
+// while NVIDIA's OpenAI-compatible API expects the provider's bare model id.
+return provider === 'nvidia_nim' ? modelId.replace(/^nvidia_nim\//, '') : modelId;
+}
 /** Up to 2 model ids to chat-probe, preferred ones first, then whatever the catalog actually returned. */
 function pickProbeCandidates(provider: string, fetchedIds: string[]): string[] {
-const preferred = (PREFERRED_PROBE_MODELS[provider] || []).filter((id) => fetchedIds.includes(id));
-const rest = fetchedIds.filter((id) => !preferred.includes(id));
-return [...preferred, ...rest].slice(0, 2);
+const preferred = PREFERRED_PROBE_MODELS[provider] || [];
+const preferredFetched = preferred
+.map((wanted) => fetchedIds.find((id) => providerProbeModelId(provider, id) === wanted))
+.filter((id): id is string => !!id);
+const rest = fetchedIds.filter((id) => !preferredFetched.includes(id));
+return [...preferredFetched, ...rest].slice(0, 2);
 }
 /** Sends one minimal chat request to `modelId`. Throws (axios shape) on any failure — auth, rate limit, or model-gone alike; the caller classifies. */
 async function probeChatModel(provider: string, apiKey: string, modelId: string): Promise<void> {
@@ -9657,9 +9734,10 @@ return;
 }
 const url = OPENAI_COMPAT_CHAT_URL[provider];
 if (!url) throw new Error(`No chat probe endpoint for provider: ${provider}`);
+const upstreamModelId = providerProbeModelId(provider, modelId);
 await axios.post(
 url,
-{ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 10 },
+{ model: upstreamModelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 10 },
 { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 15000 },
 );
 }
@@ -9668,7 +9746,7 @@ function isProbeModelGone(provider: string, err: any): boolean {
 if (provider === 'groq') return (require('./llm/groqModels').isGroqModelGone as (e: any) => boolean)(err);
 const status = err?.response?.status;
 const msg = String(err?.response?.data?.error?.message || err?.response?.data?.message || '').toLowerCase();
-return status === 404 || msg.includes('model not found') || msg.includes('does not exist');
+return status === 404 || msg.includes('model not found') || msg.includes('does not exist') || msg.includes('unknown model') || msg.includes('model unavailable') || msg.includes('not available');
 }
 safeHandle(
 'test-llm-connection',
@@ -9725,6 +9803,7 @@ return { success: false, error: sanitizeErrorMessage(normalized.message), health
 const candidates = pickProbeCandidates(provider, fetched.map((m) => m.id));
 let probedId: string | null = null;
 let probeError: any = null;
+let failedProbeId: string | null = null;
 // Candidates rejected as model-gone are known-bad, not merely
 // unprobed — they must not inherit the catalog's default chat:true.
 const goneIds = new Set<string>();
@@ -9736,6 +9815,7 @@ probeError = null;
 break;
 } catch (err: any) {
 probeError = err;
+failedProbeId = candidate;
 // Only advance to the next candidate on a model-gone-style failure;
 // an auth or rate-limit error fails identically on every candidate.
 if (!isProbeModelGone(provider, err)) break;
@@ -9763,7 +9843,11 @@ authOk: true,
 lastProbeAt: now,
 lastError: probeError
 ? (() => {
-const n = normalizeProviderError(provider, probeError);
+const n = normalizeProviderError(
+provider,
+probeError,
+failedProbeId ? providerProbeModelId(provider, failedProbeId) : undefined,
+);
 return { code: n.category, message: n.message };
 })()
 : { code: 'NO_MODELS', message: 'No chat-capable models were returned for this key.' },

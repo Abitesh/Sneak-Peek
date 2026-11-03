@@ -357,19 +357,25 @@ test('LLM key setter source normalizes empty string to undefined (M-2 follow-up 
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../CredentialsManager.ts'),
     'utf8',
   );
-  // The 4 LLM key setters that originally stored `''` verbatim. setNativelyApiKey
-  // and setDeepseekApiKey already had the trim pattern before this work.
-  const LLM_KEY_SETTERS = ['setGeminiApiKey', 'setGroqApiKey', 'setOpenaiApiKey', 'setClaudeApiKey'];
+  // WORK-0009 centralizes cloud-key persistence so every provider gets the same
+  // trim/empty/rollback semantics instead of duplicating that logic six times.
+  const helperStart = src.indexOf('private setCloudApiKey(');
+  assert.ok(helperStart >= 0, 'setCloudApiKey helper must exist');
+  const helperEnd = src.indexOf('\n    public ', helperStart + 1);
+  const helperBody = src.slice(helperStart, helperEnd > helperStart ? helperEnd : helperStart + 1600);
+  assert.match(helperBody, /const trimmed = \(key \|\| ''\)\.trim\(\)/, 'helper trims all cloud keys');
+  assert.match(helperBody, /this\.credentials\[field\] = trimmed \|\| undefined/, 'helper normalizes empty input to undefined');
+
+  const LLM_KEY_SETTERS = [
+    'setGeminiApiKey', 'setGroqApiKey', 'setOpenaiApiKey',
+    'setClaudeApiKey', 'setDeepseekApiKey', 'setNvidiaNimApiKey',
+  ];
   for (const setter of LLM_KEY_SETTERS) {
     const idx = src.indexOf(`public ${setter}(`);
     assert.ok(idx >= 0, `${setter} must exist in source`);
     const end = src.indexOf('\n    public ', idx + 1);
     const body = end > idx ? src.slice(idx, end) : src.slice(idx, idx + 500);
-    assert.match(
-      body,
-      /trimmed\s*\|\|\s*undefined/,
-      `${setter} must normalize empty input to undefined (M-2 follow-up to STT key setters)`,
-    );
+    assert.match(body, /return this\.setCloudApiKey\(/, `${setter} must use the shared normalization/persistence helper`);
   }
 });
 
@@ -378,11 +384,11 @@ test('LLM key setters: empty-string resave clears the stored key (M-2 behavioral
   env.state.keyringAvailable = false;
 
   const cm = freshManager(env);
-  cm.setGeminiApiKey('AIza-real-gemini-LIVE-1234567890');
+  assert.equal(cm.setGeminiApiKey('AIza-real-gemini-LIVE-1234567890'), true, 'successful cloud-key save must be acknowledged');
   assert.equal(cm.getGeminiApiKey(), 'AIza-real-gemini-LIVE-1234567890');
 
   // User cleared the field (or it was a programmatic '' call from a future IPC).
-  cm.setGeminiApiKey('');
+  assert.equal(cm.setGeminiApiKey(''), true, 'successful cloud-key clear must be acknowledged');
   const cm2 = freshManager(env);
   assert.equal(cm2.getGeminiApiKey(), undefined, 'empty resave must clear the persisted LLM key');
 });
@@ -393,7 +399,7 @@ test('local-whisper is in the set-stt-provider IPC + preload + types unions (P4 
     'utf8',
   );
   // The handler signature must include 'local-whisper'.
-  const handlerStart = ipc.indexOf("safeHandle(\n    'set-stt-provider'");
+  const handlerStart = ipc.search(/safeHandle\(\s*['\"]set-stt-provider['\"]/);
   assert.ok(handlerStart >= 0, 'set-stt-provider IPC handler must exist');
   const handlerEnd = ipc.indexOf("safeHandle(", handlerStart + 1);
   const handlerBlock = handlerEnd > handlerStart ? ipc.slice(handlerStart, handlerEnd) : ipc.slice(handlerStart, handlerStart + 1500);

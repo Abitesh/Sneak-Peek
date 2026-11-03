@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the Hindsight embedded dev server WITH Natively's LLM provider chain + fallback.
+# Start the Hindsight embedded dev server WITH Sneak-Peek's LLM provider chain + fallback.
 #
 # 1. Loads GEMINI_API_KEY (+ any other provider keys) from .env.
 # 2. Generates the litellm.Router config (Gemini→OpenAI→Claude→DeepSeek→Groq→Ollama,
@@ -69,6 +69,12 @@ echo "[hindsight-start] using python: $PYTHON_BIN ($("$PYTHON_BIN" --version 2>&
 ROUTER_JSON="$(node scripts/hindsight-llm-config.mjs 2>/dev/null || true)"
 if [ -n "$ROUTER_JSON" ]; then
   export HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG="$ROUTER_JSON"
+  # Supplying a Router config is not enough by itself: Hindsight selects that
+  # implementation only when the provider is explicitly `litellmrouter`, and it
+  # always calls logical model `default`. Without these two settings the server
+  # keeps verifying its direct Gemini baseline and the fallback chain is inert.
+  export HINDSIGHT_API_LLM_PROVIDER=litellmrouter
+  export HINDSIGHT_API_LLM_MODEL=default
   echo "[hindsight-start] router chain: $(echo "$ROUTER_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).model_list.map(m=>m.litellm_params.model).join(" -> "))}catch{console.log("(parse error)")}})')"
 else
   echo "[hindsight-start] no provider keys → single-model default (Gemini)"

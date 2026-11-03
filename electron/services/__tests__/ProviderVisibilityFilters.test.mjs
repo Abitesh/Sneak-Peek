@@ -24,7 +24,7 @@ const SETTINGS = 'src/components/settings/AIProvidersSettings.tsx';
 
 function modelAvailableSource() {
     const src = read(IPC);
-    const start = src.indexOf('      const modelAvailable = (modelId: string): boolean => {');
+    const start = src.indexOf('const modelAvailable = (modelId: string): boolean => {');
     assert.ok(start >= 0, 'modelAvailable() should exist in ipcHandlers');
     // Anchor on the CALL, not the whole line. The line has already grown a guard
     // clause once ('!_isRetiredGroqId(defaultModel) && ...', 2026-08-23) and
@@ -39,7 +39,7 @@ test('modelAvailable() applies the visibility filters BEFORE the credential arms
     const body = modelAvailableSource();
     const disabledAt = body.indexOf('getDisabledProviders');
     const allowListAt = body.indexOf('getCloudEnabledModels');
-    const firstCredentialAt = body.indexOf('getNativelyApiKey');
+    const firstCredentialAt = body.indexOf('getSneakPeekApiKey');
 
     assert.ok(disabledAt >= 0, 'should consult disabledProviders');
     assert.ok(allowListAt >= 0, 'should consult the per-provider allow-list');
@@ -69,9 +69,9 @@ test('an empty allow-list means "all models allowed" — no sentinel model id is
 
 test('providerFamily() resolves custom-provider ids last, by identity', () => {
     const src = read(IPC);
-    const start = src.indexOf('      const providerFamily = (modelId: string): string => {');
+    const start = src.indexOf('const providerFamily = (modelId: string): string => {');
     assert.ok(start >= 0, 'providerFamily() should exist');
-    const body = src.slice(start, src.indexOf("        return 'unknown';", start));
+    const body = src.slice(start, src.indexOf("return 'unknown';", start));
 
     // Custom provider ids are arbitrary strings, so the identity lookup has to be
     // the final check — otherwise a custom id that happens to start with a
@@ -89,7 +89,7 @@ test('providerFamily() resolves custom-provider ids last, by identity', () => {
 
 test('reconciliation installs nothing when every candidate is filtered out', () => {
     const src = read(IPC);
-    const start = src.indexOf("      const next = modelAvailable('natively') ? 'natively'");
+    const start = src.indexOf("const next = modelAvailable('natively') ? 'natively'");
     assert.ok(start >= 0, 'the replacement chain should route through modelAvailable()');
     const body = src.slice(start, src.indexOf('llmHelper.setModel(next, allProviders);', start));
 
@@ -174,17 +174,17 @@ test('CredentialsManager persists both filters and documents the empty-list cont
 
 test('LiteLLM model discovery is cache-first and never probes an unconfigured proxy', () => {
     const src = read(IPC);
-    const start = src.indexOf('  const discoverLitellmModels = async');
+    const start = src.indexOf('const discoverLitellmModels = async');
     assert.ok(start >= 0, 'discoverLitellmModels() should exist');
-    const discover = src.slice(start, src.indexOf("  safeHandle('get-available-litellm-models'", start));
+    const discover = src.slice(start, src.indexOf("safeHandle('get-available-litellm-models'", start));
 
     // With no proxy configured we must not fall back to localhost:4000 — that
     // burned a connection attempt on every model-picker open.
-    assert.match(discover, /if \(!configuredURL\) return \[\];/);
+    assert.match(discover, /if \(!configuredURL\.ok \|\| !configuredURL\.value\) return \[\];/);
     assert.match(discover, /cm\.setLitellmModels\(models\)/, 'a successful discovery should populate the cache');
 
-    const handlerStart = src.indexOf("  safeHandle('get-available-litellm-models'");
-    const handler = src.slice(handlerStart, src.indexOf('  safeHandle(', handlerStart + 10));
+    const handlerStart = src.indexOf("safeHandle('get-available-litellm-models'");
+    const handler = src.slice(handlerStart, src.indexOf('safeHandle(', handlerStart + 10));
     // Cache first. The cold-start fetch is the fallback, not the default path:
     // this handler feeds ModelSelectorWindow (the overlay dropdown), which must
     // not block on a network round-trip once a cache exists.
@@ -196,12 +196,12 @@ test('LiteLLM model discovery is cache-first and never probes an unconfigured pr
 
 test('the LiteLLM model cache is dropped when its proxy changes or is removed', () => {
     const src = read(IPC);
-    const start = src.indexOf("  safeHandle('set-litellm-config'");
+    const start = src.indexOf("safeHandle('set-litellm-config'");
     assert.ok(start >= 0);
     const body = src.slice(start, start + 4000);
     // A cache belongs to one proxy. Keeping it after the URL changes (or the
     // proxy is removed) leaves models in the picker with nothing behind them.
-    assert.match(body, /if \(!newUrl\.trim\(\) \|\| prevUrl !== newUrl\) \{\s*\n\s*cm\.setLitellmModels\(\[\]\);/);
+    assert.match(body, /if \(!newUrl \|\| prevUrl !== newUrl\) \{\s*\n\s*cm\.setLitellmModels\(\[\]\);/);
 });
 
 test('no native confirm() survives in the AI Providers settings surface', () => {

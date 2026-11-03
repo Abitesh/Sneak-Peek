@@ -1,15 +1,15 @@
 // scripts/hindsight-llm-config.mjs
 //
 // Builds the litellm.Router config JSON that Hindsight consumes via
-// HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG. This is Natively's LLM provider chain +
+// HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG. This is Sneak-Peek's LLM provider chain +
 // automatic retry/fallback for Hindsight's memory operations (fact extraction on
 // retain, synthesis on reflect) — so a memory op always gets an answer even when the
 // primary model/provider fails.
 //
 // HOW IT WORKS (no Python/adapter code — pure config):
-//   Hindsight (config.py) parses this JSON and forwards it VERBATIM to
-//   litellm.Router(**config). litellm.Router natively rotates through `model_list` on
-//   failure (`fallbacks`) and retries transient errors (`num_retries`). litellm reads
+//   Hindsight parses this JSON and forwards it to litellm.Router(**config). Hindsight
+//   calls logical model `default`; explicit fallback aliases preserve our provider order.
+//   litellm reads
 //   each provider's key from the standard env var (GEMINI_API_KEY, OPENAI_API_KEY, …),
 //   so a model entry is only useful when its key is present — we gate inclusion on that.
 //
@@ -24,7 +24,7 @@
 //   node scripts/hindsight-llm-config.mjs            # prints the router JSON for current env
 //   import { buildHindsightRouterConfig } from './hindsight-llm-config.mjs'
 
-const MODEL_NAME = 'hindsight-llm'; // the single logical model the chain resolves; litellm rotates entries
+const PRIMARY_MODEL_NAME = 'default'; // Hindsight always calls this logical deployment name.
 
 /**
  * Ordered provider→model table. Each provider lists its models best-first (per-provider
@@ -84,7 +84,7 @@ function providerTable(env) {
  * (caller should keep the single-model default). Pure — no IO.
  */
 export function buildHindsightRouterConfig(env = process.env) {
-  const model_list = [];
+  const deployments = [];
   for (const p of providerTable(env)) {
     const available = p.key ? Boolean(env[p.key] && String(env[p.key]).trim()) : Boolean(env[p.enabledBy]);
     if (!available) continue;
@@ -92,21 +92,32 @@ export function buildHindsightRouterConfig(env = process.env) {
       if (!model) continue;
       const litellm_params = { model };
       if (p.apiBase) litellm_params.api_base = p.apiBase;
-      model_list.push({ model_name: MODEL_NAME, litellm_params });
+      deployments.push({ litellm_params });
     }
   }
-  if (model_list.length === 0) return null;
+  if (deployments.length === 0) return null;
 
-  const numRetries = Number(env.HINDSIGHT_LLM_NUM_RETRIES) || 3;
+  // Hindsight's litellmrouter provider always sends completions to model_name
+  // "default". Give only the first deployment that name, then make every later
+  // provider/model an explicit fallback alias. The previous config named every
+  // deployment "hindsight-llm", so Hindsight never addressed the router's logical
+  // model at all and continued verifying its direct Gemini baseline instead.
+  const model_list = deployments.map((entry, index) => ({
+    model_name: index === 0 ? PRIMARY_MODEL_NAME : `fallback-${index}`,
+    litellm_params: entry.litellm_params,
+  }));
+  const fallbackNames = model_list.slice(1).map((entry) => entry.model_name);
+
+  const parsedRetries = Number(env.HINDSIGHT_LLM_NUM_RETRIES);
+  // Hindsight already performs operation-level retries. Router retries are off by
+  // default to avoid multiplying retry delays before the explicit fallback chain.
+  const numRetries = Number.isFinite(parsedRetries) && parsedRetries >= 0 ? parsedRetries : 0;
   const timeout = Number(env.HINDSIGHT_LLM_TIMEOUT) || 30;
   return {
     model_list,
-    // litellm rotates to the NEXT model_list entry sharing this name on failure.
-    fallbacks: [{ [MODEL_NAME]: [MODEL_NAME] }],
-    // Also fall through on context-window-exceeded (a small fallback model can punt up).
-    context_window_fallbacks: [{ [MODEL_NAME]: [MODEL_NAME] }],
+    ...(fallbackNames.length ? { fallbacks: [{ [PRIMARY_MODEL_NAME]: fallbackNames }] } : {}),
+    ...(fallbackNames.length ? { context_window_fallbacks: [{ [PRIMARY_MODEL_NAME]: fallbackNames }] } : {}),
     num_retries: numRetries,
-    routing_strategy: 'simple-shuffle',
     timeout,
   };
 }

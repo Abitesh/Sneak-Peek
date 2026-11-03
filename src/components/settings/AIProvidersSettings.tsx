@@ -3085,17 +3085,54 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
             if (result && result.success) {
                 setSavedStatus(prev => ({ ...prev, [provider]: true }));
                 setHasStoredKey(prev => ({ ...prev, [provider]: true }));
+                setTestError(prev => ({ ...prev, [provider]: '' }));
                 setter('');
                 setTimeout(() => setSavedStatus(prev => ({ ...prev, [provider]: false })), 2000);
                 // Verify the key actually works right away, instead of leaving the
                 // card showing "Saved" for a key that turns out to be invalid until
                 // the user thinks to press Test Connection themselves.
                 handleTestConnection(provider, key).catch(() => {});
+            } else {
+                // Do not silently swallow a persistence failure. The main process now
+                // returns success only after CredentialsManager confirms durable storage.
+                setSavedStatus(prev => ({ ...prev, [provider]: false }));
+                setTestStatus(prev => ({ ...prev, [provider]: 'error' }));
+                setTestError(prev => ({
+                    ...prev,
+                    [provider]: result?.error || t('The API key could not be saved. Your previously saved key was left unchanged.'),
+                }));
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(`Failed to save ${provider} key:`, e);
+            setSavedStatus(prev => ({ ...prev, [provider]: false }));
+            setTestStatus(prev => ({ ...prev, [provider]: 'error' }));
+            setTestError(prev => ({ ...prev, [provider]: e?.message || t('The API key could not be saved.') }));
         } finally {
             setSavingStatus(prev => ({ ...prev, [provider]: false }));
+        }
+    };
+
+    const validateLitellmBaseURL = (raw: string): { ok: true; value: string } | { ok: false; error: string } => {
+        const value = raw.trim();
+        if (!value) return { ok: false, error: t('Enter the LiteLLM proxy Base URL.') };
+        if (/\r|\n/.test(value) || /^curl(?:\s|$)/i.test(value)) {
+            return { ok: false, error: t('Enter only the LiteLLM proxy URL, not a cURL command.') };
+        }
+        try {
+            const parsed = new URL(value);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                return { ok: false, error: t('LiteLLM Base URL must start with http:// or https://.') };
+            }
+            if (parsed.username || parsed.password) {
+                return { ok: false, error: t('Put credentials in Virtual Key, not in the Base URL.') };
+            }
+            if (parsed.search || parsed.hash) {
+                return { ok: false, error: t('LiteLLM Base URL cannot contain query parameters or a fragment.') };
+            }
+            parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+            return { ok: true, value: parsed.toString().replace(/\/$/, '') };
+        } catch {
+            return { ok: false, error: t('Enter a valid LiteLLM proxy URL, for example http://localhost:4000/v1.') };
         }
     };
 
@@ -3103,8 +3140,13 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
     // so it can't use the single-key ProviderCard contract. baseURL is required
     // to enable the proxy; maxTokens empty → backend default (8192).
     const handleSaveLitellm = async () => {
-        const url = litellmBaseURL.trim();
-        if (!url) return;
+        const validated = validateLitellmBaseURL(litellmBaseURL);
+        if (!validated.ok) {
+            setTestStatus(prev => ({ ...prev, litellm: 'error' }));
+            setTestError(prev => ({ ...prev, litellm: validated.error }));
+            return;
+        }
+        const url = validated.value;
         setSavingStatus(prev => ({ ...prev, litellm: true }));
         try {
             const parsedMax = parseInt(litellmMaxTokens, 10);
@@ -3114,6 +3156,7 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
                 maxTokens: Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : undefined,
             });
             if (result && result.success) {
+                setLitellmBaseURL(url);
                 setSavedStatus(prev => ({ ...prev, litellm: true }));
                 setHasStoredKey(prev => ({ ...prev, litellm: true }));
                 setLitellmApiKey('');
@@ -3227,8 +3270,18 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
     // card renders the same Verified/Disconnected/Degraded vocabulary as every
     // cloud provider (Problem 20).
     const handleTestLitellmConnection = async () => {
-        const url = litellmBaseURL.trim();
-        if (!url && !hasStoredKey.litellm) return;
+        const rawUrl = litellmBaseURL.trim();
+        if (!rawUrl && !hasStoredKey.litellm) return;
+        let url = rawUrl;
+        if (rawUrl) {
+            const validated = validateLitellmBaseURL(rawUrl);
+            if (!validated.ok) {
+                setTestStatus(prev => ({ ...prev, litellm: 'error' }));
+                setTestError(prev => ({ ...prev, litellm: validated.error }));
+                return;
+            }
+            url = validated.value;
+        }
         setTestStatus(prev => ({ ...prev, litellm: 'testing' }));
         setTestError(prev => ({ ...prev, litellm: '' }));
         try {

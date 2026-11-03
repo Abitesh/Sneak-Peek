@@ -88,7 +88,7 @@ const BASELINE_MODELS: Record<ModelFamily, string> = {
   [ModelFamily.OPENAI]: 'gpt-4o',
   [ModelFamily.GEMINI_FLASH]: 'gemini-3.7-flash',
   [ModelFamily.GEMINI_PRO]: 'gemini-3.1-pro-preview',
-  [ModelFamily.CLAUDE]: 'claude-sonnet-4-20250514',
+  [ModelFamily.CLAUDE]: 'claude-sonnet-4-6',
   // Groq retired llama-4-scout on 2026-07-17. qwen3.8-27b is the current model
   // in Groq's catalogue that accepts image input. The enum key stays
   // GROQ_LLAMA because it is the persisted state key — renaming it would
@@ -101,7 +101,7 @@ const TEXT_BASELINE_MODELS: Record<TextModelFamily, string> = {
   [TextModelFamily.OPENAI]: 'gpt-4o',
   [TextModelFamily.GEMINI_FLASH]: 'gemini-3.7-flash',
   [TextModelFamily.GEMINI_PRO]: 'gemini-3.1-pro-preview',
-  [TextModelFamily.CLAUDE]: 'claude-sonnet-4-20250514',
+  [TextModelFamily.CLAUDE]: 'claude-sonnet-4-6',
   // Groq retired llama-3.3-70b-versatile on 2026-08-16.
   [TextModelFamily.GROQ]: 'qwen/qwen3.8-27b',
 };

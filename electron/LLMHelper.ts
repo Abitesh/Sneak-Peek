@@ -138,7 +138,7 @@ import { GROQ_VISION_MODEL } from './llm/groqModels'
 // provider here takes as many as we send, so the cap lives on the Groq path.
 const GROQ_VISION_MAX_IMAGES = 5
 const OPENAI_MODEL = "gpt-4o"
-const CLAUDE_MODEL = "claude-sonnet-4-20250514"
+const CLAUDE_MODEL = "claude-sonnet-4-6"
 const DEEPSEEK_MODEL = "deepseek-v4-flash"
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 const NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"

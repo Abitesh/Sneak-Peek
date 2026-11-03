@@ -28,9 +28,11 @@ const IPC = 'electron/ipcHandlers.ts';
 
 function handlerSource() {
   const src = read(IPC);
-  const start = src.indexOf("    'test-llm-connection',");
-  assert.ok(start >= 0, 'test-llm-connection handler should exist');
-  const end = src.indexOf("  safeHandle('get-provider-health'", start);
+  const marker = "'test-llm-connection',";
+  const markerAt = src.indexOf(marker);
+  assert.ok(markerAt >= 0, 'test-llm-connection handler should exist');
+  const start = src.lastIndexOf('safeHandle(', markerAt);
+  const end = src.indexOf("safeHandle('get-provider-health'", markerAt);
   assert.ok(end > start, 'the handler should be followed by get-provider-health');
   return src.slice(start, end);
 }
@@ -80,7 +82,7 @@ test('the response returns models + health alongside success/error (renderer pic
 test('errors are normalized via ProviderErrorNormalizer, not raw axios messages', () => {
   const body = handlerSource();
   assert.match(body, /normalizeProviderError\(provider, error\)/);
-  assert.match(body, /normalizeProviderError\(provider, probeError\)/);
+  assert.match(body, /normalizeProviderError\([\s\S]*provider,[\s\S]*probeError,[\s\S]*failedProbeId/);
 });
 
 test('a model-gone probe failure advances to the next candidate; other failures (auth/rate-limit) do not', () => {
@@ -94,4 +96,22 @@ test('get-provider-health reads from CredentialsManager, not a fresh/empty objec
   assert.ok(start >= 0, 'get-provider-health handler should exist');
   const body = src.slice(start, start + 300);
   assert.match(body, /getAllProviderHealth\(\)/);
+});
+
+
+test('NVIDIA probe removes the internal nvidia_nim/ routing prefix before the upstream request', () => {
+  const src = read(IPC);
+  assert.match(src, /provider === 'nvidia_nim' \? modelId\.replace\(\/\^nvidia_nim\\\//);
+  const probeStart = src.indexOf('async function probeChatModel');
+  const probeEnd = src.indexOf('function isProbeModelGone', probeStart);
+  const probe = src.slice(probeStart, probeEnd);
+  assert.match(probe, /const upstreamModelId = providerProbeModelId\(provider, modelId\)/);
+  assert.match(probe, /model: upstreamModelId/);
+});
+
+test('degraded health normalizes the actual failed probe id instead of reporting model unknown', () => {
+  const body = handlerSource();
+  assert.match(body, /let failedProbeId: string \| null = null/);
+  assert.match(body, /failedProbeId = candidate/);
+  assert.match(body, /failedProbeId \? providerProbeModelId\(provider, failedProbeId\) : undefined/);
 });

@@ -57,13 +57,17 @@ export function normalizeProviderError(
 ): NormalizedProviderError {
   const message = error?.message || String(error) || 'Unknown error';
   const statusCode = error?.status || error?.statusCode || error?.response?.status;
-  const rawMessage = error?.response?.data?.error?.message || message;
+  const rawMessage = error?.response?.data?.error?.message || error?.response?.data?.message || message;
+  // Axios' top-level message is often only "Request failed with status code
+  // 400". Provider-specific details live in response.data.error.message, so
+  // classification must consider both while still returning controlled text.
+  const classificationMessage = `${message} ${rawMessage}`;
 
   // Authenticate error patterns
   if (
     statusCode === 401 ||
-    /unauthorized|unauthenticated|invalid.*key|invalid.*credential|authentication.*failed/i.test(message) ||
-    /invalid.*api.*key|api.*key.*invalid|api.*key.*missing|api.*key.*not.*found/i.test(message)
+    /unauthorized|unauthenticated|invalid.*key|invalid.*credential|authentication.*failed/i.test(classificationMessage) ||
+    /invalid.*api.*key|api.*key.*invalid|api.*key.*missing|api.*key.*not.*found/i.test(classificationMessage)
   ) {
     return {
       provider,
@@ -76,13 +80,28 @@ export function normalizeProviderError(
     };
   }
 
+  // A valid-looking key can still be forbidden by account/workspace policy.
+  // Keep this distinct from INVALID_API_KEY so the UI does not tell the user
+  // to re-enter a credential when the provider is actually denying access.
+  if (statusCode === 403 || /permission[_ ]?denied|forbidden|not authorized/i.test(classificationMessage)) {
+    return {
+      provider,
+      model,
+      category: 'AUTHENTICATION_ERROR',
+      message: "Provider access was forbidden. Check this API key's permissions and account access.",
+      rawMessage,
+      statusCode,
+      retryable: false,
+    };
+  }
+
   // No credits / insufficient quota
   if (
     statusCode === 429 && provider === 'gemini' ||
-    /insufficient|quota|credit|account.*limit|plan.*limit|exceeds|limit.*reached/i.test(message) ||
-    /rate.*limit.*exceeded|exceeded.*limit|too.*many.*request/i.test(message)
+    /insufficient|quota|credit|account.*limit|plan.*limit|exceeds|limit.*reached/i.test(classificationMessage) ||
+    /rate.*limit.*exceeded|exceeded.*limit|too.*many.*request/i.test(classificationMessage)
   ) {
-    if (/credit|insufficient.*quota|account.*limit|plan.*limit/i.test(message)) {
+    if (/credit|insufficient.*quota|account.*limit|plan.*limit/i.test(classificationMessage)) {
       return {
         provider,
         model,
@@ -111,8 +130,8 @@ export function normalizeProviderError(
   // Model not found
   if (
     statusCode === 404 ||
-    /model.*not.*found|model.*not.*exist|unknown.*model|model.*unavailable/i.test(message) ||
-    /does.*not.*exist|not.*found|404/i.test(message)
+    /model.*not.*found|model.*not.*exist|unknown.*model|model.*unavailable/i.test(classificationMessage) ||
+    /does.*not.*exist|not.*found|404/i.test(classificationMessage)
   ) {
     return {
       provider,
@@ -130,7 +149,7 @@ export function normalizeProviderError(
     error?.code === 'ECONNABORTED' ||
     error?.code === 'ETIMEDOUT' ||
     error?.code === 'ENOTFOUND' ||
-    /timeout|timed out|time out|connect.*error|network.*error|econnrefused/i.test(message)
+    /timeout|timed out|time out|connect.*error|network.*error|econnrefused/i.test(classificationMessage)
   ) {
     return {
       provider,
@@ -154,6 +173,21 @@ export function normalizeProviderError(
       statusCode,
       retryable: true,
       retryAfterMs: 10000,
+    };
+  }
+
+  // Provider validation errors are commonly HTTP 400 with the useful reason
+  // only in response.data.error.message (not error.message). Surface that
+  // controlled provider text instead of the unhelpful Axios status sentence.
+  if (statusCode && statusCode >= 400 && statusCode < 500 && rawMessage && rawMessage !== message) {
+    return {
+      provider,
+      model,
+      category: 'UNKNOWN_ERROR',
+      message: `Provider rejected the request: ${rawMessage}`,
+      rawMessage,
+      statusCode,
+      retryable: false,
     };
   }
 
