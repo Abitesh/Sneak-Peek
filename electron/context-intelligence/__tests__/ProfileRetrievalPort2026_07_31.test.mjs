@@ -113,13 +113,14 @@ describe('registration and authorization', () => {
     }
   });
 
-  test('only looking-for-work and technical-interview opt in; all others stay attachment-only', async () => {
+  test('general, looking-for-work and technical-interview opt in; other modes stay attachment-only', async () => {
     const { MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
     assert.deepEqual([...MODE_POLICIES['looking-for-work'].profileSources].sort(),
       ['JOB_DESCRIPTION', 'PROFILE_FACT', 'RESUME']);
     assert.deepEqual([...MODE_POLICIES['technical-interview'].profileSources].sort(),
       ['JOB_DESCRIPTION', 'RESUME']);
-    for (const id of ['general', 'sales', 'recruiting', 'team-meet', 'lecture', 'seminar']) {
+    assert.deepEqual([...MODE_POLICIES.general.profileSources].sort(), ['PROFILE_FACT', 'RESUME']);
+    for (const id of ['sales', 'recruiting', 'team-meet', 'lecture', 'seminar']) {
       assert.deepEqual(MODE_POLICIES[id].profileSources, [], `${id} must not hydrate the profile`);
     }
   });

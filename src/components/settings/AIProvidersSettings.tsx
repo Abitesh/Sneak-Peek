@@ -3069,7 +3069,7 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
         if (!key.trim()) return;
         setSavingStatus(prev => ({ ...prev, [provider]: true }));
         try {
-            let result;
+            let result: { success: boolean; error?: string } | undefined;
             // @ts-ignore
             if (provider === 'gemini') result = await window.electronAPI.setGeminiApiKey(key);
             // @ts-ignore

@@ -431,7 +431,8 @@ test('O — provider fallback happens before commit and yields one visible answe
   assert.deepEqual(result.attempts.map((attempt) => attempt.provider), ['gemini_flash', 'groq']);
   assert.equal(result.committedProvider, 'groq');
   assert.equal(result.status, 'completed');
-  assert.equal(result.attempts.filter((attempt) => attempt.status === 'committed').length, 1);
+  assert.deepEqual(result.attempts.map((attempt) => attempt.status), ['failed', 'succeeded']);
+  assert.equal(result.lifecycle.state, 'COMPLETED');
 });
 
 // P. STOP

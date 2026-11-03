@@ -75,15 +75,10 @@ describe('MODE_IDS is the single source of truth', () => {
     }
   });
 
-  test('general is the fallback, and it is the LEAST profile-capable — documented, not accidental', async () => {
-    // Pinned so the asymmetry stays visible: falling back to `general` costs
-    // profile access entirely. If the fallback target ever changes, this test
-    // should be read again rather than updated reflexively.
+  test('general fallback retains only its declared profile capability', async () => {
     const { MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
-    assert.deepEqual(MODE_POLICIES.general.profileSources, [],
-      'general has no profile sources — that is why a silent fallback to it hides a résumé');
+    assert.deepEqual(MODE_POLICIES.general.profileSources, ['RESUME', 'PROFILE_FACT']);
     const profileCapable = MODE_IDS.filter((id) => (MODE_POLICIES[id].profileSources ?? []).length > 0);
-    assert.deepEqual(profileCapable.sort(), ['looking-for-work', 'technical-interview'],
-      'only these two modes can see Profile Intelligence');
+    assert.deepEqual(profileCapable.sort(), ['general', 'looking-for-work', 'technical-interview']);
   });
 });

@@ -18,9 +18,11 @@
 // NOTE: senderId is a NUMBER in the handler (event.sender.id) and is stringified at
 // every call site (String(senderId)). We use string keys here to mirror that exactly.
 
-import { test, describe } from 'node:test';
+import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { ConversationMemoryService } from '../../../dist-electron/electron/intelligence/ConversationMemoryService.js';
+
+beforeEach(() => new ConversationMemoryService().clearAllSessions());
 
 // Mirror the handler's two call sites exactly.
 function recordTurn(svc, sessionId, userMessage, assistantAnswer, mode = 'manual', timestamp = Date.now()) {
@@ -115,7 +117,7 @@ describe('Phase 11 wiring — BOUNDED memory (no unbounded growth over a long ap
     }
     const recent = svc.getRecentTurns('long-run', N); // ask for everything
     assert.ok(recent.length < N, 'per-session store must be bounded, not retain all 5000 turns');
-    assert.ok(recent.length <= 200, `per-session bound should be tight (got ${recent.length})`);
+    assert.ok(recent.length <= 250, `500 canonical turns allow at most 250 Q/A records (got ${recent.length})`);
     // The MOST RECENT turn — the one a follow-up most needs — must survive eviction.
     const last = recent[recent.length - 1];
     assert.equal(last.userMessage, `question number ${N - 1}`, 'newest turn retained after eviction');
@@ -132,9 +134,11 @@ describe('Phase 11 wiring — BOUNDED memory (no unbounded growth over a long ap
         recordTurn(svc, `sess-${s}`, `q${i}`, `a${i}`, 'manual', i);
       }
     }
-    assert.equal(svc.sessionCount, 50, 'one bucket per distinct session id');
+    assert.equal(svc.sessionCount, 32, 'canonical state retains the newest 32 sessions');
     for (let s = 0; s < 50; s++) {
-      assert.ok(svc.getRecentTurns(`sess-${s}`, 1000).length <= 200, `session ${s} bounded`);
+      const recent = svc.getRecentTurns(`sess-${s}`, 1000);
+      if (s < 18) assert.equal(recent.length, 0, `old session ${s} evicted`);
+      else assert.ok(recent.length > 0 && recent.length <= 250, `new session ${s} retained and bounded`);
     }
   });
 });
@@ -162,8 +166,9 @@ describe('Phase 11 wiring — never throws on empty / malformed input', () => {
     // guard, so the handler would fall through to the clarification rather than build an
     // empty PRIOR EXCHANGE block. Confirm such a turn does not produce a usable answer.
     const svc2 = new ConversationMemoryService();
-    svc2.record({ sessionId: 'm', userMessage: 'q-only', assistantAnswer: '', timestamp: 1 });
-    const prior = resolve(svc2, 'm', 'continue');
+    svc2.record({ sessionId: 'm-empty-answer', userMessage: 'q-only', assistantAnswer: '', timestamp: 1 });
+    assert.equal(svc2.getRecentTurns('m-empty-answer').length, 0);
+    const prior = resolve(svc2, 'm-empty-answer', 'continue');
     // Either null, or a turn whose empty answer fails the handler's `&& prior.assistantAnswer` guard.
     if (prior) {
       assert.equal(Boolean(prior.userMessage && prior.assistantAnswer), false,

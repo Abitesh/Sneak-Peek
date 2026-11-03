@@ -103,8 +103,8 @@ export function sourceTypeForFile(
   const shape = classifyDocShape(fileName, content);
 
   if (shape === 'resume') {
-    if (can('RESUME')) return 'RESUME';
     if (can('CANDIDATE_FILE')) return 'CANDIDATE_FILE';
+    if (can('RESUME')) return 'RESUME';
   }
   if (shape === 'job_description' && can('JOB_DESCRIPTION')) return 'JOB_DESCRIPTION';
 

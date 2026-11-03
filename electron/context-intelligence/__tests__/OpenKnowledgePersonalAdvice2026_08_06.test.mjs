@@ -110,8 +110,9 @@ describe('generic first/second-person advice does not deny fresh OPEN_KNOWLEDGE 
     for (const modeId of ['general', 'team-meet']) {
       const r = classify('Should I negotiate my salary?', modeId);
       assert.ok(r.questionTypes.includes('PERSONAL_EXPERIENCE'), `${modeId}: ${r.questionTypes.join(',')}`);
-      assert.ok(r.unsupportedInMode.length > 0,
-        'the source-authority verdict is unchanged — the mode still cannot evidence this');
+      if (modeId === 'team-meet') assert.ok(r.unsupportedInMode.length > 0);
+      else assert.equal(r.unsupportedInMode.length, 0,
+        'general may request profile evidence; the absent evidence still cannot support personal claims');
     }
   });
 
@@ -121,7 +122,7 @@ describe('generic first/second-person advice does not deny fresh OPEN_KNOWLEDGE 
     // licenses a general answer, never an invented fact about the user.
     const r = classify('What are my strengths?', 'general', false);
     assert.ok(r.questionTypes.includes('PERSONAL_EXPERIENCE'), `got: ${r.questionTypes.join(',')}`);
-    assert.ok(r.unsupportedInMode.length > 0, 'no-profile self facts must not be invented');
+    assert.equal(r.unsupportedInMode.length, 0, 'general authorizes profile retrieval when needed');
 
     const p = await composed('What are my strengths?', 'general');
     assert.match(p.user, /Do not invent source-specific facts/);

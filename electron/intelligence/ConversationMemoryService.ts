@@ -138,6 +138,21 @@ export class ConversationMemoryService {
   /** Record a delivered Q/A pair into the canonical structured turn store. */
   record(turn: ConversationTurn): StoredTurn {
     const timestamp = Number.isFinite(turn.timestamp) ? turn.timestamp : Date.now();
+    const userMessage = String(turn.userMessage ?? '').trim();
+    const assistantAnswer = String(turn.assistantAnswer ?? '').trim();
+    // An incomplete exchange is not a prior answer. In particular, persisting
+    // a placeholder assistant turn would make a later follow-up cite it.
+    if (!userMessage || !assistantAnswer) {
+      return {
+        ...turn,
+        userMessage,
+        assistantAnswer,
+        timestamp,
+        id: `memory_skipped_${Date.now()}`,
+        summary: summarize(userMessage, assistantAnswer),
+        entities: turn.entities ?? entitiesOf(`${userMessage} ${assistantAnswer}`),
+      };
+    }
     const existing = getRecentConversationTurns(turn.sessionId, 4);
 
     // V3 already records the user turn before generation and the assistant turn
@@ -181,7 +196,7 @@ export class ConversationMemoryService {
     try {
       userTurn = appendMemoryTurn({
         sessionId: turn.sessionId,
-        text: String(turn.userMessage ?? '').trim() || '[empty user turn]',
+        text: userMessage,
         role: 'user',
         speaker: 'user',
         timestamp,
@@ -192,7 +207,7 @@ export class ConversationMemoryService {
       });
       const assistantTurn = appendMemoryTurn({
         sessionId: turn.sessionId,
-        text: String(turn.assistantAnswer ?? '').trim() || '[empty assistant answer]',
+        text: assistantAnswer,
         role: 'assistant',
         speaker: 'assistant',
         timestamp: timestamp + 1,

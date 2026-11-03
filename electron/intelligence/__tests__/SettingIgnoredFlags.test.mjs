@@ -9,7 +9,7 @@
 //
 // Mechanism under test: SettingsManager.getInstance() (electron/intelligence/
 // intelligenceFlags.ts's readSettingOverride) is anchored on the
-// `globalThis.__nativelySettingsManagerV1__` singleton slot (see e.g.
+// `globalThis.__sneakPeekSettingsManagerV1__` singleton slot (see e.g.
 // ScreenUnderstandingModeEnforcement2026_08_01.test.mjs / HindsightManager.test.mjs for
 // the same pattern) — getInstance() hands back whatever already occupies that slot
 // without ever calling `new SettingsManager()`, so a plain fake `{ get(key) {...} }`
@@ -22,7 +22,7 @@ import {
   __resetIntelligenceFlagsCache,
 } from '../../../dist-electron/electron/intelligence/intelligenceFlags.js';
 
-const SETTINGS_SLOT = '__nativelySettingsManagerV1__';
+const SETTINGS_SLOT = '__sneakPeekSettingsManagerV1__';
 const ENV_KEYS = [
   'NATIVELY_MEETING_SUMMARY_V3',
   'NATIVELY_FOLLOWUP_DRAFT_V2',

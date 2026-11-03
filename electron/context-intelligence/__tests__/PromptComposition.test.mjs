@@ -316,8 +316,8 @@ describe('personaBase composition', () => {
 
 describe('unsupported-in-mode notice names the remedy (2026-08-02)', () => {
   test('a personal question in a profile-less mode answers generally, without a coaching template', () => {
-    // general does not authorize RESUME/PROFILE_FACT — the mode-less chat case
-    // that produced a coaching template with bracket placeholders.
+    // General now authorizes profile retrieval, but no profile is present in
+    // this fixture, so the prompt must still avoid invented personal facts.
     //
     // 2026-08-07: the remedy ("switch to a profile-enabled mode") and the
     // blanket "do not answer from general knowledge" became STRICT-only. They
@@ -330,7 +330,7 @@ describe('unsupported-in-mode notice names the remedy (2026-08-02)', () => {
       scope: { userId: 'u1' }, sessionId: 's-intro',
       manualQuestion: 'Can you tell me about yourself?',
     });
-    assert.equal(d.retrievalPlan.shouldRetrieve, false, d.retrievalPlan.reason);
+    assert.equal(d.retrievalPlan.shouldRetrieve, true, d.retrievalPlan.reason);
     const p = composePrompt({
       decision: d, policy: MODE_POLICIES.general, evidence: [],
       attachedSourceCount: 0, profileSourceCount: 0,
@@ -341,7 +341,7 @@ describe('unsupported-in-mode notice names the remedy (2026-08-02)', () => {
       'a mode-switch remedy is bad advice for a turn that is about to be answered');
     assert.match(p.user, /Answer the question itself helpfully from general knowledge/);
     assert.match(p.user, /Do not invent source-specific facts/);
-    assert.match(p.user, /never present general knowledge as a fact about them/);
+    assert.match(p.user, /state nothing as a fact about the user/);
   });
 
   test('the same turn under "Only answer from references" keeps the remedy and the refusal', () => {
