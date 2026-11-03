@@ -13,6 +13,7 @@
 import type { ContextSource } from './ContextTypes';
 import type { SneakPeekEvidenceItem } from './types';
 import type { RagSearchResult } from '../../rag/storage/RagStorageTypes';
+import type { RetrievalCapability, RetrievalCapabilityRequest } from './RetrievalCoordinator';
 
 export type CanonicalRagSource = 'meeting' | 'mode' | 'personal';
 
@@ -21,7 +22,10 @@ export interface CanonicalRagReadInput {
   sourceType: CanonicalRagSource;
   sourceId?: string;
   scopeId?: string;
+  sessionId?: string;
   limit: number;
+  tokenBudget?: number;
+  projectFilesOnly?: boolean;
   signal?: AbortSignal;
 }
 
@@ -35,25 +39,33 @@ export interface CanonicalRagRetrievalAdapterOptions {
   /** Must perform a source-scoped canonical read; it must not re-plan sources. */
   read: (input: CanonicalRagReadInput) => Promise<CanonicalRagReadOutput>;
   /** ContextSource chosen by ContextPlanner/RetrievalCoordinator. */
-  source: Extract<ContextSource, 'meeting_transcript' | 'mode_documents' | 'personal_knowledge'>;
+  source: Extract<ContextSource, 'meeting_transcript' | 'mode_documents' | 'personal_knowledge' | 'my_files'>;
   sourceType: CanonicalRagSource;
   limit?: number;
-  resolveScope?: (input: { request: unknown; contextPlan: unknown }) => {
+  tokenBudget?: number;
+  resolveScope?: (input: Pick<RetrievalCapabilityRequest, 'request' | 'contextPlan'>) => {
     sourceId?: string;
     scopeId?: string;
   };
 }
 
-export interface CanonicalRagCapabilityInput {
-  query: string;
-  signal?: AbortSignal;
-  request: unknown;
-  contextPlan: unknown;
-}
-
 function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: number): SneakPeekEvidenceItem | null {
   const content = String(result.chunk?.text ?? '').trim();
   if (!content) return null;
+  const chunkMetadata = result.chunk?.metadata ?? {};
+  const sourceDocumentId = String(result.chunk?.documentId ?? result.source?.id ?? '');
+  const canonicalDocumentId = typeof chunkMetadata.canonicalDocumentId === 'string'
+    ? chunkMetadata.canonicalDocumentId
+    : undefined;
+  const canonicalRevisionId = typeof chunkMetadata.canonicalRevisionId === 'string'
+    ? chunkMetadata.canonicalRevisionId
+    : undefined;
+  const canonicalContentHash = typeof chunkMetadata.canonicalContentHash === 'string'
+    ? chunkMetadata.canonicalContentHash
+    : undefined;
+  const sourceLocator = typeof chunkMetadata.sourceLocator === 'string'
+    ? chunkMetadata.sourceLocator
+    : undefined;
 
   return {
     id: String(result.chunk?.id ?? result.source?.id ?? `${source}-${index}`),
@@ -62,8 +74,15 @@ function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: n
     score: Number(result.rerankScore ?? result.rrfScore ?? result.semanticScore ?? result.score ?? 0),
     metadata: {
       sourceId: String(result.source?.id ?? result.chunk?.documentId ?? ''),
+      sourceDocumentId,
       sourceType: result.source?.sourceType,
-      documentId: String(result.chunk?.documentId ?? ''),
+      documentId: canonicalDocumentId ?? sourceDocumentId,
+      canonicalDocumentId,
+      canonicalRevisionId,
+      canonicalChunkId: canonicalDocumentId ? result.chunk?.id : undefined,
+      canonicalContentHash,
+      contentHash: canonicalContentHash,
+      sourceLocator,
       documentName: String(result.source?.name ?? ''),
       page: result.chunk?.pageStart,
       pageEnd: result.chunk?.pageEnd,
@@ -72,19 +91,16 @@ function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: n
       timestampStart: result.chunk?.timestampStart,
       timestampEnd: result.chunk?.timestampEnd,
       chunkIndex: result.chunk?.chunkIndex,
-      canonicalChunkId: result.chunk?.id,
-      canonicalRevisionId: result.chunk?.metadata?.revisionId,
-      contentHash: result.chunk?.metadata?.contentHash,
       retrievalSource: 'canonical-rag-adapter',
     },
   };
 }
 
 /** Build a RetrievalCoordinator-compatible capability without granting it source-selection authority. */
-export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetrievalAdapterOptions) {
+export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetrievalAdapterOptions): RetrievalCapability {
   return {
     source: options.source,
-    async retrieve(input: CanonicalRagCapabilityInput) {
+    async retrieve(input: RetrievalCapabilityRequest) {
       if (input.signal?.aborted) return { items: [], metadata: { cancelled: true } };
 
       const scope = options.resolveScope?.({ request: input.request, contextPlan: input.contextPlan }) ?? {};
@@ -93,7 +109,9 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
         sourceType: options.sourceType,
         sourceId: scope.sourceId,
         scopeId: scope.scopeId,
+        sessionId: input.request.sessionId,
         limit: Math.max(1, Math.min(50, Math.floor(options.limit ?? 8))),
+        tokenBudget: Math.max(1, Math.floor(options.tokenBudget ?? 1800)),
         signal: input.signal,
       });
 

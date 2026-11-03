@@ -175,6 +175,24 @@ excludeCustomContext?: boolean;
 /** Existing Mode follow-up referent hint forwarded through ModeRagAdapter. */
 followUpReferentHint?: string;
 }
+
+export interface PlannedCanonicalSourceReadInput {
+query: string;
+sourceType: 'meeting' | 'mode' | 'personal';
+sourceId?: string;
+scopeId?: string;
+sessionId?: string;
+limit?: number;
+tokenBudget?: number;
+projectFilesOnly?: boolean;
+signal?: AbortSignal;
+}
+
+export interface PlannedCanonicalSourceReadResult {
+results: RagSearchResult[];
+usedCanonical: boolean;
+fallbackReason: 'disabled' | 'empty' | 'error' | null;
+}
 /**
 * A bare `for await` over an LLM stream blocks forever if the provider hangs
 * mid-stream (no token, no error, no close) — this is the exact mechanism
@@ -833,6 +851,122 @@ hasQuestionSpecificRelevance(query, [result.chunk as any], this.retriever.detect
 if (!relevantResults.length) return [];
 const usable = new Set(decision.usableEvidenceIds);
 return relevantResults.filter((result, index) => usable.has(`rag-manager:${String(result.chunk.id ?? index)}`));
+}
+
+/**
+ * CHG-17 planned-source boundary.
+ *
+ * ContextPlanner and RetrievalCoordinator have already selected and authorized
+ * this one source family. This method therefore never invokes RagQueryPlanner
+ * or RAGManager.search(). It reuses the canonical read, the selected source's
+ * existing fallback adapter, common dedupe/rerank, and the relevance gate.
+ */
+public async readPlannedCanonicalSource(
+input: PlannedCanonicalSourceReadInput,
+): Promise<PlannedCanonicalSourceReadResult> {
+const cancelled = (): PlannedCanonicalSourceReadResult => ({
+results: [],
+usedCanonical: false,
+fallbackReason: null,
+});
+if (input.signal?.aborted) return cancelled();
+
+const query = String(input.query ?? '').trim();
+if (!query) return cancelled();
+const rerankActive = isRagRerankEnabled();
+const { topK, candidatePoolSize, rerankCandidatePoolSize } = resolveCanonicalRerankLimits({
+topK: input.limit,
+candidatePoolSize: input.limit,
+rerankCandidatePoolSize: input.limit,
+rerankActive,
+});
+const tokenBudget = Math.max(1, input.tokenBudget ?? 1800);
+const options: RAGSearchOptions = {
+sessionId: input.sessionId,
+meetingId: input.sourceType === 'meeting' ? input.sourceId : undefined,
+modeId: input.sourceType === 'mode' ? input.scopeId : undefined,
+topK,
+candidatePoolSize,
+rerankCandidatePoolSize,
+tokenBudget,
+allowRerank: true,
+projectFilesOnly: input.projectFilesOnly === true,
+};
+const conversation = isRagConversationAwareEnabled()
+? this.getConversationForRetrieval(input.sessionId)
+: undefined;
+const fallback = async (): Promise<RagSearchResult[]> => {
+let results: RagSearchResult[];
+if (input.sourceType === 'meeting') {
+results = await this.meetingAdapter.retrieve({ query, options, candidatePoolSize, tokenBudget, conversation });
+} else if (input.sourceType === 'mode') {
+results = await this.modeAdapter.retrieve({ query, options, candidatePoolSize, tokenBudget });
+} else {
+results = await this.personalAdapter.retrieve({ query, options, candidatePoolSize });
+}
+return input.signal?.aborted ? [] : results;
+};
+
+// Canonical personal storage does not yet prove the legacy
+// personal + fileType=project filter. Keep project-only reads on the existing
+// filtered adapter until that equivalence is separately verified in CHG-17.
+const canonicalReadEnabled = isIntelligenceFlagEnabled('canonicalRagRead')
+&& rerankActive
+&& input.projectFilesOnly !== true;
+let readResult: PlannedCanonicalSourceReadResult;
+if (!canonicalReadEnabled) {
+readResult = { results: await fallback(), usedCanonical: false, fallbackReason: 'disabled' };
+} else {
+const canonicalQueryEmbed = await this.resolveCanonicalQueryEmbedding(query);
+if (input.signal?.aborted) return cancelled();
+const canonicalRead = new CanonicalRagReadService(new CanonicalRagStorage(this.db));
+readResult = await canonicalRead.readSource({
+query,
+sourceType: input.sourceType,
+sourceId: input.sourceId,
+scopeId: input.scopeId,
+limit: candidatePoolSize,
+...(canonicalQueryEmbed ? {
+queryEmbedding: canonicalQueryEmbed.embedding,
+embeddingSpaceId: canonicalQueryEmbed.embeddingSpaceId,
+} : {}),
+fallback,
+});
+}
+if (input.signal?.aborted) return cancelled();
+
+let candidates = dedupeRagSearchResults(readResult.results);
+try {
+candidates = await this.rerankCanonicalResults(
+query,
+candidates,
+rerankCandidatePoolSize,
+readResult.usedCanonical,
+);
+} catch (error) {
+if (!readResult.usedCanonical) throw error;
+candidates = dedupeRagSearchResults(await fallback());
+if (input.signal?.aborted) return cancelled();
+candidates = await this.rerankCanonicalResults(query, candidates, rerankCandidatePoolSize);
+readResult = { results: candidates, usedCanonical: false, fallbackReason: 'error' };
+}
+if (input.signal?.aborted) return cancelled();
+
+candidates.sort((a, b) => b.score - a.score);
+let spaceKey: string | null = null;
+try { spaceKey = this.embeddingPipeline?.getActiveSpaceKey?.() ?? null; } catch { spaceKey = null; }
+let finalResults = this.gateCanonicalResults(candidates.slice(0, topK), query, spaceKey);
+if (readResult.usedCanonical && finalResults.length === 0) {
+const fallbackResults = dedupeRagSearchResults(await fallback());
+if (input.signal?.aborted) return cancelled();
+const rerankedFallback = await this.rerankCanonicalResults(query, fallbackResults, rerankCandidatePoolSize);
+if (input.signal?.aborted) return cancelled();
+rerankedFallback.sort((a, b) => b.score - a.score);
+finalResults = this.gateCanonicalResults(rerankedFallback.slice(0, topK), query, spaceKey);
+readResult = { results: finalResults, usedCanonical: false, fallbackReason: 'empty' };
+}
+if (input.signal?.aborted) return cancelled();
+return { ...readResult, results: finalResults };
 }
 /**
 * Build the Context Intelligence retrieval port used by normal/manual chat.

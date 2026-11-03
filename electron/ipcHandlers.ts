@@ -46,6 +46,7 @@ import { recordAttribution, hindsightModeFor, type AttributionInput } from './in
 import { GenerationController, GenerationLifecycle } from './intelligence/engine/GenerationController';
 import { SneakPeekIntelligenceEngine } from './intelligence/engine/SneakPeekIntelligenceEngine';
 import { RetrievalCoordinator, createRetrievalCapability } from './intelligence/engine/RetrievalCoordinator';
+import { createCanonicalRagRetrievalCapability } from './intelligence/engine/CanonicalRagRetrievalAdapter';
 import type { ContextSource } from './intelligence/engine/ContextTypes';
 import { readProviderScopePolicy } from './context-intelligence/policies/provider-scope-policy';
 import type { ProviderDataScope, ProviderAvailabilityState, ProviderModelState } from './llm/ProviderRouter';
@@ -936,6 +937,8 @@ const _convoCleanupRegistered = new Set<number>();
 function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, requestId: string) {
   const ragManager = appState.getRAGManager?.();
   const capabilities = ragManager ? [
+    // CHG-17 Step 1 compatibility boundary: project retrieval must retain the
+    // proven personal + fileType=project filter until canonical parity exists.
     createRetrievalCapability('project_knowledge', async ({ query, request, contextPlan, signal }) => {
       if (signal?.aborted) return { items: [] };
       const response = await ragManager.search(query, {
@@ -965,136 +968,67 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
         })).filter((item: any) => item.content.trim()),
       };
     }),
-    createRetrievalCapability('my_files', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      const response = await ragManager.search(query, {
-        sessionId: request.sessionId,
-        modeId: request.activeContext?.modeId,
-        selectedSources: ['personal-files'],
-        allowedSources: ['personal-files'],
-        topK: 8,
+    createCanonicalRagRetrievalCapability({
+      source: 'my_files',
+      sourceType: 'personal',
+      limit: 8,
+      tokenBudget: 1800,
+      read: (input) => ragManager.readPlannedCanonicalSource(input),
+    }),
+    createCanonicalRagRetrievalCapability({
+      source: 'mode_documents',
+      sourceType: 'mode',
+      limit: 8,
+      tokenBudget: 1800,
+      resolveScope: ({ request }) => ({ scopeId: request.activeContext?.modeId }),
+      read: (input) => ragManager.readPlannedCanonicalSource(input),
+    }),
+    (() => {
+      const persistedMeeting = createCanonicalRagRetrievalCapability({
+        source: 'meeting_transcript',
+        sourceType: 'meeting',
+        limit: 8,
         tokenBudget: 1800,
+        resolveScope: ({ request }) => ({ sourceId: request.activeContext?.meetingId }),
+        read: (input) => ragManager.readPlannedCanonicalSource(input),
       });
-      return {
-        items: (response.results ?? []).map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `file-${index}`),
-          source: 'my_files' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: {
-            sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''),
-            documentId: String(r.chunk?.documentId ?? ''),
-            documentName: String(r.source?.name ?? ''),
-            page: r.chunk?.pageStart,
-            pageEnd: r.chunk?.pageEnd,
-            section: r.chunk?.section ?? r.chunk?.heading,
-            retrievalSource: 'personal-files',
-          },
-        })).filter((item: any) => item.content.trim()),
-      };
-    }),
-    createRetrievalCapability('mode_documents', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      const response = await ragManager.search(query, {
-        sessionId: request.sessionId,
-        modeId: request.activeContext?.modeId,
-        selectedSources: ['mode-reference'],
-        allowedSources: ['mode-reference'],
-        topK: 8,
-        tokenBudget: 1800,
+      return createRetrievalCapability('meeting_transcript', async (input) => {
+        if (input.signal?.aborted) return { items: [] };
+        try {
+          const persisted = await persistedMeeting.retrieve(input);
+          if (input.signal?.aborted) return { items: [] };
+          if (persisted.items.length > 0) return persisted;
+        } catch (error) {
+          console.warn('[Sneak-Peek Intelligence] persisted meeting retrieval unavailable; using live transcript window:', error instanceof Error ? error.message : String(error));
+        }
+        const turns = input.request.transcriptContext?.turns ?? [];
+        return {
+          items: turns
+            .filter((turn) => String(turn.content ?? '').trim())
+            .map((turn, index) => ({
+              id: String(turn.id || `meeting-live-${index}`),
+              source: 'meeting_transcript' as ContextSource,
+              content: String(turn.content),
+              score: 0.5,
+              metadata: {
+                sourceId: String(input.request.activeContext?.meetingId ?? 'live-transcript'),
+                speaker: turn.role === 'user' ? 'interviewer' : turn.role,
+                timestampStart: turn.createdAt,
+                timestampEnd: turn.createdAt,
+                retrievalSource: 'live-transcript-window',
+              },
+            })),
+        };
       });
-      return {
-        items: (response.results ?? []).map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `mode-${index}`),
-          source: 'mode_documents' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: {
-            sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''),
-            documentId: String(r.chunk?.documentId ?? ''),
-            documentName: String(r.source?.name ?? ''),
-            page: r.chunk?.pageStart,
-            pageEnd: r.chunk?.pageEnd,
-            section: r.chunk?.section ?? r.chunk?.heading,
-            retrievalSource: 'mode-reference',
-          },
-        })).filter((item: any) => item.content.trim()),
-      };
+    })(),
+    createCanonicalRagRetrievalCapability({
+      source: 'personal_knowledge',
+      sourceType: 'personal',
+      limit: 8,
+      tokenBudget: 1800,
+      read: (input) => ragManager.readPlannedCanonicalSource(input),
     }),
-    createRetrievalCapability('meeting_transcript', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-
-      // Prefer the mature meeting RAG search when it is available. If indexing is
-      // not ready yet, fall back ONLY to the current transcript window already
-      // supplied by the transcript system. The engine still owns the decision
-      // that this source is required; this adapter merely supplies the evidence.
-      try {
-        const response = await ragManager.search(query, {
-          sessionId: request.sessionId,
-          selectedSources: ['meeting'],
-          allowedSources: ['meeting'],
-          meetingId: request.activeContext?.meetingId,
-          topK: 8,
-          tokenBudget: 1800,
-        });
-        const items = (response.results ?? []).map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `meeting-${index}`),
-          source: 'meeting_transcript' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: {
-            sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''),
-            documentId: String(r.chunk?.documentId ?? ''),
-            documentName: String(r.source?.name ?? ''),
-            speaker: r.chunk?.speaker,
-            timestampStart: r.chunk?.timestampStart,
-            timestampEnd: r.chunk?.timestampEnd,
-            retrievalSource: 'meeting',
-          },
-        })).filter((item: any) => item.content.trim());
-        if (items.length > 0) return { items };
-      } catch (error) {
-        console.warn('[Sneak-Peek Intelligence] meeting retrieval unavailable; using live transcript window:', error instanceof Error ? error.message : String(error));
-      }
-
-      const turns = request.transcriptContext?.turns ?? [];
-      return {
-        items: turns
-          .filter((turn) => String(turn.content ?? '').trim())
-          .map((turn, index) => ({
-            id: String(turn.id || `meeting-live-${index}`),
-            source: 'meeting_transcript' as ContextSource,
-            content: String(turn.content),
-            score: 0.5,
-            metadata: {
-              sourceId: String(request.activeContext?.meetingId ?? 'live-transcript'),
-              speaker: turn.role === 'user' ? 'interviewer' : turn.role,
-              timestampStart: turn.createdAt,
-              timestampEnd: turn.createdAt,
-              retrievalSource: 'live-transcript-window',
-            },
-          })),
-      };
-    }),
-    createRetrievalCapability('personal_knowledge', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      const response = await ragManager.search(query, {
-        sessionId: request.sessionId,
-        selectedSources: ['personal-files'],
-        allowedSources: ['personal-files'],
-        topK: 8,
-        tokenBudget: 1800,
-      });
-      return {
-        items: (response.results ?? []).map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `personal-${index}`),
-          source: 'personal_knowledge' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: { sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''), retrievalSource: 'personal-files' },
-        })).filter((item: any) => item.content.trim()),
-      };
-    }),
+    // Structured Knowledge has no canonical equivalent in Step 1.
     createRetrievalCapability('structured_knowledge', async ({ query, request, signal }) => {
       if (signal?.aborted) return { items: [] };
       const response = await ragManager.search(query, {

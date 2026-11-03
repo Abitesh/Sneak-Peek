@@ -13,6 +13,7 @@ const { installCanonicalRagSchema } = await import(schemaPath);
 const { CanonicalRagStorage } = await import(storagePath);
 
 const searchSource = RAGManager.prototype.search.toString();
+const plannedSource = RAGManager.prototype.readPlannedCanonicalSource.toString();
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -86,6 +87,67 @@ test('RAGManager production search consumes canonicalRagRead', () => {
   assert.match(searchSource, /canonicalRead\.readSource/);
 });
 
+test('planned-source production read reuses canonical infrastructure without a second planner/search engine', () => {
+  assert.doesNotMatch(plannedSource, /queryPlanner\.plan|this\.search\s*\(/);
+  for (const symbol of [
+    'CanonicalRagReadService', 'resolveCanonicalQueryEmbedding', 'rerankCanonicalResults',
+    'gateCanonicalResults', 'meetingAdapter.retrieve', 'modeAdapter.retrieve',
+    'personalAdapter.retrieve', 'dedupeRagSearchResults',
+  ]) assert.match(plannedSource, new RegExp(symbol.replace('.', '\\.')));
+});
+
+test('planned-source read does not call RagQueryPlanner and uses READY canonical meeting evidence', async () => {
+  const db = makeDb();
+  const storage = new CanonicalRagStorage(db);
+  seedReadyMeeting(storage, 'meeting-planned', 'planned canonical meeting result');
+  const manager = makeSearchHarness(db);
+  manager.queryPlanner.plan = () => { throw new Error('RagQueryPlanner must not run'); };
+  let fallbackCalls = 0;
+  manager.meetingAdapter.retrieve = async () => { fallbackCalls += 1; return legacyResult('meeting'); };
+
+  const response = await manager.readPlannedCanonicalSource({
+    query: 'planned canonical meeting result', sourceType: 'meeting',
+    sourceId: 'meeting-planned', sessionId: 'session-planned', limit: 8,
+  });
+  assert.equal(response.usedCanonical, true);
+  assert.equal(response.results[0].chunk.text, 'planned canonical meeting result');
+  assert.equal(fallbackCalls, 0);
+  db.close();
+});
+
+test('empty planned canonical meeting coverage uses only the meeting fallback', async () => {
+  const db = makeDb();
+  const manager = makeSearchHarness(db);
+  manager.queryPlanner.plan = () => { throw new Error('RagQueryPlanner must not run'); };
+  const calls = { meeting: 0, mode: 0, personal: 0 };
+  manager.meetingAdapter.retrieve = async () => { calls.meeting += 1; return legacyResult('meeting', 'meeting fallback only'); };
+  manager.modeAdapter.retrieve = async () => { calls.mode += 1; return legacyResult('mode'); };
+  manager.personalAdapter.retrieve = async () => { calls.personal += 1; return legacyResult('personal'); };
+
+  const response = await manager.readPlannedCanonicalSource({
+    query: 'meeting fallback only', sourceType: 'meeting', sourceId: 'missing', limit: 8,
+  });
+  assert.equal(response.usedCanonical, false);
+  assert.equal(response.fallbackReason, 'empty');
+  assert.equal(response.results[0].chunk.text, 'meeting fallback only');
+  assert.deepEqual(calls, { meeting: 1, mode: 0, personal: 0 });
+  db.close();
+});
+
+test('pre-aborted planned-source request performs zero retrieval', async () => {
+  const manager = makeSearchHarness({});
+  const calls = { meeting: 0, embedding: 0 };
+  manager.meetingAdapter.retrieve = async () => { calls.meeting += 1; return legacyResult('meeting'); };
+  manager.resolveCanonicalQueryEmbedding = async () => { calls.embedding += 1; return null; };
+  const controller = new AbortController();
+  controller.abort();
+  const response = await manager.readPlannedCanonicalSource({
+    query: 'cancelled', sourceType: 'meeting', signal: controller.signal,
+  });
+  assert.deepEqual(response, { results: [], usedCanonical: false, fallbackReason: null });
+  assert.deepEqual(calls, { meeting: 0, embedding: 0 });
+});
+
 test('Change 26: canonical search embeds the query once through the existing pipeline and pins one embedding space', () => {
   const embedSource = RAGManager.prototype.resolveCanonicalQueryEmbedding.toString();
   assert.match(searchSource, /resolveCanonicalQueryEmbedding/);
@@ -116,7 +178,7 @@ test('canonical read has explicit legacy fallback paths', () => {
 });
 
 test('observe-only comparison and shadow are disabled when canonical read is authoritative', () => {
-  assert.match(searchSource, /if \(!canonicalReadEnabled\)/);
+  assert.match(searchSource, /if \(!canonicalReadEnabled && !queryPlan\.projectFilesOnly\)/);
   assert.match(searchSource, /rerankCandidatePoolSize,\s*canonicalReadEnabled/);
   assert.match(searchSource, /if \(canonicalReadEnabled && canonicalReadFallbacks\.length > 0\)/);
   assert.match(searchSource, /this\.compareCanonicalRetrievalIfEnabled/);
