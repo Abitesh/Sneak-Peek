@@ -122,11 +122,13 @@ test('My Files question selects only the file source, not project or profile sou
   assert.equal(result.evidence.items[0].id, 'uploaded-api');
 });
 
-test('permission denial prevents a private capability from executing', async () => {
+test('project permission denial falls back to authorized profile sources without project retrieval', async () => {
   const message = 'Why did you use Redis in Linkship?';
   const req = request(message, { contextPermissions: { ...permissions, project: false } });
   const plan = planContext({ request: req, understanding: understanding(message) });
-  assert.ok(plan.requiredSources.includes('project_knowledge'));
+  assert.ok(plan.forbiddenSources.includes('project_knowledge'));
+  assert.ok(plan.requiredSources.includes('profile'));
+  assert.ok(plan.requiredSources.includes('personal_knowledge'));
 
   let calls = 0;
   const coordinator = new RetrievalCoordinator({
@@ -138,7 +140,7 @@ test('permission denial prevents a private capability from executing', async () 
   const result = await coordinator.retrieve(plan, req, message);
   assert.equal(calls, 0);
   assert.deepEqual(result.evidence.items, []);
-  assert.ok(result.trace.skippedSources.includes('project_knowledge'));
+  assert.ok(!result.trace.executedSources.includes('project_knowledge'));
 });
 
 test('project authority wins when a turn is explicitly marked as both project and personal', async () => {

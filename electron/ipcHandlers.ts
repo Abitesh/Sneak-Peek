@@ -1292,6 +1292,25 @@ function buildSneakPeekMeetingRequest(
     }));
   } catch { /* conversation state is optional for legacy meeting sessions */ }
 
+  // Keep interview/meeting source availability identical to manual chat.
+  // Hardcoding project/profile/files=true makes ContextPlanner select sources
+  // that do not actually exist and can suppress the résumé fallback.
+  let profileAvailable = false;
+  try {
+    const llmHelper = appState.processingHelper?.getLLMHelper?.();
+    const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
+    const collected = collectV3ProfileSources(llmHelper?.getKnowledgeOrchestrator?.() ?? null);
+    profileAvailable = collected.docs.length > 0;
+  } catch { profileAvailable = false; }
+  const personalFiles = (() => {
+    try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); }
+    catch { return []; }
+  })();
+  const personalFilesAvailable = personalFiles.length > 0;
+  const projectFilesAvailable = personalFiles.some(
+    (file: any) => String(file?.fileType ?? '') === 'project',
+  );
+
   return {
     requestId,
     sessionId,
@@ -1310,6 +1329,7 @@ function buildSneakPeekMeetingRequest(
       modeId: modeInfo?.id,
       modeName: modeInfo?.name,
       meetingId,
+      profileId: profileAvailable ? 'local-profile' : undefined,
     },
     cancellationSignal,
     providerPreferences: {
@@ -1321,10 +1341,10 @@ function buildSneakPeekMeetingRequest(
       transcript: true,
       screen: false,
       mode: Boolean(modeInfo?.id),
-      project: true,
-      profile: true,
-      files: true,
-      memory: true,
+      project: projectFilesAvailable,
+      profile: profileAvailable,
+      files: personalFilesAvailable,
+      memory: personalFilesAvailable || profileAvailable,
       generalKnowledge: true,
     },
   };

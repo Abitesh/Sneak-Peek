@@ -348,6 +348,15 @@ async reindexEmbeddings(): Promise<void> {
 if (!this.embeddingPipeline || !this.vectorStore) return;
 if (this.embeddingBackfillInFlight) return this.embeddingBackfillInFlight;
 this.embeddingBackfillInFlight = (async () => {
+// Repair the derived native vec0 index before deciding which source rows need
+// a fresh provider embedding. Older builds could swallow duplicate native
+// primary-key failures after already stamping embedding_space on the source
+// row, so the normal "missing/stale embedding_space" query would never select
+// those rows again.
+const nativeRepair = this.vectorStore!.rebuildPersonalNativeVecIndexesFromStoredEmbeddings();
+if (nativeRepair.rebuiltRows > 0) {
+console.log('[PersonalKnowledgeManager] Repaired personal native vector index', nativeRepair);
+}
 await this.embeddingPipeline!.waitForReady(15000);
 const activeSpace = this.embeddingPipeline!.getActiveSpaceKey();
 if (!activeSpace) return;

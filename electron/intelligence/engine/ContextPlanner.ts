@@ -150,13 +150,36 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     && (meetingReference || understanding.followUp || understanding.requiresMeetingContext),
   );
 
+  let projectFallbackSelected = false;
   switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : understanding.intent) {
     case 'project-question':
+      require('recent_conversation');
+      if (request.contextPermissions.project) {
+        require('project_knowledge');
+        require('rag');
+        rationale.push('Project/implementation intent uses the available project-file source as authoritative evidence.');
+      } else if (request.contextPermissions.profile || request.contextPermissions.memory) {
+        projectFallbackSelected = true;
+        // The renderer sets project permission from actual project-file
+        // availability. If no such source exists, do not select an impossible
+        // project capability and then forbid the résumé/profile that may contain
+        // the only candidate-owned description of the project.
+        if (request.contextPermissions.memory) require('personal_knowledge');
+        if (request.contextPermissions.profile) require('profile');
+        rationale.push('No project-file source is available; fall back to candidate profile/personal knowledge for project recall.');
+      } else {
+        // Preserve fail-closed semantics when no candidate-owned source is
+        // available. Do not silently substitute unrelated general knowledge.
+        require('project_knowledge');
+        require('rag');
+        rationale.push('Project evidence is required but no candidate-owned fallback source is available.');
+      }
+      break;
     case 'system-design':
       require('recent_conversation');
       require('project_knowledge');
       require('rag');
-      rationale.push('Project/implementation intent requires project-specific evidence rather than generic knowledge.');
+      rationale.push('System-design intent keeps the existing project-specific evidence boundary.');
       break;
     case 'personal-question':
       require('recent_conversation');
@@ -214,7 +237,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   if (understanding.requiresScreenContext && request.screenContext) require('screen');
   if (understanding.requiresMeetingContext && request.transcriptContext) require('meeting_transcript');
   if (understanding.requiresDocumentContext) require('my_files');
-  if (understanding.requiresProjectContext) {
+  if (understanding.requiresProjectContext && !projectFallbackSelected) {
     require('project_knowledge');
     require('rag');
   }

@@ -241,6 +241,13 @@ const DEICTIC_CUE = /\b(?:this|that|it|they|them|above|earlier|previous(?:ly)?|w
 const REFINEMENT_CUE = /^(?:make|keep|write|say|explain|expand|shorten|simplify|rewrite|give)\s+(?:it|that|this|the answer|the explanation)\b|^(?:make it|keep it|explain that again|say that again|shorter|longer|more detailed|less detailed|simpler)\b/i;
 const CODING_CUE = /\b(?:give me code|write code|code for|implement|implementation|function|class|algorithm|leetcode|debug|fix (?:this|the) (?:code|bug|error)|program|snippet|sql query)\b/i;
 const PROJECT_CUE = /\b(?:my project|our project|the project|project|repo(?:sitory)?|linkship|sneak[- ]?peek|natively|tech stack|architecture|what did i use|why did i use|what did we use|how did i implement|how did i build|what did i build|what did i develop)\b/i;
+// A broad interview-style request for the candidate's projects is profile
+// recall, not proof that a separately uploaded file_type=project exists.
+// Keep named/implementation-detail asks on project_knowledge.
+const PROFILE_PROJECT_SUMMARY_CUE =
+  /^(?:tell me about|explain|describe|walk me through|give me (?:an )?overview of|what are|which are)\s+(?:my|your)\s+projects?\b|\b(?:what|which)\s+projects?\s+(?:have|did)\s+i\b/i;
+const PROJECT_IMPLEMENTATION_DETAIL_CUE =
+  /\b(?:linkship|sneak[- ]?peek|natively|repo(?:sitory)?|codebase|architecture|tech stack|implementation|implemented|database|api|redis|postgres(?:ql)?|django|github)\b|(?:^|\b)(?:why|how)\s+(?:did|do|does)\b/i;
 const PERSONAL_CUE = /\b(?:my resume|my cv|about me|about myself|tell me about myself|my experience|my skills|my background|my education|my internship|my job|what do i have|what did i do|do i have|did i use)\b/i;
 const DOCUMENT_CUE = /\b(?:document|documents|file|files|pdf|attachment|attached|resume|cv|paper|report|what does .* say|according to)\b/i;
 const MEETING_CUE = /\b(?:meeting|transcript|interview|interviewer|what did .* say|what was .* mentioned|discussed|said earlier)\b/i;
@@ -271,6 +278,9 @@ function heuristicIntent(text: string, input: UnderstandTurnInput, classificatio
   if (types.has('FOLLOW_UP')) return 'follow-up';
   if (types.has('CODING_TASK')) return 'coding-request';
   if (types.has('SYSTEM_DESIGN')) return 'system-design';
+  if (PROFILE_PROJECT_SUMMARY_CUE.test(q) && !PROJECT_IMPLEMENTATION_DETAIL_CUE.test(q)) {
+    return 'personal-question';
+  }
   // The operator's own résumé is a profile source, even when the question
   // also says "according to". Candidate attachments remain document-scoped.
   if (/\bmy\s+(?:resume|r[eé]sum[eé]|cv)(?=\s|[?.!,]|$)|\bwhere (?:did|do|have) i (?:work|worked)\b/i.test(q)) return 'personal-question';

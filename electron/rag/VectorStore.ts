@@ -387,22 +387,46 @@ providerName?: string,
 dimensions?: number,
 ): void {
 const blob = this.embeddingToBlob(embedding);
+const dim = embedding.length;
+if (this.useNativeVec) {
+DatabaseManager.getInstance().ensurePersonalVecTableForDim(dim);
+}
+
+// Keep the source-row BLOB and the native sqlite-vec row atomic. The old
+// implementation updated personal_file_chunks first, then swallowed a native
+// vec INSERT failure. That produced a false-success state where the source row
+// looked embedded but native retrieval still contained the previous vector.
+const persist = this.db.transaction(() => {
+const row = this.db.prepare('SELECT rowid FROM personal_file_chunks WHERE id = ?').get(chunkId) as { rowid: number } | undefined;
+if (!row) {
+throw new Error(`Personal chunk "${chunkId}" does not exist.`);
+}
+
 this.db.prepare(`
 UPDATE personal_file_chunks
 SET embedding = ?, embedding_space = ?, embedding_provider = ?, embedding_dimensions = ?
 WHERE id = ?
 `).run(blob, spaceKey, providerName ?? null, dimensions ?? embedding.length, chunkId);
 if (!this.useNativeVec) return;
-const dim = embedding.length;
-DatabaseManager.getInstance().ensurePersonalVecTableForDim(dim);
-try {
-const row = this.db.prepare('SELECT rowid FROM personal_file_chunks WHERE id = ?').get(chunkId) as { rowid?: number } | undefined;
-if (!row?.rowid) return;
+
+const nativeRowId = BigInt(row.rowid);
+// sqlite-vec vec0 primary keys do not provide SQLite table UPSERT semantics in
+// every supported build. Explicit DELETE + INSERT is idempotent and is already
+// compatible with the delete lifecycle used elsewhere in this class.
 this.db.prepare(`
-INSERT OR REPLACE INTO vec_personal_chunks_${dim}(personal_chunk_rowid, embedding) VALUES (?, ?)
-`).run(BigInt(row.rowid), blob);
+DELETE FROM vec_personal_chunks_${dim}
+WHERE personal_chunk_rowid = ?
+`).run(nativeRowId);
+this.db.prepare(`
+INSERT INTO vec_personal_chunks_${dim}(personal_chunk_rowid, embedding) VALUES (?, ?)
+`).run(nativeRowId, blob);
+});
+
+try {
+persist();
 } catch (e) {
-console.warn(`[VectorStore] Failed to insert personal embedding into vec_personal_chunks_${dim}:`, e);
+console.error(`[VectorStore] Failed to persist personal embedding atomically for chunk ${chunkId}:`, e);
+throw e;
 }
 }
 
@@ -481,6 +505,91 @@ if (similarity >= minSimilarity) results.push({ chunkId: row.chunk_id, fileId: r
 }
 results.sort((a, b) => b.similarity - a.similarity);
 return results.slice(0, limit);
+}
+
+/**
+ * Rebuild native Personal File vec0 tables from the authoritative embedding
+ * BLOBs stored on personal_file_chunks.
+ *
+ * This is a DERIVED-INDEX repair only. It never deletes personal_files,
+ * personal_file_chunks, extracted text, file paths, metadata, or source PDFs.
+ * It exists to heal installations that previously committed a source-row BLOB
+ * while a duplicate vec0 primary-key write was swallowed.
+ */
+rebuildPersonalNativeVecIndexesFromStoredEmbeddings(): { rebuiltRows: number; dimensions: number[] } {
+if (!this.useNativeVec || !this.isDatabaseUsable()) {
+return { rebuiltRows: 0, dimensions: [] };
+}
+
+const rows = this.db.prepare(`
+SELECT rowid AS personal_chunk_rowid, embedding, embedding_dimensions
+FROM personal_file_chunks
+WHERE embedding IS NOT NULL
+  AND embedding_space IS NOT NULL
+ORDER BY rowid
+`).all() as Array<{
+personal_chunk_rowid: number;
+embedding: Buffer;
+embedding_dimensions: number | null;
+}>;
+
+const byDimension = new Map<number, Array<{ personal_chunk_rowid: number; embedding: Buffer }>>();
+for (const row of rows) {
+const byteLength = Buffer.isBuffer(row.embedding) ? row.embedding.byteLength : 0;
+const inferredDimensions = byteLength > 0 && byteLength % 4 === 0 ? byteLength / 4 : 0;
+const dim = Number(row.embedding_dimensions) || inferredDimensions;
+if (!Number.isInteger(dim) || dim <= 0 || byteLength !== dim * 4) {
+throw new Error(
+`Cannot rebuild native personal vector row ${row.personal_chunk_rowid}: ` +
+`invalid embedding metadata (dimensions=${row.embedding_dimensions}, bytes=${byteLength}).`
+);
+}
+const group = byDimension.get(dim) ?? [];
+group.push({ personal_chunk_rowid: row.personal_chunk_rowid, embedding: row.embedding });
+byDimension.set(dim, group);
+}
+
+const dimensions = new Set<number>();
+const nativeTables = this.db.prepare(
+"SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'vec_personal_chunks_%'"
+).all() as Array<{ name: string }>;
+for (const row of nativeTables) {
+const match = row.name.match(/^vec_personal_chunks_(\d+)$/);
+if (match) dimensions.add(Number(match[1]));
+}
+for (const dim of byDimension.keys()) dimensions.add(dim);
+
+const orderedDimensions = [...dimensions].sort((a, b) => a - b);
+const rebuild = this.db.transaction(() => {
+let rebuiltRows = 0;
+for (const dim of orderedDimensions) {
+DatabaseManager.getInstance().ensurePersonalVecTableForDim(dim);
+const tableName = `vec_personal_chunks_${dim}`;
+const exists = this.db.prepare(
+"SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1"
+).get(tableName);
+if (!exists) {
+throw new Error(`Native personal vector table "${tableName}" is unavailable.`);
+}
+
+this.db.prepare(`DELETE FROM ${tableName}`).run();
+const insert = this.db.prepare(
+`INSERT INTO ${tableName}(personal_chunk_rowid, embedding) VALUES (?, ?)`
+);
+for (const row of byDimension.get(dim) ?? []) {
+insert.run(BigInt(row.personal_chunk_rowid), row.embedding);
+rebuiltRows += 1;
+}
+}
+return rebuiltRows;
+});
+
+const rebuiltRows = rebuild();
+console.log('[VectorStore] Rebuilt personal native vector indexes from stored embeddings', {
+rebuiltRows,
+dimensions: orderedDimensions,
+});
+return { rebuiltRows, dimensions: orderedDimensions };
 }
 
 /** Remove all Personal File vectors for one file before its chunks are replaced/deleted. */
@@ -980,4 +1089,3 @@ const magnitude = Math.sqrt(normQ) * Math.sqrt(normB);
 return magnitude === 0 ? 0 : dot / magnitude;
 }
 }
-
