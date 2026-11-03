@@ -115,15 +115,15 @@ test('meeting/live IPC handlers no longer invoke RAGManager answer generation', 
   const globalStart = ipc.indexOf("safeHandle('rag:query-global'");
   assert.ok(meetingStart >= 0 && liveStart > meetingStart && globalStart > liveStart);
 
-  const requestStart = ipc.indexOf('function buildNativelyMeetingRequest(');
-  const helperStart = ipc.indexOf('async function streamNativelyMeetingAnswer(');
+  const requestStart = ipc.indexOf('function buildSneakPeekMeetingRequest(');
+  const helperStart = ipc.indexOf('async function streamSneakPeekMeetingAnswer(');
   const manualStart = ipc.indexOf('const _geminiChatStreamHandler = async (');
   const meetingBlock = ipc.slice(meetingStart, liveStart);
   const liveBlock = ipc.slice(liveStart, globalStart);
   const adapter = ipc.slice(requestStart, manualStart);
   assert.ok(requestStart >= 0 && helperStart > requestStart && manualStart > helperStart);
   const migrated = `${adapter}\n${meetingBlock}\n${liveBlock}`;
-  assert.match(migrated, /createPrimaryManualNativelyEngine/);
+  assert.match(migrated, /createPrimaryManualSneakPeekEngine/);
   assert.match(migrated, /prepareAndStream/);
   assert.match(migrated, /transcriptContext/);
   assert.match(migrated, /meetingId/);
@@ -145,7 +145,7 @@ test('live STOP aborts the migrated live-engine controller', () => {
 
 test('meeting IPC query keys retain meeting identity for STOP and supersession', () => {
   const ipc = read('ipcHandlers.ts');
-  const helperStart = ipc.indexOf('async function streamNativelyMeetingAnswer(');
+  const helperStart = ipc.indexOf('async function streamSneakPeekMeetingAnswer(');
   const helperEnd = ipc.indexOf('const _geminiChatStreamHandler = async (', helperStart);
   const helper = ipc.slice(helperStart, helperEnd);
   assert.match(helper, /const queryKey = `\$\{streamMeta\.live \? 'live' : 'meeting'\}-\$\{meetingId\}-\$\{crypto\.randomUUID\(\)\}`/);

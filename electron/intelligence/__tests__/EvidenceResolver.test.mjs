@@ -48,7 +48,8 @@ function referenceFilesContract(question, overrides = {}) {
 function fakeDeps(overrides = {}) {
   return {
     getModeSnapshot: () => ({ id: 'mode-test', templateType: 'general', customContext: 'test prompt' }),
-    getReferenceFiles: () => [{ id: 'file-1', fileName: 'thesis.pdf', content: 'thesis content here' }],
+    // Real source context is necessary to prove the subject of nameless rows.
+    getReferenceFiles: () => [{ id: 'file-1', fileName: 'thesis.pdf', content: '# Robot X\n## Weight\nTechnical Specifications\nTotal weight: 55 kg.\n## Control System\nControl System NVIDIA Jetson Xavier (main), Jetson Nano (aux).\n## Voltage\nTechnical Specifications\nWorking Voltage: 24 V' }],
     hybridRetriever: {
       retrieveHybrid: async () => ({ chunks: [], formattedContext: '', usedFallback: true, usedHybrid: false }),
     },
@@ -60,6 +61,36 @@ function fakeDeps(overrides = {}) {
     ...overrides,
   };
 }
+
+describe('EvidenceResolver: structural entity association', () => {
+  const question = 'What is the total weight of Robot X?';
+  const cases = [
+    { name: 'selected entity subsection', document: '# Robot X\n## Specifications\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: true },
+    { name: 'different entity sibling', document: '# Robot X\nOverview.\n# Robot Y\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: false },
+    { name: 'explicit competing entity in row', document: '# Robot X\nRobot Y total weight: 55 kg.', text: 'Robot Y total weight: 55 kg.', pass: false },
+    { name: 'unrelated same-document section', document: '# Robot X\nOverview.\n# Accessories\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: false },
+    { name: 'unrelated nested specification', document: '# Robot X\n## Accessories\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: false },
+    { name: 'nested competing entity', document: '# Robot X\n## Robot Y\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: false },
+    { name: 'weak topical overlap', document: '# Robot X\nThe total robot population is 55.', text: 'The total robot population is 55.', pass: false },
+    { name: 'repeated ambiguous specification', document: '# Robot X\nTotal weight: 55 kg.\n# Robot Y\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', pass: false },
+    { name: 'unauthorized document id', document: '# Robot X\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', sourceId: 'another-file', pass: false },
+    { name: 'conflicting evidence', document: '# Robot X\nTotal weight: 55 kg.', text: 'Total weight: 55 kg.', conflicts: [{ leftEvidenceId: 'a', rightEvidenceId: 'b', conflictType: 'value', resolution: 'unresolved' }], pass: false },
+    { name: 'direct entity evidence', document: 'Robot X total weight: 55 kg.', text: 'Robot X total weight: 55 kg.', pass: true },
+  ];
+  for (const fixture of cases) test(fixture.name, async () => {
+    const resolver = new EvidenceResolver(fakeDeps({
+      getReferenceFiles: () => [{ id: 'file-1', fileName: 'spec.md', content: fixture.document }],
+      classifyQuestion: () => ({ type: 'entity_lookup', isSynthesis: false, targetEntities: ['Robot X'] }),
+      hybridRetriever: { retrieveHybrid: async () => ({
+        chunks: [{ sourceId: fixture.sourceId ?? 'file-1', fileName: 'spec.md', text: fixture.text, chunkIndex: 0, score: 0.9, ftsScore: 0.8, vectorScore: 0.8 }],
+        formattedContext: '', usedFallback: false, usedHybrid: true,
+      }) },
+    }));
+    const result = await resolver.resolve({ turnId: fixture.name, question, sourceContract: referenceFilesContract(question), activeMode: { modeId: 'mode-test' }, requestedProperty: 'physical_weight', conflicts: fixture.conflicts });
+    assert.equal(result.strategy, fixture.pass ? 'hybrid_rag' : 'insufficient');
+    if (fixture.pass) assert.equal(result.pack.answerPolicy, 'answer');
+  });
+});
 
 describe('EvidenceResolver: clarify turns never retrieve', () => {
   test('sourceOwner=clarify returns an insufficient pack with zero retrieval attempts', async () => {

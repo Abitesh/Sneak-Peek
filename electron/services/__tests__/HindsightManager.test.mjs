@@ -120,8 +120,8 @@ describe('HindsightManager.getHindsightConfig', () => {
       if (k === hmPath || k.includes('HindsightManager')) delete require.cache[k];
     }
     // Dropping the module cache is NOT sufficient on its own. Both singletons are
-    // anchored on globalThis (`__nativelyHindsightManagerV1__`,
-    // `__nativelySettingsManagerV1__`) because ~22 esbuild bundles each inline a
+    // anchored on globalThis (`__sneakPeekHindsightManagerV1__`,
+    // `__sneakPeekSettingsManagerV1__`) because ~22 esbuild bundles each inline a
     // copy of these classes and per-bundle instances caused real divergence bugs.
     // getInstance() therefore hands back the ALREADY-CONSTRUCTED manager whose
     // SettingsManager read settings.json before the sentinel was written — so the
@@ -442,7 +442,7 @@ describe('HindsightManager — round-5 regression suite', () => {
     hm.broadcastStatus = (state, reason) => { broadcasts.push({ state, reason }); };
     // Stub fetch globally to return a healthy response.
     const origFetch = globalThis.fetch;
-    globalThis.fetch = async () => ({ ok: true, status: 200 });
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ status: 'healthy', database: 'connected' }) });
     try {
       const ok = await hm.healthCheck();
       assert.equal(ok, true);

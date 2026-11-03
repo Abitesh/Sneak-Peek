@@ -53,6 +53,7 @@ import { buildStableRagCitation } from '../../rag/RagCitation';
 import type { RAGSearchOptions, RagSearchResult } from '../../rag/RAGManager';
 import type { AnswerType } from '../../llm/AnswerPlanner';
 import { evaluateRagRelevanceGate } from '../../rag/RagRelevanceGate';
+import { associateSectionEntity } from './sectionEntityAssociation';
 // Type-only (erased at runtime). The DI ports below described a structural
 // SUBSET of the pack, but what actually flows through them at runtime is a
 // real KnowledgePack: getPackForFile() returns KnowledgePack | null and the
@@ -689,9 +690,19 @@ rejectedSources: [],
 confidence: relevanceDecision.confidence,
 };
 }
+const hybridClassification = this.deps.classifyQuestion(question);
 const items: EvidenceItem[] = result.chunks.map((c, i) => {
 const canProve = textCanProveProperty(c.text, requestedProperty)
 && matchesRequestedField(question, c.text, requestedProperty);
+const source = files.find((file) => file.id === c.sourceId);
+const associatedEntity = source ? associateSectionEntity({
+targetEntities: hybridClassification.targetEntities,
+documentText: source.content,
+candidateText: c.text,
+distinctiveTerms: distinctiveQueryTerms(question, hybridClassification.targetEntities),
+provesProperty: canProve,
+hasConflicts: Boolean(request.conflicts?.length),
+}) : undefined;
 return {
 evidenceId: `${turnId}:hybrid:${i}`,
 citation: buildStableRagCitation({
@@ -727,6 +738,7 @@ section: c.section ?? c.fileName,
 },
 supports: {
 property: canProve ? requestedProperty : 'unknown',
+...(associatedEntity ? { entity: associatedEntity } : {}),
 },
 score: {
 lexical: c.ftsScore,

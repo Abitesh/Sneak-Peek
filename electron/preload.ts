@@ -504,7 +504,7 @@ clearContextDebugLogs: () => Promise<{ ok: boolean; removed?: number; error?: st
 exportContextDebugSession: () => Promise<{ ok: boolean; path?: string; error?: string }>;
 getHindsightConfig: () => Promise<{ baseUrl: string; hasApiKey: boolean; autoStart: boolean; serverCommand: string; llmProvider: string; available: boolean; mode: 'local' | 'cloud'; synthetic: boolean; explicitlyDisabled: boolean; authFailed: boolean }>;
 setHindsightConfig: (cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => Promise<{ success: boolean; healthy?: boolean; error?: string }>;
-testHindsightConnection: () => Promise<{ healthy: boolean; error?: string }>;
+testHindsightConnection: (options?: { verifyMemory?: boolean }) => Promise<{ healthy: boolean; error?: string; readiness?: { state: string; httpHealthy: boolean; databaseReady: boolean; llmReady: boolean | null; memoryReady: boolean } }>;
 updateMeetingTitle: (id: string, title: string) => Promise<boolean>;
 updateMeetingSummary: (
 id: string,
@@ -1865,7 +1865,7 @@ clearContextDebugLogs: () => ipcRenderer.invoke('context-debug:clear'),
 exportContextDebugSession: () => ipcRenderer.invoke('context-debug:export'),
 getHindsightConfig: () => ipcRenderer.invoke('hindsight-config:get'),
 setHindsightConfig: (cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => ipcRenderer.invoke('hindsight-config:set', cfg),
-testHindsightConnection: () => ipcRenderer.invoke('hindsight-config:test'),
+testHindsightConnection: (options?: { verifyMemory?: boolean }) => ipcRenderer.invoke('hindsight-config:test', options),
 updateMeetingTitle: (id: string, title: string) =>
 ipcRenderer.invoke('update-meeting-title', { id, title }),
 updateMeetingSummary: (id: string, updates: any) =>

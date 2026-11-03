@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GenerationController } from '../GenerationController.js';
+import { GenerationController } from '../../../../dist-electron/electron/intelligence/engine/GenerationController.js';
 
 function route(overrides = {}) {
   return {

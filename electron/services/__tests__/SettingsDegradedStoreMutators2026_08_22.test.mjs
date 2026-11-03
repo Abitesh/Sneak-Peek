@@ -33,7 +33,7 @@ require.cache[electronPath] = {
   },
 };
 const { SettingsManager } = require(dist('services/SettingsManager.js'));
-const SLOT = '__nativelySettingsManagerV1__';
+const SLOT = '__sneakPeekSettingsManagerV1__';
 
 // The user's real, populated settings file.
 const ORIGINAL = { screenUnderstandingMode: 'vision_first', contextDebugLevel: 'off', someUserKey: 'keep-me' };

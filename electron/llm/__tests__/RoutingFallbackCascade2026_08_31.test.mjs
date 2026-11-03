@@ -46,7 +46,7 @@ const { bindingFromModelId } = require(dist('llm/providerRegistry.js'));
 // CredentialsManager is anchored on globalThis (see CredentialsManager.getInstance),
 // so seeding this slot is how `buildVerifiedFallbackCandidates` (S1's
 // providerHealth) and `isProviderDisabled` are exercised without a real store.
-const CRED_SLOT = '__nativelyCredentialsManagerV1__';
+const CRED_SLOT = '__sneakPeekCredentialsManagerV1__';
 let credBefore;
 beforeEach(() => { credBefore = globalThis[CRED_SLOT]; });
 afterEach(() => {
@@ -76,7 +76,7 @@ function verifiedHealth(family, modelId) {
  * its name and returns immediately, so an accidental extra dispatch is always
  * visible in `captured` instead of silently succeeding.
  */
-function runInner(message, { model = 'gpt-4o', useOllama = false, ollamaModel, clients = {}, streamers = {}, ollamaReachable = true, isLocalOnlyMode = false } = {}) {
+function runInner(message, { model = 'gpt-4o', useOllama = false, ollamaModel, clients = {}, streamers = {}, ollamaReachable = useOllama, isLocalOnlyMode = false } = {}) {
   const captured = [];
   const h = Object.create(LLMHelper.prototype);
   h.useOllama = useOllama;
@@ -85,6 +85,8 @@ function runInner(message, { model = 'gpt-4o', useOllama = false, ollamaModel, c
   h.ensureOllamaModelSelected = async () => false;
   // Stage 1: selected-Ollama path probes reachability before dispatch.
   h.isOllamaReachable = async () => ollamaReachable;
+  h.probeOllama = async () => ({ ok: false, reason: 'unavailable in fixture' });
+  h.getOllamaModels = async () => [];
   h.currentModelId = model;
   h.pickConfiguredCustomProviderForFallback = () => null;
   h.getActiveModeGroundingInfo = () => null;

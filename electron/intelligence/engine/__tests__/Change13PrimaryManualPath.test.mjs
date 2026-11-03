@@ -10,8 +10,8 @@ test('Single primary manual-chat path is wired through Sneak-Peek Intelligence',
   const ipc = read('ipcHandlers.ts');
   const engine = read('intelligence/engine/SneakPeekIntelligenceEngine.ts');
 
-  assert.match(ipc, /createPrimaryManualNativelyEngine\(llmHelper, appState, requestId\)/);
-  assert.match(ipc, /nativelyEngine\.prepareAndStream\(nativelyRequest\)/);
+  assert.match(ipc, /createPrimaryManualSneakPeekEngine\(llmHelper, appState, requestId\)/);
+  assert.match(ipc, /sneakPeekEngine\.prepareAndStream\(sneakPeekRequest\)/);
   assert.match(ipc, /Sneak-Peek Intelligence\] manual-chat PRIMARY route/);
   assert.match(ipc, /llmHelper\.streamChat\(/, 'legacy stream path must remain for compatibility fallback');
 
@@ -24,8 +24,8 @@ test('Single primary manual-chat path is wired through Sneak-Peek Intelligence',
   assert.match(engine, /TurnUnderstanding|understandTurn/);
   assert.match(engine, /planContext/);
   assert.match(engine, /retrievalCoordinator\.retrieve/);
-  assert.match(engine, /buildEvidencePackFromNativelyEvidence/);
-  assert.match(engine, /assembleNativelyPrompt/);
+  assert.match(engine, /buildEvidencePackFromSneakPeekEvidence/);
+  assert.match(engine, /assembleSneakPeekPrompt/);
   assert.match(engine, /generationPort/);
   assert.match(engine, /pipelineStages/);
   assert.match(engine, /ProviderRouter/);

@@ -48,6 +48,10 @@ const DEFAULT_IMMEDIATE_PREVIOUS_TURNS = 2;
 const DEFAULT_RECENT_TURN_LIMIT = 12;
 const DEFAULT_RECENT_WINDOW_SECONDS = 180;
 
+export function isUsableConversationTurn(turn: ConversationTurn): boolean {
+  return turn.generationStatus === undefined || turn.generationStatus === 'completed';
+}
+
 function clampCount(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(0, Math.floor(value as number));
@@ -106,6 +110,7 @@ export function getRecentConversationContext(
     limit: recentLimit,
     includeNonFinalized,
   });
+  recent = recent.filter((turn) => turn.id === currentTurn?.id || isUsableConversationTurn(turn));
 
   // A live/interim current turn may not have reached the canonical store yet.
   // It must never disappear merely because the store is one event behind.

@@ -44,8 +44,8 @@ const { SettingsManager } = require(dist('services/SettingsManager.js'));
 
 const IMAGE = ['/tmp/screenshot-under-test.png'];
 
-const SETTINGS_SLOT = '__nativelySettingsManagerV1__';
-const CRED_SLOT = '__nativelyCredentialsManagerV1__';
+const SETTINGS_SLOT = '__sneakPeekSettingsManagerV1__';
+const CRED_SLOT = '__sneakPeekCredentialsManagerV1__';
 let settingsBefore, credBefore;
 
 beforeEach(() => {

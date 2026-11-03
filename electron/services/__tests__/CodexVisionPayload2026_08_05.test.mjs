@@ -74,7 +74,7 @@ async function makeBigPng(name = 'shot.png') {
   return { file, bytes: buf.length };
 }
 
-const CRED_SLOT = '__nativelyCredentialsManagerV1__';
+const CRED_SLOT = '__sneakPeekCredentialsManagerV1__';
 
 /**
  * Make Codex look signed in to the CodexOAuthService copy that is INLINED into
@@ -85,7 +85,7 @@ const CRED_SLOT = '__nativelyCredentialsManagerV1__';
  * instance the test would touch is a different object from the one
  * CodexCliService.stream() calls. The seam that IS shared is
  * getCredentialsManager() — a LAZY runtime require, which resolves through the
- * `__nativelyCredentialsManagerV1__` global slot from whichever bundle asks.
+ * `__sneakPeekCredentialsManagerV1__` global slot from whichever bundle asks.
  */
 function seedSignedIn() {
   globalThis[CRED_SLOT] = {
@@ -293,7 +293,7 @@ describe('a vision turn whose images all fail to encode does not degrade to text
 
 // ── 3. boundaries on the newly-wired path ───────────────────────────────────
 
-const SETTINGS_SLOT = '__nativelySettingsManagerV1__';
+const SETTINGS_SLOT = '__sneakPeekSettingsManagerV1__';
 const setMode = (mode) => SettingsManager.getInstance().setScreenUnderstandingMode(mode);
 
 /** A bare LLMHelper with Codex reachable — everything else left real. */

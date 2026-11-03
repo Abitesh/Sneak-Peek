@@ -83,6 +83,26 @@ export class HindsightManager {
 
   /** Cached health result + when it was taken. */
   private lastHealthy = false;
+  private readiness = { state: 'DEGRADED', processRunning: false, httpHealthy: false, databaseReady: false, llmReady: null as boolean | null, memoryReady: false };
+
+  getReadiness() { return { ...this.readiness }; }
+
+  /** Explicit user diagnostic only; normal health polls never spend provider tokens. */
+  async verifyMemoryReadiness(): Promise<boolean> {
+    if (!await this.healthCheck()) return false;
+    const cfg = this.getHindsightConfig();
+    if (!cfg) return false;
+    try {
+      const { HindsightClient } = require('@vectorize-io/hindsight-client');
+      const { probeHindsightMemory } = require('../intelligence/memory/HindsightMemoryProbe') as typeof import('../intelligence/memory/HindsightMemoryProbe');
+      const result = await probeHindsightMemory(new HindsightClient({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey }));
+      this.readiness = { ...this.readiness, llmReady: result.retained, memoryReady: result.memoryReady, state: result.memoryReady ? 'MEMORY_READY' : 'DEGRADED' };
+      return result.memoryReady;
+    } catch {
+      this.readiness = { ...this.readiness, llmReady: false, memoryReady: false, state: 'DEGRADED' };
+      return false;
+    }
+  }
   private lastCheckedAt = 0;
   /** Set to true the first time start() runs — gates isAvailable()'s cold-start optimism
    *  so the very first recall doesn't fire a wasted 800ms probe before boot-time start()
@@ -128,6 +148,9 @@ export class HindsightManager {
    * (best-effort).
    */
   private broadcastStatus(state: 'spawning' | 'ready' | 'unreachable' | 'spawn-failed' | 'auth-failed', reason?: string): void {
+    if (state !== 'ready') {
+      this.readiness = { ...this.readiness, state: state === 'spawning' ? 'PROCESS_RUNNING' : 'DEGRADED', llmReady: null, memoryReady: false };
+    }
     // Keep the availability cache consistent with the broadcast. A terminal failure state
     // ('spawn-failed' / 'unreachable') means the server is NOT usable — pin lastHealthy
     // false + stamp lastCheckedAt so isAvailable() returns the cached false instead of its
@@ -140,7 +163,7 @@ export class HindsightManager {
     }
     try {
       const { BrowserWindow } = require('electron') as typeof import('electron');
-      const payload = { state, reason: reason || undefined, logPath: this.logPath || undefined, at: Date.now() };
+      const payload = { state, readiness: this.getReadiness(), reason: reason || undefined, logPath: this.logPath || undefined, at: Date.now() };
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
           win.webContents.send('hindsight-status', payload);
@@ -229,7 +252,10 @@ export class HindsightManager {
         headers,
       });
       clearTimeout(timer);
-      this.lastHealthy = res.ok;
+      const body = res.ok ? await res.json().catch(() => null) : null;
+      const databaseReady = res.ok && body?.status === 'healthy' && body?.database === 'connected';
+      this.lastHealthy = databaseReady;
+      this.readiness = { ...this.readiness, processRunning: res.ok, httpHealthy: res.ok, databaseReady, memoryReady: databaseReady && this.readiness.memoryReady, state: databaseReady ? (this.readiness.memoryReady ? 'MEMORY_READY' : 'DATABASE_READY') : 'DEGRADED' };
       this.lastCheckedAt = Date.now();
       // 401/403 → the endpoint is REACHABLE but auth is rejected. Cache this with a longer
       // TTL than AVAILABILITY_TTL_MS so we don't spam the server with bad-token probes.
@@ -247,13 +273,14 @@ export class HindsightManager {
         // the precise state: a 2xx → 'ready' (server is good); a 5xx → 'unreachable'
         // (auth accepted but server erroring) so the banner copy + "View log" affordance
         // matches reality instead of staying on the misleading "Cloud key rejected".
-        this.broadcastStatus(res.ok ? 'ready' : 'unreachable',
-          res.ok ? undefined : `server error (HTTP ${res.status})`);
+        this.broadcastStatus(databaseReady ? 'ready' : 'unreachable',
+          databaseReady ? undefined : 'database readiness not confirmed');
       }
-      return res.ok;
+      return databaseReady;
     } catch {
       const wasAuthFailed = this.lastAuthFailedAt > 0;
       this.lastHealthy = false;
+      this.readiness = { state: 'DEGRADED', processRunning: Boolean(this.serverProcess), httpHealthy: false, databaseReady: false, llmReady: null, memoryReady: false };
       this.lastCheckedAt = Date.now();
       // A network error is categorically different from an auth rejection. Clear the
       // auth-failure cache, otherwise `isAuthFailed()` keeps returning true for the full
@@ -1014,6 +1041,8 @@ export class HindsightManager {
       this.clearManagedPid();
       this.serverProcess = null;
       this.isAppManaged = false;
+      this.lastHealthy = false;
+      this.readiness = { state: 'DEGRADED', processRunning: false, httpHealthy: false, databaseReady: false, llmReady: null, memoryReady: false };
       console.log('[HindsightManager] app-managed server tree terminated on quit.');
     } catch (e: any) {
       console.warn('[HindsightManager] stopSync skipped (non-fatal):', e?.message);

@@ -21,7 +21,7 @@ const requiredMarkers = [
 ];
 
 test('SingleFinalPromptInvariant: assembler owns final prompt construction', () => {
-  assert.match(source, /export function assembleNativelyPrompt/);
+  assert.match(source, /export function assembleSneakPeekPrompt/);
   assert.match(source, /const finalPrompt = buildFinalPrompt\(selectedSections\)/);
   assert.match(source, /finalPrompt,/);
   assert.doesNotMatch(source, /from ['"]\.\/ContextPlanner['"]|from ['"]\.\/RetrievalCoordinator['"]|from ['"]\.\.\/\.\.\/rag\/RAGManager['"]|from ['"]\.\.\/\.\.\/llm\/WhatToAnswerLLM['"]|new\s+ContextPlanner|new\s+RetrievalCoordinator/);

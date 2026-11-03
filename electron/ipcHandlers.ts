@@ -1443,6 +1443,8 @@ const nativeCompatibilityOnlyTurn =
   || isStealthEvasionQuestion(String(message || ''))
   || nativeSkillPrefix;
 if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !nativeCompatibilityOnlyTurn) {
+  let primaryHasVisibleOutput = false;
+  let settlePrimaryTurn: ((generationStatus: 'completed' | 'cancelled' | 'failed') => void) | undefined;
   try {
     const modeInfo = (() => {
       try { return require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.() ?? null; }
@@ -1453,7 +1455,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     );
     const requestId = `manual-chat-${myStreamId}`;
     const nativeSessionId = sessionId;
-    const { appendConversationTurn, getRecentConversationTurns } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+    const { appendConversationTurn, updateConversationTurn, getRecentConversationTurns } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
     const nativeCurrentTurn = appendConversationTurn({
       sessionId: nativeSessionId,
       text: String(message || ''),
@@ -1463,7 +1465,11 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       finalized: true,
       requestSequence: myStreamId,
       turnId: requestId,
+      generationStatus: 'pending',
     });
+    settlePrimaryTurn = (generationStatus) => {
+      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus });
+    };
     let profileAvailable = false;
     try {
       const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
@@ -1535,12 +1541,14 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       if (myController.signal.aborted) break;
       if (!chunk) continue;
       finalText += chunk;
+      primaryHasVisibleOutput = true;
       event.sender.send('gemini-stream-token', chunk, { streamId: myStreamId });
       try { PhoneMirrorService.getInstance().publishToken(String(myStreamId), chunk); } catch { /* mirror only */ }
     }
     const sneakPeekResult = await run.result;
 
     if (run.lifecycle.state === 'CANCELLED' || myController.signal.aborted) {
+      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'cancelled' });
       // STOP/supersession is terminal. Never fall through to legacy generation.
       if (_chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
         event.sender.send('gemini-stream-done', { finalText: finalText, streamId: myStreamId });
@@ -1549,6 +1557,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     }
 
     if (run.lifecycle.state === 'COMPLETED') {
+      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'completed' });
       const answer = sneakPeekResult.finalAnswer?.text ?? finalText;
       event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
       try { PhoneMirrorService.getInstance().publishDone(String(myStreamId), answer); } catch { /* mirror only */ }
@@ -1561,6 +1570,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
           source: 'manual',
           finalized: true,
           requestSequence: myStreamId,
+          generationStatus: 'completed',
         });
       }
       try {
@@ -1584,12 +1594,20 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     // legacy answer after it. Only a pre-commit engine failure is eligible for
     // compatibility fallback.
     if (sneakPeekResult.finalAnswer?.text || run.lifecycle.state === 'COMMITTED' || run.lifecycle.state === 'FAILED') {
+      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'failed' });
       const answer = sneakPeekResult.finalAnswer?.text ?? finalText;
       if (answer) event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
       else event.sender.send('gemini-stream-error', 'Sneak-Peek Intelligence generation failed.', { streamId: myStreamId });
       return null;
     }
   } catch (sneakPeekErr: any) {
+    settlePrimaryTurn?.(myController.signal.aborted ? 'cancelled' : 'failed');
+    if (primaryHasVisibleOutput || myController.signal.aborted) {
+      if (_chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
+        event.sender.send('gemini-stream-error', myController.signal.aborted ? 'Generation cancelled.' : 'Generation interrupted.', { streamId: myStreamId });
+      }
+      return null;
+    }
     // PRIMARY-route failures before visible output are compatibility fallbacks,
     // not a second answer. The old handler below is the temporary migration path.
     console.error('[Sneak-Peek Intelligence] primary manual-chat route failed before commit; falling back:', sneakPeekErr?.message || sneakPeekErr);
@@ -1786,7 +1804,7 @@ name: f.fileName,
 }
 } catch { /* debug identity only */ }
 const v3MeetingId = (appState.getIntelligenceManager?.() as any)
-?.getSessionTracker?.()?.getMeetingMetadata?.()?.id ?? null;
+?.getMeetingMetadata?.()?.id ?? null;
 // V3 remains the authorization planner. Translate its document source families
 // into RAGManager's canonical source families. Explicit selection prevents the
 // RAG query planner from broadening this turn into an unauthorized source.
@@ -6998,11 +7016,11 @@ console.warn('[HindsightConfig] set failed:', e?.message);
 return { success: false, error: 'set_failed' };
 }
 });
-safeHandle('hindsight-config:test', async () => {
+safeHandle('hindsight-config:test', async (_, options?: { verifyMemory?: boolean }) => {
 try {
 const { HindsightManager } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
 const hm = HindsightManager.getInstance();
-const healthy = await hm.healthCheck();
+const healthy = options?.verifyMemory === true ? await hm.verifyMemoryReadiness() : await hm.healthCheck();
 // If the probe saw 401/403, broadcast an auth-failed status so the top-of-overlay
 // banner can render Cloud-key-specific copy (different from the generic "Can't connect").
 // isAuthFailed() reads the cached lastAuthFailedAt timestamp.
@@ -7017,7 +7035,7 @@ win.webContents.send('hindsight-status', { state: 'auth-failed', reason: 'Cloud 
 } catch { /* headless */ }
 return { healthy: false, authFailed: true };
 }
-return { healthy };
+return { healthy, readiness: hm.getReadiness() };
 } catch (e: any) {
 return { healthy: false, error: e?.message };
 }

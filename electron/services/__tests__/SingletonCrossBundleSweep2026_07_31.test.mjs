@@ -28,10 +28,10 @@ const GLOBAL_KEYS = [
   '__nativelyOnnxSemaphoreV1__',
   '__nativelyLegacyTraceSinkV1__',
   '__nativelyIntelAttributionV1__',
-  '__nativelySettingsManagerV1__',
-  '__nativelyCredentialsManagerV1__',
+  '__sneakPeekSettingsManagerV1__',
+  '__sneakPeekCredentialsManagerV1__',
   '__nativelyOllamaManagerV1__',
-  '__nativelyHindsightManagerV1__',
+  '__sneakPeekHindsightManagerV1__',
 ];
 
 function twoCopies(rel) {
@@ -69,8 +69,9 @@ describe('singleton state is process-wide, not per-bundle (2026-07-31 sweep)', (
     A.__resetOnnxGateForTests?.();
     const acquire = B.acquireOnnxSlot ?? null;
     if (!acquire) return; // export name drifted — identity check below still runs
-    const release1 = await acquire();
-    const release2 = await acquire();
+    const releases = [];
+    const cap = A.getMaxConcurrentOnnxSessions();
+    for (let i = 0; i < cap; i++) releases.push(await acquire());
     // Cap is 2 per PROCESS. If copy A kept its own counters, a third acquire
     // through A would succeed immediately — the per-copy cap bug.
     const acquireA = A.acquireOnnxSlot;
@@ -79,7 +80,7 @@ describe('singleton state is process-wide, not per-bundle (2026-07-31 sweep)', (
     await new Promise((r) => setTimeout(r, 50));
     assert.equal(thirdResolved, false,
       'copy A granted a 3rd concurrent slot — the semaphore is per-bundle again (cap 2/copy)');
-    release1(); release2();
+    releases.forEach((release) => release());
     const relThird = await third;
     relThird();
   });

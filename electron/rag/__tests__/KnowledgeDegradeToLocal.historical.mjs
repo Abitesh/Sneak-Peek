@@ -1,4 +1,4 @@
-// electron/rag/__tests__/KnowledgeDegradeToLocal.test.mjs
+// Historical retired Knowledge node API. See scripts/audit/work0011-current-failures.md.
 //
 // MEDIUM-2 fix: when the cloud embedder can't converge the knowledge corpus into
 // the active (cloud) space (sustained 429 / network down), ensureEmbeddingSpace

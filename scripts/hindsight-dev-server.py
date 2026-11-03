@@ -29,16 +29,18 @@ PORT = int(os.environ.get("HINDSIGHT_PORT", "8888"))
 # config is present, the per-deployment provider keys live in the Router environment
 # and no single scalar API key is authoritative.
 ROUTER_CONFIG = os.environ.get("HINDSIGHT_API_LLM_LITELLMROUTER_CONFIG", "").strip()
-PROVIDER = (
+PROVIDER = "litellmrouter" if ROUTER_CONFIG else (
     os.environ.get("HINDSIGHT_API_LLM_PROVIDER")
     or os.environ.get("HINDSIGHT_LLM_PROVIDER")
     or ("litellmrouter" if ROUTER_CONFIG else "gemini")
 )
-MODEL = (
+MODEL = "default" if ROUTER_CONFIG else (
     os.environ.get("HINDSIGHT_API_LLM_MODEL")
     or os.environ.get("HINDSIGHT_LLM_MODEL")
     or ("default" if PROVIDER.lower() == "litellmrouter" else "gemini-3.1-flash-lite")
 )
+if MODEL in ("gemini-2.5-flash", "models/gemini-2.5-flash"):
+    MODEL = "gemini-3.1-flash-lite"
 API_KEY = (
     os.environ.get("HINDSIGHT_API_LLM_API_KEY")
     or os.environ.get("GEMINI_API_KEY")
@@ -58,6 +60,7 @@ if not API_KEY and not ROUTER_CONFIG:
 # The constructor still accepts the generic api-key argument, so provide a non-secret
 # sentinel only when router mode has no scalar key. It is never sent as a provider key.
 SERVER_API_KEY = API_KEY or "router-managed"
+DATABASE_URL = os.environ.get("HINDSIGHT_API_DATABASE_URL") or "pg0"
 
 try:
     from hindsight import HindsightServer
@@ -105,6 +108,7 @@ def main():
           f"port={PORT} start_timeout={START_TIMEOUT}s")
     print("[hindsight-dev-server] (first boot downloads embedding models — may take a minute)")
     server = HindsightServer(
+        db_url=DATABASE_URL,
         llm_provider=PROVIDER,
         llm_model=MODEL,
         llm_api_key=SERVER_API_KEY,

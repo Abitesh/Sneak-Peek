@@ -49,8 +49,8 @@ const { LLMHelper } = require(dist('LLMHelper.js'));
 const { SettingsManager } = require(dist('services/SettingsManager.js'));
 const { PRIVATE_VISION_NO_LOCAL_MESSAGE } = require(dist('llm/visionPolicy.js'));
 
-const SETTINGS_SLOT = '__nativelySettingsManagerV1__';
-const CRED_SLOT = '__nativelyCredentialsManagerV1__';
+const SETTINGS_SLOT = '__sneakPeekSettingsManagerV1__';
+const CRED_SLOT = '__sneakPeekCredentialsManagerV1__';
 let settingsBefore, credBefore;
 
 // A REAL file on disk: processImage / fs.existsSync are not stubbed, so the
@@ -112,6 +112,9 @@ function helper() {
   h.ollamaModel = 'llava:7b';
   h.checkOllamaAvailable = async () => false;
   h.ensureOllamaModelSelected = async () => false;
+  h.isOllamaReachable = async () => false;
+  h.probeOllama = async () => ({ ok: false, reason: 'unavailable in fixture' });
+  h.getOllamaModels = async () => [];
   h.rateLimiters = {
     gemini: { acquire: async () => {} }, groq: { acquire: async () => {} },
     openai: { acquire: async () => {} }, claude: { acquire: async () => {} },
@@ -462,6 +465,7 @@ describe('DEFECT 3 — the `custom` family toggle reaches the boundary', () => {
     h._openaiClient = null;
     h._claudeClient = null;
     h._client = null;
+    h._groqClient = null;
     h.executeCustomProvider = async () => 'custom-ok';
     await assert.rejects(
       () => LLMHelper.prototype.generateContentStructured.call(h, 'a question'),
@@ -561,6 +565,7 @@ describe('DEFECT 3 — the `custom` family toggle reaches the boundary', () => {
     h._openaiClient = null;
     h._claudeClient = null;
     h._client = null; // no Gemini either, so custom is the only rung left
+    h._groqClient = null;
     let used = false;
     h.executeCustomProvider = async () => { used = true; return 'custom-ok'; };
     const out = await LLMHelper.prototype.generateContentStructured.call(h, 'a question');

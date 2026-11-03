@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { routeGenerationProviders } from '../../../llm/ProviderRouter.js';
+import { routeGenerationProviders } from '../../../../dist-electron/electron/llm/ProviderRouter.js';
 
 test('generation routing honors an explicit preferred provider without semantic context decisions', () => {
   const attempts = routeGenerationProviders({

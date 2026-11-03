@@ -271,6 +271,9 @@ function heuristicIntent(text: string, input: UnderstandTurnInput, classificatio
   if (types.has('FOLLOW_UP')) return 'follow-up';
   if (types.has('CODING_TASK')) return 'coding-request';
   if (types.has('SYSTEM_DESIGN')) return 'system-design';
+  // The operator's own résumé is a profile source, even when the question
+  // also says "according to". Candidate attachments remain document-scoped.
+  if (/\bmy\s+(?:resume|r[eé]sum[eé]|cv)(?=\s|[?.!,]|$)|\bwhere (?:did|do|have) i (?:work|worked)\b/i.test(q)) return 'personal-question';
   if ([...types].some((t) => t === 'DOCUMENT_FACT' || t === 'DOCUMENT_EXPLANATION')) return 'document-question';
   if (types.has('SCREEN_SPECIFIC')) return 'screen-question';
   if (types.has('MEETING_FACT')) return 'meeting-question';

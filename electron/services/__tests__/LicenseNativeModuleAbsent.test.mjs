@@ -42,6 +42,12 @@ const stubPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '__elec
 const originalResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, ...rest) {
   if (request === 'electron') return stubPath;
+  // Create the test's absent-module premise even on a built developer machine.
+  if (String(request).includes('native-module') && String(request).endsWith('.node')) {
+    const error = new Error('Native module deliberately masked by absence test');
+    error.code = 'MODULE_NOT_FOUND';
+    throw error;
+  }
   return originalResolve.call(this, request, ...rest);
 };
 
@@ -123,9 +129,9 @@ before(() => {
   // Guard the premise: if the native module somehow loaded, every assertion
   // below is vacuous and would pass for the wrong reason.
   const mgr = freshManager();
-  assert.equal(
+  assert.match(
     mgr.getHardwareId(),
-    'unavailable',
+    /^unavailable$/i,
     'precondition failed: native module loaded — this test must run with it ABSENT',
   );
 });

@@ -1,4 +1,4 @@
-// electron/rag/__tests__/KnowledgeSpaceReembed.test.mjs
+// Historical retired Knowledge node API. See scripts/audit/work0011-current-failures.md.
 //
 // CRITICAL fix verification: the premium knowledge base (resume/JD grounding) must
 // NOT compare v1 node vectors against v2 query vectors. gemini-embedding-001 and

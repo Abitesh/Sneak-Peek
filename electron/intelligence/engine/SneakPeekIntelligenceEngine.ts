@@ -6,7 +6,7 @@ import type {
   SneakPeekSelectedContext,
   SneakPeekRetrievalPlan,
 } from './types';
-import { getRecentConversationContext } from './TranscriptContext';
+import { getRecentConversationContext, isUsableConversationTurn } from './TranscriptContext';
 import type { ConversationTurn } from '../../context-intelligence/question/conversation-state';
 import { getConversationState } from '../../context-intelligence/question/conversation-state-store';
 import { understandTurn } from '../../context-intelligence/question/question-resolver';
@@ -43,13 +43,16 @@ export class SneakPeekIntelligenceEngine {
     retrievalCoordinator?: RetrievalCoordinator;
     generationPort?: SneakPeekGenerationPort;
   } | RetrievalCoordinator) {
-    if (options instanceof RetrievalCoordinator) {
-      this.retrievalCoordinator = options;
+    // Each Electron entry is bundled separately; a coordinator supplied by
+    // another entry can have a different class identity. Honor the port shape.
+    if (options && typeof (options as RetrievalCoordinator).retrieve === 'function') {
+      this.retrievalCoordinator = options as RetrievalCoordinator;
       this.generationPort = undefined;
       return;
     }
-    this.retrievalCoordinator = options?.retrievalCoordinator ?? new RetrievalCoordinator();
-    this.generationPort = options?.generationPort;
+    const config = options as { retrievalCoordinator?: RetrievalCoordinator; generationPort?: SneakPeekGenerationPort } | undefined;
+    this.retrievalCoordinator = config?.retrievalCoordinator ?? new RetrievalCoordinator();
+    this.generationPort = config?.generationPort;
   }
 
   /**
@@ -188,11 +191,12 @@ export class SneakPeekIntelligenceEngine {
     stages.push('understand');
     pipelineStages.push('TurnUnderstanding');
     const resolvedQuestion = this.resolveQuestion(request);
+    const storedConversation = getConversationState(request.sessionId);
     const turnUnderstanding = understandTurn({
       manualQuestion: request.manualQuestion ?? request.userMessage,
       selectedText: request.manualQuestion,
       sessionId: request.sessionId,
-      conversationState: getConversationState(request.sessionId),
+      conversationState: storedConversation ? { ...storedConversation, turns: storedConversation.turns.filter((turn) => turn.id === request.currentTurn.id || isUsableConversationTurn(turn)) } : undefined,
       hasScreenContext: Boolean(request.screenContext),
       transcript: request.transcriptContext?.turns?.map((turn) => ({
         role: turn.role === 'assistant' ? 'assistant' : 'interviewer',

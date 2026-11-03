@@ -11,6 +11,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The managed child owns its database selection. An explicit Hindsight URL is
+# preserved; generic shell PostgreSQL settings cannot redirect this service.
+export HINDSIGHT_API_DATABASE_URL="${HINDSIGHT_API_DATABASE_URL:-pg0}"
+unset DATABASE_URL PGHOST PGPORT
+
 # Load provider keys from .env — but ONLY for keys not already present in the environment.
 # When the desktop app spawns this script it forwards the REAL (decrypted) provider keys via
 # the child env (HindsightManager.buildCredentialEnv); the .env values may be dotenvx-encrypted
@@ -39,8 +44,9 @@ fi
 # exit-1. Probe candidates in order and pick the first that can import it.
 pick_python() {
   local c
-  # 1. explicit override, 2. PATH python3/python, 3. common concrete install locations.
+  # Prefer this checkout's environment, then an explicit override and system Python.
   for c in \
+    "$PWD/.venv/bin/python" \
     "${HINDSIGHT_PYTHON:-}" \
     "$(command -v python3 || true)" \
     "$(command -v python || true)" \
@@ -49,6 +55,9 @@ pick_python() {
     /Library/Frameworks/Python.framework/Versions/*/bin/python3 \
     /usr/bin/python3 ; do
     [ -n "$c" ] && [ -x "$c" ] || continue
+    case "$c" in
+      */.venv/bin/*) [ "$c" = "$PWD/.venv/bin/python" ] || [ "$c" = "${HINDSIGHT_PYTHON:-}" ] || continue ;;
+    esac
     if "$c" -c 'import hindsight' >/dev/null 2>&1; then
       echo "$c"; return 0
     fi

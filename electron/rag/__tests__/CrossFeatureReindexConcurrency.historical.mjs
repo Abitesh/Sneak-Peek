@@ -1,4 +1,4 @@
-// electron/rag/__tests__/CrossFeatureReindexConcurrency.test.mjs
+// Historical retired Knowledge node API. See scripts/audit/work0011-current-failures.md.
 //
 // CROSS-FEATURE CONCURRENCY — the meetings RAG auto-reindex (RAGManager._runReindex +
 // EmbeddingPipeline.processQueue) and the premium knowledge re-embed (KnowledgeOrchestrator.

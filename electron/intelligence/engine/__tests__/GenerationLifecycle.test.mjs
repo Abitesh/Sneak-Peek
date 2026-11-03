@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GenerationLifecycle } from '../GenerationController.js';
+import { GenerationLifecycle } from '../../../../dist-electron/electron/intelligence/engine/GenerationController.js';
 
 test('generation lifecycle enforces the canonical planning-to-completion order', () => {
   const lifecycle = new GenerationLifecycle('lifecycle-1');

@@ -138,8 +138,8 @@ describe('manual chat refuses to store a truncated answer', () => {
   // phone mirror. The question is not in doubt just because the answer stopped
   // early. Answer-side sinks are gated; user-side sinks always run.
   const ANSWER_SIDE_REGION = (() => {
-    const start = ipcSrc.indexOf('// ── ANSWER-SIDE SINKS (skipped when truncated) ──');
-    const end = ipcSrc.indexOf('} // end answer-side sinks');
+    const start = ipcSrc.indexOf('ANSWER-SIDE SINKS (skipped when truncated)');
+    const end = ipcSrc.indexOf('} // end answer-side sinks', start);
     return { start, end, text: start > 0 && end > start ? ipcSrc.slice(start, end) : null };
   })();
 
@@ -199,7 +199,11 @@ describe('manual chat refuses to store a truncated answer', () => {
   });
 
   test('the renderer is told the answer is incomplete', () => {
-    const done = ipcSrc.slice(ipcSrc.indexOf("event.sender.send('gemini-stream-done', {"));
+    const truncatedBranch = ipcSrc.indexOf('const v3Truncated = v3Stream.outcome.truncated === true;');
+    assert.ok(truncatedBranch > 0, 'the V3 truncation outcome is missing');
+    const doneStart = ipcSrc.indexOf("event.sender.send('gemini-stream-done', {", truncatedBranch);
+    assert.ok(doneStart > truncatedBranch, 'the V3 done event is missing');
+    const done = ipcSrc.slice(doneStart);
     assert.match(done.slice(0, 400), /incomplete: v3Truncated/, 'the done payload must carry the incomplete flag');
   });
 
@@ -431,7 +435,7 @@ describe('a truncated turn is logged as usage but never replayed as context', ()
   });
 
   test('the truncated branch marks the entry synthetic', () => {
-    const start = ipcSrc.indexOf('if (v3Truncated) {\n                  im?.pushUsage?.({');
+    const start = /if \(v3Truncated\) \{\s*im\?\.pushUsage\?\.\(\{/.exec(ipcSrc)?.index ?? -1;
     assert.ok(start > 0, 'the truncated usage branch is missing');
     const body = ipcSrc.slice(start, start + 400);
     assert.match(body, /synthetic: true/, 'a truncated turn must not be reusable as conversation context');

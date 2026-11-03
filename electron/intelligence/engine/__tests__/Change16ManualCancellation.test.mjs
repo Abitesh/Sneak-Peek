@@ -9,7 +9,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 test('primary manual cancellation settles the engine result after consumer closure', () => {
   const engine = read('intelligence/engine/SneakPeekIntelligenceEngine.ts');
   assert.match(engine, /let resultSettled = false/);
-  assert.match(engine, /let preparedResult: NativelyIntelligenceResult \| null = null/);
+  assert.match(engine, /let preparedResult: SneakPeekIntelligenceResult \| null = null/);
   assert.match(engine, /finally \{[\s\S]*request\.cancellationSignal\?\.aborted[\s\S]*!resultSettled/);
   assert.match(engine, /resolveResult\(buildCancelledResult\(base, 'consumer closed an aborted generation'\)\)/);
 });

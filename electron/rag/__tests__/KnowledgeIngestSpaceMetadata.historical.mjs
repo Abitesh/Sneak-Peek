@@ -1,4 +1,4 @@
-// electron/rag/__tests__/KnowledgeIngestSpaceMetadata.test.mjs
+// Historical retired Knowledge node API. See scripts/audit/work0011-current-failures.md.
 //
 // Regression for profile/JD ingestion after single-embedding fallback promotion.
 // KnowledgeOrchestrator used to snapshot activeSpace BEFORE embedding, then stamp

@@ -47,7 +47,7 @@ const { LLMHelper } = require(dist('LLMHelper.js'));
 // CredentialsManager is anchored on globalThis (one instance across the 22
 // bundles that inline it), so seeding that slot is how the shipped read path is
 // exercised without a real credential store.
-const CRED_SLOT = '__nativelyCredentialsManagerV1__';
+const CRED_SLOT = '__sneakPeekCredentialsManagerV1__';
 let credBefore;
 const setDisabled = (list) => {
   globalThis[CRED_SLOT] = { getDisabledProviders: () => list };
@@ -145,6 +145,9 @@ function runInner(message, { disabled = [], model = 'gpt-test' } = {}) {
   // request to the local Ollama daemon.
   h.checkOllamaAvailable = async () => false;
   h.ensureOllamaModelSelected = async () => false;
+  h.isOllamaReachable = async () => false;
+  h.probeOllama = async () => ({ ok: false, reason: 'unavailable in fixture' });
+  h.getOllamaModels = async () => [];
   h.currentModelId = model;
   h.pickConfiguredCustomProviderForFallback = () => null;
   h.getActiveModeGroundingInfo = () => null;

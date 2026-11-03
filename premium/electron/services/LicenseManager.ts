@@ -122,14 +122,8 @@ export class LicenseManager {
     }
 
     const existing = this.readStoredLicense();
-    if (existing && existing.provider && existing.provider !== 'natively_api') {
-      const hardwareId = this.getHardwareId();
-      const currentHardwareId = (hardwareId || '').toLowerCase();
-      const storedHardwareId = (existing.hwid || '').toLowerCase();
-
-      if (hardwareId !== 'unavailable' && hardwareId !== 'UNAVAILABLE' && currentHardwareId && storedHardwareId && currentHardwareId === storedHardwareId) {
-          return { success: false, skipped: true };
-      }
+    if (existing && existing.provider !== 'natively_api' && !this.isPerpetualLicenseSafeToReplace(existing)) {
+      return { success: false, skipped: true, error: 'The stored device-bound license cannot be replaced until its device binding can be verified. Check the native module installation.' };
     }
 
     try {
@@ -379,7 +373,7 @@ export class LicenseManager {
         parsed = JSON.parse(text);
       }
       if (!parsed || typeof parsed !== 'object') return null;
-      const provider = String(parsed.provider || 'natively_api');
+      const provider = String(parsed.provider || 'legacy');
       const plan = typeof parsed.plan === 'string' ? parsed.plan : undefined;
       const isPremium = Boolean(parsed.isPremium || provider === 'natively_api' || (typeof parsed.hwid === 'string' && parsed.hwid.length > 0 && this.getHardwareId() !== 'UNAVAILABLE' && this.getHardwareId() !== 'unavailable' && this.getHardwareId() === parsed.hwid));
       return {
