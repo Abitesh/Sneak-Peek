@@ -750,6 +750,7 @@ query: string,
 ragCancelQuery: (options: {
 meetingId?: string;
 global?: boolean;
+clearContext?: boolean;
 }) => Promise<{ success: boolean }>;
 ragIsMeetingProcessed: (meetingId: string) => Promise<boolean>;
 ragGetQueueStatus: () => Promise<{
@@ -2341,7 +2342,7 @@ ragQueryMeeting: (meetingId: string, query: string) =>
 ipcRenderer.invoke('rag:query-meeting', { meetingId, query }),
 ragQueryLive: (query: string) => ipcRenderer.invoke('rag:query-live', { query }),
 ragQueryGlobal: (query: string) => ipcRenderer.invoke('rag:query-global', { query }),
-ragCancelQuery: (options: { meetingId?: string; global?: boolean }) =>
+ragCancelQuery: (options: { meetingId?: string; global?: boolean; clearContext?: boolean }) =>
 ipcRenderer.invoke('rag:cancel-query', options),
 ragIsMeetingProcessed: (meetingId: string) =>
 ipcRenderer.invoke('rag:is-meeting-processed', meetingId),

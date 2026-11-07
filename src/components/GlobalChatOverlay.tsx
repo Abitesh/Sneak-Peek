@@ -157,6 +157,13 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
     // completion can render empty. A ref updates immediately, no batching.
     const submitInFlightRef = useRef(false);
 
+    useEffect(() => {
+        if (!isOpen) {
+            void window.electronAPI?.ragCancelQuery?.({ global: true, clearContext: true });
+            submitInFlightRef.current = false;
+        }
+    }, [isOpen]);
+
     // Submit initial query when overlay opens
     useEffect(() => {
         if (isOpen && initialQuery && messages.length === 0) {
@@ -310,6 +317,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                     ? await withTimeout(call, RAG_QUERY_CLIENT_TIMEOUT_MS, 'ragQueryGlobal')
                     : undefined;
             } catch (timeoutErr) {
+                void window.electronAPI?.ragCancelQuery?.({ global: true });
                 console.error('[GlobalChat] ragQueryGlobal client-side timeout:', timeoutErr);
                 // Tear down the RAG listeners we just registered — the main
                 // process may still respond well after this point (its own

@@ -141,14 +141,11 @@ test('local-retrieval and full-local force bundled MiniLM even when Ollama would
 
 test('RAG answers use provider-neutral dispatch, not a hard-wired Gemini stream', () => {
   const src = read('electron/rag/RAGManager.ts');
-  assert.doesNotMatch(src, /streamChatWithGemini\(/);
-  assert.match(src, /streamChatWithOutcome\(/);
-  const meeting = src.slice(src.indexOf('async *queryMeeting('), src.indexOf('async *queryGlobal('));
-  const ragAnswerStart = src.indexOf('private async *streamRagAnswer(');
-  assert.ok(ragAnswerStart > 0, 'streamRagAnswer must exist');
-  const ragAnswer = src.slice(ragAnswerStart, src.indexOf('async *query('));
-  assert.match(meeting, /streamRagAnswer\(/);
-  assert.match(src.slice(src.indexOf('async *queryGlobal('), ragAnswerStart), /streamRagAnswer\(/);
-  assert.match(ragAnswer, /streamChatWithOutcome\(/);
-  assert.match(ragAnswer, /abortSignal/);
+  assert.doesNotMatch(src, /streamChatWithGemini\(|streamChatWithOutcome\(|streamRagAnswer\(/);
+  const ipc = read('electron/ipcHandlers.ts');
+  const generation = ipc.slice(ipc.indexOf('function createPrimaryManualSneakPeekEngine('), ipc.indexOf('function buildSneakPeekMeetingTranscriptContext('));
+  assert.match(generation, /getSneakPeekGenerationRouteOptions/);
+  assert.match(generation, /GenerationController/);
+  assert.match(generation, /streamFinalPrompt/);
+  assert.match(generation, /abortSignal: request\.cancellationSignal/);
 });

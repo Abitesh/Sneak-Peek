@@ -10,6 +10,7 @@
 import type Database from 'better-sqlite3';
 import { DatabaseManager } from '../../db/DatabaseManager';
 import { VectorStore } from '../VectorStore';
+import { revokeCanonicalSources } from '../canonical/CanonicalRagStorage';
 import type {
   MeetingChunkIdMapping,
   MeetingStorageContract,
@@ -264,6 +265,7 @@ export class MeetingStorageAdapter implements MeetingStorageContract {
 
   deleteMeeting(meetingId: string): boolean {
     const tx = this.db.transaction(() => {
+      revokeCanonicalSources(this.db, 'meeting', [meetingId]);
       this.deleteChunkVectors(meetingId);
 
       const summaryRows = this.db.prepare(`

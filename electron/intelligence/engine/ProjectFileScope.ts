@@ -24,6 +24,12 @@ export interface ProjectFileScope {
   unresolvedReference?: boolean;
 }
 
+/** Resolve a retrieval hint only after the engine authorized exact current IDs. */
+export function projectRetrievalQuery(question: string, projectName?: string, sourceIds?: readonly string[]): string {
+  if (!projectName?.trim() || !sourceIds?.length) return question;
+  return question.replace(/\b(?:my|your|our|the|this|that)\s+(?:(?:current|previous|last|main|existing)\s+)?(?:project|repo|repository|codebase)\b/gi, () => projectName.trim());
+}
+
 const NON_PROJECT_NAMES = new Set([
   'project', 'projects', 'the', 'this', 'that', 'my', 'your', 'our',
   'code', 'design', 'implementation', 'architecture', 'repository',

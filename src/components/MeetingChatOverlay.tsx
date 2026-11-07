@@ -245,7 +245,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
             setMessages([]);
             setErrorMessage(null);
             submitInFlightRef.current = false;
-            void window.electronAPI?.ragCancelQuery?.({ meetingId: meetingContext.id });
+            void window.electronAPI?.ragCancelQuery?.({ meetingId: meetingContext.id, clearContext: true });
             window.electronAPI?.cancelChatStream?.();
         }
     }, [isOpen, meetingContext.id]);
@@ -270,7 +270,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
 
     const handleClose = useCallback(() => {
         submitInFlightRef.current = false;
-        void window.electronAPI?.ragCancelQuery?.({ meetingId: meetingContext.id });
+        void window.electronAPI?.ragCancelQuery?.({ meetingId: meetingContext.id, clearContext: true });
         window.electronAPI?.cancelChatStream?.();
         onClose();
     }, [meetingContext.id, onClose]);

@@ -2,6 +2,18 @@
 
 Updated: 2026-11-01. This pack contains **eight files: seven Markdown files and one tree text file**. It is a documentation/bootstrap deliverable, not an application patch.
 
+## Verified local architecture update — WORK-0026, 2026-11-08
+
+Local main/86923ac5 plus the current uncommitted WORK-0025/0026 tree supersedes the historical public-snapshot observations below for these facts:
+
+- `rag:query-meeting`, `rag:query-global` and accepted live RAG turns use `streamSneakPeekMeetingAnswer` → `RagIpcStream` → `SneakPeekIntelligenceEngine`. ContextPlanner/RetrievalCoordinator authorize planned source reads, EvidencePack preserves locators/revisions, PromptAssembler builds the final prompt, and GenerationController uses ProviderRouter and the selected provider transport.
+- Persisted meeting queries are meeting-scoped; global queries are meetings-only. Cancellation/session keys include sender and surface. Existing preload API names and chunk/error/complete events are preserved; clearContext is an additive cancellation option.
+- Canonical RAG still owns documents/revisions/chunks/embeddings/indexing/hybrid retrieval/provenance. Source deletion revokes its derived searchable projection in the same source transaction while retaining revision history. Canonical read flags remain default-off with source-local fallback; no new store/migration.
+- Authorized project follow-ups carry revalidated project identity and original file IDs into retrieval-only query resolution. Old project answer text is excluded from exact-file scoped factual prompts; original user question and private-source permissions remain intact.
+- RAGManager queryMeeting/queryGlobal/smart query/streamRagAnswer and unused rag/prompts.ts are removed after caller inspection. setLLMHelper survives only as a local-private policy configuration hook. Non-RAG image/skill/caller-owned prompt and other legacy provider APIs remain compatibility paths; this is not a claim of app-wide migration.
+
+Evidence: fresh focused native tests 284/284, intelligence 2,099 pass/9 TODO, both typechecks/build and routing/isolation 20/20. A minimal real Electron BrowserWindow uses production preload plus engine/canonical retrieval and deterministic generation; screenshot inspected after a paint barrier. Full product/manual/real-provider/latency/Windows acceptance remains pending. See WORK-0026 in CHANGE_LOG and current TASK_TRACKER. The remaining overview is a dated historical snapshot, not current execution status.
+
 ## Evidence boundary
 
 - Owner: developing on macOS, VS Code/Copilot; wants to understand the project while improving it; reports roughly 80 commits and work in progress on Change 17.

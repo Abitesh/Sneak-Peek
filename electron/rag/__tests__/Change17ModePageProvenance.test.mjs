@@ -19,15 +19,19 @@ const FILE = {
   createdAt: '2026-01-01T00:00:00.000Z',
   pageCount: 7,
   extractedPageCount: 7,
-  content: '[Page 7]\nThe Sequoia service uses the violet cache for deterministic read isolation. The team selected this cache because it prevents unrelated workers from sharing stale values during recovery.',
+  content: '[Page 7]\n1 Overview\nThe reference describes the service.\n1.1 Background\nThe workers require isolation.\n2 Design\nThe cache is part of the design.\n2.1 Cache rationale\nThe Sequoia service uses the violet cache for deterministic read isolation. The team selected this cache because it prevents unrelated workers from sharing stale values during recovery.\n3 Conclusion\nThe design is complete.',
 };
 
-async function makeFixture() {
+async function makeFixture({ vector = false } = {}) {
   const db = new Database(':memory:');
   const pipeline = {
-    isReady: () => false, // deterministic offline lexical retrieval
-    getActiveSpaceKey: () => null,
-    getActiveProviderName: () => 'none',
+    isReady: () => vector,
+    getActiveSpaceKey: () => vector ? 'synthetic:mode:2' : null,
+    getActiveProviderName: () => vector ? 'fixture' : 'none',
+    getEmbeddingsWithFallback: async (texts) => ({
+      embeddings: texts.map(() => [1, 0]), space: 'synthetic:mode:2',
+    }),
+    getEmbeddingForQuery: async () => [1, 0],
   };
   const retriever = new ModeHybridRetriever(db, {}, pipeline);
   await retriever.indexFile(FILE);
@@ -51,6 +55,29 @@ async function makeFixture() {
   return { db, retriever, adapter };
 }
 
+test('CHG-17 compatible-vector mode retrieval keeps section and page metadata through the real adapter', async () => {
+  const { db, retriever, adapter } = await makeFixture({ vector: true });
+  try {
+    const state = retriever.getIndexState(FILE_ID);
+    assert.equal(state?.status, 'ready');
+    assert.equal(state?.embeddingSpace, 'synthetic:mode:2');
+    const results = await adapter.retrieve({
+      query: QUESTION,
+      options: { modeId: MODE_ID },
+      candidatePoolSize: 8,
+      tokenBudget: 2000,
+    });
+    const evidence = results.find((result) => result.source?.id === FILE_ID && result.chunk?.text.includes('violet cache'));
+    assert.ok(evidence);
+    assert.ok(evidence.semanticScore > 0, 'compatible vectors contribute to retrieval');
+    assert.equal(evidence.chunk.pageStart, 7);
+    assert.equal(evidence.chunk.section, '2.1');
+    assert.equal(evidence.chunk.heading, '2.1 Cache rationale');
+  } finally {
+    db.close();
+  }
+});
+
 for (const forceDocumentGrounding of [false, true]) {
   test(`CHG-17 mode ${forceDocumentGrounding ? 'document-grounded' : 'normal'} retrieval retains PDF page 7 through its real adapter`, async () => {
     const { db, retriever, adapter } = await makeFixture();
@@ -68,6 +95,8 @@ for (const forceDocumentGrounding of [false, true]) {
       assert.ok(selected, 'answer-bearing chunk must be selected');
       assert.equal(selected.pageStart, 7, 'indexed page survives selected-chunk mapping');
       assert.equal(selected.pageEnd, 7);
+      assert.equal(selected.section, '2.1');
+      assert.equal(selected.heading, '2.1 Cache rationale');
 
       const results = await adapter.retrieve({
         query: QUESTION,
@@ -79,6 +108,8 @@ for (const forceDocumentGrounding of [false, true]) {
       assert.ok(evidence, 'adapter must return the same original source and fact');
       assert.equal(evidence.chunk.pageStart, 7);
       assert.equal(evidence.chunk.pageEnd, 7);
+      assert.equal(evidence.chunk.section, '2.1');
+      assert.equal(evidence.chunk.heading, '2.1 Cache rationale');
       assert.equal(evidence.chunk.documentId, FILE_ID);
       assert.equal(evidence.source.sourceType, 'mode');
     } finally {

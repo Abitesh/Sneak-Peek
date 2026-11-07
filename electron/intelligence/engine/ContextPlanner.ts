@@ -262,6 +262,18 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   // Availability/permissions never turn a forbidden source into an allowed
   // one. They only annotate required/optional sources as unavailable for the
   // downstream adapter. The plan itself remains the intelligence decision.
+  // Explicit meeting-search commands authorize only the selected meeting pool,
+  // regardless of project/personal words inside the search query.
+  if (request.retrievalScope) {
+    required.clear();
+    optional.clear();
+    for (const source of PRIVATE_SOURCES) forbidden.add(source);
+    require('meeting_transcript');
+    require('rag');
+    require('recent_conversation');
+    rationale.push('Explicit meeting search is restricted to meeting evidence.');
+  }
+
   const decisions: ContextSourceDecision[] = SOURCES.map((source) => {
     let requirement: ContextRequirement;
     if (required.has(source)) requirement = 'required';
@@ -301,7 +313,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     forbiddenSources,
     notRequiredSources,
     needsContext: requiredSources.length > 0 || optionalSources.length > 0,
-    generalKnowledgeAllowed: !requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question',
+    generalKnowledgeAllowed: !request.retrievalScope && (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question'),
     retrievalRequired,
     retrievalSources,
     rationale,

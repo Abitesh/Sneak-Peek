@@ -115,14 +115,11 @@ test('Change 46 — answer + citations share one IPC contract', () => {
   assert.match(ipc, /chatAnswerIpcFields\(toChatAnswerContract/);
 });
 
-test('Change 46 — meeting/global overlays use the unified search engine', () => {
-  const meetingStart = meetingQuery.indexOf('async *queryMeeting');
-  const globalStart = meetingQuery.indexOf('async *queryGlobal');
-  const streamStart = meetingQuery.indexOf('private async *streamRagAnswer');
-  assert.ok(meetingStart >= 0 && globalStart > meetingStart && streamStart > globalStart);
-  assert.match(meetingQuery.slice(meetingStart, globalStart), /this\.search\(/);
-  assert.match(meetingQuery.slice(globalStart, streamStart), /this\.search\(/);
-  assert.doesNotMatch(meetingQuery.slice(meetingStart, streamStart), /this\.retriever\.retrieve(?:Global)?\(/);
+test('Change 18 — meeting/global overlays use engine-owned planned retrieval', () => {
+  assert.doesNotMatch(meetingQuery, /async \*(?:queryMeeting|queryGlobal|streamRagAnswer)\(/);
+  assert.match(ipc, /return await streamRagEngineAnswer/);
+  assert.match(ipc, /readPlannedCanonicalSource/);
+  assert.doesNotMatch(ipc, /ragManager\.query(?:Meeting|Global)\(/);
 });
 
 test('Change 46 — Change 45 legacy keep-gate remains in force', () => {

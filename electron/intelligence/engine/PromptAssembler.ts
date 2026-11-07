@@ -85,6 +85,9 @@ function renderResponsePolicy(
 ): string {
   const shape = request.responseShape;
   const lines = ['<response_policy>'];
+  if (request.retrievalScope) {
+    lines.push('  <meeting_grounding>Answer only from the authorized meeting evidence. Cite the meeting source and available speaker/time locators. If it does not support the answer, state that the information was not found in these meetings. Never invent a meeting, fact or citation.</meeting_grounding>');
+  }
 
   if (responsePlan) {
     lines.push(`  <response_kind>${escapeXml(responsePlan.kind)}</response_kind>`);
@@ -228,7 +231,11 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
   selectedSections.push(question);
   sectionNames.push('current_question');
 
-  const conversation = renderConversation(input.conversationContext, input.contextPlan);
+  // Completed conversation may resolve a project referent upstream, but its
+  // old answer text is not evidence authorized for the current exact file IDs.
+  // This also prevents deleted/missing project facts surviving a zero-ID scope.
+  const conversation = input.request.activeContext?.projectSourceIds !== undefined
+    ? null : renderConversation(input.conversationContext, input.contextPlan);
   if (conversation) {
     selectedSections.push(conversation);
     sectionNames.push('conversation');

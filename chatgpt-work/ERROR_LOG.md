@@ -147,6 +147,8 @@ History:
 
 ## ERR-002 — personal-intelligence / grounded-answer failure
 
+2026-11-07 WORK-0026 investigation before repair: the eight reproduced assertions map to concrete legacy structured-profile behavior. `ContextAssembler` matches singular `achievement` and a word-bounded `certif` prefix, omitting plural achievements/certifications; includes experience for skills-only questions; and has no candidate-fit experience/achievement grounding. `generateCandidateIntro` truncates the extracted full name to its first token. These are confirmed source-level causes for seven failures. The eighth expects automatic profile inclusion for an ambiguous non-personal question; the current engine's fail-closed private-source policy must be verified before updating that obsolete expectation. Repair scope is structured fact rendering, with no invented facts or private retrieval permission expansion.
+
 Reported by: owner, 2026-11-01. Task: BUG-002; FEAT-008; relevant CHG-16/17 protections. Priority: high impact.
 
 Observed: personal intelligence is described as failing. Exact error/incorrect answer and source documents are unavailable. No assertion that the database, embeddings or planner is broken is justified yet.
@@ -163,10 +165,15 @@ Confirmed root cause: unknown.
 
 Fix: none performed.
 
+2026-11-07 WORK-0025 evidence: an Electron-ABI run of the existing synthetic `ProfileFactualRecallProductionPath.test.mjs` and `PersonaFabricationFallbackProductionPath.test.mjs` passed 16 and failed 8. Failures include absent achievement/certification facts in the context and skills-only context including experience; this reproduces a personal-grounding concern without using owner data. These tests exercise a legacy `KnowledgeOrchestrator` stub path and do not by themselves establish the current desktop Intelligence Engine's behavior. Exact failing identities were not compared with the older full-suite baseline. Root cause remains unconfirmed; no profile production code was changed.
+
 Verification required: supported facts use the right current source; unrelated private sources excluded; missing evidence does not cause invented first-person claims; updated/deleted documents behave correctly; PDF/MD parity and scope tests; manual owner-approved example. General CS questions must remain answerable without personal retrieval.
 
 History:
 - 2026-11-01: Seeded from owner report; no personal file contents copied or queries executed.
+
+**2026-11-08 WORK-0026 resolution:** The confirmed structured-profile defects are repaired in ContextAssembler (full name, plural achievement/certification matching, category-specific context and factual candidate-fit grounding). The two actual production-path profile files pass 24/24 within the fresh 284-test batch. The obsolete ambiguous-question inclusion-bias assertion was replaced only after executing the engine to prove no private retrieval on that nonpersonal question. Actual synthetic personal/PDF ingestion, canonical vectors, EvidencePack and deterministic answer generation also pass. These scoped causes are resolved; the broader owner-reported personal-intelligence outcome remains Implemented, unverified pending full-product acceptance. Earlier “unknown/no fix” statements above are historical.
+
 
 ## ERR-003 — dependencies, packaging or installed application fails
 
@@ -420,6 +427,10 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Unproven hypotheses:** The file/project might not be uploaded or READY/indexed; the query might be an ambiguous pronoun follow-up without a stored Linkship referent; the ContextPlanner might omit project retrieval; or the profile port might not expose available project evidence. An empty result alone does **not** establish that canonical RAG returned an incorrect result. No private project database or document was inspected.
 - **Next targeted acceptance:** In a separate temporary app-data profile, ingest an authorized synthetic `Linkship` project containing a unique Redis reason; confirm READY/index status and the original authorized source ID. Ask explicitly `Why does Linkship use Redis?` and then, after a completed Linkship turn in the same session, ask `Why is Redis used in your project?`. Record sanitized selected-source outcomes, included evidence count, source IDs only in locally protected audit, and the final factual answer. Also check a similarly named sibling project is excluded. Do not enable the canonical read flag globally or fabricate the fact.
 - **State:** Open / root cause not established; CHG-17 project/personal grounding acceptance remains incomplete. Do not reclassify as unrelated until source availability and engine routing are checked.
+- **2026-11-07 WORK-0025:** Current exact-name/follow-up/scoped-reader tests pass. An actual canonical-reader → RetrievalCoordinator → Intelligence Engine test takes a READY synthetic Linkship chunk into the assembled prompt while excluding Linkship Legacy and résumé facts, with no fallback. A separate valid synthetic PDF parses 2/2 pages through the production extractor. This test has no provider generation or desktop UI; no request-ID/question correlation was obtained for the owner trace. The live symptom and root cause remain open.
+
+**2026-11-08 WORK-0026 reconciliation:** Actual synthetic Linkship ingestion → production PersonalRagAdapter → planned reader with unchanged relevance gate → engine → deterministic provider now passes the initial question and completed-session follow-up, with exact original IDs; Linkship Legacy, deleted/failed/cleared turns and DBMS controls pass. This exposed and repaired ERR-044/045, but does not establish the cause of the owner first-turn trace or real source READY state. Status remains In progress; do not close this reported symptom or infer real-provider/desktop acceptance.
+
 
 ## ERR-039 — Cloud batch embedding timeout with local fallback (2026-11-06)
 
@@ -429,6 +440,9 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Next:** Investigate separately with a non-private synthetic batch and count ready/indexed chunks before and after the fallback, without exposing credentials or touching the user's DB. If it explains the missing authorized project fact, link back to ERR-038 and treat it as a CHG-17 dependency.
 - **State:** Open / provider-indexing triage; no claim of CHG-17 causation or harmlessness.
 
+**2026-11-08 WORK-0026 reconciliation:** No cloud batch embedding call was made; root cause and actual local-fallback outcome remain unverified. Kept separately deferred under provider/indexing triage, not asserted unrelated or harmless.
+
+
 ## ERR-040 — Uncaught native Napi::Error during app quit (2026-11-06)
 
 - **Source:** Mac `npm start` runtime, `Terminal output(5).rtf`; WORK-0021 evidence review.
@@ -437,6 +451,9 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Next:** File as a separate native lifecycle issue, reproduce with a fresh temporary data profile and an ordinary close (preferably before starting capture); obtain a sanitized native backtrace and compare with the exact-HEAD baseline before a separately authorized repair. Check that it does not corrupt user data or prevent safe restart.
 - **State:** Open / separate lifecycle investigation. Do not mark unrelated as proven until reproduced and traced; CHG-17 is blocked independently by grounding/parity acceptance.
 
+**2026-11-08 WORK-0026 reconciliation:** The minimal Electron harness exits cleanly but does not load full main/native capture. It cannot close the owner native-quit crash. Separate lifecycle investigation remains pending; no audio/native implementation changed.
+
+
 ## ERR-041 — Unnamed singular project follow-up can lose exact original file-ID scope (2026-11-06)
 
 - **Related:** ERR-038 / CHG-17 C17-AC3/6/7/9; WORK-0022.
@@ -444,6 +461,10 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Proposed WORK-0022 fix:** Rebind singular pronoun project follow-ups only to the immediately preceding, completed, same-session Q/A's explicit project name; revalidate original IDs against current available `fileType=project` files. Fail closed on cancelled/failed/unpaired exchange, missing project, changed referent, or cleared state. Suppress profile substitution for unresolved singular project references. Support an explicit two-word subject project name (Linkship Legacy), which overrides the previous name.
 - **Verification:** 11 scope checks against temporary transpilation of the actual helper and nine targeted Node tests against actual temporarily transpiled project scope, adapter, and canonical conversation state modules pass. Mac Electron build/native tests and in-app authorized Linkship/Redis evidence/latency remain pending. The owner must apply the patch first.
 - **State:** WORK-0022 scope repair is present in the current staged tree; its completed-turn, sibling override, failure, removed-file and clear-state tests pass in the isolated intelligence suite. End-to-end desktop retrieval remains unverified. ERR-038 remains open independently: synthetic retrieval tests do not establish the owner-reported first-turn result.
+- **2026-11-07 WORK-0025:** The current checkout starts clean at `86923ac5`; the scope repair is committed in the current source, not staged. Its focused Change 17 tests pass, including exact Linkship identity, completed follow-up, sibling override, cancelled/failed/cleared and removed-file cases. The known source-scope defect is resolved in isolated tests; desktop end-to-end acceptance remains pending under ERR-038.
+
+**2026-11-08 WORK-0026 reconciliation:** Existing exact-ID scope repair is preserved and its actual synthetic ingestion/reader/engine follow-up path is now exercised through deterministic generation; cancelled/failed/missing/sibling/cleared cases pass. Known scope defect Verified in this regression environment. Retrieval-query relevance was a distinct defect (ERR-044); owner full-product acceptance remains pending.
+
 
 ## ERR-042 — Mode retrieval drops page provenance on the legacy result path (2026-11-06)
 
@@ -451,5 +472,67 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Reproduction:** In a disposable source copy, actual `ModeHybridRetriever.indexFile` indexed a synthetic mode reference with page 7 and an active deterministic embedding space. Actual `ModeRagAdapter.retrieve` returned the matching source/content and vector result, but its chunk had no page locator. The canonical read over equivalent READY/current data returned the same original source and content with `pdf:page:7`. The test also confirmed canonical matching-space vector hits, incompatible-space rejection, no non-READY hits, and superseded-revision exclusion.
 - **Confirmed cause:** `ModeHybridRetriever.retrieve` builds returned chunks from selected candidates but omits their `pageStart`/`pageEnd` metadata. `ModeRagAdapter` can recover page numbers only by parsing `[Page n]` markers in returned text; the actual retrieved chunk text does not retain the locator, so the adapter returns no page provenance even though indexing had it.
 - **Impact:** Legacy mode retrieval cannot provide the page locator that canonical retrieval preserves; this is a real provenance parity failure for C17-AC5. The reproduction is synthetic/offline and does not establish a desktop UI symptom.
-- **Resolution:** None attempted. Keep canonical reads default-off. A focused repair should preserve structured locator metadata through the production mode result boundary and add a real-adapter regression comparison before acceptance.
-- **State:** Reproduced in the isolated actual production retrieval path; open, unpatched.
+- **Resolution:** WORK-0024's production `ModeHybridRetriever` selected-chunk mapping now carries page/section/heading, and `ModeRagAdapter` prefers structured locators with a legacy text-marker fallback. This source change was already present at current HEAD before WORK-0025. Canonical reads remain default-off.
+- **2026-11-07 verification:** Current Electron-ABI `Change17ModePageProvenance.test.mjs` passes 4/4 with the actual `ModeHybridRetriever`/`ModeRagAdapter`: normal and document-grounded page 7, structured section/heading, compatible-vector indexing/retrieval, and legacy marker fallback. The broader Change 17 suite passes 55/55. These are isolated production-component checks, not desktop or final EvidencePack proof.
+- **State:** Known page-loss reproduction resolved and focused-verified; full CHG-17 provenance acceptance remains partial pending end-to-end EvidencePack and broader source-family checks.
+
+**2026-11-08 WORK-0026 reconciliation:** Actual mode adapter page/section/heading and compatible-vector regression tests pass within the fresh focused batch. Known mode-page defect remains Verified in the scoped synthetic environment. Separate final EvidencePack metadata mismatch found for a valid personal PDF is repaired under ERR-046; no real-model semantic quality claim.
+
+
+## ERR-043 — RAG query cancellation and session ownership are not sender-scoped (2026-11-07)
+
+- **WORK-0026 / CHG-18; confirmed before repair:** Global/meeting/live active query keys omit the sending WebContents identity. `abortPriorRAGQueriesOfClass` and `rag:cancel-query` therefore cancel another window's same-class request. Historical meeting request construction also prefers the active meeting's session ID over the requested historical meeting ID. These are source-confirmed isolation defects; no real user session was accessed.
+- **Required repair:** Sender-scoped query keys, selected-meeting session identity, exact current-controller checks before every output and settlement, compatible existing IPC payloads, and abort-aware transport settlement. Verify with synthetic real-engine stream tests; preserve source permissions and first-token commitment.
+- **State:** In progress; production cutover requires focused regression evidence.
+
+**2026-11-08 WORK-0026 resolution — Verified, scoped:** Sender/surface/encoded meeting prefixes now isolate active controllers and conversation sessions; requested historical meeting identity is preserved. Current-controller and abort checks protect chunks/completion/settlement. Actual registered IPC handler snippets, real engine transport and provider/isolation tests pass, including cancellation, supersession and clear-context ownership. Production preload bridge and stream payloads pass in the disposable desktop harness. Full-product physical STOP/restart and Windows remain acceptance checks.
+
+
+## ERR-044 — Authorized project follow-up loses identity in retrieval query (2026-11-07)
+
+- **Reproduction before fix, WORK-0026:** Actual `PersonalKnowledgeManager.ingestFile`/`listFiles`, `PersonalRagAdapter`, `RAGManager.readPlannedCanonicalSource` with production relevance gate, engine and deterministic provider return the correct Linkship first answer. The next completed-session “Why is Redis used in your project?” returns zero evidence despite the correct original-file allowlist. The same fixture's explicit first question passes the real gate.
+- **Confirmed cause:** WORK-0022 revalidates IDs but IPC drops `projectScope.namedProject`. The engine sends the deictic “your project” query unchanged into source-owned retrieval/relevance; its terms do not identify Linkship. Prior WORK-0025 bypassed the relevance gate in its test harness, so it could not reveal this failure. This establishes a synthetic follow-up defect, not the uncorrelated owner first-turn symptom.
+- **Required repair:** Carry the revalidated name with the existing ID allowlist, let the engine resolve the retrieval-only project referent after planning, preserve the original question, permissions and relevance thresholds. No hardcoded project/Redis rule and no global search fallback.
+- **State:** Reproduced, in progress.
+
+**2026-11-08 WORK-0026 resolution — Verified, scoped:** IPC retains revalidated projectScope.namedProject alongside exact IDs. Engine resolves singular project references only in the retrieval query after context authorization; original question, thresholds and permissions remain unchanged. Actual Linkship first/follow-up pipeline passes with production relevance gate and no hardcoded Redis/project exception. Part of /tmp/chg1718-resume-focused.log (284/284).
+
+
+## ERR-045 — Previous project answer remains in prompt after an exact project switch (2026-11-07)
+
+- **Reproduction before fix, WORK-0026:** The actual synthetic Linkship → completed follow-up → Linkship Legacy path now retrieves only the sibling's original ID, but the final prompt also contains the old Linkship rationale in recent conversation. A deterministic provider consequently selects that old rationale. Current evidence itself is correctly scoped.
+- **Confirmed layer:** `PromptAssembler` renders recent conversation independently of the exact current project source-ID scope. Conversation text is not revalidated source evidence and can reintroduce facts from a removed or different project.
+- **Required repair:** For an exact project-file scope (including a zero-ID missing scope), use conversation only for upstream turn understanding/referent resolution; assemble factual prompt context from the newly scoped evidence. Keep general/code conversation continuity unchanged. Regression must assert both sibling evidence IDs and absence of old rationale from the final prompt.
+- **State:** Reproduced, in progress.
+
+**2026-11-08 WORK-0026 resolution — Verified, scoped:** PromptAssembler uses conversation for upstream referent understanding but excludes its answer text from exact-project-file factual context, including empty/denied file scopes. Actual sibling switch verifies current evidence IDs and absence of old rationale from final prompt. General/code continuity retains existing behavior. Focused 284/284 and intelligence 2,099 pass/9 TODO.
+
+
+## ERR-046 — Canonical adapter locator field names do not populate structured EvidencePack fields (2026-11-07)
+
+- **Reproduction before fix, WORK-0026:** A valid generated two-page PDF is parsed/ingested by actual personal storage, projected to a READY canonical revision, and read through the engine's canonical adapter. Page 2 exists on the retrieved chunk and in provenance, but `EvidencePack.items[].pageStart` and `chunkId` are absent.
+- **Confirmed cause:** The canonical adapter emits metadata `page` and `canonicalChunkId`, while `buildEvidencePackFromSneakPeekEvidence` consumes `pageStart` and `chunkId`; heading is omitted as a separate field. Preserve existing metadata keys and additionally populate the canonical structured fields/pointer.
+- **State:** Reproduced, in progress; no storage or locator rewrite required.
+
+**2026-11-08 WORK-0026 resolution — Verified, scoped:** Canonical adapter emits pageStart, heading, chunkId and typed pointer in addition to compatible metadata. A real generated two-page PDF is parsed/ingested/projected and read through engine EvidencePack; page 2, chunk/revision and prompt evidence assertions pass with native sqlite-vec. No locator or storage rewrite. Focused 284/284.
+
+
+## ERR-047 — Personal-file deletion leaves its READY canonical projection searchable (2026-11-07)
+
+- **Reproduction before fix, WORK-0026:** The real personal manager deletes the synthetic two-page PDF after successful canonical projection. A subsequent actual canonical read with that original source ID still returns its Zeta fact. No owner data was involved.
+- **Confirmed cause:** `PersonalKnowledgeManager.deleteFile` invalidates the async index attempt and deletes legacy chunks/status/file, but does not tombstone the corresponding canonical document. Current-file project allowlists mask this for project queries; a generic canonical personal read remains exposed.
+- **Required repair:** In the existing file-delete transaction, use canonical storage's existing soft-delete lifecycle for this source when a canonical schema/projection exists. Preserve revision history; do not reset/migrate a DB or hard-delete source history. Failure must roll back the logical deletion rather than silently leave searchable data.
+- **State:** Reproduced, in progress.
+
+2026-11-07 WORK-0026 extension of ERR-047: synthetic tests of actual `DatabaseManager.deleteReferenceFile`, `deleteMode`, `deleteMeeting`, and `clearAllData` reproduce the same orphaned canonical searchability for mode/meeting sources. The first reduced meeting fixture omitted `meeting_id` and was corrected before accepting the reproduction; all four source-delete operations then complete yet leave their READY canonical facts searchable. Use the same existing soft-delete lifecycle at these source-owner boundaries; retain unrelated source families and revision history.
+
+**2026-11-08 WORK-0026 resolution — Verified, scoped:** Existing CanonicalRagStorage softDeleteDocument lifecycle is called within personal/file/mode/meeting source-delete transactions via revokeCanonicalSources. MeetingStorageAdapter and clearAllData meeting family also revoke projections. Five actual DatabaseManager lifecycle tests plus personal PDF deletion verify absent canonical search results, retained revision history, preserved other families, and rollback on forced source-delete failure. No real database/reset/migration. Focused 284/284.
+
+
+## ERR-048 — Desktop verification screenshot precedes answer paint (2026-11-08)
+
+- **WORK-0026 continuation, CHG-17/18 acceptance harness:** The fresh disposable Electron run returns correct renderer DOM answer text and two total completions, but visual inspection of `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/chg1718-desktop-EXCoE6/visible-answer.png` shows only the heading. This is a confirmed verification-evidence mismatch, not an established application streaming defect.
+- **Hypothesis before repair:** `capturePage()` runs immediately after the renderer promise resolves; DOM settlement is not a compositor-paint barrier. Add an explicit renderer animation-frame barrier and inspect the new image before accepting visible-answer evidence. No production behavior or test assertion will be weakened.
+- **State:** In progress; DOM assertions pass, visual acceptance pending.
+
+**2026-11-08 WORK-0026 resolution — Verified:** Added two renderer requestAnimationFrame boundaries before screenshot capture. Rerun exits 0 with two reads/generations/completions, correct DOM text and a visually inspected image showing the answer. Evidence: /var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/chg1718-desktop-84cF3r/result.json and visible-answer.png; stdout /tmp/chg1718-resume-desktop-painted.log. This confirms a harness capture-before-paint defect; no production fix was necessary.

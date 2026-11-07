@@ -1125,7 +1125,7 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
         if (required.has('recent_conversation') || required.has('longer_conversation') || required.has('meeting_transcript')) scopes.push('transcript');
         if (required.has('screen')) scopes.push('screenshots');
         if (required.has('personal_knowledge') || required.has('profile') || required.has('structured_knowledge')) scopes.push('profile_history');
-        if (required.has('project_knowledge') || required.has('my_files') || required.has('mode_documents') || required.has('rag')) scopes.push('reference_files');
+        if (required.has('project_knowledge') || required.has('my_files') || required.has('mode_documents') || (required.has('rag') && !required.has('meeting_transcript'))) scopes.push('reference_files');
         const route = llmHelper.getSneakPeekGenerationRouteOptions(
           scopes,
           false,
@@ -1191,13 +1191,15 @@ function buildSneakPeekMeetingRequest(
   meetingId: string,
   requestId: string,
   cancellationSignal: AbortSignal,
+  sessionIdOverride?: string,
 ): import('./intelligence/engine/types').SneakPeekIntelligenceRequest {
   const manager = appState.getIntelligenceManager?.();
   let modeInfo: any = null;
   try { modeInfo = require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.() ?? null; } catch { /* mode optional */ }
 
   const transcriptContext = buildSneakPeekMeetingTranscriptContext(appState, meetingId);
-  const sessionId = String(manager?.getMeetingMetadata?.()?.id ?? meetingId);
+  const sessionId = sessionIdOverride ?? String(meetingId === 'live-meeting-current'
+    ? manager?.getMeetingMetadata?.()?.id ?? meetingId : meetingId);
 
   try {
     const store = require('./context-intelligence/question/conversation-state-store') as any;
@@ -1268,6 +1270,7 @@ function buildSneakPeekMeetingRequest(
       meetingId,
       profileId: profileAvailable ? 'local-profile' : undefined,
       projectSourceIds: projectScope.selectedFileIds,
+      projectName: projectScope.namedProject,
     },
     cancellationSignal,
     providerPreferences: {
@@ -1295,15 +1298,21 @@ async function streamSneakPeekMeetingAnswer(
   appState: any,
   query: string,
   meetingId: string,
-  streamMeta: { meetingId?: string; live?: boolean },
+  streamMeta: { meetingId?: string; live?: boolean; global?: boolean },
 ): Promise<{ success: boolean; fallback?: boolean; error?: string }> {
   const llmHelper = appState.processingHelper?.getLLMHelper?.();
   if (!llmHelper) return { success: false, fallback: true };
 
-  const requestId = `natively-meeting-${crypto.randomUUID()}`;
+  const { streamRagEngineAnswer, ragQueryPrefix, buildGlobalRagRequest } = require('./intelligence/engine/RagIpcStream') as typeof import('./intelligence/engine/RagIpcStream');
+  const requestId = `sneak-peek-rag-${crypto.randomUUID()}`;
   const abortController = new AbortController();
-  const queryKey = `${streamMeta.live ? 'live' : 'meeting'}-${meetingId}-${crypto.randomUUID()}`;
+  const prefix = ragQueryPrefix(event.sender.id, streamMeta);
+  abortPriorRAGQueriesOfClass((key) => key.startsWith(prefix));
+  const queryKey = `${prefix}${requestId}`;
+  const sessionId = `rag:${prefix}`;
   activeRAGQueries.set(queryKey, abortController);
+  const onSenderDestroyed = () => abortController.abort();
+  event.sender.once?.('destroyed', onSenderDestroyed);
   let meetingRequest: ReturnType<typeof buildSneakPeekMeetingRequest> | null = null;
   const settleMeetingQuestion = (generationStatus: 'completed' | 'cancelled' | 'failed') => {
     if (!meetingRequest) return;
@@ -1314,49 +1323,31 @@ async function streamSneakPeekMeetingAnswer(
   };
 
   try {
-    const request = buildSneakPeekMeetingRequest(appState, query, meetingId, requestId, abortController.signal);
+    const store = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+    let request: import('./intelligence/engine/types').SneakPeekIntelligenceRequest;
+    if (streamMeta.global) {
+      store.appendConversationTurn({ sessionId, text: query, role: 'user', speaker: 'user', source: 'meeting', finalized: true, generationStatus: 'pending', turnId: requestId });
+      request = buildGlobalRagRequest({ requestId, sessionId, query, signal: abortController.signal,
+        recentConversation: store.getRecentConversationTurns(sessionId, 12).map((turn) => ({ id: turn.id, role: turn.role === 'assistant' ? 'assistant' as const : turn.role === 'system' ? 'system' as const : 'user' as const, content: turn.text, createdAt: turn.timestamp })),
+      });
+    } else {
+      request = buildSneakPeekMeetingRequest(appState, query, meetingId, requestId, abortController.signal, sessionId);
+      if (!streamMeta.live) request.retrievalScope = { kind: 'meeting', meetingId };
+    }
     meetingRequest = request;
     const engine = createPrimaryManualSneakPeekEngine(llmHelper, appState, requestId);
-    const run = engine.prepareAndStream(request);
-
-    for await (const chunk of run.stream) {
-      if (abortController.signal.aborted) break;
-      if (chunk) event.sender.send('rag:stream-chunk', { ...streamMeta, chunk });
-    }
-
-    const result = await run.result;
-    if (abortController.signal.aborted || run.lifecycle.state === 'CANCELLED') {
-      settleMeetingQuestion('cancelled');
-      return { success: true };
-    }
-    if (run.lifecycle.state === 'FAILED') {
-      settleMeetingQuestion('failed');
-      const error = result.providerAttempt?.error || 'Sneak-Peek Intelligence meeting generation failed.';
-      event.sender.send('rag:stream-error', { ...streamMeta, error });
-      return { success: false, error };
-    }
-    if (run.lifecycle.state === 'COMPLETED') {
-      settleMeetingQuestion('completed');
-      const answer = result.finalAnswer?.text ?? '';
-      if (answer) {
-        try {
-          const store = require('./context-intelligence/question/conversation-state-store') as any;
-          store.appendConversationTurn?.({
-            sessionId: request.sessionId,
-            text: answer,
-            role: 'assistant',
-            speaker: 'assistant',
-            source: 'meeting',
-            finalized: true,
-            generationStatus: 'completed',
-          });
-        } catch { /* conversation memory never breaks the stream */ }
-      }
-      event.sender.send('rag:stream-complete', streamMeta);
-      return { success: true };
-    }
-    settleMeetingQuestion('failed');
-    return { success: false, error: 'Sneak-Peek Intelligence meeting generation ended without completion.' };
+    return await streamRagEngineAnswer({
+      engine, request, meta: streamMeta,
+      abort: () => abortController.abort(),
+      isCurrent: () => activeRAGQueries.get(queryKey) === abortController && !event.sender.isDestroyed?.(),
+      send: (channel, payload) => event.sender.send(channel, payload),
+      settle: (status, answer) => {
+        settleMeetingQuestion(status);
+        if (status === 'completed' && answer) {
+          store.appendConversationTurn({ sessionId: request.sessionId, text: answer, role: 'assistant', speaker: 'assistant', source: 'meeting', finalized: true, generationStatus: 'completed' });
+        }
+      },
+    });
   } catch (error: any) {
     settleMeetingQuestion(abortController.signal.aborted ? 'cancelled' : 'failed');
     if (!abortController.signal.aborted) {
@@ -1366,6 +1357,7 @@ async function streamSneakPeekMeetingAnswer(
     }
     return { success: true };
   } finally {
+    event.sender.removeListener?.('destroyed', onSenderDestroyed);
     activeRAGQueries.delete(queryKey);
   }
 }
@@ -1491,6 +1483,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
         projectSourceIds: projectScope.selectedFileIds,
+        projectName: projectScope.namedProject,
       },
       cancellationSignal: myController.signal,
       providerPreferences: {
@@ -6527,7 +6520,7 @@ _chatStreamsBySender.delete(senderId);
 // abort the live RAG controller as well; meeting-overlay STOP already calls
 // rag:cancel-query with its meeting id.
 for (const [key, controller] of activeRAGQueries) {
-if (key.startsWith('live-')) {
+if (key.startsWith(`${senderId}:live:`)) {
 try { controller.abort(); } catch { /* noop */ }
 activeRAGQueries.delete(key);
 }
@@ -11560,10 +11553,12 @@ activeRAGQueries.delete(key);
 safeHandle(
 'rag:query-meeting',
 async (event, { meetingId, query }: { meetingId: string; query: string }) => {
+  if (typeof meetingId !== 'string' || !meetingId.trim() || typeof query !== 'string' || !query.trim()) {
+    return { success: false, error: 'A meeting ID and question are required.' };
+  }
   // Keep the established per-meeting supersession behavior. The controller is
   // passed into Sneak-Peek Intelligence, so STOP/supersession reaches generation
   // rather than merely hiding the renderer bubble.
-  abortPriorRAGQueriesOfClass((key) => key.startsWith(`meeting-${meetingId}-`));
   return streamSneakPeekMeetingAnswer(event, appState, query, meetingId, { meetingId });
 },
 );
@@ -11598,55 +11593,37 @@ safeHandle('rag:query-live', async (event, { query }: { query: string }) => {
     console.warn('[Sneak-Peek Intelligence] live personal-question routing check failed; continuing:', error);
   }
 
-  abortPriorRAGQueriesOfClass((key) => key.startsWith('live-'));
   return streamSneakPeekMeetingAnswer(event, appState, query, meetingId, { live: true });
 });
 // Query global (cross-meeting search)
 safeHandle('rag:query-global', async (event, { query }: { query: string }) => {
-const ragManager = appState.getRAGManager();
-if (!ragManager || !ragManager.isReady()) {
+if (typeof query !== 'string' || !query.trim()) return { success: false, error: 'A question is required.' };
+const ragManager = appState.getRAGManager?.();
+if (!ragManager) {
 return { fallback: true };
 }
-abortPriorRAGQueriesOfClass((key) => key.startsWith('global-'));
-const abortController = new AbortController();
-// See live-${...} comment above for why Date.now() alone is unsafe.
-const queryKey = `global-${crypto.randomUUID()}`;
-activeRAGQueries.set(queryKey, abortController);
-try {
-const stream = ragManager.queryGlobal(query, abortController.signal);
-for await (const chunk of stream) {
-if (abortController.signal.aborted) break;
-event.sender.send('rag:stream-chunk', { global: true, chunk });
-}
-// See the meeting-scoped handler's identical comment above.
-if (!abortController.signal.aborted) {
-event.sender.send('rag:stream-complete', { global: true });
-}
-return { success: true };
-} catch (error: any) {
-if (error.name !== 'AbortError') {
-event.sender.send('rag:stream-error', { global: true, error: error.message });
-}
-return { success: false, error: error.message };
-} finally {
-activeRAGQueries.delete(queryKey);
-}
+return streamSneakPeekMeetingAnswer(event, appState, query, '', { global: true });
 });
 // Cancel active RAG query
 safeHandle(
 'rag:cancel-query',
-async (_, { meetingId, global }: { meetingId?: string; global?: boolean }) => {
+async (event, { meetingId, global, clearContext }: { meetingId?: string; global?: boolean; clearContext?: boolean }) => {
 if (!global && !meetingId) {
 return { success: false, error: 'meetingId is required' };
 }
-const queryKey = global ? 'global' : `meeting-${meetingId}`;
+const { ragQueryPrefix } = require('./intelligence/engine/RagIpcStream') as typeof import('./intelligence/engine/RagIpcStream');
+const queryKey = ragQueryPrefix(event.sender.id, global ? { global: true } : { meetingId });
 // Cancel any matching key
 for (const [key, controller] of activeRAGQueries) {
-const matchesQuery = global ? key.startsWith('global-') : key.startsWith(`${queryKey}-`);
+const matchesQuery = key.startsWith(queryKey);
 if (matchesQuery) {
 controller.abort();
 activeRAGQueries.delete(key);
 }
+}
+if (clearContext) {
+  const { clearConversationState } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+  clearConversationState(`rag:${queryKey}`);
 }
 return { success: true };
 },

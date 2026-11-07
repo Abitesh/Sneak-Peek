@@ -18,6 +18,11 @@ const { RAGManager } = await import(new URL('RAGManager.js', root).href);
 const { VectorStore } = await import(new URL('VectorStore.js', root).href);
 const { RAGRetriever } = await import(new URL('RAGRetriever.js', root).href);
 const { MeetingRagAdapter } = await import(new URL('adapters/MeetingRagAdapter.js', root).href);
+const engineRoot = new URL('../../../dist-electron/electron/intelligence/engine/', import.meta.url).href;
+const { SneakPeekIntelligenceEngine } = await import(new URL('SneakPeekIntelligenceEngine.js', engineRoot).href);
+const { RetrievalCoordinator } = await import(new URL('RetrievalCoordinator.js', engineRoot).href);
+const { createCanonicalRagRetrievalCapability } = await import(new URL('CanonicalRagRetrievalAdapter.js', engineRoot).href);
+const { resolveProjectFileScope } = await import(new URL('ProjectFileScope.js', engineRoot).href);
 
 const question = 'Which cache did the team select?';
 const answerText = 'The team selected cobalt cache for the Aurora service.';
@@ -127,6 +132,55 @@ test('CHG-17 canonical service cannot use siblings as project evidence or invoke
   }
 });
 
+test('CHG-17 actual canonical reader feeds only authorized Linkship evidence into one engine prompt', async () => {
+  const db = makeDb();
+  try {
+    const storage = new CanonicalRagStorage(db);
+    addCanonical(storage, { sourceId: 'linkship', fileType: 'project', text: 'Linkship uses Redis for temporary job leases so crashed workers can recover.' });
+    addCanonical(storage, { sourceId: 'linkship-legacy', fileType: 'project', text: 'Linkship Legacy uses Redis for transient rate limit counters.' });
+    addCanonical(storage, { sourceId: 'resume', fileType: 'resume', text: 'The candidate used Redis in a past job.' });
+    const files = [
+      { id: 'linkship', fileType: 'project', fileName: 'Linkship.pdf' },
+      { id: 'linkship-legacy', fileType: 'project', fileName: 'Linkship Legacy.pdf' },
+      { id: 'resume', fileType: 'resume', fileName: 'Resume.pdf' },
+    ];
+    const question = 'Why does Linkship use Redis?';
+    const scope = resolveProjectFileScope(question, files);
+    assert.deepEqual(scope.selectedFileIds, ['linkship']);
+    const manager = Object.create(RAGManager.prototype);
+    manager.db = db;
+    manager.getConversationForRetrieval = () => undefined;
+    manager.resolveCanonicalQueryEmbedding = async () => null;
+    manager.rerankCanonicalResults = async (_query, results) => results;
+    manager.gateCanonicalResults = (results) => results;
+    let fallbackCalls = 0;
+    manager.personalAdapter = { retrieve: async () => { fallbackCalls++; return []; } };
+    const coordinator = new RetrievalCoordinator({
+      capabilities: [createCanonicalRagRetrievalCapability({
+        source: 'project_knowledge', sourceType: 'personal',
+        read: (input) => manager.readPlannedCanonicalSource(input),
+        resolveScope: ({ request }) => ({ projectFilesOnly: true, projectFileIds: request.activeContext?.projectSourceIds }),
+      })],
+    });
+    const result = await new SneakPeekIntelligenceEngine(coordinator).handle({
+      requestId: 'synthetic-linkship', sessionId: 'synthetic-session', surface: 'manual-chat',
+      userMessage: question,
+      currentTurn: { id: 'synthetic-linkship', role: 'user', content: question },
+      recentConversation: [],
+      activeContext: { projectSourceIds: scope.selectedFileIds },
+      contextPermissions: { conversation: true, transcript: false, screen: false, mode: false, project: true, profile: false, files: true, memory: false, generalKnowledge: true },
+    });
+    assert.deepEqual(result.contextPlan.requiredSources.filter((source) => source === 'project_knowledge'), ['project_knowledge']);
+    assert.deepEqual(result.evidencePack.items.map((item) => item.sourceId), ['linkship']);
+    assert.match(JSON.stringify(result.prompt), /temporary job leases/);
+    assert.doesNotMatch(JSON.stringify(result.prompt), /rate limit counters|past job/);
+    assert.equal(fallbackCalls, 0);
+    assert.equal(result.providerAttempt.status, 'not-started');
+  } finally {
+    db.close();
+  }
+});
+
 test('CHG-17 planned-source project falls back with the same allowlist, without invoking the RAG planner', async () => {
   const db = makeDb();
   try {
@@ -230,6 +284,21 @@ test('CHG-17 actual meeting RAGRetriever and canonical service agree on punctuat
     assert.ok(canonical.results.some((hit) => hit.chunk.text === answerText));
     assert.equal(canonical.results[0].chunk.metadata.sourceLocator, 'meeting:100-200');
     // Scores intentionally differ: legacy normalized rank vs canonical FTS5 BM25.
+    const previousRead = process.env.NATIVELY_CANONICAL_RAG_READ;
+    const previousRerank = process.env.NATIVELY_RAG_LOCAL_RERANK;
+    try {
+      process.env.NATIVELY_CANONICAL_RAG_READ = 'off';
+      process.env.NATIVELY_RAG_LOCAL_RERANK = 'off';
+      const manager = Object.create(RAGManager.prototype);
+      manager.db = db; manager.meetingAdapter = legacyAdapter; manager.retriever = retriever;
+      manager.getConversationForRetrieval = () => undefined;
+      const activeRead = await manager.readPlannedCanonicalSource({ query: question, sourceType: 'meeting', limit: 8 });
+      assert.equal(activeRead.usedCanonical, false);
+      assert.ok(activeRead.results.some(hit => hit.chunk.text === answerText), 'production-default global meeting read must survive actual relevance gates');
+    } finally {
+      process.env.NATIVELY_CANONICAL_RAG_READ = previousRead;
+      process.env.NATIVELY_RAG_LOCAL_RERANK = previousRerank;
+    }
   } finally {
     db.close();
   }

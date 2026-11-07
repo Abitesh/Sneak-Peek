@@ -30,13 +30,12 @@ export function generateCandidateIntro(profile: any, question?: string): string 
   const resume = profile?.structured_data ?? profile ?? {};
   const raw = resume;
   const name = raw.identity?.name || raw.name || 'Candidate';
-  const first = String(name).split(/\s+/).filter(Boolean)[0] || 'Candidate';
   const role = raw.experience?.[0]?.role || raw.experience?.[0]?.title || raw.role || 'professional';
   const company = raw.experience?.[0]?.company || raw.experience?.[0]?.organization || raw.company || '';
   const skills = Array.isArray(raw.skillsFlat) ? raw.skillsFlat.slice(0, 4) : [];
   const totalExperienceYears = computeTotalExperience(resume);
 
-  const lead = `I'm ${first}, ${company ? `a ${role} at ${company}` : `a ${role}`}.`;
+  const lead = `I'm ${name}, ${company ? `a ${role} at ${company}` : `a ${role}`}.`;
   const skillSentence = skills.length ? ` I work mainly with ${skills.join(', ')}.` : '';
   const yearsLine = totalExperienceYears > 0 ? `\n- Total years of professional experience: ${totalExperienceYears}` : '';
 
@@ -46,7 +45,7 @@ export function generateCandidateIntro(profile: any, question?: string): string 
     `Candidate background:${yearsLine}`,
     'RULES: STATE THE EXACT YEARS OF EXPERIENCE, not a vague phrase like "the last few years".',
     `Answer:${lead}${skillSentence}`,
-    `Fallback: I'm ${first}.`,
+    `Fallback: I'm ${name}.`,
   ].join('\n');
 
   if (!question || !String(question).trim()) return text;
@@ -109,10 +108,12 @@ export class ContextAssembler {
         })
       );
 
-    const shouldIncludeExperience = /\b(experience|work history|worked|career|role|company|projects|skills|background)\b/.test(q);
+    const candidateFit = /\b(?:hire (?:me|you)|(?:i am|i'm|you are|you're) (?:the )?(?:right|best|good) fit|make (?:my|your) case)\b/.test(q);
+    const shouldIncludeExperience = candidateFit || /\b(experience|work history|worked|career|role|company|background)\b/.test(q);
     const shouldIncludeProjects = /\b(project|projects|built|ship|shipped|portfolio|work on|created)\b/.test(q);
     const shouldIncludeEducation = /\b(education|degree|school|college|university|graduated|study)\b/.test(q);
-    const shouldIncludeAchievements = /\b(achievement|awards|honors|recognition|patent|certif|credential)\b/.test(q);
+    const shouldIncludeAchievements = candidateFit || /\b(achievements?|awards?|honou?rs?|recognition|patents?)\b/.test(q);
+    const shouldIncludeCertifications = /\b(certifications?|certificates?|credentials?)\b/.test(q);
     const shouldIncludeSkills = /\b(skill|skills|stack|technology|tech|tools|languages|frameworks|programming)\b/.test(q);
 
     if (profile.identity?.name || profile.name) {
@@ -136,6 +137,9 @@ export class ContextAssembler {
         const role = item?.role || item?.title || 'Role';
         const companyName = item?.company || item?.organization || 'Company';
         lines.push(`${role} at ${companyName}`);
+        for (const bullet of Array.isArray(item?.bullets) ? item.bullets : []) {
+          if (typeof bullet === 'string' && bullet.trim()) lines.push(bullet.trim());
+        }
       }
       lines.push('</candidate_experience>');
     }
@@ -176,7 +180,7 @@ export class ContextAssembler {
       lines.push('</candidate_skills>');
     }
 
-    if (shouldIncludeAchievements && certifications.length > 0) {
+    if (shouldIncludeCertifications && certifications.length > 0) {
       lines.push('<candidate_certifications>');
       for (const item of certifications.slice(0, 3)) {
         lines.push(item?.name || item?.title || 'Certification');

@@ -571,3 +571,32 @@ test('CHG-17 canonical scoped read never returns an unrelated meeting when selec
     db.close();
   }
 });
+
+for (const stage of ['source fallback', 'reranking']) {
+  test(`CHG-17 STOP during ${stage} discards late results without another source read`, async () => {
+    const db = makeDb();
+    const manager = makeSearchHarness(db);
+    manager.resolveCanonicalQueryEmbedding = async () => null;
+    let entered, release;
+    const enteredPromise = new Promise(resolve => { entered = resolve; });
+    const releasePromise = new Promise(resolve => { release = resolve; });
+    let sourceCalls = 0;
+    manager.meetingAdapter.retrieve = async () => {
+      sourceCalls++;
+      if (stage === 'source fallback') { entered(); await releasePromise; }
+      return legacyResult('meeting', 'synthetic meeting cancellation evidence');
+    };
+    manager.rerankCanonicalResults = async (_query, results) => {
+      if (stage === 'reranking') { entered(); await releasePromise; }
+      return results;
+    };
+    const controller = new AbortController();
+    try {
+      const pending = manager.readPlannedCanonicalSource({ query: 'synthetic meeting cancellation evidence', sourceType: 'meeting', sourceId: 'missing-canonical', signal: controller.signal });
+      await enteredPromise;
+      controller.abort(); release();
+      assert.deepEqual((await pending).results, []);
+      assert.equal(sourceCalls, 1);
+    } finally { release(); db.close(); }
+  });
+}

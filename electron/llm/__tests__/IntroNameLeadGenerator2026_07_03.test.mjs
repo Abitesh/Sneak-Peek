@@ -28,7 +28,8 @@ describe('generateCandidateIntro leads with the candidate name', () => {
   test('the old "just jump straight in" (name-skipping) instruction is gone', () => {
     assert.doesNotMatch(fn, /just jump straight in/i, 'the name-skipping opener must be removed');
   });
-  test('the catch-fallback also leads with the first name', () => {
-    assert.match(fn, /I'm \$\{first\}/, 'fallback prefixes the first name');
+  test('the fallback leads with the complete extracted name', async () => {
+    const { generateCandidateIntro } = await import('../../../dist-electron/premium/electron/knowledge/ContextAssembler.js');
+    assert.match(generateCandidateIntro({ identity: { name: 'Jamie Sample' } }), /Fallback: I'm Jamie Sample/);
   });
 });

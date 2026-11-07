@@ -76,8 +76,10 @@ test('adapter maps canonical metadata without relabelling the source document id
     documentId: 'canonical-doc-1', canonicalDocumentId: 'canonical-doc-1',
     canonicalRevisionId: 'canonical-rev-1', canonicalChunkId: 'canonical-chunk-1',
     canonicalContentHash: 'canonical-hash-1', contentHash: 'canonical-hash-1',
-    sourceLocator: 'page:2', documentName: 'resume.pdf', page: 2, pageEnd: 3,
-    section: 'Experience', speaker: undefined, timestampStart: undefined, timestampEnd: undefined,
+    sourceLocator: 'page:2', documentName: 'resume.pdf', page: 2, pageStart: 2, pageEnd: 3,
+    section: 'Experience', heading: undefined, chunkId: 'canonical-chunk-1',
+    pointer: { chunkId: 'canonical-chunk-1', fileId: 'source-file-1', page: 2, section: 'Experience' },
+    speaker: undefined, timestampStart: undefined, timestampEnd: undefined,
     chunkIndex: 0, retrievalSource: 'canonical-rag-adapter',
   });
 });

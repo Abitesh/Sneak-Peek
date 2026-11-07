@@ -17,6 +17,7 @@ export type IntelligenceSurface =
   | 'manual-chat'
   | 'what-to-answer'
   | 'meeting-overlay'
+  | 'global-rag'
   | 'follow-up'
   | 'recap'
   | 'clarify'
@@ -134,6 +135,8 @@ export interface SneakPeekIntelligenceRequest {
   manualQuestion?: string;
   screenContext?: SneakPeekScreenContext;
   activeContext?: SneakPeekActiveContext;
+  /** Main-process scope for an explicit meeting-search command; never inferred from document text. */
+  retrievalScope?: { kind: 'meeting'; meetingId: string } | { kind: 'global-meetings' };
   cancellationSignal?: AbortSignal;
   responseShape?: SneakPeekResponseShapeRequest;
   providerPreferences?: SneakPeekProviderPreferences;

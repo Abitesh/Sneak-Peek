@@ -122,7 +122,7 @@ test('meeting/live IPC handlers no longer invoke RAGManager answer generation', 
   const liveBlock = ipc.slice(liveStart, globalStart);
   const adapter = ipc.slice(requestStart, manualStart);
   assert.ok(requestStart >= 0 && helperStart > requestStart && manualStart > helperStart);
-  const migrated = `${adapter}\n${meetingBlock}\n${liveBlock}`;
+  const migrated = `${adapter}\n${meetingBlock}\n${liveBlock}\n${read('intelligence/engine/RagIpcStream.ts')}`;
   assert.match(migrated, /createPrimaryManualSneakPeekEngine/);
   assert.match(migrated, /prepareAndStream/);
   assert.match(migrated, /transcriptContext/);
@@ -138,19 +138,22 @@ test('live STOP aborts the migrated live-engine controller', () => {
   const stopEnd = ipc.indexOf("safeOn('natively-answer-stop'", stopStart);
   const stop = ipc.slice(stopStart, stopEnd);
   assert.match(stop, /activeRAGQueries/);
-  assert.match(stop, /key\.startsWith\('live-'\)/);
+  assert.match(stop, /key\.startsWith\(`\$\{senderId\}:live:`\)/);
   assert.match(stop, /controller\.abort\(\)/);
 });
 
 
-test('meeting IPC query keys retain meeting identity for STOP and supersession', () => {
+test('meeting IPC query keys retain sender and meeting identity for STOP and supersession', async () => {
   const ipc = read('ipcHandlers.ts');
   const helperStart = ipc.indexOf('async function streamSneakPeekMeetingAnswer(');
   const helperEnd = ipc.indexOf('const _geminiChatStreamHandler = async (', helperStart);
   const helper = ipc.slice(helperStart, helperEnd);
-  assert.match(helper, /const queryKey = `\$\{streamMeta\.live \? 'live' : 'meeting'\}-\$\{meetingId\}-\$\{crypto\.randomUUID\(\)\}`/);
-  assert.match(ipc, /key\.startsWith\(`meeting-\$\{meetingId\}-`\)/);
-  assert.match(ipc, /key\.startsWith\('live-'\)/);
+  assert.match(helper, /ragQueryPrefix\(event\.sender\.id, streamMeta\)/);
+  assert.match(helper, /abortPriorRAGQueriesOfClass/);
+  const { ragQueryPrefix } = await import('../../../../dist-electron/electron/intelligence/engine/RagIpcStream.js');
+  assert.equal(ragQueryPrefix(42, { meetingId: 'meeting-a' }), '42:meeting-meeting-a:');
+  assert.equal(ragQueryPrefix(42, { live: true }), '42:live:');
+  assert.notEqual(ragQueryPrefix(42, { meetingId: 'meeting-a' }), ragQueryPrefix(43, { meetingId: 'meeting-a' }));
   assert.match(helper, /if \(!llmHelper\) return \{ success: false, fallback: true \}/);
 });
 

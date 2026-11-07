@@ -21,6 +21,7 @@ import { shouldWriteLegacyRagChunks } from '../intelligence/intelligenceFlags';
 import { VectorStore } from '../rag/VectorStore';
 import { invalidateIndexAttempt } from '../rag/IndexAttemptRegistry';
 import { withinQueryEmbeddingBudget } from '../rag/QueryEmbeddingBudget';
+import { revokeCanonicalSources } from '../rag/canonical/CanonicalRagStorage';
 export type PersonalFileType = 'resume' | 'job_description' | 'project' | 'general';
 const PERSONAL_FILE_TYPES: ReadonlySet<string> = new Set(['resume', 'job_description', 'project', 'general']);
 export interface PersonalFileRecord {
@@ -661,6 +662,9 @@ deleteFile(id: string): boolean {
 invalidateIndexAttempt('personal', id);
 if (this.vectorStore) this.vectorStore.deletePersonalEmbeddingsForFile(id);
 const result = this.db.transaction(() => {
+// Retain canonical history, but revoke its searchable state with the source.
+// Older databases without the additive canonical schema remain compatible.
+revokeCanonicalSources(this.db, 'personal', [id]);
 // FTS trigger needs the chunk rows to exist while it fires.
 this.db.prepare(`DELETE FROM personal_file_chunks WHERE file_id = ?`).run(id);
 this.db.prepare(`DELETE FROM rag_index_status WHERE source_type = 'personal' AND document_id = ?`).run(id);

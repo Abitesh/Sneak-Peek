@@ -16,14 +16,6 @@ export type { AppAPIConfig } from './EmbeddingProviderResolver';
 export { RAGRetriever } from './RAGRetriever';
 export type { RetrievalOptions, RetrievedContext, QueryIntent } from './RAGRetriever';
 
-export {
-    MEETING_RAG_SYSTEM_PROMPT,
-    GLOBAL_RAG_SYSTEM_PROMPT,
-    NO_CONTEXT_FALLBACK,
-    NO_GLOBAL_CONTEXT_FALLBACK,
-    PARTIAL_CONTEXT_FALLBACK,
-    buildRAGPrompt
-} from './prompts';
 
 export { RAGManager } from './RAGManager';
 export type { RAGManagerConfig } from './RAGManager';

@@ -7,6 +7,7 @@ import fs from 'fs';
 import * as sqliteVec from 'sqlite-vec';
 import { buildLegacySpaceCaseSql } from '../rag/embeddingSpace';
 import { installCanonicalRagSchema } from '../rag/canonical/CanonicalRagSchema';
+import { revokeCanonicalSources } from '../rag/canonical/CanonicalRagStorage';
 import type { ActionItem, DecisionItem, FollowUpDraft, MeetingSummaryGenerationMeta, MeetingSummaryModeMeta, MeetingSummarySectionV3, NoteBlock, PersonMention, QuestionItem, RiskItem, SourceQualityMeta, SpeakerLabelMap, SummaryStatus, TimelineItem } from '../services/meeting/types';
 // Interfaces for our data objects
 export interface Meeting {
@@ -2300,7 +2301,11 @@ console.error('[DatabaseManager] updateMode failed:', e);
 public deleteMode(id: string): void {
 if (!this.db) return;
 try {
-this.db.prepare('DELETE FROM modes WHERE id = ?').run(id);
+this.db.transaction(() => {
+  const files = this.db!.prepare('SELECT id FROM mode_reference_files WHERE mode_id = ?').all(id) as Array<{ id: string }>;
+  revokeCanonicalSources(this.db!, 'mode', files.map(file => file.id));
+  this.db!.prepare('DELETE FROM modes WHERE id = ?').run(id);
+})();
 } catch (e) {
 console.error('[DatabaseManager] deleteMode failed:', e);
 }
@@ -2482,8 +2487,11 @@ throw e;
 public deleteReferenceFile(id: string): void {
 if (!this.db) return;
 try {
-this.db.prepare('DELETE FROM mode_reference_files WHERE id = ?').run(id);
-this.db.prepare("DELETE FROM rag_index_status WHERE source_type = 'mode' AND document_id = ?").run(id);
+this.db.transaction(() => {
+  revokeCanonicalSources(this.db!, 'mode', [id]);
+  this.db!.prepare('DELETE FROM mode_reference_files WHERE id = ?').run(id);
+  this.db!.prepare("DELETE FROM rag_index_status WHERE source_type = 'mode' AND document_id = ?").run(id);
+})();
 } catch (e) {
 console.error('[DatabaseManager] deleteReferenceFile failed:', e);
 }
@@ -3557,6 +3565,7 @@ try {
 // the meeting present. This was inert only while R-01 meant nothing was
 // ever deleted; fixing R-01 makes it reachable.
 const info = this.db.transaction((meetingId: string) => {
+revokeCanonicalSources(this.db!, 'meeting', [meetingId]);
 this.deleteVectorsForMeeting(meetingId);
 return this.db!.prepare('DELETE FROM meetings WHERE id = ?').run(meetingId);
 })(id);
@@ -3863,6 +3872,7 @@ try {
 // but SQLite handles cascades). Using a transaction ensures we never
 // end up in a half-cleared state if one statement fails.
 this.db.transaction(() => {
+revokeCanonicalSources(this.db!, 'meeting');
 // F-705: vec0 virtual tables take no part in FK cascades, so a
 // full wipe has to clear them explicitly too — otherwise
 // "clear all data" left every embedding vector on disk.

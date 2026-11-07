@@ -59,9 +59,9 @@ test('Change 16: unified manager gates canonical results before returning them',
   assert.match(source, /status: 'no_relevant_evidence'/);
 });
 
-test('Change 16: no-evidence state reaches the legacy meeting/global prompt path', () => {
-  const source = read(managerPath);
-  const occurrences = (source.match(/appendRagRetrievalStatus\('', context\.status\)/g) ?? []).length;
-  assert.equal(occurrences, 2, 'meeting and global query paths must both propagate no-evidence status');
-  assert.match(source, /<rag_retrieval_status>[\s\S]*NO GROUNDED EVIDENCE/);
+test('Change 18: no-evidence policy belongs to the engine prompt for meeting/global answers', () => {
+  const assembler = read(path.resolve('electron/intelligence/engine/PromptAssembler.ts'));
+  assert.match(assembler, /if \(request\.retrievalScope\)/);
+  assert.match(assembler, /state that the information was not found in these meetings/);
+  assert.doesNotMatch(read(managerPath), /buildRAGPrompt|appendRagRetrievalStatus/);
 });

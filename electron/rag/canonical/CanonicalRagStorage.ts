@@ -31,6 +31,17 @@ const MAX_VECTOR_DIMENSIONS = 100_000;
 const SUPPORTED_METRIC = 'cosine';
 const ACTIVE_STATUS = 'READY';
 
+/** Revoke derived search state in the caller's source-deletion transaction. */
+export function revokeCanonicalSources(db: Database.Database, sourceType: CanonicalRagDocument['sourceType'], sourceIds?: readonly string[]): void {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'rag_documents'").get()) return;
+  const storage = new CanonicalRagStorage(db);
+  const ids = sourceIds ?? (db.prepare('SELECT source_id FROM rag_documents WHERE source_type = ? AND deleted_at IS NULL').all(sourceType) as Array<{ source_id: string }>).map(row => row.source_id);
+  for (const id of ids) {
+    const document = storage.readDocumentBySource(sourceType, id);
+    if (document && !document.deletedAt) storage.softDeleteDocument(document.id);
+  }
+}
+
 const STATUS_TRANSITIONS: Record<CanonicalRagIndexStatus, readonly CanonicalRagIndexStatus[]> = {
   NOT_INDEXED: ['QUEUED'],
   QUEUED: ['EXTRACTING', 'FAILED'],

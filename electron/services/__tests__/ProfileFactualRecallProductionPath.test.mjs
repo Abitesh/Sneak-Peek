@@ -25,12 +25,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { KnowledgeOrchestrator } = require('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
-const { isProfileGroundingV2Enabled } = require('../../../dist-electron/electron/llm/profileGroundingV2.js');
-// These tests pin the LEGACY (flag-OFF) grounding contract. Profile Grounding
-// V2 deliberately changes some of it (generic questions keep the full profile in
-// the cached prefix; ambiguous questions get the full profile, not a compact
-// identity). When the flag is ON, assert the V2 behavior instead of the legacy.
-const V2 = isProfileGroundingV2Enabled();
+// Exercise the current structured-profile fallback without an embedding or LLM.
 
 // --- Synthetic resume (fully fictional; no real PII) ---
 const SYNTHETIC_RESUME = {
@@ -220,20 +215,20 @@ describe('Profile factual recall — production path', () => {
     }
   });
 
-  test('ambiguous question (GENERAL intent, no category hint) → inclusion-bias grounding', async () => {
-    // "would taking this be a smart move?" — GENERAL intent, no second-person
-    // candidate framing token, not generic-knowledge → inclusion-bias path.
+  test('ambiguous question without personal authorization keeps profile data out in both production paths', async () => {
     const orch = makeOrchestrator();
     const result = await orch.processQuestion('would taking this be a smart move');
-    assert.ok(result);
-    assert.equal(result.systemPromptInjection, '', 'inclusion-bias path injects no system prompt');
-    if (V2) {
-      // V2 injects the FULL profile (cached prefix) instead of a compact identity.
-      assert.match(result.contextBlock, /<candidate_profile>/, 'V2 uses full profile for inclusion bias');
-    } else {
-      assert.match(result.contextBlock, /candidate_identity/, 'legacy: compact identity (inclusion bias)');
-      assert.doesNotMatch(result.contextBlock, /candidate_projects|candidate_experience/);
-    }
+    assert.equal(result, null);
+    const { SneakPeekIntelligenceEngine } = require('../../../dist-electron/electron/intelligence/engine/SneakPeekIntelligenceEngine.js');
+    const question = 'would taking this be a smart move';
+    const planned = await new SneakPeekIntelligenceEngine().handle({
+      requestId: 'ambiguous-profile', sessionId: 'isolated-profile', surface: 'manual-chat',
+      userMessage: question, currentTurn: { id: 'ambiguous-profile', role: 'user', content: question },
+      recentConversation: [],
+      contextPermissions: { conversation: true, transcript: false, screen: false, mode: false, project: true, profile: true, files: true, memory: true, generalKnowledge: true },
+    });
+    assert.equal(planned.evidencePack.items.length, 0);
+    assert.ok(!planned.contextPlan.requiredSources.some((source) => ['profile', 'personal_knowledge', 'project_knowledge', 'my_files'].includes(source)));
   });
 
   test('REGRESSION: a genuine NEGOTIATION question is NOT flagged factualRecall', async () => {

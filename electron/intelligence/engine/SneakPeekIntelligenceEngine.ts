@@ -17,6 +17,7 @@ import { buildEvidencePackFromSneakPeekEvidence } from '../context-os/evidencePa
 import { assembleSneakPeekPrompt } from './PromptAssembler';
 import { planResponse } from './ResponsePlanner';
 import { GenerationLifecycle, type GenerationLifecycleSnapshot } from './GenerationController';
+import { projectRetrievalQuery } from './ProjectFileScope';
 
 /**
  * Central entry boundary for Sneak-Peek Intelligence.
@@ -240,14 +241,17 @@ export class SneakPeekIntelligenceEngine {
 
     stages.push('plan-retrieval');
     pipelineStages.push('RetrievalCoordinator');
-    const retrievalPlan = this.planRetrieval(turnUnderstanding.question || resolvedQuestion, contextPlan);
+    const retrievalQuery = contextPlan.requiredSources.includes('project_knowledge')
+      ? projectRetrievalQuery(turnUnderstanding.question || resolvedQuestion, request.activeContext?.projectName, request.activeContext?.projectSourceIds)
+      : turnUnderstanding.question || resolvedQuestion;
+    const retrievalPlan = this.planRetrieval(retrievalQuery, contextPlan);
 
     if (lifecycle?.state === 'PLANNING') lifecycle.transition('RETRIEVING', 'context plan created; retrieval started');
     stages.push('retrieve');
     const retrievalResult = await this.retrievalCoordinator.retrieve(
       contextPlan,
       request,
-      turnUnderstanding.question || resolvedQuestion,
+      retrievalQuery,
     );
 
     stages.push('build-evidence');
