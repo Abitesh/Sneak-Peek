@@ -25,10 +25,10 @@ Source: owner's current message and `Changes-roadmap.rtf`, supplied 2026-11-01. 
 1. DOC-001: safely merge these records and reconcile the actual local branch/diff.
 2. Continue CHG-17 using the smallest verified canonical-RAG integration step. Validate relevant existing protections before advancing.
 3. Capture ERR-001–ERR-004 evidence now. A reproducible blocker can become an explicitly approved focused repair; do not interleave an uncontrolled packaging/audio rewrite.
-4. Advance CHG-18–22 only after their gates. Assess earlier migration evidence where needed; do not repeat all prior changes blindly.
+4. Advance CHG-18–22 only after their gates. CHG-23 is a deferred user-approved enhancement after CHG-22; assess earlier migration evidence where needed and do not repeat prior changes blindly.
 5. Schedule final user-facing FEAT items by dependency and owner priority. Preserve every final requirement even if outside Change 17.
 
-## Changes 1–22 index
+## Changes 1–23 index
 
 Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md owns live execution status.
 
@@ -56,6 +56,7 @@ Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md
 | CHG-20 | One primary intelligence pipeline | Planned | CHG-19 |
 | CHG-21 | Final intelligence quality/regression pass | Planned | CHG-20; packaging work requires separate authorization. |
 | CHG-22 | Final verified-dead architecture deletion | Planned | CHG-01–21 verified for affected responsibilities. |
+| CHG-23 | Dedicated Coding, CS Fundamentals, and Resume & Projects modes | Planned — owner-approved future scope | CHG-22 verified; coordinate FEAT-003/004, preserve existing Technical Interview. |
 
 ## Change acceptance contracts
 
@@ -302,6 +303,30 @@ Gate: CHG-01–21 verified for affected responsibilities.
 
 - C22-AC1: For every module: importer/symbol search, test/compile/build/runtime evidence, migration impact and final diff reviewed; no lost behavior or data.
 - C22-AC2: Required automated and manual verification recorded; protected boundaries unchanged; diff and tracking records reviewed.
+
+### CHG-23 — Dedicated Coding, CS Fundamentals, and Resume & Projects modes (post-roadmap)
+
+**Owner decision (2026-11-07):** After Changes 1–22 are complete, introduce **three additional selectable modes** while **retaining the existing Technical Interview mode and its current LLM + authorized RAG behavior**. Do not implement this feature during CHG-17/18. This refines the earlier FEAT-003/FEAT-004 plans: preserve existing mode labels and saved settings rather than replacing Technical Interview or forcing a new menu taxonomy.
+
+**Goal:** Make retrieval policy predictable by mode, while continuing to use the single Intelligence Engine for response strategy and streaming. Modes are configuration/policies of the existing engine, **not separate LLM pipelines, RAG managers, databases, or provider routers**.
+
+**Modes and required behavior:**
+
+1. **Coding / DSA — LLM-only.** For algorithms, data structures, debugging, programming and code-writing questions, do not invoke RAG, personal/project/resume documents, profile memories or private reference retrieval by default. Use the selected LLM and authorized same-mode conversation context. Prefer an interview-ready response: a brief intuition, working code in the user's selected language (Python by default if not otherwise configured), meaningful inline comments explaining key operations, complexity analysis, edge cases and sample input/output when relevant. Respect explicit code-only requests and language choices; avoid unnecessary lengthy prose.
+2. **CS Fundamentals — LLM-only.** For operating systems, DBMS, networks, OOP, system design basics and computer-science theory, do not invoke personal/project/resume RAG or private reference retrieval by default. Provide a concise correct definition, explanation or comparison, and an example when it helps. Clearly distinguish uncertain, version-dependent claims; do not invent personal experience. Keep the same selected model/provider and cancellation lifecycle.
+3. **Resume & Projects — document-grounded RAG on each query.** Every request in this mode **plans an authorized retrieval attempt** against the user's available resume/profile, specifically selected projects and their uploaded PDF/Markdown/reference documents, including relevant follow-ups. Only select sources permitted for that session and project; scope named projects to exact current authorized file IDs and preserve document/revision/chunk/page/section provenance. Resume claims must be supported by resume/profile evidence; project implementation claims by the correct project's documents. If files are missing, unavailable, not indexed/READY, denied, irrelevant or insufficient, clearly say evidence is unavailable or ask for the correct document instead of fabricating implementation details. Do not automatically widen to sibling projects or unrelated private files. General explanations may supplement clearly separated, source-grounded personal claims, but must never be represented as facts from the user's documents.
+4. **Existing Technical Interview — keep unchanged.** Preserve its existing mixed LLM + RAG behavior, source permissions, UI label, saved settings, model selection, answer style, and all known integrations unless a separately approved change and regression requires otherwise. Other existing modes also remain available.
+
+**Architecture:** Mode policy → existing Intelligence Engine → ContextPlanner → RetrievalCoordinator (when permitted/required) → existing canonical RAG adapter and authorized source-local readers → EvidencePack → PromptAssembler → chosen provider → one answer stream. The two LLM-only modes bypass retrieval capabilities, **not** the Intelligence Engine, provider/cancellation protections or safe conversational context. The Resume & Projects mode attempts retrieval per request; this does not authorize hidden access to documents or the guarantee of a retrieved hit.
+
+**Gate:** CHG-01–22 verified for the affected responsibilities; explicitly schedule after the architecture cleanup. Reconcile FEAT-003 and FEAT-004 during implementation without removing or silently migrating the existing Technical Interview choice.
+
+- C23-AC1: UI exposes and persists the three new modes with clear labels and accessible navigation; old Technical Interview and other mode choices, existing saved selections, provider/model preferences and migration fallbacks continue to work.
+- C23-AC2: Coding/DSA and CS Fundamentals make **zero** RAG/personal/project/profile retrieval calls in deterministic engine and real IPC tests; source availability or a previous RAG-mode session cannot silently leak document evidence after switching modes.
+- C23-AC3: Coding output follows the defined thought/code-with-explanatory-comments/complexity contract for Python and explicit alternative languages, including edge cases; CS Fundamentals answers are succinct, accurate and example-ready. Output formatting is performed by the existing response/prompt planner, not RAGManager.
+- C23-AC4: Resume & Projects attempts authorized, scoped retrieval on each query, including completed same-session follow-ups. Correct resume/project evidence and file/page/revision provenance are included; sibling projects, stale/denied files, cancelled requests and unrelated memories are excluded. Empty or missing evidence is visibly honest, never fabricated.
+- C23-AC5: Technical Interview retains mixed LLM+RAG behavior in comparable before/after tests; switching modes does not merge private conversation/evidence, change the selected model unexpectedly, or allow late streams/cancellation results to cross the boundary.
+- C23-AC6: Both typechecks, focused intelligence/RAG/IPC regressions, relevant build, owner Mac functional tests and applicable Windows checks are actually run or explicitly marked pending. No canonical store replacement, destructive migration, credential/billing modification, native/audio rewrite or unsupported “fully verified” claim.
 
 ## CHG-17 detailed continuation gate
 
