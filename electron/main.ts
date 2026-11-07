@@ -2433,8 +2433,11 @@ export class AppState {
  // the same retry cadence instead of waiting for the user's next search.
  try {
  const { getPersonalKnowledgeManager } = require('./personalKnowledge');
- void getPersonalKnowledgeManager().repairUnreadableIndexes()
- .catch(() => { /* best-effort; searchRelevantAsync retries lazily too */ });
+ // Repair on index readiness, not during a chat question. Keep these
+ // operations sequential to avoid replacing the same file's chunks twice.
+ const personal = getPersonalKnowledgeManager();
+ void personal.repairIndexesInBackground()
+ .catch(() => { /* best-effort; existing indexed chunks stay searchable */ });
  } catch { /* personal knowledge unavailable — mode retry below still runs */ }
 
  if (this.modeReferenceRetryPromise) return;

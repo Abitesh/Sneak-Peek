@@ -35,6 +35,17 @@ export interface RetrievalCapability {
   retrieve(input: RetrievalCapabilityRequest): Promise<RetrievalCapabilityResult>;
 }
 
+/** Safe source-level outcomes. No retrieved text, source names, or private IDs. */
+export interface RetrievalSourceOutcome {
+  source: ContextSource;
+  status: 'retrieved' | 'empty' | 'denied' | 'unavailable' | 'cancelled' | 'failed';
+  itemCount: number;
+  /** Number of this source's items rendered into the final prompt (engine only). */
+  includedCount?: number;
+  retrievalBackend?: 'canonical' | 'source-fallback';
+  fallbackReason?: 'disabled' | 'empty' | 'error' | null;
+}
+
 export interface RetrievalDecisionTrace {
   decisionId: string;
   requestId: string;
@@ -43,6 +54,7 @@ export interface RetrievalDecisionTrace {
   executedSources: ContextSource[];
   skippedSources: ContextSource[];
   callCount: number;
+  sourceOutcomes: RetrievalSourceOutcome[];
 }
 
 export interface RetrievalCoordinatorResult {
@@ -76,7 +88,12 @@ const SOURCE_EXECUTION_PRIORITY: ContextSource[] = [
   'rag',
 ];
 
-const RETRIEVABLE = new Set<ContextSource>(SOURCE_EXECUTION_PRIORITY);
+// These are already read from the canonical conversation state and rendered
+// by PromptAssembler, not fetched through external retrieval capabilities.
+// Treating them as missing capabilities would falsely report an unavailable
+// private source on ordinary "can you explain it?" follow-ups.
+const CONTEXT_ONLY_SOURCES = new Set<ContextSource>(['recent_conversation', 'longer_conversation']);
+const RETRIEVABLE = new Set<ContextSource>(SOURCE_EXECUTION_PRIORITY.filter((source) => !CONTEXT_ONLY_SOURCES.has(source)));
 
 function sourcePermissionAllowed(
   request: SneakPeekIntelligenceRequest,
@@ -174,6 +191,7 @@ export class RetrievalCoordinator {
       executedSources: [],
       skippedSources,
       callCount: 0,
+      sourceOutcomes: [],
     };
 
     if (input.cancellationSignal?.aborted || executedSources.length === 0) {
@@ -193,6 +211,7 @@ export class RetrievalCoordinator {
       const permitted = sourcePermissionAllowed(input, source);
       if (!permitted) {
         trace.skippedSources.push(source);
+        trace.sourceOutcomes.push({ source, status: 'denied', itemCount: 0 });
         continue;
       }
 
@@ -200,17 +219,44 @@ export class RetrievalCoordinator {
       if (!capability) {
         // Missing capability is not permission to substitute another source.
         // The plan remains authoritative and the absence is observable.
+        trace.skippedSources.push(source);
+        trace.sourceOutcomes.push({ source, status: 'unavailable', itemCount: 0 });
         continue;
       }
 
       trace.callCount += 1;
       trace.executedSources.push(source);
-      const result = await capability.retrieve({
-        query,
+      let result: RetrievalCapabilityResult;
+      try {
+        result = await capability.retrieve({
+          query,
+          source,
+          request: input,
+          contextPlan,
+          signal: input.cancellationSignal,
+        });
+      } catch (error) {
+        trace.sourceOutcomes.push({ source, status: input.cancellationSignal?.aborted ? 'cancelled' : 'failed', itemCount: 0 });
+        this.onDecision?.(trace);
+        // Do not silently convert retrieval errors into empty/successful evidence.
+        throw error;
+      }
+      // A superseded read can finish after abort. It must never contribute
+      // evidence to the current request, even if the backend ignored signal.
+      if (input.cancellationSignal?.aborted) {
+        trace.sourceOutcomes.push({ source, status: 'cancelled', itemCount: 0 });
+        break;
+      }
+      const metadata = result.metadata;
+      const backend = metadata?.retrievalBackend;
+      const reason = metadata?.fallbackReason;
+      trace.sourceOutcomes.push({
         source,
-        request: input,
-        contextPlan,
-        signal: input.cancellationSignal,
+        status: result.items.length > 0 ? 'retrieved' : 'empty',
+        itemCount: result.items.length,
+        ...(backend === 'canonical' || backend === 'source-fallback' ? { retrievalBackend: backend } : {}),
+        ...(reason === 'disabled' || reason === 'empty' || reason === 'error' || reason === null
+          ? { fallbackReason: reason } : {}),
       });
       items.push(...result.items);
     }

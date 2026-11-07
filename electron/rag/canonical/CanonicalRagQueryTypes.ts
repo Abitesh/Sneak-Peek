@@ -3,6 +3,12 @@ import type { CanonicalRagChunk, CanonicalRagDocument } from './CanonicalRagType
 export interface CanonicalRagSourceFilter {
   sourceType: string;
   sourceId?: string;
+  /** Allowlist of original source IDs; an empty list authorizes no rows. */
+  sourceIds?: readonly string[];
+  /** Legacy personal-file category, such as project. */
+  fileType?: string;
+  /** Optional owner isolation when an authorized owner identity is available. */
+  ownerId?: string;
   scopeId?: string;
 }
 

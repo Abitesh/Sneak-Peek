@@ -85,9 +85,21 @@ export class ModeRagAdapter implements RagSourceAdapter {
 
       const file = fileById.get(documentId);
       const source = this.buildModeDocument(documentId, file, modeId);
-      const pageRange = this.extractModePageRange(text);
-      const heading = this.extractModeHeading(text);
-      const section = this.extractModeSection(heading);
+      // Prefer the indexed DocumentMap locator. The chunk text may no longer
+      // contain [Page N] markers; parsing text is only for old result shapes.
+      const structuredPageStart = Number.isSafeInteger(c.pageStart) && c.pageStart > 0
+        ? c.pageStart as number : undefined;
+      const pageRange = structuredPageStart !== undefined
+        ? {
+          start: structuredPageStart,
+          end: Number.isSafeInteger(c.pageEnd) && c.pageEnd >= structuredPageStart
+            ? c.pageEnd as number : structuredPageStart,
+        }
+        : this.extractModePageRange(text);
+      const heading = typeof c.heading === 'string' && c.heading.trim()
+        ? c.heading.trim() : this.extractModeHeading(text);
+      const section = typeof c.section === 'string' && c.section.trim()
+        ? c.section.trim() : this.extractModeSection(heading);
       const chunkIndex = Number(c.chunkIndex);
       const resolvedChunkIndex = Number.isFinite(chunkIndex) ? chunkIndex : 0;
       const score = Number(c.score);
@@ -108,7 +120,9 @@ export class ModeRagAdapter implements RagSourceAdapter {
             trustLevel: c.trustLevel,
             embeddingSpace: c.embeddingSpace,
             ...(c.provenance && typeof c.provenance === 'object' ? c.provenance : {}),
-            ...(c.metadata && typeof c.metadata === 'object' ? c.metadata : {}),
+            ...(c.metadata && typeof c.metadata === 'object' && !Array.isArray(c.metadata) ? c.metadata : {}),
+            ...(c.contentType !== undefined ? { contentType: c.contentType } : {}),
+            ...(c.tableIndex !== undefined ? { tableIndex: c.tableIndex } : {}),
           },
         },
         score: Number.isFinite(score) ? score : 0,

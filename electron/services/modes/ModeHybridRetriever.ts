@@ -32,6 +32,14 @@ chunkIndex: number;
 score: number;
 ftsScore: number;
 vectorScore: number;
+/** Structured document provenance from DocumentMap, independent of text markers. */
+pageStart?: number;
+pageEnd?: number;
+section?: string;
+heading?: string;
+contentType?: string;
+tableIndex?: number;
+metadata?: Record<string, unknown>;
 trustLevel: 'untrusted_reference';
 }
 /**
@@ -1351,6 +1359,15 @@ chunkIndex: c.chunkIndex,
 score: this.reportedDocGroundedScore(c),
 ftsScore: c.ftsScore,
 vectorScore: c.vectorScore,
+// Retain DocumentMap locators through both output branches. The formatted
+// XML already has them; typed engine retrieval must not lose them.
+...(c.pageStart !== undefined ? { pageStart: c.pageStart } : {}),
+...(c.pageEnd !== undefined ? { pageEnd: c.pageEnd } : {}),
+...(c.section !== undefined ? { section: c.section } : {}),
+...(c.heading !== undefined ? { heading: c.heading } : {}),
+...(c.contentType !== undefined ? { contentType: c.contentType } : {}),
+...(c.tableIndex !== undefined ? { tableIndex: c.tableIndex } : {}),
+...(c.metadata !== undefined ? { metadata: c.metadata } : {}),
 trustLevel: 'untrusted_reference',
 })),
 formattedContext: finalContext,
@@ -1368,6 +1385,15 @@ chunkIndex: c.chunkIndex,
 score: this.combinedScore(c.ftsScore, c.vectorScore, FTS_WEIGHT),
 ftsScore: c.ftsScore,
 vectorScore: c.vectorScore,
+// Retain DocumentMap locators through both output branches. The formatted
+// XML already has them; typed engine retrieval must not lose them.
+...(c.pageStart !== undefined ? { pageStart: c.pageStart } : {}),
+...(c.pageEnd !== undefined ? { pageEnd: c.pageEnd } : {}),
+...(c.section !== undefined ? { section: c.section } : {}),
+...(c.heading !== undefined ? { heading: c.heading } : {}),
+...(c.contentType !== undefined ? { contentType: c.contentType } : {}),
+...(c.tableIndex !== undefined ? { tableIndex: c.tableIndex } : {}),
+...(c.metadata !== undefined ? { metadata: c.metadata } : {}),
 trustLevel: 'untrusted_reference'
 })),
 formattedContext,

@@ -1,6 +1,6 @@
 # Sneak-Peek — error and investigation register
 
-Updated: 2026-11-03. Agent-maintained. New errors go here before a fix is attempted. This file contains sanitized summaries, not raw secrets, personal documents or private conversations.
+Updated: 2026-11-04. Agent-maintained. New errors go here before a fix is attempted. This file contains sanitized summaries, not raw secrets, personal documents or private conversations.
 
 ## Status rules
 
@@ -58,6 +58,7 @@ State: Fix implemented, unverified. The fresh full suite no longer lists this fi
 | ERR-014 | Provider Settings can report Saved even when credential persistence failed | Fix implemented, unverified | BUG-001 / WORK-0009: cloud-key/LiteLLM setters now return persistence status; IPC and renderer surface failure. |
 | ERR-015 | Hindsight Router config is generated but Hindsight still starts on the direct Gemini provider | Fix implemented, unverified | BUG-005 / WORK-0009: activate `litellmrouter` + `default` logical model and explicit fallback aliases; live server retest pending. |
 | ERR-016 | Renderer TypeScript 5 check fails on an untyped provider save result | Verified resolved locally | CHG-14 / WORK-0010: `npm run typecheck:ts5` passes. |
+| ERR-036 | Punctuated natural-language questions fail canonical FTS5 MATCH | Fix implemented; focused lexical path verified, broader parity pending | CHG-17 / WORK-0019: tokenized quoted FTS expression and production-boundary regression pass; source-family parity remains open. |
 
 ## ERR-016 — provider Settings TypeScript check
 
@@ -292,3 +293,163 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **Confirmed cause:** After selecting the no-project-file profile/personal fallback, the planner's later unconditional `understanding.requiresProjectContext` rule re-required `project_knowledge` and `rag`. That made the final project-authority pruning remove profile/personal evidence.
 - **Resolution history:** `ContextPlanner` now records when the fallback branch is selected and skips only that later project-context override. The system-design branch and project-authority pruning remain unchanged. The related existing permission-denial regression was updated to expect authorized profile fallback while asserting the project capability remains forbidden and unexecuted.
 - **Verification:** The pre-fix failure was reproduced on macOS. `npm run build:electron` passed; all 19 routing/planner tests passed in the exact system-Node run but three vector tests could not load due to ERR-005. All 22 focused tests passed under Electron 43's matching Node ABI, including named-project fallback, project authority when available, and general-question privacy. Real-app/manual and Windows checks remain pending.
+
+
+## ERR-023 — completed manual/meeting exchanges do not advance derived follow-up referents
+
+- **Source:** Owner-observed same-session Singleton → "Can you give me its code?" failure; reproduced from uploaded `conversation-state-store.ts` and engine via an isolated in-container fixture.
+- **Cause:** primary manual handler appended atomic turns but never called `advance` for completed responses; the derived `previousQuestion`/`activeTopic` remained empty. After referent recovery, generic/coding turn classification still overrode the follow-up, and ResponsePlanner could request prose instead of code.
+- **Repair:** only on a completed same-session matching question/answer pair, advance derived referents without synthetic duplicate turns or dependence on Hindsight. Meeting user turns now mark pending/completed/cancelled/failed. Use recovered referent for retrieval query and treat explicit code shape as code in ResponsePlanner.
+- **Checks:** exact Singleton prompt, response shape, session isolation and incomplete-state focused tests pass in temporary transpiled Node suite. Actual Mac UI STOP/restart/supersession and Windows remain unverified.
+- **Status:** Fix implemented in WORK-0014 bundle, unverified on owner's app.
+
+## ERR-024 — broad project-history wording can disable private retrieval
+
+- **Source:** Copilot read-only compiled routing probe: "Explain the projects I worked on" planned no sources. Verified from uploaded resolver cue and reproduced with isolated `understandTurn` call.
+- **Cause:** project-summary cue accepted "my/your projects" but not first-person "projects I worked on" wording.
+- **Repair:** narrow explicit first-person project-history cue, preceding project/detail branching; named implementation requests retain project-file precedence. No general-question private retrieval widening.
+- **Checks:** four candidate-history and named-project/general negative fixtures pass. Real authorized résumé/PDF still requires app verification.
+- **Status:** Fix implemented in WORK-0014 bundle, unverified on owner's app.
+
+## ERR-025 — missing evidence and source fallback are not accurately represented at the engine boundary
+
+- **Source:** Copilot read-only audit and source inspection of `CanonicalRagRetrievalAdapter`, `RetrievalCoordinator` and the engine's evidence-empty prompt condition.
+- **Cause:** fallback evidence was tagged as canonical, backend and empty/fallback reason metadata was not propagated, and `retrievalRequired` only flagged generic `rag` (not concrete personal/profile evidence). A late backend read could append results after abort.
+- **Repair:** truthful per-evidence fallback label; whitelisted source outcomes only (backend, reason, count, status); explicit no-fabrication instructions for required private/document sources; cancellation guard before evidence collection. Do not log retrieved text or private source IDs in outcome metadata.
+- **Checks:** canonical and fallback metadata, missing/denied source, no late-write and no-general-private-source regression tests pass. Canonical rollout/readiness/parity, real-owner DB and Windows remain unverified.
+- **Status:** Fix implemented in WORK-0014 bundle, unverified on owner's app.
+
+
+## ERR-026 — Follow-up answer format lost after referent resolution
+
+- **Source:** Owner-provided Copilot read-only WORK-0014 audit, three offline follow-up probes.
+- **Observed:** `Can you give me its Python implementation?`, `Can you explain that more simply?`, and `Give me another example.` retained prior topic but planned prose/direct answers.
+- **Cause:** derived intent became `follow-up`, while `responseShapeOf` and `isExampleRequest` omitted explicit implementation, simplification and another-example cues.
+- **WORK-0015 repair:** preserve original explicit output-shape cues after reference resolution; map simplification to concise explanation and another example to example kind.
+- **Verification:** 4 variations passed in temporary TypeScript runtime; 106 engine tests including new regression suite passed after migrating a stale source scan. Desktop behavior pending. **Implemented, unverified.**
+
+## ERR-027 — Named project evidence could come from another uploaded project
+
+- **Source:** Owner-provided Copilot audit: project permission relied on presence of *any* file tagged `project`.
+- **Cause:** no named-project file identity was bound through request to personal project search.
+- **WORK-0015 repair:** narrow explicit name extraction from question; match against authorized project filenames, pass original file IDs to project retrieval and restrict lexical/semantic candidate searches. When no filename match exists, fail closed on project source and allow separately authorized profile facts; do not authorize personal/project PDF retrieval from other projects.
+- **Limit:** a document whose filename does not identify its internal project cannot be matched using metadata alone. This requires a later verified project-id metadata source or isolated manual verification.
+- **Verification:** pure project-scope tests and source boundary checks passed. Real DB/file and Mac acceptance pending. **Implemented, unverified.**
+
+## ERR-028 — Renderer chat clear did not clear main-process session referents
+
+- **Source:** Copilot read-only static trace: UI `resetChatState()` only cleared messages, while main-process canonical memory was indexed by stable WebContents ID.
+- **WORK-0015 repair:** sender-scoped `gemini-chat-stream-clear-context` IPC cancels that sender's active manual stream and clears its canonical, manual and coding state; typed preload bridge invoked from renderer reset. No other sender or meeting session is cleared.
+- **Verification:** static bridge assertion and isolated canonical clear test passed in the 106-engine-test run. Same-WebContents rapid clear/submission and actual restart pending. **Implemented, unverified.**
+
+## ERR-029 — Missing failed-source and prompt-inclusion diagnostics
+
+- **Source:** Copilot read-only retrieval trace: throwing capability gave no `failed` outcome; planner warnings presumed missing private sources despite registered capability.
+- **WORK-0015 repair:** record sanitized failed/cancelled outcomes before rethrow; compute source-level aggregate counts of evidence included in final prompt; planner availability uses IPC-derived permission/source flags. No private text or IDs in source-level outcomes.
+- **Verification:** failure propagation/tracing regression passed. Full IPC/real source checks pending. **Implemented, unverified.**
+
+
+## ERR-030 — Named-project alias and casing may widen project retrieval (2026-11-04)
+
+- **CHG-17:** C17-AC6; source: owner-provided post-WORK-0015 Copilot read-only audit (AF-1).
+- **Confirmed:** `ProjectFileScope` previously searched filenames by a subset of name tokens and inferred named projects mainly from capitalized wording. With `Linkship Architecture.pdf` and `Linkship Legacy Notes.pdf`, a question about Linkship selected both; a lowercase named project could leave the project filter undefined.
+- **WORK-0016 source repair:** normalize exact project identities from filename/doc-descriptor suffixes (or explicit `projectName` metadata), preserve case-insensitive named-project parsing, fail closed when an explicit name has no matching file ID, and forward scoped IDs into legacy project retrieval. Sibling-prefix and lowercase positive/negative tests added.
+- **Limitation:** filenames are not a stable project ID; ambiguous naming and documents without identifying metadata still require a dedicated identity mapping and runtime data check. No user data inspected or updated.
+- **Status:** Implemented, unverified. Temporary source-transpiled tests passed; Mac/real project documents still pending.
+
+## ERR-031 — Query-time repair and embedding stalls (2026-11-04)
+
+- **CHG-17:** C17-AC7/8/10; source: Copilot AF-2.
+- **Confirmed:** `PersonalKnowledgeManager.searchRelevantAsync` synchronously awaited `repairLegacyChunking` and `repairUnreadableIndexes`; `searchSemantic` could wait 15 seconds for readiness then attempt 30-second primary and fallback embeddings without a caller abort signal.
+- **WORK-0016 source repair:** run coalesced index repairs on the existing readiness/retry lifecycle, not inside question retrieval; cap query embedding wait to 2 seconds with an abort-aware wrapper and deterministic lexical fallback; propagate signal through project/personal adapter paths. Distinguish cancellation of the caller's wait from cancellation of the underlying provider operation (not supported by current provider API).
+- **Status:** Implemented, unverified. Timeout/abort helper tests pass; true source-level abort, actual retrieval latency and indexing lifecycle on Mac remain pending.
+
+## ERR-032 — Profile failure and retrieval diagnostics not surfaced in production (2026-11-04)
+
+- **CHG-17:** C17-AC3/4/9; source: Copilot AF-3.
+- **Confirmed:** `createPrimaryManualSneakPeekEngine` did not pass `onDecision` to `RetrievalCoordinator`; a profile retrieval exception was returned as `{items: []}`; completion logging printed evidence IDs but not source status/inclusion counts.
+- **WORK-0016 source repair:** preserve profile exceptions for the coordinator's failed status; log only whitelisted source/status/count/backend metadata and final per-source included counts. Do not log profile text, query text, source IDs, error messages or secrets in these new diagnostics.
+- **Status:** Implemented, unverified. Source-scan and coordinator regression tests pass; real IPC/provider-error exercise still pending.
+
+## ERR-033 — Chat reset during active meeting clears wrong session (2026-11-04)
+
+- **CHG-17:** C17-AC6/7/10; source: Copilot AF-4.
+- **Confirmed:** Manual chat stored canonical turns under active `meetingMetadata.id ?? senderId`, whereas `gemini-chat-stream-clear-context` cleared only sender ID. Thus clear could retain a meeting-keyed manual referent.
+- **WORK-0016 source repair:** manual chat state uses stable sender/WebContents key regardless of meeting activity; active meeting ID stays separately available to authorized meeting-transcript retrieval. The existing sender-scoped clear/abort path now addresses the same state key.
+- **Status:** Implemented, unverified. Source-path regression test passes; Mac active-meeting clear/restart and race tests remain pending.
+
+
+## ERR-034 — Canonical query embedding had no caller timeout or abort (2026-11-04)
+
+- **Source:** Owner-supplied Copilot read-only WORK-0016 audit (DEF-01); CHG-17 C17-AC3/5/7/9/10.
+- **Confirmed root cause in uploaded WORK-0016 source:** `RAGManager.resolveCanonicalQueryEmbedding()` directly awaited `embeddingPipeline.getEmbeddingForQuery(query)` with neither a retrieval budget nor `AbortSignal`. Both the engine's `readPlannedCanonicalSource()` and the legacy `search()` canonical-enabled branch used this shared helper. A stalled provider could hold up lexical reads despite canonical readiness and could ignore a request STOP while awaiting the embedding.
+- **WORK-0017 repair:** Reuse the already-existing `withinQueryEmbeddingBudget` helper (2,000 ms caller wait, abort-aware). Propagate planned-source and search request signals. Return `null` embedding on timeout/abort/provider mismatch and retain canonical lexical-only retrieval; a cancelled planned-source request returns no evidence. The provider itself is **not** stopped (the current provider API does not accept an abort signal). No storage/index/schema, profile scope, first-token commitment or canonical-read default flag changes.
+- **Agent verification:** The applied code passed the focused Electron-ABI canonical/safety tests (**30/30**) in an isolated copy. Both typechecks and Electron build exited 0; `test:intelligence` passed **2,073**, failed 0, 9 TODO. Full `npm test` exited 1 (**8,643 pass / 171 fail / 87 skipped**); all 171 failing test names match the preceding WORK-0016 run, so no new full-suite failure name was observed, but their root causes remain unclassified. No live provider or user database was used.
+- **State:** The timeout/abort fix is verified at the focused production-boundary test level; actual app/runtime acceptance remains **unverified**. Canonical-on parity and remaining C17 acceptance gates remain open; CHG-18 blocked.
+
+## ERR-035 — Canonical chat integration test asserted a retired planner call shape (2026-11-04)
+
+- **Source:** WORK-0017 final acceptance audit; CHG-17 C17-AC3/9.
+- **Confirmed cause:** `electron/rag/__tests__/CanonicalChatIntegration.test.mjs` required `this.queryPlanner.plan()` to appear inside `RAGManager.search()`. The current Intelligence Engine path owns planning and calls the planned-source reader, so this source-shape assertion failed despite the production path being structured differently. It was a stale test expectation, not by itself proof of a production retrieval defect.
+- **WORK-0018 correction:** Replace the retired inline-planner assertion with checks for manual-chat primary engine wiring, planned canonical-source capability wiring, and absence of replanning through the planned reader. Add isolated canonical-on/off evidence and selected-source-empty/sibling-scope tests in `CanonicalRagReadProduction.test.mjs`.
+- **Verification:** In `/tmp/chg17-work0018-Y3jahN`, focused canonical tests passed 24/24 and build/typechecks passed. The comparison's compatibility adapter is mocked; actual legacy `RAGRetriever` ranking/source parity remains unverified.
+- **State:** Stale assertion corrected. No application-code fix is established by this error; CHG-17 remains unverified and CHG-18 blocked pending actual parity and runtime acceptance.
+
+## ERR-036 — Punctuated questions were passed to canonical FTS5 as query syntax (2026-11-04)
+
+- **Source:** Actual synthetic meeting parity audit; CHG-17 C17-AC5/6/9.
+- **Observed behavior:** `CanonicalRagStorage.searchLexical()` passed natural-language query text directly to `rag_chunks_fts MATCH ?`. A query such as `Which cache did the team select?` caused an FTS5 syntax error in the canonical path; the read service fell back to legacy retrieval.
+- **Confirmed cause:** Raw user punctuation/operators were treated as FTS5 grammar, unlike the meeting `VectorStore.searchLexical()` tokenization.
+- **WORK-0019 repair:** Normalize query to at most 32 alphanumeric tokens, quote tokens, and OR them; retain parameterized SQL and the existing source type/source ID/scope, READY, current revision, deletion, and provenance handling. No source is created or activated by lexical search; canonical read remains default-off.
+- **Verification:** WORK-0019 punctuation/operator unit and production-boundary tests pass in isolated Electron-ABI runs. An actual synthetic meeting legacy-vs-canonical lexical comparison with a punctuated question passes for source/content/provenance and reports canonical use without fallback. Scores differ; vector/rerank and mode/personal parity remain untested. Owner-checkout typechecks pass. No private database or provider was used.
+- **State:** The punctuated meeting lexical failure is fixed in the applied code for the tested cases; broader source-family and app runtime acceptance remains unverified. CHG-17 is not complete; CHG-18 remains blocked.
+
+## ERR-037 — Project source was missing from the canonical capability type (2026-11-04)
+
+- **Source:** WORK-0020 Electron typecheck after adapting the consolidated CHG-17 patch.
+- **Observed behavior:** `npm run typecheck:electron` reported TS2322 because the production capability rejected `project_knowledge` as a supported source, although the planned project path now uses the canonical adapter.
+- **Confirmed cause:** `CanonicalRagRetrievalAdapterOptions.source` did not include `project_knowledge`.
+- **Resolution:** Add the already-defined project source to the adapter's allowed source union and retain the same source identity through evidence mapping.
+- **Verification:** `npm run typecheck:electron` passed after the type change; `npm run typecheck:ts5` passed. In the isolated WORK-0020 copy, the focused planned-project capability and canonical tests passed as part of the 70/70 Electron-ABI batch. No user-data or provider access was involved.
+- **State:** Verified resolved for the type mismatch. This verifies the capability type/wiring tests, not complete project-source parity or desktop behavior; those remain CHG-17 acceptance gaps.
+
+## ERR-038 — Live project/Redis answer has no grounded project evidence (2026-11-06)
+
+- **Source / owner report:** Mac `npm start` runtime, `Terminal output(5).rtf`; owner reported the app answered a Redis-in-project question with a no-Linkship-evidence notice. Related: CHG-17 C17-AC3/4/6/10; WORK-0021 evidence review.
+- **Observed, sanitized:** One primary manual-chat request reports a single `profile` retrieval outcome, `status=empty`, `itemCount=0`, `callCount=1`; its final trace has `evidenceCount=0`, `includedEvidenceCount=0`. No `project_knowledge` outcome is present in that request's trace. The log does not print the question text, so association with the user-reported Redis question is based on the owner's observation, not an exact request-ID/content correlation. The app chose not to invent an unsupported project-specific fact.
+- **Unproven hypotheses:** The file/project might not be uploaded or READY/indexed; the query might be an ambiguous pronoun follow-up without a stored Linkship referent; the ContextPlanner might omit project retrieval; or the profile port might not expose available project evidence. An empty result alone does **not** establish that canonical RAG returned an incorrect result. No private project database or document was inspected.
+- **Next targeted acceptance:** In a separate temporary app-data profile, ingest an authorized synthetic `Linkship` project containing a unique Redis reason; confirm READY/index status and the original authorized source ID. Ask explicitly `Why does Linkship use Redis?` and then, after a completed Linkship turn in the same session, ask `Why is Redis used in your project?`. Record sanitized selected-source outcomes, included evidence count, source IDs only in locally protected audit, and the final factual answer. Also check a similarly named sibling project is excluded. Do not enable the canonical read flag globally or fabricate the fact.
+- **State:** Open / root cause not established; CHG-17 project/personal grounding acceptance remains incomplete. Do not reclassify as unrelated until source availability and engine routing are checked.
+
+## ERR-039 — Cloud batch embedding timeout with local fallback (2026-11-06)
+
+- **Source:** Mac `npm start` runtime, `Terminal output(5).rtf`; WORK-0021 evidence review.
+- **Observed, sanitized:** `EmbeddingPipeline` reported a primary Gemini `embedBatch()` timeout after 30,000 ms for 66 chunks and selected the configured local fallback. A distinct earlier startup message said queue processing was skipped while no provider was ready; subsequently the provider became ready. These lines do not by themselves prove any query-time wait, missing project index or user-facing failure.
+- **Hypotheses:** Provider/network latency, batch sizing, startup readiness, or background index repair. No provider-side root cause was diagnosed, and the 2-second canonical query-embedding caller budget is a different operation.
+- **Next:** Investigate separately with a non-private synthetic batch and count ready/indexed chunks before and after the fallback, without exposing credentials or touching the user's DB. If it explains the missing authorized project fact, link back to ERR-038 and treat it as a CHG-17 dependency.
+- **State:** Open / provider-indexing triage; no claim of CHG-17 causation or harmlessness.
+
+## ERR-040 — Uncaught native Napi::Error during app quit (2026-11-06)
+
+- **Source:** Mac `npm start` runtime, `Terminal output(5).rtf`; WORK-0021 evidence review.
+- **Observed, sanitized:** After `[Lifecycle] will-quit reason=user-quit`, `libc++abi` reported an uncaught `Napi::Error`; Electron exited with `SIGABRT`. The `concurrently` runner subsequently terminated the Vite process with `SIGKILL`, which is an effect of the Electron process failure rather than a second independent defect. No native stack trace was provided.
+- **Root cause:** Unknown. It may involve native shutdown/cleanup; it is not established as an intelligence/RAG regression. Do not modify protected microphone/audio/native modules under CHG-17.
+- **Next:** File as a separate native lifecycle issue, reproduce with a fresh temporary data profile and an ordinary close (preferably before starting capture); obtain a sanitized native backtrace and compare with the exact-HEAD baseline before a separately authorized repair. Check that it does not corrupt user data or prevent safe restart.
+- **State:** Open / separate lifecycle investigation. Do not mark unrelated as proven until reproduced and traced; CHG-17 is blocked independently by grounding/parity acceptance.
+
+## ERR-041 — Unnamed singular project follow-up can lose exact original file-ID scope (2026-11-06)
+
+- **Related:** ERR-038 / CHG-17 C17-AC3/6/7/9; WORK-0022.
+- **Confirmed source-level cause:** Both active manual and meeting request builders called `resolveProjectFileScope(rawQuestion, personalFiles)` without checking the previous completed conversation exchange. For “Why is Redis used in your project?” the previous project name was absent from the raw turn; the scope resolver returned an undefined `selectedFileIds` allowlist while reporting that project files were available. The `projectFilesOnly` adapter can then run without a named project's exact IDs. This is a reproducible authorization-scoping *risk*, not evidence that private sibling material was actually sent to any provider.
+- **Proposed WORK-0022 fix:** Rebind singular pronoun project follow-ups only to the immediately preceding, completed, same-session Q/A's explicit project name; revalidate original IDs against current available `fileType=project` files. Fail closed on cancelled/failed/unpaired exchange, missing project, changed referent, or cleared state. Suppress profile substitution for unresolved singular project references. Support an explicit two-word subject project name (Linkship Legacy), which overrides the previous name.
+- **Verification:** 11 scope checks against temporary transpilation of the actual helper and nine targeted Node tests against actual temporarily transpiled project scope, adapter, and canonical conversation state modules pass. Mac Electron build/native tests and in-app authorized Linkship/Redis evidence/latency remain pending. The owner must apply the patch first.
+- **State:** WORK-0022 scope repair is present in the current staged tree; its completed-turn, sibling override, failure, removed-file and clear-state tests pass in the isolated intelligence suite. End-to-end desktop retrieval remains unverified. ERR-038 remains open independently: synthetic retrieval tests do not establish the owner-reported first-turn result.
+
+## ERR-042 — Mode retrieval drops page provenance on the legacy result path (2026-11-06)
+
+- **Related:** CHG-17 C17-AC5; WORK-0023.
+- **Reproduction:** In a disposable source copy, actual `ModeHybridRetriever.indexFile` indexed a synthetic mode reference with page 7 and an active deterministic embedding space. Actual `ModeRagAdapter.retrieve` returned the matching source/content and vector result, but its chunk had no page locator. The canonical read over equivalent READY/current data returned the same original source and content with `pdf:page:7`. The test also confirmed canonical matching-space vector hits, incompatible-space rejection, no non-READY hits, and superseded-revision exclusion.
+- **Confirmed cause:** `ModeHybridRetriever.retrieve` builds returned chunks from selected candidates but omits their `pageStart`/`pageEnd` metadata. `ModeRagAdapter` can recover page numbers only by parsing `[Page n]` markers in returned text; the actual retrieved chunk text does not retain the locator, so the adapter returns no page provenance even though indexing had it.
+- **Impact:** Legacy mode retrieval cannot provide the page locator that canonical retrieval preserves; this is a real provenance parity failure for C17-AC5. The reproduction is synthetic/offline and does not establish a desktop UI symptom.
+- **Resolution:** None attempted. Keep canonical reads default-off. A focused repair should preserve structured locator metadata through the production mode result boundary and add a real-adapter regression comparison before acceptance.
+- **State:** Reproduced in the isolated actual production retrieval path; open, unpatched.

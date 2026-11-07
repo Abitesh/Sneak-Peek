@@ -118,6 +118,7 @@ test('meeting/interview request permissions reflect actual profile and project-f
   assert.match(block, /project:\s*projectFilesAvailable/);
   assert.match(block, /profile:\s*profileAvailable/);
   assert.match(block, /files:\s*personalFilesAvailable/);
-  assert.match(block, /memory:\s*personalFilesAvailable\s*\|\|\s*profileAvailable/);
+  assert.match(block, /memory:\s*projectScope\.missingNamedProject\s*\?\s*false\s*:\s*\(personalFilesAvailable\s*\|\|\s*profileAvailable\)/);
+  assert.match(block, /projectSourceIds:\s*projectScope\.selectedFileIds/, 'named project scope must be forwarded');
   assert.doesNotMatch(block, /project:\s*true/);
 });

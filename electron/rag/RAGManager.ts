@@ -53,6 +53,7 @@ import { CanonicalMeetingBackfillService, type MeetingBackfillResult } from './c
 import { CanonicalRagIndexer, type CanonicalIndexRunResult, type CanonicalSourceCorpusInput } from './canonical/CanonicalRagIndexer';
 import { observeCanonicalRagShadowIfEnabled } from './canonical/CanonicalRagShadowService';
 import { CanonicalRagReadService } from './canonical/CanonicalRagReadService';
+import { withinQueryEmbeddingBudget } from './QueryEmbeddingBudget';
 import { ModeStorageAdapter } from './storage/ModeStorageAdapter';
 import { MeetingStorageAdapter } from './storage/MeetingStorageAdapter';
 import type {
@@ -168,6 +169,12 @@ allowRerank?: boolean;
 forceDocumentGrounding?: boolean;
   /** Internal planner hint: search only My Files tagged as project material. */
   projectFilesOnly?: boolean;
+  /** File-ID filter for a confidently named, authorized project. */
+  projectFileIds?: readonly string[];
+  /** Abort an in-flight source retrieval without changing selected source scope. */
+  signal?: AbortSignal;
+  /** New engine only: preserve a source failure instead of claiming empty evidence. */
+  failOnSourceError?: boolean;
 /** Existing Mode answer classification forwarded through ModeRagAdapter. */
 answerType?: AnswerType;
 /** Existing Mode custom-context suppression forwarded through ModeRagAdapter. */
@@ -181,10 +188,13 @@ query: string;
 sourceType: 'meeting' | 'mode' | 'personal';
 sourceId?: string;
 scopeId?: string;
+projectFilesOnly?: boolean;
+projectFileIds?: readonly string[];
+/** Optional owner filter applied only when provided by an authorized caller. */
+ownerId?: string;
 sessionId?: string;
 limit?: number;
 tokenBudget?: number;
-projectFilesOnly?: boolean;
 signal?: AbortSignal;
 }
 
@@ -854,6 +864,37 @@ return relevantResults.filter((result, index) => usable.has(`rag-manager:${Strin
 }
 
 /**
+ * Read the OKF card index for a source already selected by the Intelligence
+ * Engine. This avoids invoking the global source planner a second time.
+ */
+public async readPlannedKnowledgeSource(input: {
+  query: string;
+  modeId?: string;
+  limit?: number;
+  tokenBudget?: number;
+  signal?: AbortSignal;
+}): Promise<RagSearchResult[]> {
+  if (input.signal?.aborted) return [];
+  const query = String(input.query ?? '').trim();
+  if (!query) return [];
+  const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 8)));
+  const tokenBudget = Math.max(1, input.tokenBudget ?? 1800);
+  const options: RAGSearchOptions = {
+    modeId: input.modeId,
+    topK: limit,
+    candidatePoolSize: limit,
+    tokenBudget,
+    selectedSources: ['knowledge'],
+    allowedSources: ['knowledge'],
+  };
+  const candidates = await this.knowledgeAdapter.retrieve({
+    query, options, candidatePoolSize: limit, tokenBudget, signal: input.signal,
+  });
+  if (input.signal?.aborted) return [];
+  return dedupeRagSearchResults(candidates).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+/**
  * CHG-17 planned-source boundary.
  *
  * ContextPlanner and RetrievalCoordinator have already selected and authorized
@@ -870,6 +911,9 @@ usedCanonical: false,
 fallbackReason: null,
 });
 if (input.signal?.aborted) return cancelled();
+if (input.projectFilesOnly && input.projectFileIds?.length === 0) {
+  return { results: [], usedCanonical: false, fallbackReason: 'empty' };
+}
 
 const query = String(input.query ?? '').trim();
 if (!query) return cancelled();
@@ -891,6 +935,8 @@ rerankCandidatePoolSize,
 tokenBudget,
 allowRerank: true,
 projectFilesOnly: input.projectFilesOnly === true,
+projectFileIds: input.projectFileIds,
+failOnSourceError: true,
 };
 const conversation = isRagConversationAwareEnabled()
 ? this.getConversationForRetrieval(input.sessionId)
@@ -902,22 +948,26 @@ results = await this.meetingAdapter.retrieve({ query, options, candidatePoolSize
 } else if (input.sourceType === 'mode') {
 results = await this.modeAdapter.retrieve({ query, options, candidatePoolSize, tokenBudget });
 } else {
-results = await this.personalAdapter.retrieve({ query, options, candidatePoolSize });
+results = await this.personalAdapter.retrieve({ query, options, candidatePoolSize, signal: input.signal });
 }
-return input.signal?.aborted ? [] : results;
+if (input.signal?.aborted) return [];
+if (input.projectFilesOnly) {
+  const allowed = input.projectFileIds ? new Set(input.projectFileIds) : null;
+  // Keep the source adapter from widening the already-authorized project scope.
+  results = results.filter((result) => result.source?.sourceType === 'personal'
+    && String(result.source.metadata?.fileType ?? '') === 'project'
+    && (!allowed || allowed.has(String(result.source.id ?? ''))));
+}
+return results;
 };
 
-// Canonical personal storage does not yet prove the legacy
-// personal + fileType=project filter. Keep project-only reads on the existing
-// filtered adapter until that equivalence is separately verified in CHG-17.
 const canonicalReadEnabled = isIntelligenceFlagEnabled('canonicalRagRead')
-&& rerankActive
-&& input.projectFilesOnly !== true;
+&& rerankActive;
 let readResult: PlannedCanonicalSourceReadResult;
 if (!canonicalReadEnabled) {
 readResult = { results: await fallback(), usedCanonical: false, fallbackReason: 'disabled' };
 } else {
-const canonicalQueryEmbed = await this.resolveCanonicalQueryEmbedding(query);
+const canonicalQueryEmbed = await this.resolveCanonicalQueryEmbedding(query, input.signal);
 if (input.signal?.aborted) return cancelled();
 const canonicalRead = new CanonicalRagReadService(new CanonicalRagStorage(this.db));
 readResult = await canonicalRead.readSource({
@@ -925,6 +975,9 @@ query,
 sourceType: input.sourceType,
 sourceId: input.sourceId,
 scopeId: input.scopeId,
+...(input.projectFilesOnly ? { fileType: 'project' } : {}),
+...(input.projectFileIds !== undefined ? { sourceIds: input.projectFileIds } : {}),
+...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
 limit: candidatePoolSize,
 ...(canonicalQueryEmbed ? {
 queryEmbedding: canonicalQueryEmbed.embedding,
@@ -1187,8 +1240,11 @@ const canonicalRead = canonicalReadEnabled
 ? new CanonicalRagReadService(new CanonicalRagStorage(this.db))
 : null;
 const canonicalQueryEmbed = canonicalRead
-  ? await this.resolveCanonicalQueryEmbedding(normalizedQuery)
+  ? await this.resolveCanonicalQueryEmbedding(normalizedQuery, options.signal)
   : null;
+if (options.signal?.aborted) {
+  return finishSearch({ originalQuery, retrievalQuery: normalizedQuery, results: [], status: 'no_relevant_evidence' }, { skipped: true });
+}
 const canonicalEmbedFields = canonicalQueryEmbed
   ? { queryEmbedding: canonicalQueryEmbed.embedding, embeddingSpaceId: canonicalQueryEmbed.embeddingSpaceId }
   : {};
@@ -1307,12 +1363,14 @@ fallback: () => this.personalAdapter.retrieve({
 query: normalizedQuery,
 options: personalSearchOptions,
 candidatePoolSize,
+signal: options.signal,
 }),
 })
 : { results: await this.personalAdapter.retrieve({
 query: normalizedQuery,
 options: personalSearchOptions,
 candidatePoolSize,
+signal: options.signal,
 }), usedCanonical: false, fallbackReason: 'disabled' as const };
 results.push(...personalResults.results);
 if (canonicalRead && personalResults.usedCanonical) {
@@ -1326,7 +1384,8 @@ if (canonicalRead && personalResults.usedCanonical) {
   });
 }
 } catch (error) {
-console.warn('[RAGManager] Personal retrieval failed:', error);
+if (options.failOnSourceError) throw error;
+console.warn('[RAGManager] Personal retrieval failed');
 }
 }
 
@@ -1714,7 +1773,11 @@ return this.embeddingPipeline;
  * Skip vector search if the pipeline is missing, the space is unknown, the
  * fallback provider flipped mid-call, or dimensions do not match.
  */
-private async resolveCanonicalQueryEmbedding(query: string): Promise<{ embedding: number[]; embeddingSpaceId: string } | null> {
+private async resolveCanonicalQueryEmbedding(
+  query: string,
+  signal?: AbortSignal,
+): Promise<{ embedding: number[]; embeddingSpaceId: string } | null> {
+  if (signal?.aborted) return null;
   try {
     if (typeof this.embeddingPipeline?.getActiveCanonicalEmbeddingIdentity !== 'function') return null;
     const identity = getCanonicalPipelineEmbeddingIdentity(this.embeddingPipeline);
@@ -1725,9 +1788,16 @@ private async resolveCanonicalQueryEmbedding(query: string): Promise<{ embedding
       dimensions: identity.dimensions,
       version: identity.version,
     });
-    if (!space) return null;
+    if (!space || signal?.aborted) return null;
     const capturedSpace = identity.space;
-    const embedding = await this.embeddingPipeline.getEmbeddingForQuery(query);
+    // A stalled provider must not block canonical lexical retrieval or STOP.
+    // The provider API cannot abort its own work; this bounds only our wait
+    // and ignores late results. Reuse the personal-query budget, not a new timer.
+    const embedding = await withinQueryEmbeddingBudget(
+      () => this.embeddingPipeline.getEmbeddingForQuery(query),
+      signal,
+    );
+    if (signal?.aborted || embedding === null) return null;
     if (this.embeddingPipeline.getActiveSpaceKey() !== capturedSpace) return null;
     if (!Array.isArray(embedding) || embedding.length !== identity.dimensions) return null;
     return { embedding, embeddingSpaceId: space.id };

@@ -8,6 +8,9 @@ export interface CanonicalRagReadRequest {
   query: string;
   sourceType: 'meeting' | 'mode' | 'personal';
   sourceId?: string;
+  sourceIds?: readonly string[];
+  fileType?: string;
+  ownerId?: string;
   scopeId?: string;
   limit: number;
   queryEmbedding?: readonly number[];
@@ -41,12 +44,22 @@ export class CanonicalRagReadService {
       return { results: [], usedCanonical: true, fallbackReason: null };
     }
 
+    // An explicitly empty source allowlist is a denied scope, not a signal to
+    // search the unscoped legacy reader. Never invoke either backend here.
+    if (request.sourceIds !== undefined && request.sourceIds.length === 0) {
+      return { results: [], usedCanonical: false, fallbackReason: null };
+    }
+
+    let fallbackReason: 'empty' | 'error' = 'empty';
     try {
       const limit = Math.max(1, Math.min(200, Number(request.limit) || 1));
       const lexicalResults = await this.storage.searchLexical(query, {
         sourceType: request.sourceType,
         sourceId: request.sourceId,
         scopeId: request.scopeId,
+        ...(request.sourceIds !== undefined ? { sourceIds: request.sourceIds } : {}),
+        ...(request.fileType !== undefined ? { fileType: request.fileType } : {}),
+        ...(request.ownerId !== undefined ? { ownerId: request.ownerId } : {}),
         limit,
       });
       let merged = this.mergeCanonicalHits(lexicalResults.map(toLegacyRagSearchResult), []);
@@ -58,6 +71,9 @@ export class CanonicalRagReadService {
             sourceType: request.sourceType,
             sourceId: request.sourceId,
             scopeId: request.scopeId,
+            ...(request.sourceIds !== undefined ? { sourceIds: request.sourceIds } : {}),
+            ...(request.fileType !== undefined ? { fileType: request.fileType } : {}),
+            ...(request.ownerId !== undefined ? { ownerId: request.ownerId } : {}),
             limit,
           }).map((hit) => {
             const result = toLegacyRagSearchResult({
@@ -68,11 +84,9 @@ export class CanonicalRagReadService {
             return { ...result, semanticScore: -hit.distance };
           });
           merged = this.mergeCanonicalHits(merged, vectorResults);
-        } catch (error) {
-          console.warn(
-            `[CanonicalRagRead] ${request.sourceType} canonical vector read failed; keeping lexical hits:`,
-            error instanceof Error ? error.message : String(error),
-          );
+        } catch {
+          // Retrieval errors can embed private question/document text.
+          console.warn(`[CanonicalRagRead] ${request.sourceType} canonical vector read failed; keeping lexical hits`);
         }
       }
 
@@ -84,24 +98,30 @@ export class CanonicalRagReadService {
         };
       }
 
-      const fallbackResults = await request.fallback();
-      return {
-        results: fallbackResults,
-        usedCanonical: false,
-        fallbackReason: 'empty',
-      };
-    } catch (error) {
-      console.warn(
-        `[CanonicalRagRead] ${request.sourceType} canonical read failed; falling back to legacy retrieval:`,
-        error instanceof Error ? error.message : String(error),
-      );
-      const fallbackResults = await request.fallback();
-      return {
-        results: fallbackResults,
-        usedCanonical: false,
-        fallbackReason: 'error',
-      };
+    } catch (_error) {
+      // Do not log raw SQLite/provider error messages: they can include
+      // private query or document content.
+      console.warn(`[CanonicalRagRead] ${request.sourceType} canonical read failed; using source-local fallback`);
+      fallbackReason = 'error';
     }
+
+    // Outside the canonical try/catch: a failing fallback must propagate to
+    // RetrievalCoordinator as a failure, never execute twice or masquerade as
+    // an empty canonical result.
+    const fallbackResults = await request.fallback();
+    const allowedIds = request.sourceIds === undefined ? null : new Set(request.sourceIds);
+    const scopedFallback = fallbackResults.filter((hit) => {
+      if ((allowedIds || request.fileType !== undefined || request.ownerId !== undefined)
+        && hit.source?.sourceType !== request.sourceType) return false;
+      if (allowedIds && !allowedIds.has(String(hit.source?.id ?? ''))) return false;
+      if (request.fileType !== undefined && hit.source?.metadata?.fileType !== request.fileType) return false;
+      if (request.ownerId !== undefined) {
+        const metadata = hit.source?.metadata;
+        if (metadata?.ownerId !== request.ownerId && metadata?.canonicalOwnerId !== request.ownerId) return false;
+      }
+      return true;
+    });
+    return { results: scopedFallback, usedCanonical: false, fallbackReason };
   }
 
   private mergeCanonicalHits(lexical: RagSearchResult[], vector: RagSearchResult[]): RagSearchResult[] {

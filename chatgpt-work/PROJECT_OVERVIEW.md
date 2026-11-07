@@ -172,3 +172,13 @@ The output is only an input: sanitize/filter it before writing the tree. Do not 
 - Final product spelling/logo and legal permission for rebranding.
 - App screenshots and supported PDF characteristics, including scanned documents/OCR expectations.
 - Whether live assistance is permitted in each intended use. Use recordings/transcripts with consent; this plan is for authorized assistance, practice, and permitted interview workflows, not bypassing assessment rules.
+
+## Local worktree update — 2026-11-04 (WORK-0020)
+
+The preceding architecture review is a historical public-snapshot record and is not overwritten here. Current local application evidence is from branch `main` at `d53f1ac11f32769a35d3305a963915b1659fc0fd`, with pre-existing staged work preserved.
+
+- Planned project knowledge now carries the engine-selected original file IDs and project-only scope into canonical lexical/vector retrieval; the compatibility fallback is constrained by the same scope. The structured-knowledge IPC path uses a planned-source read rather than starting the global planner again.
+- Canonical reads remain disabled by default. `RAGManager` still retains legacy `queryMeeting`, `queryGlobal`, and `buildRAGPrompt`; a `rag:query-global` IPC caller remains active and is deferred to CHG-18. Do not remove these paths based solely on their age.
+- WORK-0020 added type-filtered/source-ID-filtered canonical retrieval coverage and project capability tests. The one actual production legacy comparison in the current evidence is a synthetic meeting lexical comparison; it does not establish mode/personal, semantic/vector, or reranker parity.
+- WORK-0020 typechecks, isolated Electron build, six-file focused Electron-ABI suite (70/70), and `test:intelligence` (2,076/0/9 TODO) passed. The full suite has 170 failures; identity comparison finds no new failing identity. Meeting/live RAG IPC source-regex failures assert an obsolete direct-handler shape; synthetic personal/profile grounding failures remain behavior failures with unresolved cause. Invalid/missing PDF fixtures do not establish parser behavior. See [TASK_TRACKER.md](./TASK_TRACKER.md), [CHANGE_LOG.md](./CHANGE_LOG.md), and [ERROR_LOG.md](./ERROR_LOG.md).
+- Owner Mac desktop acceptance, actual mode/personal parity, valid synthetic résumé/PDF behavior, Windows checks, and end-to-end six-second completion latency remain unverified; CHG-18 is not yet safe to start. `PROJECT_TREE.txt` was not regenerated because it contains pre-existing staged owner changes.

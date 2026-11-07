@@ -14,19 +14,34 @@ test('normal chat UI talks to gemini-chat-stream, not rag:query-*', () => {
   assert.match(preload, /streamGeminiChat[\s\S]{0,400}gemini-chat-stream/);
 });
 
-test('gemini-chat-stream retrieves through RAGManager, then the planner', () => {
+// CHG-17: the planner is owned by the Intelligence Engine. Manual chat's
+// primary path must supply planned source reads; the old secondary V3 RAG
+// retrieval port remains a compatibility caller, not the new authority.
+// The behavioral no-replanning assertion is covered in
+// CanonicalRagReadProduction.test.mjs, using RAGManager's actual method.
+test('manual chat routes authorized planned sources through the Intelligence Engine', () => {
   const ipc = read('electron/ipcHandlers.ts');
-  const start = ipc.indexOf('const _geminiChatStreamHandler');
-  assert.ok(start >= 0, 'gemini-chat-stream handler missing');
-  const v3Port = ipc.indexOf('createRAGRetrievalPort', start);
-  assert.ok(v3Port > start, 'manual chat must construct createRAGRetrievalPort');
-  assert.match(ipc.slice(start, v3Port + 800), /allowedSources/);
-  assert.match(ipc, /unifiedRag:\s*appState\.getRAGManager/);
+  const handlerStart = ipc.indexOf('const _geminiChatStreamHandler');
+  assert.ok(handlerStart >= 0, 'manual chat stream handler missing');
+  assert.match(ipc.slice(handlerStart, handlerStart + 18000), /createPrimaryManualSneakPeekEngine\(/);
 
+  const primaryStart = ipc.indexOf('function createPrimaryManualSneakPeekEngine(');
+  assert.ok(primaryStart >= 0, 'primary Intelligence Engine wiring missing');
+  const primary = ipc.slice(primaryStart, handlerStart);
+  assert.match(primary, /createCanonicalRagRetrievalCapability\(/);
+  assert.match(primary, /ragManager\.readPlannedCanonicalSource\(input\)/);
+  assert.match(primary, /source:\s*['"]meeting_transcript['"]/);
+  assert.match(primary, /source:\s*['"]mode_documents['"]/);
+  assert.match(primary, /source:\s*['"]personal_knowledge['"]/);
+  assert.match(primary, /source:\s*['"]my_files['"]/);
+
+  const adapter = read('electron/intelligence/engine/CanonicalRagRetrievalAdapter.ts');
+  assert.doesNotMatch(adapter, /\bRagQueryPlanner\b.*\.plan\(/);
   const manager = read('electron/rag/RAGManager.ts');
-  const portStart = manager.indexOf('public createRAGRetrievalPort(');
-  const searchStart = manager.indexOf('async search(query: string');
-  assert.ok(portStart >= 0 && searchStart > portStart);
-  assert.match(manager.slice(portStart, searchStart), /this\.search\(/);
-  assert.match(manager.slice(searchStart, searchStart + 2500), /this\.queryPlanner\.plan\(/);
+  const start = manager.indexOf('public async readPlannedCanonicalSource(');
+  const end = manager.indexOf('public createRAGRetrievalPort(', start);
+  assert.ok(start >= 0 && end > start, 'planned-source reader boundary missing');
+  const plannedReader = manager.slice(start, end);
+  assert.doesNotMatch(plannedReader, /this\.queryPlanner\.plan\(|this\.search\s*\(/);
+  assert.match(plannedReader, /new CanonicalRagReadService\(/);
 });

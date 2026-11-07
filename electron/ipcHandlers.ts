@@ -937,36 +937,18 @@ const _convoCleanupRegistered = new Set<number>();
 function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, requestId: string) {
   const ragManager = appState.getRAGManager?.();
   const capabilities = ragManager ? [
-    // CHG-17 Step 1 compatibility boundary: project retrieval must retain the
-    // proven personal + fileType=project filter until canonical parity exists.
-    createRetrievalCapability('project_knowledge', async ({ query, request, contextPlan, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      const response = await ragManager.search(query, {
-        sessionId: request.sessionId,
-        modeId: request.activeContext?.modeId,
-        selectedSources: ['personal-files'],
-        allowedSources: ['personal-files'],
+    // The engine selected project_knowledge; constrain this read to those
+    // authorized project files instead of asking the global planner again.
+    createCanonicalRagRetrievalCapability({
+      source: 'project_knowledge',
+      sourceType: 'personal',
+      limit: 8,
+      tokenBudget: 1800,
+      resolveScope: ({ request }) => ({
         projectFilesOnly: true,
-        topK: 8,
-        tokenBudget: 1800,
-      });
-      return {
-        items: (response.results ?? []).map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `project-${index}`),
-          source: 'project_knowledge' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: {
-            sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''),
-            documentId: String(r.chunk?.documentId ?? ''),
-            documentName: String(r.source?.name ?? ''),
-            page: r.chunk?.pageStart,
-            pageEnd: r.chunk?.pageEnd,
-            section: r.chunk?.section ?? r.chunk?.heading,
-            retrievalSource: 'project-files',
-          },
-        })).filter((item: any) => item.content.trim()),
-      };
+        projectFileIds: request.activeContext?.projectSourceIds,
+      }),
+      read: (input) => ragManager.readPlannedCanonicalSource(input),
     }),
     createCanonicalRagRetrievalCapability({
       source: 'my_files',
@@ -1028,18 +1010,19 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
       tokenBudget: 1800,
       read: (input) => ragManager.readPlannedCanonicalSource(input),
     }),
-    // Structured Knowledge has no canonical equivalent in Step 1.
+    // OKF cards are a specialized index; the engine already selected the source.
     createRetrievalCapability('structured_knowledge', async ({ query, request, signal }) => {
       if (signal?.aborted) return { items: [] };
-      const response = await ragManager.search(query, {
-        sessionId: request.sessionId,
-        selectedSources: ['knowledge'],
-        allowedSources: ['knowledge'],
-        topK: 8,
+      const results = await ragManager.readPlannedKnowledgeSource({
+        query,
+        modeId: request.activeContext?.modeId,
+        limit: 8,
         tokenBudget: 1800,
+        signal,
       });
+      if (signal?.aborted) return { items: [] };
       return {
-        items: (response.results ?? []).map((r: any, index: number) => ({
+        items: results.map((r: any, index: number) => ({
           id: String(r.chunk?.id ?? r.source?.id ?? `knowledge-${index}`),
           source: 'structured_knowledge' as ContextSource,
           content: String(r.chunk?.text ?? ''),
@@ -1110,14 +1093,28 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
           metadata: { source: 'profile', attempts: result.attempts.length },
         };
       } catch (error) {
-        console.warn('[Sneak-Peek Change 13] profile retrieval capability failed:', error instanceof Error ? error.message : String(error));
-        return { items: [] };
+        // Preserve the error for RetrievalCoordinator's `failed` outcome.
+        // Never log provider error text here: it may contain private profile data.
+        console.warn('[Sneak-Peek Change 13] profile retrieval capability failed');
+        throw error;
       }
     }),
   ] : [];
 
   const engine = new SneakPeekIntelligenceEngine({
-    retrievalCoordinator: new RetrievalCoordinator({ capabilities }),
+    retrievalCoordinator: new RetrievalCoordinator({
+      capabilities,
+      onDecision: (trace) => {
+        // Do not log trace.query, document IDs, profile text, or error strings.
+        // The prompt-inclusion counts are emitted separately at completion.
+        console.log('[CHG-17] retrieval source outcomes', {
+          sources: trace.sourceOutcomes.map(({ source, status, itemCount, retrievalBackend, fallbackReason }) => ({
+            source, status, itemCount, retrievalBackend, fallbackReason,
+          })),
+          callCount: trace.callCount,
+        });
+      },
+    }),
     generationPort: {
       stream: ({ request, prompt, contextPlan, lifecycle }) => {
         const controller = new GenerationController({
@@ -1211,6 +1208,7 @@ function buildSneakPeekMeetingRequest(
       speaker: 'user',
       source: 'meeting',
       finalized: true,
+      generationStatus: 'pending',
       turnId: requestId,
     });
   } catch { /* canonical conversation state is best-effort for this adapter */ }
@@ -1241,9 +1239,14 @@ function buildSneakPeekMeetingRequest(
     catch { return []; }
   })();
   const personalFilesAvailable = personalFiles.length > 0;
-  const projectFilesAvailable = personalFiles.some(
-    (file: any) => String(file?.fileType ?? '') === 'project',
-  );
+  const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
+  // The current pending meeting turn must not become its own project antecedent.
+  const projectTurns = (() => {
+    try { return require('./context-intelligence/question/conversation-state-store').getRecentConversationTurns(sessionId, 12); }
+    catch { return []; }
+  })();
+  const projectScope = resolveProjectFileScopeForTurn(query, personalFiles, projectTurns, requestId);
+  const projectFilesAvailable = projectScope.projectAvailable;
 
   return {
     requestId,
@@ -1264,6 +1267,7 @@ function buildSneakPeekMeetingRequest(
       modeName: modeInfo?.name,
       meetingId,
       profileId: profileAvailable ? 'local-profile' : undefined,
+      projectSourceIds: projectScope.selectedFileIds,
     },
     cancellationSignal,
     providerPreferences: {
@@ -1276,9 +1280,11 @@ function buildSneakPeekMeetingRequest(
       screen: false,
       mode: Boolean(modeInfo?.id),
       project: projectFilesAvailable,
-      profile: profileAvailable,
+      profile: profileAvailable && !projectScope.unresolvedReference,
       files: personalFilesAvailable,
-      memory: personalFilesAvailable || profileAvailable,
+      // A named project with no matching project file may use authorized
+      // profile facts, but not a global search across unrelated project PDFs.
+      memory: projectScope.missingNamedProject ? false : (personalFilesAvailable || profileAvailable),
       generalKnowledge: true,
     },
   };
@@ -1298,9 +1304,18 @@ async function streamSneakPeekMeetingAnswer(
   const abortController = new AbortController();
   const queryKey = `${streamMeta.live ? 'live' : 'meeting'}-${meetingId}-${crypto.randomUUID()}`;
   activeRAGQueries.set(queryKey, abortController);
+  let meetingRequest: ReturnType<typeof buildSneakPeekMeetingRequest> | null = null;
+  const settleMeetingQuestion = (generationStatus: 'completed' | 'cancelled' | 'failed') => {
+    if (!meetingRequest) return;
+    try {
+      const store = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+      store.updateConversationTurn({ sessionId: meetingRequest.sessionId, turnId: requestId, generationStatus });
+    } catch { /* conversation state must not interrupt a meeting stream */ }
+  };
 
   try {
     const request = buildSneakPeekMeetingRequest(appState, query, meetingId, requestId, abortController.signal);
+    meetingRequest = request;
     const engine = createPrimaryManualSneakPeekEngine(llmHelper, appState, requestId);
     const run = engine.prepareAndStream(request);
 
@@ -1311,14 +1326,17 @@ async function streamSneakPeekMeetingAnswer(
 
     const result = await run.result;
     if (abortController.signal.aborted || run.lifecycle.state === 'CANCELLED') {
+      settleMeetingQuestion('cancelled');
       return { success: true };
     }
     if (run.lifecycle.state === 'FAILED') {
+      settleMeetingQuestion('failed');
       const error = result.providerAttempt?.error || 'Sneak-Peek Intelligence meeting generation failed.';
       event.sender.send('rag:stream-error', { ...streamMeta, error });
       return { success: false, error };
     }
     if (run.lifecycle.state === 'COMPLETED') {
+      settleMeetingQuestion('completed');
       const answer = result.finalAnswer?.text ?? '';
       if (answer) {
         try {
@@ -1330,14 +1348,17 @@ async function streamSneakPeekMeetingAnswer(
             speaker: 'assistant',
             source: 'meeting',
             finalized: true,
+            generationStatus: 'completed',
           });
         } catch { /* conversation memory never breaks the stream */ }
       }
       event.sender.send('rag:stream-complete', streamMeta);
       return { success: true };
     }
+    settleMeetingQuestion('failed');
     return { success: false, error: 'Sneak-Peek Intelligence meeting generation ended without completion.' };
   } catch (error: any) {
+    settleMeetingQuestion(abortController.signal.aborted ? 'cancelled' : 'failed');
     if (!abortController.signal.aborted) {
       const message = error?.message || String(error);
       event.sender.send('rag:stream-error', { ...streamMeta, error: message });
@@ -1404,9 +1425,11 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       try { return require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.() ?? null; }
       catch { return null; }
     })();
-    const sessionId = String(
-      appState.getIntelligenceManager?.()?.getMeetingMetadata?.()?.id ?? senderId,
-    );
+    // A manual conversation belongs to this WebContents, even while a
+    // meeting is active. The meeting ID remains in activeContext.meetingId
+    // for authorized transcript retrieval; it must not also become the
+    // clear-chat state key (which is sender-scoped).
+    const sessionId = String(senderId);
     const requestId = `manual-chat-${myStreamId}`;
     const nativeSessionId = sessionId;
     const { appendConversationTurn, updateConversationTurn, getRecentConversationTurns } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
@@ -1435,7 +1458,10 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       catch { return []; }
     })();
     const personalFilesAvailable = personalFiles.length > 0;
-    const projectFilesAvailable = personalFiles.some((file: any) => String(file?.fileType ?? '') === 'project');
+    const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
+    const scopedConversationTurns = getRecentConversationTurns(nativeSessionId, 12);
+    const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles, scopedConversationTurns, nativeCurrentTurn.id);
+    const projectFilesAvailable = projectScope.projectAvailable;
     const meetingId = String(
       appState.getIntelligenceManager?.()?.getMeetingMetadata?.()?.id
       ?? '',
@@ -1452,7 +1478,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         content: nativeCurrentTurn.text,
         createdAt: nativeCurrentTurn.timestamp,
       },
-      recentConversation: getRecentConversationTurns(nativeSessionId, 12).map((turn) => ({
+      recentConversation: scopedConversationTurns.map((turn) => ({
         id: turn.id,
         role: turn.role === 'assistant' ? 'assistant' as const : turn.role === 'system' ? 'system' as const : 'user' as const,
         content: turn.text,
@@ -1464,6 +1490,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         modeName: modeInfo?.name,
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
+        projectSourceIds: projectScope.selectedFileIds,
       },
       cancellationSignal: myController.signal,
       providerPreferences: {
@@ -1476,9 +1503,11 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         screen: false,
         mode: Boolean(modeInfo?.id),
         project: projectFilesAvailable,
-        profile: profileAvailable,
+        profile: profileAvailable && !projectScope.unresolvedReference,
         files: personalFilesAvailable,
-        memory: personalFilesAvailable || profileAvailable,
+        // A named project with no matching project file may use authorized
+      // profile facts, but not a global search across unrelated project PDFs.
+      memory: projectScope.missingNamedProject ? false : (personalFilesAvailable || profileAvailable),
         generalKnowledge: true,
       },
     } as import('./intelligence/engine/types').SneakPeekIntelligenceRequest;
@@ -1486,7 +1515,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     console.log('[Sneak-Peek Intelligence] manual-chat PRIMARY route', {
       requestId,
       sessionId,
-      question: String(message || '').slice(0, 160),
+      surface: 'manual-chat',
     });
 
     const run = sneakPeekEngine.prepareAndStream(sneakPeekRequest);
@@ -1539,7 +1568,10 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         stages: sneakPeekResult.diagnostics.pipelineStages,
         lifecycle: run.lifecycle.state,
         evidenceCount: sneakPeekResult.evidencePack.items.length,
-        includedEvidenceIds: sneakPeekResult.prompt.includedEvidenceIds ?? [],
+        includedEvidenceCount: sneakPeekResult.prompt.includedEvidenceIds?.length ?? 0,
+        retrieval: sneakPeekResult.diagnostics.retrieval?.map(({ source, status, itemCount, includedCount, retrievalBackend, fallbackReason }) => ({
+          source, status, itemCount, includedCount, retrievalBackend, fallbackReason,
+        })),
       });
       return null;
     }
@@ -1564,7 +1596,8 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     }
     // PRIMARY-route failures before visible output are compatibility fallbacks,
     // not a second answer. The old handler below is the temporary migration path.
-    console.error('[Sneak-Peek Intelligence] primary manual-chat route failed before commit; falling back:', sneakPeekErr?.message || sneakPeekErr);
+    // Sanitize: upstream exceptions may contain private document or profile text.
+    console.error('[Sneak-Peek Intelligence] primary manual-chat route failed before commit; using compatibility fallback');
     try { console.warn('[Sneak-Peek Intelligence] legacy fallback trace', { requestId: `manual-chat-${myStreamId}` }); } catch { /* noop */ }
   }
 }
@@ -6465,6 +6498,22 @@ safeHandle('gemini-chat-stream', _geminiChatStreamHandler);
 if (process.env.NATIVELY_E2E === '1') {
 (globalThis as any).__sneakPeekGeminiChatStream = _geminiChatStreamHandler;
 }
+// Renderer-driven clear is a logical new manual conversation in the SAME
+// WebContents. A visual-only clear must not retain old referents. Restrict the
+// reset to this sender; never clear another window or meeting session.
+safeHandle('gemini-chat-stream-clear-context', async (event) => {
+  const senderId = event.sender.id;
+  const stream = _chatStreamsBySender.get(senderId);
+  if (stream) {
+    try { stream.controller.abort(); } catch { /* noop */ }
+    _chatStreamsBySender.delete(senderId);
+  }
+  _manualConversationMemory.clearSession(String(senderId));
+  _manualCodingState.clearSession(String(senderId));
+  const { clearConversationState } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+  clearConversationState(String(senderId));
+  return { success: true };
+});
 // Renderer-driven cancellation for the sender's active chat stream.
 safeOn('gemini-chat-stream-stop', (event) => {
 const senderId = event.sender.id;

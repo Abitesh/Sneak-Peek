@@ -26,6 +26,8 @@ export interface CanonicalRagReadInput {
   limit: number;
   tokenBudget?: number;
   projectFilesOnly?: boolean;
+  projectFileIds?: readonly string[];
+  ownerId?: string;
   signal?: AbortSignal;
 }
 
@@ -39,17 +41,20 @@ export interface CanonicalRagRetrievalAdapterOptions {
   /** Must perform a source-scoped canonical read; it must not re-plan sources. */
   read: (input: CanonicalRagReadInput) => Promise<CanonicalRagReadOutput>;
   /** ContextSource chosen by ContextPlanner/RetrievalCoordinator. */
-  source: Extract<ContextSource, 'meeting_transcript' | 'mode_documents' | 'personal_knowledge' | 'my_files'>;
+  source: Extract<ContextSource, 'meeting_transcript' | 'mode_documents' | 'personal_knowledge' | 'my_files' | 'project_knowledge'>;
   sourceType: CanonicalRagSource;
   limit?: number;
   tokenBudget?: number;
   resolveScope?: (input: Pick<RetrievalCapabilityRequest, 'request' | 'contextPlan'>) => {
     sourceId?: string;
     scopeId?: string;
+    projectFilesOnly?: boolean;
+    projectFileIds?: readonly string[];
+    ownerId?: string;
   };
 }
 
-function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: number): SneakPeekEvidenceItem | null {
+function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: number, usedCanonical: boolean, fallbackReason?: CanonicalRagReadOutput['fallbackReason']): SneakPeekEvidenceItem | null {
   const content = String(result.chunk?.text ?? '').trim();
   if (!content) return null;
   const chunkMetadata = result.chunk?.metadata ?? {};
@@ -91,7 +96,8 @@ function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: n
       timestampStart: result.chunk?.timestampStart,
       timestampEnd: result.chunk?.timestampEnd,
       chunkIndex: result.chunk?.chunkIndex,
-      retrievalSource: 'canonical-rag-adapter',
+      retrievalSource: usedCanonical ? 'canonical-rag-adapter' : 'source-fallback',
+      ...(!usedCanonical ? { fallbackReason: fallbackReason ?? 'unknown' } : {}),
     },
   };
 }
@@ -112,12 +118,23 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
         sessionId: input.request.sessionId,
         limit: Math.max(1, Math.min(50, Math.floor(options.limit ?? 8))),
         tokenBudget: Math.max(1, Math.floor(options.tokenBudget ?? 1800)),
+        projectFilesOnly: scope.projectFilesOnly,
+        projectFileIds: scope.projectFileIds,
+        ownerId: scope.ownerId,
         signal: input.signal,
       });
 
       if (input.signal?.aborted) return { items: [], metadata: { cancelled: true } };
+      // Recheck the coordinator's project scope at the final evidence boundary.
+      // An ID on its own does not authorize a personal/resume file as project
+      // evidence, even if a buggy source reader returns it.
       const items = result.results
-        .map((item, index) => toEvidenceItem(item, options.source, index))
+        .filter((item) => !scope.projectFilesOnly || (
+          item.source?.sourceType === 'personal'
+          && item.source?.metadata?.fileType === 'project'
+          && (scope.projectFileIds === undefined || scope.projectFileIds.includes(String(item.source.id ?? '')))
+        ))
+        .map((item, index) => toEvidenceItem(item, options.source, index, result.usedCanonical, result.fallbackReason))
         .filter((item): item is SneakPeekEvidenceItem => item !== null);
 
       return {

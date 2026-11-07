@@ -245,7 +245,7 @@ const PROJECT_CUE = /\b(?:my project|our project|the project|project|repo(?:sito
 // recall, not proof that a separately uploaded file_type=project exists.
 // Keep named/implementation-detail asks on project_knowledge.
 const PROFILE_PROJECT_SUMMARY_CUE =
-  /^(?:tell me about|explain|describe|walk me through|give me (?:an )?overview of|what are|which are)\s+(?:my|your)\s+projects?\b|\b(?:what|which)\s+projects?\s+(?:have|did)\s+i\b/i;
+  /^(?:tell me about|explain|describe|walk me through|give me (?:an )?overview of|what are|which are)\s+(?:my|your)\s+projects?\b|\b(?:what|which)\s+projects?\s+(?:have|did)\s+i\b|^(?:tell me about|explain|describe|walk me through|give me (?:an )?overview of)\s+(?:the\s+)?projects?\s+(?:(?:that\s+)?(?:i|we)\s+(?:(?:have|had)\s+)?(?:worked|built|developed)\s+on|(?:i|we)\s+(?:(?:have|had)\s+)?(?:built|developed))\b/i;
 const PROJECT_IMPLEMENTATION_DETAIL_CUE =
   /\b(?:linkship|sneak[- ]?peek|natively|repo(?:sitory)?|codebase|architecture|tech stack|implementation|implemented|database|api|redis|postgres(?:ql)?|django|github)\b|(?:^|\b)(?:why|how)\s+(?:did|do|does)\b/i;
 const PERSONAL_CUE = /\b(?:my resume|my cv|about me|about myself|tell me about myself|my experience|my skills|my background|my education|my internship|my job|what do i have|what did i do|do i have|did i use)\b/i;
@@ -264,7 +264,8 @@ function durationSeconds(text: string): number | undefined {
 }
 
 function responseShapeOf(text: string, coding: boolean): ResponseShape {
-  if (coding || /\bcode\b/i.test(text)) return 'code';
+  if (coding || /\b(?:code|implement(?:ation)?|program(?:me)?|snippet)\b/i.test(text)) return 'code';
+  if (/\b(?:more simply|simpler|simplify|in simple terms|easier to understand)\b/i.test(text)) return 'concise';
   if (REFINEMENT_CUE.test(text) && /\b(?:longer|detailed|expand|more)\b/i.test(text)) return 'detailed';
   if (/\b(?:shorter|concise|brief|one sentence|quickly)\b/i.test(text)) return 'concise';
   if (/\b(?:longer|detailed|deep|in detail|expand)\b/i.test(text)) return 'detailed';
@@ -328,7 +329,14 @@ export function understandTurn(input: UnderstandTurnInput): TurnUnderstanding {
     });
   }
 
-  const intent = heuristicIntent(normalizedQuestion, input, classification);
+  const classifiedIntent = heuristicIntent(normalizedQuestion, input, classification);
+  // Resolution can establish a genuine follow-up even when a generic opener
+  // ("Can you give me its code?") is classified as a stand-alone question.
+  // Retain explicit personal/project/document/meeting intents; only reclassify
+  // ungrounded general or coding turns whose antecedent was actually resolved.
+  const intent: TurnIntent = reference.usedState
+    && (classifiedIntent === 'general-question' || classifiedIntent === 'coding-request' || classifiedIntent === 'conversational-response')
+    ? 'follow-up' : classifiedIntent;
   const isQuestion = Boolean(
     normalizedQuestion.endsWith('?')
     || SEMANTIC_QUESTION_CUE.test(normalizedQuestion)
@@ -342,7 +350,10 @@ export function understandTurn(input: UnderstandTurnInput): TurnUnderstanding {
     ...extractEntities(normalizedQuestion),
   ])].slice(0, 8);
   const subject = extractTopicPhrase(normalizedQuestion) ?? entities[0];
-  const coding = intent === 'coding-request' || intent === 'system-design';
+  // Output format is orthogonal to intent: a resolved follow-up can still
+  // explicitly ask for code, even when its intent becomes 'follow-up'.
+  const coding = intent === 'coding-request' || intent === 'system-design'
+    || CODING_CUE.test(input.manualQuestion ?? '') || CODING_CUE.test(normalizedQuestion);
   const requiresPersonalContext = intent === 'personal-question';
   const requiresProjectContext = intent === 'project-question';
   const requiresDocumentContext = intent === 'document-question';
@@ -371,7 +382,7 @@ export function understandTurn(input: UnderstandTurnInput): TurnUnderstanding {
     ...(subject ? { subject } : {}),
     entities,
     ...(durationSeconds(normalizedQuestion) !== undefined ? { requestedDuration: durationSeconds(normalizedQuestion) } : {}),
-    responseShape: responseShapeOf(normalizedQuestion, coding),
+    responseShape: responseShapeOf(input.manualQuestion ?? normalizedQuestion, coding),
     requiresPersonalContext,
     requiresProjectContext,
     requiresDocumentContext,

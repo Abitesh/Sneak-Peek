@@ -80,7 +80,7 @@ function explicitDurationSeconds(question: string): number | undefined {
 }
 
 function isExampleRequest(question: string): boolean {
-  return /\b(give|show|provide|share|walk me through)\s+(?:me\s+)?(?:an?|some)\s+example\b|\bfor example\b|\bexample of\b/i.test(question);
+  return /\b(give|show|provide|share|walk me through)\s+(?:me\s+)?(?:(?:an?|some|another)\s+)?examples?\b|\b(?:another|more|one more)\s+examples?\b|\bfor example\b|\bexample of\b/i.test(question);
 }
 
 function isSummaryRequest(question: string): boolean {
@@ -144,9 +144,10 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     answerSeed === 'troubleshooting'
     || (understanding?.intent === 'screen-question' && /\b(error|bug|issue|exception|fail|failed|crash|problem)\b/i.test(question)),
   );
-  const coding = Boolean(answerSeed === 'coding' || understanding?.intent === 'coding-request');
+  const coding = Boolean(answerSeed === 'coding' || understanding?.intent === 'coding-request' || understanding?.responseShape === 'code');
 
   const explicitExample = isExampleRequest(question);
+  const explicitSimplification = /\b(?:more simply|simpler|simplify|in simple terms|easier to understand)\b/i.test(question);
   const explicitSummary = isSummaryRequest(question);
   const firstPerson = Boolean(
     plan?.voicePerspective === 'first_person_candidate'
@@ -176,6 +177,9 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
   } else if (explicitExample) {
     kind = 'example';
     rationale.push('explicit example request');
+  } else if (explicitSimplification) {
+    kind = 'explanation';
+    rationale.push('simplify prior explanation');
   } else if (firstPerson) {
     kind = 'first-person-interview';
     rationale.push('candidate interview voice');
@@ -193,7 +197,7 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     rationale.push('direct answer fallback');
   }
 
-  const detailLevel = detailFromStyle(style, duration);
+  const detailLevel = explicitSimplification ? 'concise' : detailFromStyle(style, duration);
   const format: ResponseFormat = coding
     ? 'code'
     : style === 'bullets' || style === 'notes'

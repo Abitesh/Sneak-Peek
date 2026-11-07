@@ -20,6 +20,7 @@ import type { RAGManager } from '../rag/RAGManager';
 import { shouldWriteLegacyRagChunks } from '../intelligence/intelligenceFlags';
 import { VectorStore } from '../rag/VectorStore';
 import { invalidateIndexAttempt } from '../rag/IndexAttemptRegistry';
+import { withinQueryEmbeddingBudget } from '../rag/QueryEmbeddingBudget';
 export type PersonalFileType = 'resume' | 'job_description' | 'project' | 'general';
 const PERSONAL_FILE_TYPES: ReadonlySet<string> = new Set(['resume', 'job_description', 'project', 'general']);
 export interface PersonalFileRecord {
@@ -213,6 +214,7 @@ private db: Database.Database;
 private embeddingPipeline: EmbeddingPipeline | null = null;
 private vectorStore: VectorStore | null = null;
 private embeddingBackfillInFlight: Promise<void> | null = null;
+private indexRepairInFlight: Promise<void> | null = null;
 private ragManager: RAGManager | null = null;
 private readonly storageRoot: string;
 private readonly repairedFileIds = new Set<string>();
@@ -779,12 +781,17 @@ return [...byChunk.values()]
 * requests are resolved from persisted file/chunk order; semantic requests
 * use the existing FTS/lexical index with a small concept-expansion set.
 */
-private async searchSemantic(query: string, limit = MAX_RESULTS, fileIds?: readonly string[]): Promise<PersonalFileSearchResult[]> {
-if (!this.embeddingPipeline || !this.vectorStore) return [];
+private async searchSemantic(query: string, limit = MAX_RESULTS, fileIds?: readonly string[], signal?: AbortSignal): Promise<PersonalFileSearchResult[]> {
+if (signal?.aborted || !this.embeddingPipeline || !this.vectorStore) return [];
 if (fileIds && fileIds.length === 0) return [];
+// Query-time retrieval may use an existing READY index but must never block
+// on startup/download or a cooling primary + fallback provider for 60 seconds.
+if (!this.embeddingPipeline.isReady()) return [];
 try {
-await this.embeddingPipeline.waitForReady(15000);
-const embedded = await this.embeddingPipeline.getEmbeddingsWithFallback([query]);
+const embedded = await withinQueryEmbeddingBudget(
+  () => this.embeddingPipeline!.getEmbeddingsWithFallback([query]), signal, 2_000,
+);
+if (!embedded || signal?.aborted) return [];
 const queryEmbedding = embedded.embeddings[0];
 if (!queryEmbedding) return [];
 const semanticLimit = Math.max(limit * 3, 12);
@@ -842,10 +849,13 @@ return [];
 }
 }
 
-searchRelevant(query: string, limit = MAX_RESULTS, fileType?: PersonalFileType): PersonalFileSearchResult[] {
+searchRelevant(query: string, limit = MAX_RESULTS, fileType?: PersonalFileType, scopedFileIds?: readonly string[]): PersonalFileSearchResult[] {
 const q = String(query ?? '').trim();
 if (!q) return [];
-const files = this.listFiles().filter((file) => !fileType || file.fileType === fileType);
+const selectedIds = scopedFileIds ? new Set(scopedFileIds) : null;
+const files = this.listFiles().filter((file) => (!fileType || file.fileType === fileType)
+  && (!selectedIds || selectedIds.has(file.id)));
+if (selectedIds && files.length === 0) return [];
 const lower = q.toLowerCase();
 const named = files.filter((file) => {
 const name = file.fileName.toLowerCase().replace(/[_-]+/g, ' ');
@@ -899,8 +909,9 @@ if (chosen.length) return chosen.slice(0, Math.max(1, count));
 }
 const merged = new Map<string, PersonalFileSearchResult>();
 for (const variant of expandedQueries(q)) {
-const scopedFileIds = named.length ? named.map((file) => file.id) : fileType ? files.map((file) => file.id) : null;
-const scoped = scopedFileIds ? this.searchScoped(variant, scopedFileIds, limit) : this.search(variant, limit);
+const queryFileIds = named.length ? named.map((file) => file.id)
+  : (fileType || selectedIds) ? files.map((file) => file.id) : null;
+const scoped = queryFileIds ? this.searchScoped(variant, queryFileIds, limit) : this.search(variant, limit);
 for (const result of scoped) {
 const previous = merged.get(result.chunkId);
 if (!previous || result.score > previous.score) merged.set(result.chunkId, result);
@@ -908,12 +919,18 @@ if (!previous || result.score > previous.score) merged.set(result.chunkId, resul
 }
 return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
 }
-async searchRelevantAsync(query: string, limit = MAX_RESULTS, fileType?: PersonalFileType): Promise<PersonalFileSearchResult[]> {
-await this.repairLegacyChunking();
-await this.repairUnreadableIndexes();
-const scopedFiles = fileType ? this.listFiles().filter((file) => file.fileType === fileType) : undefined;
-const lexical = this.searchRelevant(query, limit * 2, fileType);
-const semantic = await this.searchSemantic(String(query ?? '').trim(), limit * 2, scopedFiles?.map((file) => file.id));
+async searchRelevantAsync(query: string, limit = MAX_RESULTS, fileType?: PersonalFileType, scopedFileIds?: readonly string[], signal?: AbortSignal): Promise<PersonalFileSearchResult[]> {
+// Repair/re-chunk runs from the existing startup/index retry lifecycle, never
+// synchronously as a side effect of an ordinary question.
+if (signal?.aborted) return [];
+const allowedIds = scopedFileIds ? new Set(scopedFileIds) : null;
+const scopedFiles = (fileType || allowedIds)
+  ? this.listFiles().filter((file) => (!fileType || file.fileType === fileType)
+      && (!allowedIds || allowedIds.has(file.id))) : undefined;
+if (scopedFiles && scopedFiles.length === 0) return [];
+const lexical = this.searchRelevant(query, limit * 2, fileType, scopedFileIds);
+const semantic = await this.searchSemantic(String(query ?? '').trim(), limit * 2, scopedFiles?.map((file) => file.id), signal);
+if (signal?.aborted) return [];
 if (!semantic.length) return lexical.slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
 
 const merged = new Map<string, PersonalFileSearchResult>();
@@ -937,6 +954,20 @@ semanticScore,
 return [...merged.values()]
 .sort((a, b) => b.score - a.score)
 .slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
+}
+
+/**
+ * Index lifecycle entrypoint. Multiple readiness events must not run
+ * concurrent chunk replacements against the same local personal files.
+ * Normal question-time retrieval never invokes this method.
+ */
+async repairIndexesInBackground(): Promise<void> {
+  if (this.indexRepairInFlight) return this.indexRepairInFlight;
+  this.indexRepairInFlight = (async () => {
+    await this.repairLegacyChunking();
+    await this.repairUnreadableIndexes();
+  })().finally(() => { this.indexRepairInFlight = null; });
+  return this.indexRepairInFlight;
 }
 
 private async repairLegacyChunking(): Promise<{ repaired: number; errors: number }> {

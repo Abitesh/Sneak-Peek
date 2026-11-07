@@ -5,8 +5,8 @@ import type { EmbeddingPipeline } from '../EmbeddingPipeline';
 import type { VectorStore } from '../VectorStore';
 
 interface PersonalKnowledgeLike {
-  searchRelevantAsync?(query: string, limit?: number, fileType?: string): Promise<any[]>;
-  searchRelevant?(query: string, limit?: number, fileType?: string): any[];
+  searchRelevantAsync?(query: string, limit?: number, fileType?: string, scopedFileIds?: readonly string[], signal?: AbortSignal): Promise<any[]>;
+  searchRelevant?(query: string, limit?: number, fileType?: string, scopedFileIds?: readonly string[]): any[];
   search?(query: string, limit?: number): any[];
   listFiles?(): any[];
   setEmbeddingServices?(embeddingPipeline: EmbeddingPipeline, vectorStore: VectorStore): void;
@@ -20,34 +20,40 @@ export class PersonalRagAdapter implements RagSourceAdapter {
     const personalKnowledge = this.getPersonalKnowledge();
     if (!personalKnowledge) return [];
 
-    const { query, candidatePoolSize } = context;
+    const { query, candidatePoolSize, signal } = context;
+    if (signal?.aborted) return [];
     const projectFilesOnly = context.options.projectFilesOnly === true;
+    const allowedProjectIds = context.options.projectFileIds;
     const projectFileIds = projectFilesOnly
       ? new Set((personalKnowledge.listFiles?.() ?? [])
-        .filter((file: any) => String(file?.fileType ?? '') === 'project')
+        .filter((file: any) => String(file?.fileType ?? '') === 'project'
+          && (!allowedProjectIds || allowedProjectIds.includes(String(file?.id ?? ''))))
         .map((file: any) => String(file?.id ?? '')))
       : undefined;
+    if (projectFileIds && projectFileIds.size === 0) return [];
     let items: any[] = [];
     try {
       items = await (
-        personalKnowledge.searchRelevantAsync?.(query, candidatePoolSize, projectFilesOnly ? 'project' : undefined)
+        personalKnowledge.searchRelevantAsync?.(query, candidatePoolSize, projectFilesOnly ? 'project' : undefined, allowedProjectIds, signal)
         ?? Promise.resolve(
-          personalKnowledge.searchRelevant?.(query, candidatePoolSize)
+          personalKnowledge.searchRelevant?.(query, candidatePoolSize, projectFilesOnly ? 'project' : undefined, allowedProjectIds)
           ?? personalKnowledge.search?.(query, candidatePoolSize)
           ?? [],
         )
       );
     } catch (error) {
-      console.warn('[PersonalRagAdapter] semantic personal search failed; using lexical fallback:', error instanceof Error ? error.message : String(error));
+      console.warn('[PersonalRagAdapter] semantic personal search failed; using lexical fallback');
       try {
-        items = personalKnowledge.searchRelevant?.(query, candidatePoolSize, projectFilesOnly ? 'project' : undefined)
+        items = personalKnowledge.searchRelevant?.(query, candidatePoolSize, projectFilesOnly ? 'project' : undefined, allowedProjectIds)
           ?? personalKnowledge.search?.(query, candidatePoolSize)
           ?? [];
       } catch (fallbackError) {
-        console.warn('[PersonalRagAdapter] lexical personal search also failed:', fallbackError instanceof Error ? fallbackError.message : String(fallbackError));
+        console.warn('[PersonalRagAdapter] lexical personal search also failed');
+        if (context.options.failOnSourceError) throw fallbackError;
         items = [];
       }
     }
+    if (signal?.aborted) return [];
     if (projectFileIds) items = items.filter((item) => projectFileIds.has(String(item.fileId ?? '')));
 
     const documentCache = new Map<string, RagDocument>();

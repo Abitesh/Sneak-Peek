@@ -1134,6 +1134,8 @@ onMeetingInterfaceThemeChanged: (callback: (theme: string) => void) => () => voi
 // because a subsequent question's first token has to wait for the prior
 // response to drain through the supersession check.
 cancelChatStream: () => void;
+// Clear only this window's canonical/manual conversation state after UI reset.
+clearChatContext: () => Promise<{ success: boolean }>;
 stopActiveAnswer: () => void;
 onDomContextReceived: (
 callback: (dom: string, meta?: DomCaptureMeta, envelope?: unknown) => void,
@@ -2776,6 +2778,7 @@ ipcRenderer.removeListener('interface-theme:changed', handler);
 cancelChatStream: () => {
 ipcRenderer.send('gemini-chat-stream-stop');
 },
+clearChatContext: () => ipcRenderer.invoke('gemini-chat-stream-clear-context'),
 stopActiveAnswer: () => {
 ipcRenderer.send('natively-answer-stop');
 },

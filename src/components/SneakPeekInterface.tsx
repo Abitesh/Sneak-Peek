@@ -4782,6 +4782,11 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
 
   const resetChatState = useCallback(() => {
     cancelActiveChatStream();
+    // Clear backend referent state as well as the visible chat. This IPC
+    // targets only this WebContents, preserving other windows/meetings.
+    void window.electronAPI?.clearChatContext?.().catch(() => {
+      console.warn('[SneakPeekInterface] Unable to clear canonical manual chat context');
+    });
     setMessages([]);
     answerPanelPinnedRef.current = false;
     setAnswerPanelPinned(false);

@@ -515,6 +515,7 @@ onGeminiStreamError: (callback: (error: string, meta?: { streamId?: number | nul
 // the overlay fetches its own copy on mount. Add a broadcast here if/when
 // a future "skill changed" event needs to cross surfaces live.
 cancelChatStream: () => void;
+clearChatContext: () => Promise<{ success: boolean }>;
 stopActiveAnswer: () => void;
 // Model Management
 getDefaultModel: () => Promise<{ model: string }>;

@@ -300,17 +300,41 @@ export class CanonicalRagStorage {
   }
 
   searchLexical(query: string, options: CanonicalRagLexicalSearchOptions): CanonicalRagLexicalSearchResult[] {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery) return [];
+    // Treat natural-language questions as text, never as an FTS5 query program.
+    // Mirror the existing meeting VectorStore lexical normalization so punctuation,
+    // quoted phrases and FTS operators cannot break the canonical read path.
+    const tokens = String(query ?? '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .split(/\s+/)
+      .filter((token) => token.length > 1)
+      .slice(0, 32);
+    if (tokens.length === 0) return [];
+    const matchQuery = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
     const limit = this.normalizeSearchLimit(options.limit);
     const filters = ['d.deleted_at IS NULL', 'd.current_revision_id = f.revision_id', 's.status = ?'];
-    const params: unknown[] = [normalizedQuery, 'READY'];
+    const params: unknown[] = [matchQuery, 'READY'];
 
     filters.push('f.source_type = ?');
     params.push(options.sourceType);
     if (options.sourceId !== undefined) {
       filters.push('d.source_id = ?');
       params.push(options.sourceId);
+    }
+    if (options.sourceIds && options.sourceIds.length === 0) return [];
+    const allowedIds = options.sourceIds ? [...new Set(options.sourceIds.filter(Boolean))] : undefined;
+    if (allowedIds && (allowedIds.length === 0 || allowedIds.length > 500)) return [];
+    if (allowedIds) {
+      filters.push(`d.source_id IN (${allowedIds.map(() => '?').join(', ')})`);
+      params.push(...allowedIds);
+    }
+    if (options.fileType !== undefined) {
+      filters.push('d.file_type = ?');
+      params.push(options.fileType);
+    }
+    if (options.ownerId !== undefined) {
+      filters.push('d.owner_id = ?');
+      params.push(options.ownerId);
     }
     if (options.scopeId !== undefined) {
       filters.push('d.scope_id = ?');
@@ -359,6 +383,9 @@ export class CanonicalRagStorage {
     const limit = this.normalizeSearchLimit(options.limit);
     const space = this.requireSpace(options.embeddingSpaceId);
     const vector = validateVector(queryEmbedding, space.dimensions);
+    if (options.sourceIds && options.sourceIds.length === 0) return [];
+    const allowedIds = options.sourceIds ? [...new Set(options.sourceIds.filter(Boolean))] : undefined;
+    if (allowedIds && (allowedIds.length === 0 || allowedIds.length > 500)) return [];
     this.ensureCanonicalVectorTable(space);
 
     const filters = [
@@ -378,6 +405,18 @@ export class CanonicalRagStorage {
     if (options.sourceId !== undefined) {
       filters.push('d.source_id = ?');
       params.push(options.sourceId);
+    }
+    if (allowedIds) {
+      filters.push(`d.source_id IN (${allowedIds.map(() => '?').join(', ')})`);
+      params.push(...allowedIds);
+    }
+    if (options.fileType !== undefined) {
+      filters.push('d.file_type = ?');
+      params.push(options.fileType);
+    }
+    if (options.ownerId !== undefined) {
+      filters.push('d.owner_id = ?');
+      params.push(options.ownerId);
     }
     if (options.scopeId !== undefined) {
       filters.push('d.scope_id = ?');

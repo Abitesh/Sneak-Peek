@@ -19,7 +19,7 @@ test('canonical adapter does not call the RAGManager query planner or answer-gen
 });
 
 test('canonical adapter requires the coordinator-selected source and maps only supported canonical source families', () => {
-  assert.match(source, /source: Extract<ContextSource, 'meeting_transcript' \| 'mode_documents' \| 'personal_knowledge' \| 'my_files'>/);
+  assert.match(source, /source: Extract<ContextSource, 'meeting_transcript' \| 'mode_documents' \| 'personal_knowledge' \| 'my_files' \| 'project_knowledge'>/);
   assert.match(source, /sourceType: CanonicalRagSource/);
   assert.match(source, /'meeting' \| 'mode' \| 'personal'/);
   assert.match(source, /RetrievalCapabilityRequest/);
@@ -84,12 +84,18 @@ test('adapter maps canonical metadata without relabelling the source document id
 
 test('production engine uses canonical capability and planned-source reads only for the approved four sources', () => {
   assert.match(ipcSource, /createCanonicalRagRetrievalCapability/);
-  for (const sourceName of ['my_files', 'mode_documents', 'meeting_transcript', 'personal_knowledge']) {
+  for (const sourceName of ['my_files', 'mode_documents', 'meeting_transcript', 'personal_knowledge', 'project_knowledge']) {
     assert.match(ipcSource, new RegExp(`source:\\s*['"]${sourceName}['"]`));
   }
   assert.match(ipcSource, /readPlannedCanonicalSource/);
-  assert.match(ipcSource, /createRetrievalCapability\(['"]project_knowledge['"]/);
+  assert.match(ipcSource, /source:\s*['"]project_knowledge['"]/);
   assert.match(ipcSource, /projectFilesOnly:\s*true/);
+  assert.match(ipcSource, /projectFileIds:\s*request\.activeContext\?\.projectSourceIds/);
+  assert.match(ipcSource, /readPlannedCanonicalSource\(input\)/);
   assert.match(ipcSource, /createRetrievalCapability\(['"]structured_knowledge['"]/);
-  assert.match(ipcSource, /selectedSources:\s*\[['"]knowledge['"]\]/);
+  assert.match(ipcSource, /readPlannedKnowledgeSource\(/);
+  const projectStart = ipcSource.indexOf("source: 'project_knowledge',");
+  const myFilesStart = ipcSource.indexOf("source: 'my_files',", projectStart);
+  assert.ok(projectStart >= 0 && myFilesStart > projectStart);
+  assert.doesNotMatch(ipcSource.slice(projectStart, myFilesStart), /ragManager\.search\(|queryPlanner\.plan\(/);
 });

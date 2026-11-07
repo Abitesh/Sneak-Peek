@@ -159,8 +159,31 @@ export function appendConversationTurn(input: AppendConversationTurnInput): Conv
     ...(typeof turn.requestSequence === 'number' ? { currentRequestSequence: turn.requestSequence } : {}),
     updatedAt: Math.max(base.updatedAt || 0, turn.timestamp),
   };
+  // A completed manual/meeting exchange is the only safe point to advance
+  // the derived referent fields. Advancing when the next *user* turn is appended
+  // would anchor an anaphoric question to itself instead of its predecessor.
+  // The canonical atomic turns remain the source of truth; do not append a
+  // second synthetic question or treat an incomplete answer as usable memory.
+  const latestUser = [...base.turns].reverse().find((previous) => previous.role === 'user');
+  const sameCompletedExchange = turn.role === 'assistant'
+    && turn.generationStatus === 'completed'
+    && (turn.source === 'manual' || turn.source === 'meeting')
+    && latestUser?.finalized === true
+    && (latestUser.generationStatus === undefined || latestUser.generationStatus === 'completed')
+    && (typeof turn.requestSequence === 'number'
+      ? latestUser.requestSequence === turn.requestSequence
+      : turn.source === 'meeting' && latestUser.source === 'meeting');
+  const scope = input.scope ?? syntheticScope(input.sessionId);
+  const finalState = sameCompletedExchange && latestUser && base.scopeId === emptyState(scope).scopeId
+    ? advance(next, {
+      scope,
+      question: latestUser.text,
+      answerSummary: turn.text,
+      at: turn.timestamp,
+    })
+    : next;
   s.delete(input.sessionId);
-  s.set(input.sessionId, next);
+  s.set(input.sessionId, finalState);
   ensureSessionCapacity(s);
   return cloneTurn(turn);
 }

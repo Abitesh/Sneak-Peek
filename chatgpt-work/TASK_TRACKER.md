@@ -1,15 +1,47 @@
 # Sneak-Peek — authoritative task tracker
 
-Updated: 2026-11-03. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
+Updated: 2026-11-06. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
 
 ## Current state
 
-- **Active implementation focus:** WORK-0011, owner-authorized intelligence and Hindsight repairs on local `main` starting at `1c68d27a`. WORK-0010 is already committed; no staged changes existed when this run began.
-- **Next immediate task:** Repair the remaining 172 active full Electron failures using the per-file audit, starting with current production behavior and preserving mixed active tests. WORK-0011 Electron/renderer typechecks and build pass; intelligence tests pass 2,043 with nine TODOs. Keep CHG-14/16/17 acceptance separate from passing tests; CHG-18 remains gated.
+- **Active implementation focus:** CHG-17 / WORK-0022 is present in the current staged tree. On `main` at `d53f1ac11f32769a35d3305a963915b1659fc0fd`, the staged patch contains the manual and meeting completed-turn project-scope resolver, its tests, and tracking paths; `PROJECT_TREE.txt` remains staged and untouched. In a disposable source copy, both typechecks, Electron build, six-file focused Electron suite (54/54), and `test:intelligence` (2,085 passed, 0 failed, 9 TODO) pass. Actual synthetic ModeHybridRetriever/ModeRagAdapter vs canonical search found a provenance mismatch: the legacy mode result has no page locator while canonical returns `pdf:page:7` (ERR-042). Canonical reads remain default-off. CHG-17 is **Implemented, unverified**; CHG-18 is blocked.
+- **Next immediate task:** Fix and regression-test the confirmed mode page-provenance loss before accepting CHG-17; then complete remaining source-family/fallback, valid PDF/résumé, desktop Mac, six-second full-answer, STOP/restart and Windows acceptance. Keep canonical reads default-off. Do not treat passing engine tests as GUI evidence or combine ERR-039/040 with CHG-17 without proof.
 - Linked repository: https://github.com/Abitesh/Sneak-Peek. Public snapshot inspected: main @ `6837a7a5d1eaa2531c878f05bb4f873c23af3859`. This is NOT a claim about the owner's local HEAD.
 - Previous stages: Not assessed; a Change 16 commit subject and existing tests are historical evidence, not verified completion.
 - Verification during pack generation: documentation/source inspection only. No app build/test/install/runtime/model/latency execution.
 - Authoritative scope: [ROADMAP.md](../ROADMAP.md). Active defects: [ERROR_LOG.md](ERROR_LOG.md). Work history: [CHANGE_LOG.md](CHANGE_LOG.md).
+
+## WORK-0022 — Linkship project follow-up scope revalidation (2026-11-06)
+
+**Status:** The WORK-0022 implementation is present in the current staged tree and was verified in a disposable copy. The initial patch-only state described below is historical; current branch is `main` at `d53f1ac11f32769a35d3305a963915b1659fc0fd`. `git status --short` showed the existing 39 staged paths and no unstaged changes before this verification. `PROJECT_TREE.txt` was preserved. Source audit of `ProjectFileScope.ts` and manual/meeting `ipcHandlers.ts` confirmed that the earlier implementation resolved scope from only the current raw question, risking an undefined exact `projectSourceIds` allowlist on a follow-up. This was an authorization-scope risk, not proof of a historical privacy leak.
+
+**Implemented behavior:** `resolveProjectFileScopeForTurn` uses the immediately preceding completed, same-session user/assistant exchange as an identity hint, then reselects exact project IDs from the current authorized file listing. Cancelled/failed/incomplete turns, ambiguous references, missing/retired project files, changed source/request identity, and chat reset fail closed with an empty allowlist. An explicit new project name overrides prior context; generic DBMS questions and broad plural project history keep their existing behavior. Manual and meeting request constructors pass the full canonical conversation turns to the resolver and suppress profile fallback for an unresolved singular project reference. The explicit project parser recognizes two-word subject-before-verb names like Linkship Legacy. This follow-up work does not change RAG storage, feature flags, legacy answer generation, credentials or user data.
+
+**Checks performed:** The disposable source copy passed `npm run typecheck:electron`, `npm run typecheck:ts5`, `npm run build:electron`, the six-file focused Electron ABI command (54 passed, 0 failed), and `npm run test:intelligence` (2,085 passed, 0 failed, 9 TODO). Its suite includes WORK-0022 cases for explicit Linkship then completed same-session Redis follow-up, Linkship Legacy override, failed/cancelled/incomplete exchanges, removed sources, intervening requests, general DBMS, cleared state, and both IPC routes. A separate disposable actual-mode harness used `ModeHybridRetriever`, `ModeRagAdapter`, canonical storage/read, synthetic READY data, and deterministic embeddings; it verified source/scope, lexical/vector hits, current/READY filtering, superseded revision exclusion, and incompatible-space rejection, but found page provenance is lost on the legacy mode path (ERR-042). Previous isolated synthetic personal retrieval used the actual `PersonalKnowledgeManager`/`PersonalRagAdapter` and canonical read path; it does not establish desktop behavior or valid PDF ingestion.
+
+**Gate:** WORK-0022's scoped follow-up implementation and automated cases are present and passing. CHG-17 remains **Implemented, unverified** because mode page provenance failed parity, local reranking and source-local fallback remain untested, the real indexed project first-turn/desktop workflow is not confirmed, valid PDF ingestion is untested, and Mac STOP/restart/completed-answer latency and Windows checks remain pending. ERR-038 remains open; ERR-039 and ERR-040 remain separate with unknown causes. No production code, provider settings, user database, native modules, staged index, or `PROJECT_TREE.txt` were changed by this verification.
+
+## WORK-0023 — CHG-17 final synthetic retrieval acceptance (2026-11-06)
+
+**Request:** Verify WORK-0022 and the remaining CHG-17 acceptance evidence before deciding whether CHG-18 may start. Links: CHG-17 C17-AC1–11, WORK-0022, ERR-038–042.
+
+**Baseline and protection:** Branch `main`, HEAD `d53f1ac11f32769a35d3305a963915b1659fc0fd`. The initial status was 39 staged paths, no unstaged/untracked paths. The current staged work and `PROJECT_TREE.txt` were preserved; no production/test source, database, user data, provider settings, native/audio code, or Git index was modified. A disposable source copy reused installed dependencies; no install, paid provider, desktop app, or user profile was used. The temporary mode harness and generated data existed only in that copy.
+
+**Evidence:** Both typechecks and `build:electron` passed. The focused Electron command in WORK-0022 completed 54/54; `npm run test:intelligence` completed 2,085 passed, 0 failed, 9 TODO. `git diff --cached --check -- . ':!chatgpt-work/PROJECT_TREE.txt'` passed. Synthetic actual mode parity matched authorized source/content, confirmed compatible vectors and no incompatible-space/unready/superseded hits, but legacy omitted the page locator that canonical retained; ERR-042 records the reproducible defect. Actual synthetic personal-path evidence is recorded under WORK-0022. No source-local fallback or local reranking result is claimed.
+
+**Manual and platform gaps:** No Electron GUI interaction, six-second complete-answer timing, STOP during live retrieval/streaming, restart/supersession, manual chat during an active meeting, valid PDF ingestion, or Windows execution was performed. These remain pending; passing offline engine tests do not establish UI behavior. ERR-039 embedding batch timeout and ERR-040 native quit crash remain separately tracked, with no established CHG-17 causation.
+
+**Acceptance decision:** C17-AC5 FAILS on mode page provenance; C17-AC1–4, 6–7 and 10 remain PARTIAL pending the listed runtime/source-family checks; C17-AC8, AC9 and AC11 PASS for the verified preservation, automated checks and legacy-caller inventory. **CHG-17 implementation complete: NO; fully verified: NO; safe to start CHG-18: NO.** Minimum next step: repair and test mode provenance, then complete required Mac and Windows acceptance.
+
+## WORK-0021 — Mac runtime and test-log acceptance evidence (2026-11-06)
+
+**Status:** CHG-17 remains **Implemented, unverified**; CHG-18 gate remains **blocked**. Owner supplied `Terminal output(5).rtf` (live startup/answer/quit) and `Terminal output(6).rtf` (actual Mac verification). `npm run typecheck:electron`, `npm run typecheck:ts5` and `npm run build:electron` exited without errors. The new `Change17NoDuplicateFallbackRegression.test.mjs` passed **6/6**; `npm run test:intelligence` ended with **2,076 passed, 0 failed, 9 TODO** (2,085 total). `npm start` built and launched the UI and ran the primary manual-chat engine. These are owner-executed results, reviewed here, not locally rerun by this reviewer.
+
+**Outstanding live evidence:** A project/Redis question was answered without a grounded project fact. The corresponding reported session trace had `profile` empty with 0 items and 0 included evidence; no question text was logged, so the exact request association and root cause are not proven (ERR-038). A 30-second Gemini background embedding batch timeout (ERR-039) and a native `Napi::Error`/`SIGABRT` on app exit (ERR-040) were independently recorded for triage, with causation unknown. The native crash is not permission to edit protected audio/native subsystems during CHG-17.
+
+**Gate:** C17-AC9 has current Mac typecheck/build/engine test evidence; C17-AC11 caller inventory remains previously recorded. C17-AC10 documents real startup but still lacks owner-approved STOP/restart and other end-to-end behavior evidence. C17-AC1/2/5/6/7 remain partial; actual mode/personal source-family retrieval parity, synthetic READY project and résumé/PDF facts, privacy isolation, cancellation, restart, Windows, and six-second **final visible answer** remain to be confirmed. A known-fact Linkship synthetic project retrieval and same-session follow-up are the smallest immediate diagnostic. Do not mark a legacy/profile failure unrelated solely because it predates this change.
+
+**Files changed in this recording-only patch:** `chatgpt-work/ERROR_LOG.md`, `TASK_TRACKER.md`, `CHANGE_LOG.md`, `HANDOFF.md`. No production code, tests, feature flag, schema, native module or owner `PROJECT_TREE.txt` modified. This ZIP does not itself change the owner checkout until applied.
 
 ## Status rules
 
@@ -24,14 +56,27 @@ After each change, complete its relevant checks, record the commands/results, an
 | Task | Current status | Roadmap/error link | Next action / gate |
 |---|---|---|---|
 | DOC-001 | Implemented, unverified — downloadable pack only | All eight management files | Merge into actual repo with approval; preserve existing root roadmap and ongoing edits; verify instruction discovery. |
-| CHG-17 | In progress — owner-reported | ROADMAP CHG-17 | Reconcile current branch/diff and inspect canonical retrieval boundary; do not overwrite work. |
+| CHG-17 | Implemented, unverified; WORK-0022 applied in staged tree; WORK-0023 acceptance in progress | ROADMAP CHG-17 / ERR-034–042 | Repair mode page provenance (ERR-042), then finish owner Mac desktop/source acceptance and applicable Windows checks. CHG-18 remains blocked. |
 | CHG-14 / WORK-0010–0011 | In progress — intelligence suite green, acceptance unverified | ROADMAP CHG-14; ERR-016–020; ERR-008 | Fresh `test:intelligence`: 2,043 pass, 0 fail, 9 todo; engine tests included. Full Electron suite still has 172 failures; manual/runtime and Windows checks pending. CHG-01–17 are not Verified; CHG-18 stays gated. |
 | BUG-001 | In progress — provider fixes + durable-save acknowledgement implemented; live verification pending | ERR-001, ERR-010–014, FEAT-005 / WORK-0008/0009 | Apply WORK-0009 after WORK-0008, save/restart/recheck a provider key, then retest Claude/NVIDIA/LiteLLM and model availability. |
 | BUG-002 | Planned | ERR-002, FEAT-008 | Reproduce personal-intelligence failure and trace permitted evidence from ingestion to visible answer. |
 | BUG-003 | Planned | ERR-003 | Reproduce clean install/package/installed-app failure separately from intelligence migration. |
-| BUG-004 | In progress — local full Electron run still failing | ERR-004 / ERR-008 / WORK-0011 | Fresh macOS local `npm test`: 8,639 pass, 172 fail, 0 cancelled, 81 skipped. See `scripts/audit/work0011-current-failures.md`; fix active failures and rerun CI after owner commit. |
+| BUG-004 | In progress — isolated full Electron suite still has baseline failures | ERR-004 / ERR-008 / WORK-0011 / WORK-0020 | Latest isolated Mac `npm test`: 8,675 pass, 170 fail, 0 cancelled, 67 skipped. Failure names match the recorded 171-failure baseline except one old failure now passes; classify the remaining roots before closing BUG-004. |
 | BUG-005 | Implemented, unverified — Router/readiness repair and isolated diagnostic | ERR-009 / ERR-015/018 / WORK-0011 | Runtime-config tests and Hindsight focused tests pass; actual server unavailable on localhost and paid live diagnostic intentionally not run. Verify Router, DB, retain/recall with permitted isolated bank. |
 | QA-001 | Planned | CHG-14/17/21 | Verify engine test discovery; explicitly execute engine tests after prerequisites and approval. |
+
+## WORK-0019 verification checkpoint — 2026-11-04
+
+Status: **Implemented, unverified**; CHG-17 is not fully accepted and CHG-18 remains blocked. The owner applied the supplied three-file patch after `git apply --check` exited 0. Existing staged work, including the owner-modified `PROJECT_TREE.txt`, was preserved.
+
+Changed patch paths: `electron/rag/canonical/CanonicalRagStorage.ts`, `electron/rag/__tests__/CanonicalRagStorage.test.mjs`, and `electron/rag/__tests__/CanonicalRagReadProduction.test.mjs`. The test file already had staged WORK-0017/0018 changes; WORK-0019 is the separate unstaged addition. No canonical flag default change.
+
+Verification:
+- Owner checkout: `npm run typecheck:electron` and `npm run typecheck:ts5` both exit 0.
+- Isolated copy `/tmp/chg17-work0019-applied.pUt5EM/repo`: `npm run build:electron` exit 0; `node scripts/run-with-env.mjs --default-tmpdir NATIVELY_TEST_USERDATA=chg17-work0019-test-userdata --set ELECTRON_RUN_AS_NODE=1 -- electron --test electron/rag/__tests__/CanonicalRagStorage.test.mjs electron/rag/__tests__/CanonicalRagReadProduction.test.mjs` exit 0 (**45 passed, 0 failed, 0 skipped/TODO**); `npm run test:intelligence` exit 0 (**2,073 pass, 0 fail, 9 TODO**, 2,082 tests / 405 suites). Intelligence log: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/1793814126815-copilot-tool-output-33756-268c0547-660f-4461-8214-1e25a3b06793.txt`.
+- Actual meeting adapter/RAGRetriever-vs-canonical lexical fixture passed for `Which cache did the team select?`; same source and content, canonical provenance returned, canonical selected without fallback. Scores differ; legacy vector used its JS fallback in this fixture. This is not semantic/ranking parity and does not establish mode or personal parity.
+- Patch-target `git diff --check` passed. `git diff --cached --check` still reports the pre-existing trailing whitespace in `chatgpt-work/PROJECT_TREE.txt`; it was not edited.
+- No full Electron suite, desktop UI, owner-data, provider, Windows, or full-answer latency test was run.
 
 ## WORK-0011 verification checkpoint — 2026-11-03
 
@@ -176,19 +221,37 @@ The normative wording is in ROADMAP.md; this table tracks verification, not a se
 
 | Criterion | Verified? | Evidence / outstanding check |
 |---|---|---|
-| C17-AC1 | No | Focused integration/tests/typechecks/manual checks not run. |
-| C17-AC2 | No | Runtime procedure, protected diff review and record reconciliation pending. |
-| C17-AC3 | No | Local active request trace needed. |
-| C17-AC4 | No | Canonical retrieval vs answer-strategy ownership needs local verification. |
-| C17-AC5 | No | ID/revision/provenance/ranking parity checks needed. |
-| C17-AC6 | No | Project/personal/general and denied/empty-source cases needed. |
-| C17-AC7 | No | Duplicate retrieval and stale-request cancellation tests needed. |
-| C17-AC8 | No | Owner's ongoing work/storage protections not yet reconciled. |
-| C17-AC9 | No | Explicit engine/canonical runs plus typecheck/build evidence needed. |
-| C17-AC10 | No | Manual behavior checks not executed. |
-| C17-AC11 | No | Remaining active direct-generation callers need complete inventory. |
+| C17-AC1 | PARTIAL | Both typechecks, Electron build, 54 focused tests, and `test:intelligence` pass; C17-AC5 has a reproduced mode provenance failure and desktop/runtime acceptance remains. |
+| C17-AC2 | PARTIAL | Protected paths, incremental diff and records reviewed; owner Mac and Windows checks remain pending. |
+| C17-AC3 | PARTIAL | Manual and meeting IPC routes pass completed-turn exact-source scope tests; no desktop request trace was captured. |
+| C17-AC4 | PARTIAL | Planned project/structured reads use selected sources without a second planner, but affected end-to-end behavior is not verified in the desktop app. |
+| C17-AC5 | FAIL | Actual ModeHybridRetriever/ModeRagAdapter vs canonical synthetic parity reproduced a page-locator loss on the legacy mode result; reranking and source-local fallback remain untested. |
+| C17-AC6 | PARTIAL | WORK-0022 project follow-up, sibling override, failure/removed-file, and general-question tests pass; actual desktop résumé/PDF and private-source exclusion remain unverified. Prior synthetic personal path is not desktop/PDF-ingestion evidence. |
+| C17-AC7 | PARTIAL | Offline cancellation, supersession, and clear-state tests pass; actual STOP during retrieval/streaming and restart behavior remain untested in the app. |
+| C17-AC8 | PASS | No reset/destructive migration or protected subsystem change; staged project/source edits and `PROJECT_TREE.txt` remain intact; isolated source-ID/scope and READY/current-revision behavior passed. |
+| C17-AC9 | PASS | Disposable-copy typechecks/build passed; focused Electron tests 54/54; `test:intelligence` 2,085 passed, 0 failed, 9 TODO; staged diff check passed excluding protected `PROJECT_TREE.txt`. |
+| C17-AC10 | PARTIAL | Synthetic engine checks exist, but owner Mac GUI, complete-answer latency, STOP/restart and Windows checks are explicitly pending. |
+| C17-AC11 | PASS — inventory/defer | Current `rag:query-global` IPC caller and retained `queryMeeting`/`queryGlobal`/`buildRAGPrompt` answer paths are identified and deferred to CHG-18; no active caller was deleted. |
 
 Do not mark Change 17 Verified until all applicable criteria have evidence. An intentionally deferred criterion requires explicit owner agreement and must not be silently checked.
+
+## WORK-0020 verification checkpoint — 2026-11-04
+
+Status: **Implemented, unverified**; CHG-17 is not fully accepted and CHG-18 remains blocked. The consolidated patch is based on the pre-WORK-0019 state, so its `git apply --check` failed at the overlapping canonical storage hunk. No `git apply --force`, `--reject`, reset, or stash was used. The equivalent intent was manually integrated against current code after inspecting the mismatch. A first grouped edit stopped at an `ipcHandlers.ts` context mismatch after changing only the adapter type; the current code was inspected and the remaining edits were applied surgically.
+
+Purpose: Keep the Intelligence Engine's project-source decision authoritative, pass the explicit authorized project file IDs through canonical lexical/vector reads and the compatibility fallback, and avoid re-planning the structured-knowledge query. `canonicalRagRead` remains default-off. No provider credentials/routing, audio, STT, packaging/signing, Hindsight, source PDFs, user database, or CHG-17 canonical storage/revision/index migration was changed.
+
+Paths changed by this work: `electron/intelligence/engine/CanonicalRagRetrievalAdapter.ts`, `electron/intelligence/engine/__tests__/Change17CanonicalRagRetrievalAdapter.test.mjs`, `electron/intelligence/engine/__tests__/Change17SafetyGateRegression.test.mjs`, new `electron/intelligence/engine/__tests__/Change17PlannedProjectCapability.test.mjs`, `electron/ipcHandlers.ts`, `electron/rag/RAGManager.ts`, `electron/rag/canonical/CanonicalRagQueryTypes.ts`, `electron/rag/canonical/CanonicalRagReadService.ts`, `electron/rag/canonical/CanonicalRagStorage.ts`, and new `electron/rag/__tests__/Change17FinalCanonicalParity.test.mjs`. `chatgpt-work/ERROR_LOG.md` records ERR-037; this tracker, `CHANGE_LOG.md`, `HANDOFF.md`, and `PROJECT_OVERVIEW.md` were refreshed. `chatgpt-work/PROJECT_TREE.txt` was not edited or regenerated because it contains the owner's protected staged changes.
+
+Verification:
+- Owner checkout: `npm run typecheck:electron` initially reported TS2322 because the adapter's source union omitted `project_knowledge`; that union was corrected. Re-run `npm run typecheck:electron` and `npm run typecheck:ts5` both exited 0.
+- Isolated `/tmp/sneak-peek-chg17-work0020.GIzDvg/repo`: `npm run build:electron` exited 0. The exact focused command from the supplied `VERIFY.md`—`node scripts/run-with-env.mjs --default-tmpdir NATIVELY_TEST_USERDATA=chg17-consolidated-synthetic --set ELECTRON_RUN_AS_NODE=1 -- electron --test electron/intelligence/engine/__tests__/Change17PlannedProjectCapability.test.mjs electron/intelligence/engine/__tests__/Change17CanonicalRagRetrievalAdapter.test.mjs electron/intelligence/engine/__tests__/Change17SafetyGateRegression.test.mjs electron/rag/__tests__/Change17FinalCanonicalParity.test.mjs electron/rag/__tests__/CanonicalRagReadProduction.test.mjs electron/rag/__tests__/CanonicalRagStorage.test.mjs`—exited 0 (**70 passed, 0 failed, 0 skipped/TODO**). `npm run test:intelligence` exited 0 (**2,076 passed, 0 failed, 9 TODO**, 2,085 total). Focused test output: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/1793818140648-copilot-tool-output-33756-6a32e671-a43e-4374-b4a1-84aa4b18c6a4.txt`; intelligence output: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/1793818151640-copilot-tool-output-33756-9d4bf39a-f80b-451f-a375-ff0d69ac70b8.txt`.
+- Isolated full `npm test` exited 1 (**8,675 passed, 170 failed, 67 skipped**). Compared with the recorded baseline (`chg17-npm-test.log`: 8,661/171/67), no failing test identity is new; one previously failing `gemini-chat-stream retrieves through RAGManager, then the planner` assertion now passes. Full output: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/1793818451249-copilot-tool-output-33756-9233d817-0249-4168-b761-e26e48a473b1.txt`. This is not a classification of every pre-existing failure. CHG-17-relevant legacy query and profile tests still fail; missing/invalid résumé/PDF fixtures were confirmed (profile PDF/DOCX paths are absent; the named seminar PDF is a 131-byte ASCII file and fails PDF parsing).
+- `git diff --check` passed for unstaged edits. `git diff --cached --check` continues to report the pre-existing trailing whitespace in `PROJECT_TREE.txt`; it was not changed. No dependencies were installed and no commit/push occurred.
+
+Inspected failure groups: `electron/audio/__tests__/RagQueryKeyIsolation.test.mjs` uses source regexes that require meeting/live IPC handlers to mint RAG query keys and manage `activeRAGQueries`; those handlers now delegate to the Intelligence Engine's `streamSneakPeekMeetingAnswer`, so those particular assertions are stale-shape checks, not proof the new engine cancellation is broken. The global IPC cancellation assertions pass. This does not replace owner STOP/supersession runtime evidence. `KnowledgeOrchestratorIngest.test.mjs` synthetic resume/JD cases fail on missing profile nodes/shape; `ProfileFactualRecallProductionPath.test.mjs` and `PersonaFabricationFallbackProductionPath.test.mjs` return only candidate identity where synthetic experience/achievement facts were expected. These behavior assertions match the prior baseline, but their root cause is not established; they directly block personal-grounding acceptance. PDF failures are fixture/environment gaps (invalid 131-byte ASCII "PDF", absent profile PDF/DOCX), not proof of parser behavior. A source scan also references absent `premium/src/ModesSettings.tsx`, a stale path assertion unrelated to CHG-17. These are the inspected groups, not a classification of all 170 failures.
+
+Acceptance remains incomplete: actual mode and personal legacy-vs-canonical parity, a valid synthetic PDF/resume, desktop general/private isolation, conversation follow-up/clear, active-meeting behavior, STOP/restart/supersession, full-answer latency, and Windows checks remain. Full suite identity comparison shows no new failure but does not erase the existing personal/profile grounding failures or prove runtime behavior.
 
 ## New error and requirement intake
 
@@ -236,3 +299,79 @@ Agent updates records itself after meaningful steps and before finishing a reque
 - **Acceptance:** `git apply --check` passed. Final `npm run build:electron` passed. The prescribed system-Node focused command returned 19 pass / 3 fail due only to the native ABI mismatch (ERR-005); the same four files passed 22/22 under installed Electron 43 (ABI 148), including the missing-source/no-native regression. `git diff --check` passed; final diff review confirmed protected paths are unchanged.
 - **Blockers / limits:** No dependency rebuild was performed. Real-app/manual acceptance and Windows checks remain pending; therefore CHG-17 acceptance is not marked verified. The expected `chatgpt-work` records were absent before this task.
 - **Next step:** Run the bundle's manual real-app acceptance with authorized sample data; Windows checks remain pending.
+
+
+## WORK-0014 — CHG-17 remaining safe integration repairs (2026-11-04)
+
+**Status:** Implemented in a downloadable patch bundle, **unverified on the owner checkout**. Approval: owner explicitly requested implementation and one ZIP. Baseline: uploaded source ZIP reconstruction corresponding to owner/Copilot `main` HEAD `d53f1ac11f32769a35d3305a963915b1659fc0fd`; Copilot reports the only local edit was `chatgpt-work/PROJECT_TREE.txt` (105,294 additions / 2,595 deletions). The uploaded tree file was deliberately NOT edited or packaged. No Git metadata or dependencies are present in the upload workspace.
+
+**Scope implemented in package:** Broad candidate-project-history cue; completed manual/meeting referent synchronization (including exact Singleton/code shape); explicit denial of private fact claims when no evidence is returned; truthful canonical versus source-fallback provenance; safe per-source execution metadata for denied/unavailable/empty/cancelled reads; exclude already-available conversation context from external capability dispatch; drop post-abort evidence; pass resolved question to planned retrieval. Existing canonical RAG storage, indexing, project-only compatibility, legacy answer callers, privacy permissions, capture/STT, native modules and user data are unchanged. `canonicalRagRead` remains OFF by default until index/score/source-parity checks are real.
+
+**C17 evidence matrix (patch stage, not end-to-end acceptance):**
+
+| Criterion | State | Remaining evidence |
+|---|---|---|
+| C17-AC1 | Partial | Detailed criteria not all verified; real app acceptance and native test results missing. |
+| C17-AC2 | Partial | Mac post-apply diff and manual verification; full-suite classification and tracking reconciliation. |
+| C17-AC3 | Partial | Primary manual + meeting IPC source trace available, legacy compatibility paths remain; runtime trace needed. |
+| C17-AC4 | Partial | New-engine planning/prompt boundary preserved; CHG-18 global legacy generation explicitly deferred. |
+| C17-AC5 | Partial | Adapter provenance and bounded diagnostics tested; canonical index parity and ownership not inspected. |
+| C17-AC6 | Partial | Focused project-history, Singleton and empty evidence fixtures pass; real résumé/PDF remains unverified. |
+| C17-AC7 | Partial | Focused no-duplicate and post-abort tests pass; real STOP/supersession in app unverified. |
+| C17-AC8 | Partial | No migrations/resets/changes to storage; source-owner/projection parity and uncommitted tree preservation require confirmation after apply. |
+| C17-AC9 | Partial | 140 focused Node test assertions passed with temporary TypeScript transpilation; owner Mac typecheck/build/full tests not run on modified patch. |
+| C17-AC10 | Partial | Manual Mac/Windows questions, STOP, restart and latency checks not performed. |
+| C17-AC11 | Pass for inventory only | Copilot read-only audit inventoried `rag:query-global → queryGlobal`, `queryMeeting`, `buildRAGPrompt`, source compatibility callers; migration deferred to CHG-18. |
+
+**Tests in this ZIP workspace:** `node --test` on all available engine suites except one dependency-backed profile ingestion suite, plus the named canonical conversation-state and question-resolver suites: **140 tests passed / 0 failed / 0 skipped**; see `VERIFY.md` for exact limitations. All eight edited `.ts` files passed TypeScript parser syntax checks; new `.mjs` passed `node --check`. Full Electron typecheck fails here at initialization due to absent `@types/node`, not a changed-source diagnostic. A separate broad local attempt that included `ProfileIngestionIndependence.test.mjs` produced 139 pass / one module-load failure (`better-sqlite3` missing). No dependencies were installed. Owner-provided *pre-patch* Mac logs: typechecks and build pass; intelligence 2,053 pass, 0 fail, 9 TODO; full Electron 8,661 pass, 171 fail, 67 skip. These are not post-patch results.
+
+**Required next actions:** User applies the bundle via **one** method; checks that no newer local code overlaps; runs `npm run typecheck:electron`, `npm run typecheck:ts5`, `npm run build:electron`, `npm run test:intelligence` and scoped canonical tests under Electron ABI; tests authorized résumé/PDF and same-session manual/meeting Singleton, STOP/restart, perf, and Windows. Keep CHG-17 open / CHG-18 blocked until all evidence is returned. Related defects: ERR-023–025. No commit/push was made by ChatGPT.
+
+
+## WORK-0015 — CHG-17 post-audit repair package (2026-11-04)
+
+**Status:** Implemented in a new patch ZIP, **unverified on owner checkout**. Owner provided Copilot's read-only WORK-0014 audit. Baseline: uploaded files overlaid with the exact WORK-0014 replacement files, consistent with Copilot's reported staged state on `main` at `d53f1ac`. Copilot found the WORK-0014 patch applied, `PROJECT_TREE.txt` independently staged, and the tracker/handoff stale; the new patch excludes `PROJECT_TREE.txt`. Owner must apply this incremental patch only after `git apply --check` confirms an exact match. Do not apply WORK-0014 again.
+
+- **ERR-026:** preserve code, example and simplification shape independently from resolved follow-up referent.
+- **ERR-027:** recognize explicit named-project questions from authorized file metadata, select only matching project IDs, and avoid searching unrelated projects; when no matching filename exists, permit existing authorized profile fallback, never treat another project file as proof of availability. Filename matching is intentionally conservative; content-only project identity still needs manual verification.
+- **ERR-028:** new sender-scoped `gemini-chat-stream-clear-context` IPC resets canonical/manual/coding referents whenever renderer resets visible chat, without clearing other WebContents or meeting sessions. Needs in-app race/restart checks.
+- **ERR-029:** expose sanitized `failed` retrieval outcome instead of silently masking thrown capabilities; expose only aggregated per-source prompt inclusion counts and align planner availability warnings with IPC permissions.
+- **Performance/canonical:** `canonicalRagRead` remains default OFF; request-time repair/embedding timeout risks and canonical parity require separate guarded work and Mac checks. No migration, database reset, provider call, native-audio, license, packaging or STT changes.
+
+**Evidence:** in-container TypeScript temporary transpilation of 503 Electron source modules (not `npm run build:electron`); focused `node --test` against all 21 engine test files except the dependency-backed `ProfileIngestionIndependence.test.mjs`: **106 pass, 0 fail, 0 skip, 0 TODO**. An initial 105/106 run exposed one stale source-scan assertion in `ResumeProjectRoutingRegression.test.mjs` about the former unrestricted memory flag; the test was migrated to assert the new named-project fail-closed scope, and all 106 passed on rerun. A smaller 3-file run also reported 15/15. Targeted unbundled runtime probing also passed four follow-up formats, three project-source resolution cases, and a failed-source trace case. TypeScript parser/syntax checks on modified `.ts`/`.tsx` passed; formal project typechecks/full Electron runs need owner's installed dependencies.
+
+**Copilot WORK-0014 audit (owner-provided, not run by ChatGPT):** both typechecks and isolated Electron build exit 0; `test:intelligence` 2,059 pass / 0 fail / 9 TODO; `npm test` 8,633 pass / 176 fail / 88 skip (8,897 total), compared with 8,629 pass / 180 fail / 88 skip at identical HEAD baseline. This does not establish canonical-on parity, desktop STOP/restart, real résumé/PDF retrieval or Windows behavior.
+
+**C17 status after WORK-0015:** AC1–7 and AC9 partial; AC8 PASS for protected-scope preservation pending runtime ownership verification; AC10 NOT TESTED; AC11 PASS for caller inventory/deferment. **CHG-17 fully verified: NO. CHG-18: BLOCKED.** Next: apply WORK-0015 patch (one method), Mac typechecks/build/focused + intelligence tests, classify broad failures, manual authorized project/resume/PDF/STOP/reset/performance checks, canonical-on parity under isolated fixtures, Windows acceptance as required.
+
+
+## WORK-0016 — Post-WORK-0015 audit corrections (2026-11-04)
+
+**Scope:** ERR-030–033; C17-AC3/6/7/8/9/10. Owner-provided Copilot post-WORK-0015 audit verified that WORK-0014 staged and WORK-0015 unstaged source were present, that Electron/TS typechecks and build passed, and intelligence **2,063 passed, 0 failed, 9 TODO**. The full suite had **180 baseline failures** (not newly attributable to this change); no real résumé/PDF Mac acceptance.
+
+**Implemented in a patch-only work package:** conservative named-project identity filtering including lowercase/sibling negatives, sender-key manual session during meeting, sanitized source failures and final inclusion counts, query-time no-repair discipline, coalesced background repair and an abort-aware query-embedding wait budget with lexical fallback. Added focused regression coverage. No DB reset, storage/schema changes, canonical global enablement, STT/audio/native module edits, or deletion of live legacy RAG callers.
+
+**Agent-run checks:** syntax/transpilation and focused tests passed **20/20**; expanded engine test run **116 pass / 1 dependency load failure** without better-sqlite3; native Electron/semantic typecheck not available in uploaded archive workspace. Patch check/reverse validation is part of package finalization. Owner Mac/Windows and isolated real source checks pending.
+
+**Acceptance:** C17-AC6 remains PARTIAL until real named/sibling project files, authorized résumé/PDF and owner-scope cases are verified; C17-AC7/8 remain PARTIAL until cancellation/index lifecycle/latency proof; C17-AC3/9 need end-to-end diagnostics evidence; C17-AC10 manual tests pending. C17-AC11 inventory remains recorded. **CHG-17 fully verified: NO; safe to start CHG-18: NO.** The owner should apply only the incremental WORK-0016 patch after checking working-tree overlap and preserve the staged `PROJECT_TREE.txt`.
+
+
+## WORK-0017 — Canonical query-embedding timeout and cancellation (2026-11-04)
+
+**Scope:** CHG-17 / ERR-034 (Copilot's post-WORK-0016 DEF-01). Owner requires **patch-only** delivery. Patch baseline was reconstructed from the provided source ZIPs plus exact WORK-0014 and WORK-0015 replacement files and WORK-0016 incremental patch; this is **not** a live read of the owner's Mac checkout. Copilot's latest report confirms owner WORK-0016 was applied with local typechecks/build passing and 2,073/0/9 intelligence, 8,639/171/87 full tests.
+
+**Implementation:** Bound the canonical query embedding wait to the existing 2-second abort-aware helper, propagate `AbortSignal` from both planned-source and legacy search call sites, preserve READY canonical lexical results when embedding times out, and discard late embedding output or post-STOP results. Add canonical production regression cases for valid embedding identity, pending provider lexical fallback, STOP and late result, plus source-level call-site assertions. Preserve canonical-read default **OFF**, source permission rules, DB/revisions/chunks/embeddings, existing legacy callers and owner `PROJECT_TREE.txt`.
+
+**Verification in the owner checkout (2026-11-04):** the patch preflight and reverse-check passed; patch whitespace check passed excluding the owner's staged `PROJECT_TREE.txt`. In an isolated source/test-data copy using the existing dependencies and Electron ABI, `npm run typecheck:electron`, `npm run typecheck:ts5`, and `npm run build:electron` exited 0; the focused canonical/safety command passed **30/30**; `npm run test:intelligence` passed **2,073**, failed 0, with 9 TODO; `npm test` exited 1 with **8,643 pass / 171 fail / 87 skipped**. The full-suite failing test names match the preceding WORK-0016 run; the four additional cases pass. Do not treat this as root-cause classification of the historical failures. No live provider, user database, dependency install, native rebuild, commit, push, or CHG-18 implementation.
+
+**C17-AC1–8 and C17-AC10:** PARTIAL pending canonical-on parity, owner/project identity, PDF/résumé, desktop STOP/restart, full-answer latency and Windows evidence; the full-suite failures also need root-cause classification. **C17-AC9:** PASS for the required focused tests, typechecks, build and diff review (not a claim that the full suite is green). **C17-AC11:** PASS for the current caller inventory; legacy migration deferred to CHG-18. **CHG-17 FULLY VERIFIED: NO. SAFE TO START CHG-18: NO.**
+
+## WORK-0018 — CHG-17 focused test-evidence patch (2026-11-04)
+
+**Status:** Applied and focused-verified; CHG-17 acceptance remains incomplete. Branch `main`, HEAD `d53f1ac11f32769a35d3305a963915b1659fc0fd`. The checkout had substantial pre-existing staged WORK-0014–0017 changes and the owner's staged `PROJECT_TREE.txt`; the patch was limited to two test files and did not alter those staged changes.
+
+**Changes:** `CanonicalChatIntegration.test.mjs` now asserts the current manual-chat planned-source/Intelligence Engine boundary instead of requiring a stale inline `RagQueryPlanner.plan()` call inside `RAGManager.search()`. `CanonicalRagReadProduction.test.mjs` adds same-fixture canonical-on/off meeting evidence and selected-source-empty/sibling-isolation cases. The compatibility side is a deterministic mocked adapter, not the production `RAGRetriever`; no ranking/score or real legacy parity claim follows from these tests. Canonical read remains default-off. No application source, storage, schema, feature flag, credential, audio/STT/native, or `PROJECT_TREE.txt` changes were made by WORK-0018.
+
+**Verification:** `git apply --check` passed before application. In isolated source/data copy `/tmp/chg17-work0018-Y3jahN`, `npm run build:electron`, `npm run typecheck:electron`, and `npm run typecheck:ts5` all exited 0. Focused command `node scripts/run-with-env.mjs --default-tmpdir NATIVELY_TEST_USERDATA=chg17-work0018-focused-userdata --set ELECTRON_RUN_AS_NODE=1 -- electron --test electron/rag/__tests__/CanonicalChatIntegration.test.mjs electron/rag/__tests__/CanonicalRagReadProduction.test.mjs` exited 0: **24 pass, 0 fail, 0 skipped/TODO**. `npm run test:intelligence` exited 0: **2,073 pass, 0 fail, 9 TODO**. No full `npm test`, actual indexed personal-data, desktop UI, paid provider, Windows, or six-second full-answer test was run for WORK-0018. Applying the complete staged diff to the temporary copy warned about the owner's pre-existing trailing whitespace in `PROJECT_TREE.txt`; that file was not edited, and the isolated build/tests passed.
+
+**Acceptance:** C17-AC9 has focused test/build/typecheck evidence for this change. C17-AC1–8 and C17-AC10 remain partial; C17-AC11 remains the prior caller-inventory pass. True live legacy-versus-canonical parity and owner-performed Mac/Windows checks remain pending. **CHG-17 FULLY VERIFIED: NO. SAFE TO START CHG-18: NO.**

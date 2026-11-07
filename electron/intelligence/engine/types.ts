@@ -87,6 +87,8 @@ export interface SneakPeekActiveContext {
   meetingId?: string;
   projectId?: string;
   projectName?: string;
+  /** Authorized original file IDs for an explicitly named project. */
+  projectSourceIds?: string[];
   profileId?: string;
   profileName?: string;
 }
@@ -223,6 +225,8 @@ export interface SneakPeekDiagnostics {
   /** Exact architecture stage names used by the manual-chat migration trace. */
   pipelineStages: string[];
   warnings: string[];
+  /** Sanitized execution outcomes (no question, document text or source IDs). */
+  retrieval?: import('./RetrievalCoordinator').RetrievalSourceOutcome[];
 }
 
 export interface SneakPeekFinalAnswer {

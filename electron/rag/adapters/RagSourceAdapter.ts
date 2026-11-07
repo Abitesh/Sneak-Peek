@@ -12,6 +12,7 @@ export interface RagSourceAdapterContext {
   candidatePoolSize: number;
   tokenBudget?: number;
   conversation?: readonly RAGConversationTurn[];
+  signal?: AbortSignal;
 }
 
 export interface RagSourceAdapter {

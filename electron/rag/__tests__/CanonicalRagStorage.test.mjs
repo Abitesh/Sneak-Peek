@@ -349,6 +349,50 @@ test('canonical lexical search filters deleted, superseded, source and scope sta
   db.close();
 });
 
+test('WORK-0019 canonical lexical search treats punctuated questions and FTS operators as text', () => {
+  const { db, storage } = makeStorage();
+  const seed = (sourceId, text) => {
+    const document = storage.createDocument({ sourceType: 'meeting', sourceId, name: sourceId });
+    const revision = storage.createRevision({
+      documentId: document.id, contentHash: sourceId, extractionVersion: 'test',
+      chunkingVersion: 'test', normalizationVersion: 'test',
+    });
+    storage.replaceChunks(document.id, revision.id, [{
+      chunkIndex: 0, text, sourceLocator: 'meeting:0-100',
+    }]);
+    storage.setStatus(document.id, revision.id, 'READY', { chunkCount: 1 });
+    storage.activateRevision(document.id, revision.id);
+    return document;
+  };
+  const selected = seed('meeting-cobalt', 'The team selected cobalt cache for the Aurora service.');
+  seed('meeting-sibling', 'The sibling meeting selected violet cache instead.');
+
+  const cases = [
+    'Which cache did the team select?',
+    'cobalt cache?',
+    '"cobalt" AND cache?',
+    'cobalt OR cache',
+    'cobalt -cache +Aurora',
+    'cobalt: cache (Aurora)',
+  ];
+  for (const query of cases) {
+    const hits = storage.searchLexical(query, {
+      sourceType: 'meeting', sourceId: 'meeting-cobalt', limit: 10,
+    });
+    assert.equal(hits.length, 1, `expected scoped FTS hit for ${JSON.stringify(query)}`);
+    assert.equal(hits[0].document.id, selected.id);
+    assert.equal(hits[0].chunk.sourceLocator, 'meeting:0-100');
+  }
+
+  assert.deepEqual(storage.searchLexical('??? ... ( )', {
+    sourceType: 'meeting', sourceId: 'meeting-cobalt', limit: 10,
+  }), [], 'punctuation-only input must be a safe empty lexical result');
+  assert.equal(storage.searchLexical('cobalt?', {
+    sourceType: 'meeting', sourceId: 'meeting-sibling', limit: 10,
+  }).length, 0, 'another meeting must not leak into the requested source');
+  db.close();
+});
+
 test('canonical sqlite-vec search proves MATCH distance ordering LIMIT physical row mapping and lifecycle filtering', () => {
   const { db, storage } = makeVectorStorage();
   const space = storage.createEmbeddingSpace({ provider: 'test', model: 'test-model', dimensions: 2, version: '1' });
