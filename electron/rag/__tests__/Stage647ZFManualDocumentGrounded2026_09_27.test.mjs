@@ -79,11 +79,11 @@ describe('Stage 6: 47ZF wiring (source)', () => {
     assert.equal(calls.length, 2, 'expected non-streaming + streaming call sites');
     assert.match(
       llmHelperSrc,
-      /buildRetrievedActiveModeContextBlockHybrid\(message, undefined, undefined, undefined, true\)/,
+      /buildRetrievedActiveModeContextBlockHybrid\(\s*message, undefined, undefined, undefined, true,\s*groundingInfo\?\.modeId,\s*undefined,\s*\{\s*forceDocumentGrounding:\s*true\s*\}\s*,?\s*\)/,
     );
     assert.match(
       llmHelperSrc,
-      /buildRetrievedActiveModeContextBlockHybrid\(\s*message, undefined, undefined, undefined, true, pin/,
+      /buildRetrievedActiveModeContextBlockHybrid\(\s*message, undefined, undefined, undefined, true,\s*pin,\s*undefined,\s*\{\s*forceDocumentGrounding:\s*true\s*\}/,
     );
   });
 });

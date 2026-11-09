@@ -602,3 +602,10 @@ test('HINTS: a question with no ambiguous concept nouns returns the raw query', 
   const expanded = expandQueryWithHints('hello there');
   assert.equal(expanded, 'hello there');
 });
+test('hyphenated project entities retain their exact compound identity', async () => {
+  const { extractCandidateEntities } = await import('../../../dist-electron/electron/llm/customModeExecutionContract.js');
+  const entities = extractCandidateEntities('Violet-Bridge handles retrieval.');
+  assert.ok(entities.includes('Violet-Bridge'));
+  assert.ok(!entities.includes('Violet'));
+  assert.ok(!entities.includes('Bridge'));
+});

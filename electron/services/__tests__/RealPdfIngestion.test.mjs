@@ -1,3 +1,4 @@
+import { syntheticDocuments } from './syntheticDocuments.mjs';
 // Real PDF ingestion tests (audit 2026-06-27, fix F1+F2 round-3).
 //
 // The IPC handler at electron/ipcHandlers.ts:7067-7147 reads pdf-parse's
@@ -22,7 +23,9 @@ import fs from 'node:fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
-const PDF_FIXTURE = path.join(repoRoot, 'tests/fixtures/modes/custom/seminar-presentation/seminar_real_thesis.pdf');
+const documents = syntheticDocuments();
+test.after(documents.cleanup);
+const PDF_FIXTURE = documents.pdf;
 
 // ── Source-contract tests (the production regression guards) ────────────────
 
@@ -109,19 +112,9 @@ test('DatabaseManager.addReferenceFile INSERT includes the page_count columns', 
 
 // ── Runtime test against a real PDF ─────────────────────────────────────────
 
-test('real PDF fixture exists at tests/fixtures/.../seminar_real_thesis.pdf', () => {
-  // This test gates the runtime assertion below: if the fixture is missing,
-  // the runtime test would silently pass on the missing-file branch.
-  // Generate-once fixture; if missing, document the build path.
-  if (!fs.existsSync(PDF_FIXTURE)) {
-    console.warn(`[skip] PDF fixture missing at ${PDF_FIXTURE}. Build with: cp tests/fixtures/modes/custom/seminar-presentation/seminar_vla_overview.txt /tmp/test.txt && pandoc /tmp/test.txt -o ${PDF_FIXTURE}`);
-    return; // skip
-  }
-  assert.ok(fs.existsSync(PDF_FIXTURE), 'PDF fixture must exist for the runtime test');
-});
+test('generated PDF fixture has a valid header', () => { assert.equal(fs.readFileSync(PDF_FIXTURE).subarray(0, 8).toString(), '%PDF-1.4'); });
 
 test('real PDF: pdf-parse returns TextResult with pages array + total count', async () => {
-  if (!fs.existsSync(PDF_FIXTURE)) return; // gated by previous test
   // Drive pdf-parse directly. The IPC handler does the same — this test
   // verifies the underlying library contract pdf-parse@2.4.5 actually
   // delivers what the handler assumes.
@@ -129,6 +122,8 @@ test('real PDF: pdf-parse returns TextResult with pages array + total count', as
   const buffer = fs.readFileSync(PDF_FIXTURE);
   const parser = new PDFParse({ data: buffer });
   const data = await parser.getText();
+  await parser.destroy();
+  assert.equal(data.total, 2);
 
   assert.equal(typeof data, 'object', 'pdf-parse must return an object');
   assert.equal(typeof data.text, 'string', 'data.text must be a string');
@@ -152,11 +147,12 @@ test('real PDF: pdf-parse returns TextResult with pages array + total count', as
 });
 
 test('real PDF: every page produces a non-empty text field (image-only pages count as missing)', async () => {
-  if (!fs.existsSync(PDF_FIXTURE)) return;
   const { PDFParse } = await import('pdf-parse');
   const buffer = fs.readFileSync(PDF_FIXTURE);
   const parser = new PDFParse({ data: buffer });
   const data = await parser.getText();
+  await parser.destroy();
+  assert.equal(data.total, 2);
 
   const nonEmpty = data.pages.filter(
     (p) => typeof p.text === 'string' && p.text.trim().length > 0,

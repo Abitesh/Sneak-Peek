@@ -89,7 +89,7 @@ describe('Persona-fabrication zero-node fallback — production path', () => {
       'context block must NOT be empty — an empty block is the void that induced fabrication');
 
     // The seeded fallback uses category "experience" → <candidate_experience>.
-    assert.match(result.contextBlock, /candidate_experience/,
+    assert.match(result.contextBlock, /<experience>/,
       'fallback must render real experience into the <candidate_experience> block');
 
     // Every real experience entry must be grounded — fully dynamic, from the fixture.
@@ -107,7 +107,7 @@ describe('Persona-fabrication zero-node fallback — production path', () => {
     const orch = makeOrchestrator();
     const result = await orch.processQuestion('make your case for why you are the right fit');
     assert.ok(result && result.contextBlock);
-    assert.match(result.contextBlock, /candidate_achievements/,
+    assert.match(result.contextBlock, /<achievements>/,
       'real achievements must render into the <candidate_achievements> block');
     assert.match(result.contextBlock, new RegExp(SYNTHETIC_RESUME.structured_data.achievements[0].title));
   });

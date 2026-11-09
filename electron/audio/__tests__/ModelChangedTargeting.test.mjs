@@ -54,10 +54,18 @@ test('model-changed call sites use the targeted helper', () => {
   }
 
   for (const needle of ["safeHandle('set-model'", "safeHandle('set-default-model'"]) {
-    const region = extractRegion(ipcSource, needle, 1_200);
-    assert.ok(
-      region.indexOf('appState.sendModelChanged(modelId)') < region.indexOf('appState.modelSelectorWindowHelper.hideWindow()'),
-      `BUG: ${needle} must notify the model selector before hiding it.`,
-    );
+    // The handler now includes model-provider and prewarm setup before the
+    // notification. Check a wider *bounded* handler region, and require both
+    // markers to exist (indexOf(-1) can otherwise make ordering appear valid).
+    const start = ipcSource.indexOf(needle);
+    assert.ok(start >= 0, `missing ${needle}`);
+    const nextHandler = ipcSource.indexOf('safeHandle(', start + needle.length);
+    assert.ok(nextHandler > start, `missing handler boundary after ${needle}`);
+    const region = ipcSource.slice(start, nextHandler);
+    const send = region.indexOf('appState.sendModelChanged(modelId)');
+    const hide = region.indexOf('appState.modelSelectorWindowHelper.hideWindow()');
+    assert.ok(send >= 0 && hide >= 0 && send < hide,
+      `BUG: ${needle} must notify the model selector before hiding it.`);
+
   }
 });

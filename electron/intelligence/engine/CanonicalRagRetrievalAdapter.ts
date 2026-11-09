@@ -138,11 +138,10 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
       // An ID on its own does not authorize a personal/resume file as project
       // evidence, even if a buggy source reader returns it.
       const items = result.results
-        .filter((item) => !scope.projectFilesOnly || (
-          item.source?.sourceType === 'personal'
-          && item.source?.metadata?.fileType === 'project'
-          && (scope.projectFileIds === undefined || scope.projectFileIds.includes(String(item.source.id ?? '')))
-        ))
+        .filter((item) => (scope.projectFileIds === undefined || scope.projectFileIds.includes(String(item.source?.id ?? '')))
+          && (!scope.projectFilesOnly || (
+            item.source?.sourceType === 'personal' && item.source?.metadata?.fileType === 'project'
+          )))
         .map((item, index) => toEvidenceItem(item, options.source, index, result.usedCanonical, result.fallbackReason))
         .filter((item): item is SneakPeekEvidenceItem => item !== null);
 

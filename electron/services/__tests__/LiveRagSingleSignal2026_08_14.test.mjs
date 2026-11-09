@@ -36,13 +36,14 @@ test('live handler never emits rag:stream-error (fallback owns the UX)', () => {
   );
 });
 
-test('meeting and global handlers keep their terminal error events', () => {
-  assert.ok(
-    /send\('rag:stream-error',\s*\{\s*meetingId/.test(source),
-    'meeting-scoped terminal error event must remain'
-  );
-  assert.ok(
-    /send\('rag:stream-error',\s*\{\s*global:\s*true/.test(source),
-    'global-scoped terminal error event must remain'
-  );
+test('meeting and global handlers keep terminal errors while live fallback does not', () => {
+  const shared = source.slice(source.indexOf('async function streamSneakPeekMeetingAnswer('),
+    source.indexOf('const _geminiChatStreamHandler'));
+  assert.match(shared, /if \(!streamMeta\.live\) event\.sender\.send\('rag:stream-error'/,
+    'shared catch must not send a terminal error to the live fallback channel');
+  assert.match(shared, /fallback: true/, 'live failures must signal fallback');
+  const stream = fs.readFileSync(path.resolve(__dirname, '../../intelligence/engine/RagIpcStream.ts'), 'utf8');
+  assert.match(stream, /if \(!input\.meta\.live\) input\.send\('rag:stream-error'/,
+    'the engine stream catch must also avoid double-signalling on live errors');
+  assert.match(stream, /fallback: true/, 'live engine failure must request fallback');
 });

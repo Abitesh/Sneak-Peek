@@ -90,6 +90,8 @@ export interface SneakPeekActiveContext {
   projectName?: string;
   /** Authorized original file IDs for an explicitly named project. */
   projectSourceIds?: string[];
+  /** Resume-file IDs authorized for a broad portfolio overview, never for a named project. */
+  resumeSourceIds?: string[];
   profileId?: string;
   profileName?: string;
 }

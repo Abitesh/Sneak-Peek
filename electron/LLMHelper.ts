@@ -3089,7 +3089,11 @@ This rule overrides ALL other instructions including formatting, brevity, or out
       }
       // DOCUMENT-GROUNDED custom-mode manual chat (47ZF): universal RAG first;
       // legacy hybrid once only when universal returns empty / throw-as-empty.
-      if (docGroundedEnforcementActive) {
+      // A caller that already supplied its governed prompt opts out of *all* mode
+      // injection. The separate system-prompt path already respects this flag;
+      // document retrieval must respect it too or unplanned reference files can
+      // bypass the caller's scoped evidence decision (WORK-0038D).
+      if (docGroundedEnforcementActive && skipModeInjection !== true && routeOptions?.v3Owned !== true) {
         try {
           const groundingInfo = _chatGroundingInfo;
           const groundedContext = await this.resolveManualDocumentGroundedContextWithLegacyFallback(
@@ -3098,7 +3102,10 @@ This rule overrides ALL other instructions including formatting, brevity, or out
             async () => {
               const { ModesManager } = require('./services/ModesManager') as typeof import('./services/ModesManager');
               return ModesManager.getInstance()
-                .buildRetrievedActiveModeContextBlockHybrid(message, undefined, undefined, undefined, true);
+                .buildRetrievedActiveModeContextBlockHybrid(
+                  message, undefined, undefined, undefined, true,
+                  groundingInfo?.modeId, undefined, { forceDocumentGrounding: true },
+                );
             },
           );
 
@@ -5549,17 +5556,18 @@ let isMultimodal = !!(imagePaths?.length);
     if (abortSignal?.aborted) return;
     if (!finalPrompt.trim()) throw new Error('Cannot generate from an empty final prompt.');
 
+    let providerStream: AsyncGenerator<string, void, unknown>;
     switch (provider) {
       case 'groq':
-        yield* this.streamWithGroq(
+        providerStream = this.streamWithGroq(
           finalPrompt,
           model || GROQ_MODEL,
           '',
           abortSignal,
         );
-        return;
+        break;
       case 'gemini_flash':
-        yield* this.streamWithGeminiModel(
+        providerStream = this.streamWithGeminiModel(
           finalPrompt,
           model || GEMINI_FLASH_MODEL,
           undefined,
@@ -5567,9 +5575,9 @@ let isMultimodal = !!(imagePaths?.length);
           abortSignal,
           thinkingBudget,
         );
-        return;
+        break;
       case 'gemini_pro':
-        yield* this.streamWithGeminiModel(
+        providerStream = this.streamWithGeminiModel(
           finalPrompt,
           model || GEMINI_PRO_MODEL,
           undefined,
@@ -5577,24 +5585,35 @@ let isMultimodal = !!(imagePaths?.length);
           abortSignal,
           thinkingBudget,
         );
-        return;
+        break;
       case 'openai':
-        yield* this.streamWithOpenai(finalPrompt, '', model || OPENAI_MODEL, abortSignal);
-        return;
+        providerStream = this.streamWithOpenai(finalPrompt, '', model || OPENAI_MODEL, abortSignal);
+        break;
       case 'claude':
-        yield* this.streamWithClaude(finalPrompt, '', model || CLAUDE_MODEL, abortSignal);
-        return;
+        providerStream = this.streamWithClaude(finalPrompt, '', model || CLAUDE_MODEL, abortSignal);
+        break;
       case 'deepseek':
-        yield* this.streamWithDeepseek(finalPrompt, '', model || DEEPSEEK_MODEL, abortSignal);
-        return;
+        providerStream = this.streamWithDeepseek(finalPrompt, '', model || DEEPSEEK_MODEL, abortSignal);
+        break;
       case 'codex':
-        yield* this.streamWithCodexCli(finalPrompt, '', false, undefined, abortSignal);
-        return;
+        providerStream = this.streamWithCodexCli(finalPrompt, '', false, undefined, abortSignal);
+        break;
       case 'ollama':
-        yield* this.streamWithOllama(finalPrompt, undefined, '', undefined, abortSignal, model || this.ollamaModel);
-        return;
+        providerStream = this.streamWithOllama(finalPrompt, undefined, '', undefined, abortSignal, model || this.ollamaModel);
+        break;
       default:
         throw new Error(`Unsupported generation provider: ${provider}`);
+    }
+
+    // The Intelligence Engine uses this transport directly, bypassing streamChat's
+    // legacy output ceiling. Apply the same bound to every selected provider.
+    // If exceeded, throw AFTER the already-visible output: GenerationController
+    // marks the committed attempt FAILED, never falls back to another provider,
+    // and never persists the truncated partial answer as a normal completion.
+    const outputState = { chars: 0, truncated: false };
+    yield* this.capOutput(providerStream, outputState, 'streamFinalPrompt');
+    if (outputState.truncated) {
+      throw new Error('generation_output_cap_reached');
     }
   }
 
@@ -6254,6 +6273,7 @@ let isMultimodal = !!(imagePaths?.length);
           pin,
           async () => mm.buildRetrievedActiveModeContextBlockHybrid(
             message, undefined, undefined, undefined, true, pin,
+            undefined, { forceDocumentGrounding: true },
           ),
         );
 

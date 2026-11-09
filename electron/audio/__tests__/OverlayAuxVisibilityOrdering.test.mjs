@@ -394,9 +394,12 @@ test('the group-drag IPC is restricted to the pill window', () => {
     path.resolve(__dirname, '../../../electron/ipcHandlers.ts'),
     'utf8',
   );
-  const handler = ipc.slice(ipc.indexOf("safeHandle(\n    'overlay-group-drag'"));
-  assert.ok(handler.length > 0, 'overlay-group-drag handler not found');
-  const body = handler.slice(0, handler.indexOf('safeHandle', 10));
+  // Formatting changes must not turn the sender-authorization assertion
+  // into a false negative (or silently scan unrelated handlers).
+  const start = ipc.search(/safeHandle\s*\(\s*['"]overlay-group-drag['"]/);
+  const end = ipc.search(/safeHandle\s*\(\s*['"]overlay-group-drag-managed['"]/);
+  assert.ok(start >= 0 && end > start, 'overlay-group-drag handler boundaries not found');
+  const body = ipc.slice(start, end);
   assert.match(
     body,
     /pillWin\.webContents\.id === event\.sender\.id/,

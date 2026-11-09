@@ -32,7 +32,7 @@ test('startCaptureChannels helper isolates both channels', () => {
 test('all three audio-start sites use the isolation helper', () => {
   for (const ctx of ['startMeeting', 'reconfigureAudio', 'reconfigureSttProvider']) {
     assert.ok(
-      source.includes(`startCaptureChannels('${ctx}')`),
+      new RegExp(`startCaptureChannels\\('${ctx}'(?:,\\s*false)?\\)`).test(source),
       `call site missing for context '${ctx}' (F-105)`
     );
   }

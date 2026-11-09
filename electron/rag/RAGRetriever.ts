@@ -1,5 +1,7 @@
 import { VectorStore, ScoredChunk } from './VectorStore';
+import { withOptionalRerankDeadline } from './OptionalRerankDeadline';
 import { EmbeddingPipeline } from './EmbeddingPipeline';
+import { isBroadCandidateProjectsQuestion } from '../context-intelligence/question/ProjectOverviewIntent';
 import { formatChunkForContext } from './SemanticChunker';
 // Phase 3 (semantic-retrieval repair, 2026-08-13): minSimilarity resolved per
 // embedding space (legacy 0.25 for every space until telemetry calibrates).
@@ -325,24 +327,31 @@ const reranker = getLocalReranker() as unknown as LocalRerankerLike;
 const requestedPool = rerankCandidatePoolSize ?? poolSize;
 const rerankPoolSize = Math.max(topK, Math.min(poolSize, Math.min(1000, requestedPool)));
 const rerankPool = candidates.slice(0, rerankPoolSize);
-const reranked: Array<ScoredChunk & { rerankScore?: number }> = [];
-const batchSize = 6;
-for (let start = 0; start < rerankPool.length; start += batchSize) {
-const batch = rerankPool.slice(start, start + batchSize);
-const scores = await reranker.rerank(semanticQuery, batch.map(chunk => chunk.text));
-if (!scores || scores.length < batch.length) {
-throw new Error('local reranker returned incomplete scores');
-}
-for (const item of scores) {
-const localIndex = Number(item.index);
-if (!Number.isInteger(localIndex) || localIndex < 0 || localIndex >= batch.length) continue;
-reranked.push({
-...batch[localIndex],
-rerankScore: Number(item.score),
+const outcome = await withOptionalRerankDeadline(async () => {
+  const reranked: Array<ScoredChunk & { rerankScore?: number }> = [];
+  const batchSize = 6;
+  for (let start = 0; start < rerankPool.length; start += batchSize) {
+    const batch = rerankPool.slice(start, start + batchSize);
+    const scores = await reranker.rerank(semanticQuery, batch.map(chunk => chunk.text));
+    if (!scores || scores.length < batch.length) {
+      throw new Error('local reranker returned incomplete scores');
+    }
+    for (const item of scores) {
+      const localIndex = Number(item.index);
+      if (!Number.isInteger(localIndex) || localIndex < 0 || localIndex >= batch.length) continue;
+      reranked.push({
+        ...batch[localIndex],
+        rerankScore: Number(item.score),
+      });
+    }
+  }
+  return reranked;
 });
+if (outcome.status === 'timeout') {
+  console.warn('[RAGRetriever] Optional local rerank exceeded its deadline; keeping hybrid order');
 }
-}
-if (reranked.length === rerankPool.length) {
+if (outcome.status === 'completed' && outcome.value.length === rerankPool.length) {
+const reranked = outcome.value;
 const byId = new Map(reranked.map(chunk => [String(chunk.id), chunk]));
 candidates = candidates.map(chunk => byId.get(String(chunk.id)) ?? chunk);
 candidates.sort((a, b) => {
@@ -552,6 +561,11 @@ if (/\b(decide|decision|agreed|conclusion|settled|determined|resolved)\b/.test(l
 /did we (decide|agree|settle)/.test(lower)) {
 return 'decision_recall';
 }
+// An explicit, broad portfolio overview is a synthesis request even when
+// conversational wording includes "you mentioned". Check this before generic
+// speaker lookup, but keep named-project and ordinary speaker questions on
+// their existing paths. This is classification only, never source permission.
+if (isBroadCandidateProjectsQuestion(query)) return 'summary';
 // Speaker lookup patterns
 if (/\b(said|mentioned|told|asked|suggested|proposed|pointed out)\b/.test(lower) &&
 /\b(he|she|they|\w+)\s+(said|mentioned|told|asked)/.test(lower)) {

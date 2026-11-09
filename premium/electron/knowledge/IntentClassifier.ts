@@ -36,6 +36,13 @@ export const INTRO_PATTERNS = [
 
 const EXPERIENCE_TOPIC_SCOPED_RE = /(what(?:'s| is|s)?\s+(?:my|your)\s+(?:experience|background)\s+(?:in|with|on|for|at|as|about|through|across|during|since|around)|what(?:'s| is|s)?\s+(?:my|your)\s+experience\s+.*\b(?:mentoring|leading|building|working|engineering|designing|managing|shipping|debugging|developing|researching|design|implementation|coding)\b|what(?:'s| is|s)?\s+(?:my|your)\s+background\s+.*\b(?:in|with|on|for|at|as)\b)/i;
 
+// Salary language must be matched at word boundaries.  Broad matches such as
+// "comp" also collide with "computer science"; CTC is an India-specific but
+// unambiguous compensation abbreviation.
+const EXPLICIT_COMPENSATION_RE = /\b(?:salar(?:y|ies)|compensation|remuneration|wages?|ctc|payche(?:ck|que)|pay(?:\s+(?:range|package|scale|expectations?|level|rate|band))?|bonuses?|equity|negotiat(?:e|ion|ing|ions)|benefits?)\b/i;
+const SELF_RATING_RE = /\b(?:rate (?:me|yourself|myself)|self[- ]rating|coding levels?|how good (?:are|am)|out of \d+|scale of \d+|technical skill rating)\b/i;
+const NON_COMP_TOPIC_RE = /\b(?:why (?:am i|are you|should we) (?:a )?(?:good|right|best) fit|strengths?|weaknesses?|challenging (?:bug|project)|tell me about a time|what (?:did|have) you (?:build|ship)|leadership experience)\b/i;
+
 function hasBareExperienceIdentityLookup(lowerText: string): boolean {
   if (!lowerText) return false;
   const barePatterns = [
@@ -72,7 +79,7 @@ export class IntentClassifier {
       return { intent: 'profile_detail', confidence: 0.9 };
     }
 
-    if (/(salary|compensation|benefits|bonus|equity|package|negotiat)/.test(lowerText)) {
+    if (EXPLICIT_COMPENSATION_RE.test(lowerText) || /\b(?:total|base|offer)\s+package\b/.test(lowerText)) {
       return { intent: 'negotiation', confidence: 0.8 };
     }
 
@@ -105,7 +112,7 @@ export function classifyIntent(text: string): string {
 
 export function classifyIntentWithContext(
   text: string,
-  context?: { recentIntentWasNegotiation?: boolean; recentInterviewerComp?: boolean }
+  context?: { recentIntentWasNegotiation?: boolean; recentInterviewerComp?: boolean; negotiationActive?: boolean }
 ): string {
   if (!text) return 'unknown';
 
@@ -128,13 +135,23 @@ export function classifyIntentWithContext(
     return 'technical';
   }
 
-  if (hint.recentInterviewerComp) {
+  // Comp was raised earlier, but an explicit topic switch or an interview
+  // skill-rating question is not consent to retrieve salary context.  A short
+  // ambiguous follow-up is sticky only inside an active comp thread.
+  if (EXPLICIT_COMPENSATION_RE.test(lowerText) || /\b(?:total|base|offer)\s+package\b/.test(lowerText)) {
+    return 'negotiation';
+  }
+  if (SELF_RATING_RE.test(lowerText) || NON_COMP_TOPIC_RE.test(lowerText)) {
+    return IntentClassifier.classify(text).intent;
+  }
+
+  if (hint.recentInterviewerComp || hint.recentIntentWasNegotiation || hint.negotiationActive) {
     const ambiguousFollowUp =
-      /(expectations|number|range|package|total|base|equity|bonus|benefits|negotiat|your)/.test(lowerText) ||
+      /\b(?:expectations|number|range|package|total|base|equity|bonus|benefits|current pay)\b/.test(lowerText) ||
       /\bhow much\b/.test(lowerText) ||
       /\band you\b/.test(lowerText) ||
-      /^(give me|what about)/.test(lowerText);
-    if (ambiguousFollowUp) {
+      /^(?:give me|what about|how about|so what|and what)\b/.test(lowerText);
+    if (ambiguousFollowUp && lowerText.trim().split(/\s+/).length <= 14) {
       return 'negotiation';
     }
   }

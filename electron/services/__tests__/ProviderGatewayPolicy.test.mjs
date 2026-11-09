@@ -61,7 +61,7 @@ test('routeLLMProviders keeps providers available when scopes are allowed', asyn
   assert.ok(available.length > 0, 'expected at least one provider to be available');
 });
 
-test('LLMHelper guards every outbound provider with assertOutboundScopes', () => {
+test('LLMHelper guards every active cloud provider with assertOutboundScopes (hosted legacy path disabled)', () => {
   const src = read('electron/LLMHelper.ts');
 
   for (const guardSite of [
@@ -69,12 +69,12 @@ test('LLMHelper guards every outbound provider with assertOutboundScopes', () =>
     "this.assertOutboundScopes('openai'",
     "this.assertOutboundScopes('claude'",
     "this.assertOutboundScopes('gemini'",
-    "this.assertOutboundScopes('natively'",
     "this.assertOutboundScopes('custom_curl'",
     "this.assertOutboundScopes('custom_provider'",
   ]) {
     assert.ok(src.includes(guardSite), `LLMHelper missing scope guard for ${guardSite}`);
   }
+  assert.doesNotMatch(src, /streamWithNatively\s*\(/, 'retired hosted path must not bypass current provider-scopes');
 });
 
 test('LLMHelper passes data scopes and policy to routeLLMProviders for fallback rotation', () => {

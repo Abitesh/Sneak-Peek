@@ -103,7 +103,7 @@ describe('Profile questions do not terminate in live-meeting RAG', () => {
     assert.ok(slice.includes("require('./context-intelligence/question/turn-classifier')"));
     assert.ok(slice.includes("claim === 'USER_PROJECT'"));
     assert.ok(slice.includes("return { fallback: true }"));
-    assert.ok(slice.indexOf('classifyTurn') < slice.indexOf('const ragManager'));
+    assert.ok(slice.indexOf('classifyTurn') < slice.indexOf('return streamSneakPeekMeetingAnswer'));
   });
 });
 

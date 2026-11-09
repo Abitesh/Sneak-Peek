@@ -14,6 +14,7 @@ import path from 'path';
 import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import { extractSafeDocumentText } from '../services/SafeDocumentTextExtractor';
+import { isBroadCandidateProjectsQuestion } from '../context-intelligence/question/ProjectOverviewIntent';
 import { buildDocumentChunks, type DocumentMapChunk } from '../services/modes/DocumentMap';
 import type { EmbeddingPipeline } from '../rag/EmbeddingPipeline';
 import type { RAGManager } from '../rag/RAGManager';
@@ -108,8 +109,23 @@ return text.toLowerCase()
 .filter(t => t.length >= 2)
 .slice(0, 256);
 }
+// Query function words are not document evidence. Including them in an OR
+// FTS search lets unrelated private notes rank from matches such as "the".
+// Use the same filtered terms for FTS and the deterministic SQL fallback so
+// a low-information match cannot re-enter through a different search path.
+const LEXICAL_QUERY_STOPWORDS = new Set([
+  'a', 'about', 'all', 'am', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but',
+  'by', 'can', 'could', 'did', 'do', 'does', 'for', 'from', 'give', 'has', 'have',
+  'how', 'in', 'into', 'is', 'it', 'its', 'me', 'my', 'of', 'on', 'or', 'our',
+  'please', 'tell', 'than', 'that', 'the', 'their', 'them', 'then', 'there',
+  'these', 'they', 'this', 'those', 'to', 'was', 'were', 'what', 'when',
+  'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
+]);
+function searchableTerms(query: string): string[] {
+  return tokenize(query).filter((term) => !LEXICAL_QUERY_STOPWORDS.has(term));
+}
 function lexicalScore(query: string, text: string): number {
-const q = tokenize(query);
+const q = searchableTerms(query);
 if (!q.length) return 0;
 const body = text.toLowerCase();
 let score = 0;
@@ -135,7 +151,7 @@ if (/\bnormalization\b/.test(lower)) variants.add(`${clean} normal forms functio
 return [...variants].filter(Boolean);
 }
 function makeFtsQuery(query: string): string {
-return tokenize(query)
+return searchableTerms(query)
 .slice(0, 12)
 .map(t => `"${t.replace(/"/g, '""')}"`)
 .join(' OR ');
@@ -667,7 +683,15 @@ const result = this.db.transaction(() => {
 revokeCanonicalSources(this.db, 'personal', [id]);
 // FTS trigger needs the chunk rows to exist while it fires.
 this.db.prepare(`DELETE FROM personal_file_chunks WHERE file_id = ?`).run(id);
+// Standalone/older personal-file databases do not have the additive index
+// status table. Preserve deletion and canonical source revocation in both
+// schemas without creating a competing table solely for this operation.
+const hasIndexStatus = this.db.prepare(`
+SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'rag_index_status'
+`).get();
+if (hasIndexStatus) {
 this.db.prepare(`DELETE FROM rag_index_status WHERE source_type = 'personal' AND document_id = ?`).run(id);
+}
 return this.db.prepare(`DELETE FROM personal_files WHERE id = ?`).run(id);
 })();
 return result.changes > 0;
@@ -860,6 +884,16 @@ const selectedIds = scopedFileIds ? new Set(scopedFileIds) : null;
 const files = this.listFiles().filter((file) => (!fileType || file.fileType === fileType)
   && (!selectedIds || selectedIds.has(file.id)));
 if (selectedIds && files.length === 0) return [];
+// An explicit portfolio overview asks for a synthesis of the documents
+// themselves, not a literal occurrence of "explain your projects" in each
+// PDF. Use a bounded representative excerpt from each authorized, tagged
+// project/resume file when vectors are still pending. Never do this for
+// general documents or for an unscoped personal search.
+if (isBroadCandidateProjectsQuestion(q)
+  && files.length > 0
+  && (fileType === 'project' || (selectedIds !== null && files.every((file) => file.fileType === 'resume')))) {
+  return this.getPortfolioOverviewExcerpts(files, limit);
+}
 const lower = q.toLowerCase();
 const named = files.filter((file) => {
 const name = file.fileName.toLowerCase().replace(/[_-]+/g, ' ');
@@ -923,6 +957,58 @@ if (!previous || result.score > previous.score) merged.set(result.chunkId, resul
 }
 return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
 }
+/**
+ * Document-grounded excerpts for an explicitly authorized portfolio request.
+ * Scores are source-type/section relevance, never invented semantic similarity.
+ * No unrelated file is opened: the source registry was filtered by fileType or
+ * by the engine's exact resume file-ID allowlist before reaching this method.
+ */
+private getPortfolioOverviewExcerpts(files: readonly PersonalFileRecord[], limit: number): PersonalFileSearchResult[] {
+  const safeLimit = Math.max(1, Math.min(MAX_RESULTS, limit));
+  const cue = /\b(?:projects?|built|developed|implemented|designed|frontend|backend|architecture|technolog\w*|applications?|full[- ]stack|database|redis|api|react|python|java|skills?|internships?)\b/i;
+  const sectionCue = /\b(?:projects?|portfolio|experience|implementation|architecture|technolog\w*)\b/i;
+  const candidates: PersonalFileSearchResult[][] = [];
+  for (const file of files.slice(0, safeLimit)) {
+    const rows = this.db.prepare(`
+      SELECT id, file_id, text, chunk_index, start_char, end_char,
+             page_start, page_end, section, heading, content_type, metadata_json, embedding_space
+      FROM personal_file_chunks WHERE file_id = ?
+      ORDER BY chunk_index ASC LIMIT 120
+    `).all(file.id) as any[];
+    const scored = rows.map((row) => {
+      const hasTopic = cue.test(String(row.text ?? ''));
+      const hasSection = sectionCue.test(`${row.section ?? ''} ${row.heading ?? ''}`);
+      if (!hasTopic && !hasSection) return null;
+      const score = 0.54 + (hasSection ? 0.2 : 0) + (hasTopic ? 0.12 : 0)
+        + (Number(row.chunk_index) === 0 ? 0.04 : 0);
+      return {
+        fileId: file.id, fileName: file.fileName, chunkId: String(row.id),
+        text: String(row.text), score, startChar: Number(row.start_char) || 0,
+        endChar: Number(row.end_char) || 0,
+        ...(row.page_start != null ? { pageStart: Number(row.page_start) } : {}),
+        ...(row.page_end != null ? { pageEnd: Number(row.page_end) } : {}),
+        ...(row.section ? { section: String(row.section) } : {}),
+        ...(row.heading ? { heading: String(row.heading) } : {}),
+        ...(row.content_type ? { contentType: String(row.content_type) } : {}),
+        metadata: this.parseChunkMetadata(row.metadata_json),
+        embeddingSpace: row.embedding_space ?? undefined,
+      } as PersonalFileSearchResult;
+    }).filter((result): result is PersonalFileSearchResult => result !== null)
+      .sort((a, b) => b.score - a.score);
+    if (scored.length) candidates.push(scored.slice(0, 2));
+  }
+  // Round-robin prevents the first project PDF from consuming the entire
+  // evidence budget and starving other tagged projects/resume sources.
+  const selected: PersonalFileSearchResult[] = [];
+  for (let index = 0; index < 2 && selected.length < safeLimit; index++) {
+    for (const fileCandidates of candidates) {
+      if (selected.length >= safeLimit) break;
+      if (fileCandidates[index]) selected.push(fileCandidates[index]);
+    }
+  }
+  return selected;
+}
+
 async searchRelevantAsync(query: string, limit = MAX_RESULTS, fileType?: PersonalFileType, scopedFileIds?: readonly string[], signal?: AbortSignal): Promise<PersonalFileSearchResult[]> {
 // Repair/re-chunk runs from the existing startup/index retry lifecycle, never
 // synchronously as a side effect of an ordinary question.
@@ -933,6 +1019,19 @@ const scopedFiles = (fileType || allowedIds)
       && (!allowedIds || allowedIds.has(file.id))) : undefined;
 if (scopedFiles && scopedFiles.length === 0) return [];
 const lexical = this.searchRelevant(query, limit * 2, fileType, scopedFileIds);
+// Broad candidate-portfolio questions have a different retrieval contract:
+// the user asked for a representative summary of the *authorized documents*,
+// not a semantic nearest-neighbour match against the literal question. The
+// bounded, section-aware excerpts above are sufficient for that contract;
+// launching a cloud query embedding here can stall the chat even though the
+// lexical index is ready. Never apply this shortcut to an unscoped My Files
+// query, a named project, or arbitrary general/private documents.
+const isAuthorizedPortfolioOverview = isBroadCandidateProjectsQuestion(query)
+  && (fileType === 'project' || (scopedFileIds !== undefined && scopedFiles !== undefined
+    && scopedFiles.length > 0 && scopedFiles.every((file) => file.fileType === 'resume')));
+if (isAuthorizedPortfolioOverview) {
+  return lexical.slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
+}
 const semantic = await this.searchSemantic(String(query ?? '').trim(), limit * 2, scopedFiles?.map((file) => file.id), signal);
 if (signal?.aborted) return [];
 if (!semantic.length) return lexical.slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));

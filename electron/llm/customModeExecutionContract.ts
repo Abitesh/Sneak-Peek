@@ -634,7 +634,7 @@ export function extractCandidateEntities(text: string): string[] {
   // Proper-noun phrases: one-or-more Capitalized words, optionally with an
   // internal lowercase connector (e.g. "Bank of America"). Trim leading
   // stopword-only heads.
-  for (const m of t.match(/\b[A-Z][a-zA-Z0-9]+(?:\s+(?:of|the|and)?\s*[A-Z][a-zA-Z0-9]+)*\b/g) || []) {
+  for (const m of t.match(/\b[A-Z][a-zA-Z0-9]+(?:-[A-Za-z0-9]+)*(?:\s+(?:of|the|and)?\s*[A-Z][a-zA-Z0-9]+(?:-[A-Za-z0-9]+)*)*\b/g) || []) {
     const words = m.split(/\s+/);
     // Drop when EVERY word is a stopword (e.g. "The Design").
     const meaningful = words.filter(w => !ENTITY_STOPWORDS.has(w));

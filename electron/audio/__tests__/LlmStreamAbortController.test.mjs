@@ -200,7 +200,12 @@ test('gemini-chat-stream handler supersedes only the current sender and passes s
     // every assertion below it silently described code it was not looking at.
     const handlerStart = ipcHandlersSrc.search(/const\s+_geminiChatStreamHandler\s*=/);
     assert.ok(handlerStart >= 0, 'could not locate the _geminiChatStreamHandler implementation');
-    const handlerRegion = ipcHandlersSrc.slice(handlerStart, handlerStart + 40_000);
+    // The modern manual-chat handler is much larger than the historical
+    // 40k-character window. Bound this search by the STOP registration rather
+    // than a fixed byte count, so the owner check remains in scope.
+    const stopRegistration = ipcHandlersSrc.search(/safeOn\s*\(\s*['"]gemini-chat-stream-stop['"]/);
+    assert.ok(stopRegistration > handlerStart, 'STOP registration must follow the stream handler');
+    const handlerRegion = ipcHandlersSrc.slice(handlerStart, stopRegistration);
 
     assert.ok(
         /const\s+senderId\s*=\s*event\.sender\.id/.test(handlerRegion),

@@ -214,31 +214,18 @@ function buildFakePack(contract) {
 const { ModesManager } = cjsRequire(modesPath);
 const { LLMHelper } = cjsRequire(llmHelperPath);
 
-// NOTE on scope: `_streamChatInner` has an OLDER, orthogonal retrieval call
-// site (~line 4417-4432, "DOCUMENT-GROUNDED custom-mode manual chat
-// (streaming path)") that unconditionally calls
-// buildRetrievedActiveModeContextBlockHybrid whenever
-// documentGroundedCustomModeActive is true — this predates the
-// evidence-execution-repair and fires for BOTH governed and un-governed
-// turns; it feeds a short-lived retrieval used only by the (separate)
-// generic-knowledge-intercept bypass check, not the mode-injection block the
-// repair guards. It is intentionally out of scope here. We identify it by
-// call SHAPE: it always calls with exactly 5 positional args and no trailing
-// options object, e.g. (message, undefined, undefined, undefined, true).
-// The block the repair actually guards (~line 4680-4726, "single canonical
-// retrieval" / legacy hybrid+lexical mode-injection fallback) calls
-// buildRetrievedActiveModeContextBlockHybrid with an 8th options-object arg
-// ({ forceDocumentGrounding, followUpReferentHint }), and
-// buildRetrievedActiveModeContextBlock (lexical) with a 7-arg options object
-// too — both distinguishable from the orthogonal early call.
-let hybridLegacyCalls = 0; // calls to the block THIS repair guards
-let lexicalLegacyCalls = 0; // calls to the block THIS repair guards
-let earlyOrthogonalHybridCalls = 0; // the older, out-of-scope call site
+// Context-OS-governed turns must use EvidenceResolver exactly once and must
+// NEVER invoke compatibility hybrid/lexical retrieval. Ungoverned document-
+// grounded chat, by contrast, uses the application-owned Universal RAG first;
+// the separately tested 47ZF fallback may invoke hybrid retrieval only when
+// that provider has no evidence. These tests inject a successful source-scoped
+// provider for the ungoverned cases to verify the successful path explicitly.
+let hybridLegacyCalls = 0;
+let lexicalLegacyCalls = 0;
 
 function installGovernedDocumentMode() {
   hybridLegacyCalls = 0;
   lexicalLegacyCalls = 0;
-  earlyOrthogonalHybridCalls = 0;
   const manager = ModesManager.getInstance();
   const mode = {
     id: 'evidence-wiring-mode',
@@ -263,15 +250,9 @@ function installGovernedDocumentMode() {
   manager.getActiveModePinnedInstructions = () => '';
   // Legacy retrieval spies — a Context-OS-GOVERNED turn must never reach the
   // mode-injection block's hybrid/lexical retrieval (the repair's guarantee).
-  manager.buildRetrievedActiveModeContextBlockHybrid = async (...args) => {
-    const isGuardedBlockCall = args.length >= 8 && typeof args[7] === 'object' && args[7] !== null;
-    if (isGuardedBlockCall) {
-      hybridLegacyCalls += 1;
-      return 'LEGACY_HYBRID_CONTEXT_SHOULD_NOT_BE_CALLED';
-    }
-    // The orthogonal early call site — out of scope for this repair.
-    earlyOrthogonalHybridCalls += 1;
-    return '';
+  manager.buildRetrievedActiveModeContextBlockHybrid = async () => {
+    hybridLegacyCalls += 1;
+    return 'LEGACY_HYBRID_CONTEXT_SHOULD_NOT_BE_CALLED';
   };
   manager.buildRetrievedActiveModeContextBlock = (...args) => {
     lexicalLegacyCalls += 1;
@@ -303,6 +284,41 @@ function attachDispatchSpy(helper) {
 
 function buildHelper() {
   return new LLMHelper(undefined, false);
+}
+
+// Return deterministic, authorized mode-reference evidence through the
+// production application's RAG injection seam. This prevents the documented
+// empty-provider fallback from being miscounted as a second mode-injection
+// defect and checks the source allowlist used on successful retrieval.
+function installSuccessfulUniversalModeRag(helper) {
+  const searches = [];
+  helper.setRagManagerProvider(() => ({
+    search: async (query, options = {}) => {
+      searches.push({ query, options });
+      if (options.selectedSources?.includes('mode-reference')) {
+        return {
+          status: 'ok',
+          manualContext: {
+            items: [{
+              text: 'The four project phases are preparation, implementation, testing, and release.',
+              sourceId: 'doc-1', documentId: 'doc-1', documentName: 'doc.pdf',
+            }],
+          },
+        };
+      }
+      return { status: 'ok', manualContext: { items: [] } };
+    },
+  }));
+  return searches;
+}
+
+function assertScopedUniversalRetrieval(searches) {
+  const modeSearch = searches.find(({ options }) => options.selectedSources?.includes('mode-reference'));
+  assert.ok(modeSearch, 'document-grounded manual chat must query the application-owned RAG provider');
+  assert.deepEqual(modeSearch.options.allowedSources, ['mode-reference'],
+    'the universal search must be confined to the authorized mode-reference source');
+  assert.equal(modeSearch.options.modeId, 'evidence-wiring-mode', 'retrieval must use the pinned mode');
+  assert.equal(modeSearch.options.excludeCustomContext, true);
 }
 
 async function drainStream(generator) {
@@ -420,7 +436,7 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
     assert.equal(resolveArgsSeen.question, 'What compute controller does the system use?');
   });
 
-  test('un-governed turn (no contextOsGeneration): EvidenceResolver is NEVER called and legacy mode-injection retrieval is not called', async () => {
+  test('un-governed turn (no contextOsGeneration): application-owned RAG succeeds without EvidenceResolver or fallback', async () => {
     resolveCalls = 0;
     resolveArgsSeen = null;
     throwOnResolve = false;
@@ -428,6 +444,7 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
 
     installGovernedDocumentMode();
     const helper = buildHelper();
+    const searches = installSuccessfulUniversalModeRag(helper);
     const calls = attachDispatchSpy(helper);
 
     await drainStream(helper.streamChat(
@@ -440,9 +457,10 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
       [],
       undefined,
       undefined,
-      { answerType: 'list_answer' }, // no contextOsGeneration at all
+      { answerType: 'list_answer', pinnedModeId: 'evidence-wiring-mode' }, // no contextOsGeneration at all
     ));
 
+    assertScopedUniversalRetrieval(searches);
     assert.equal(resolveCalls, 0, 'EvidenceResolver must NOT be called when the turn is not Context-OS-governed');
     assert.equal(hybridLegacyCalls + lexicalLegacyCalls, 0, 'legacy mode-injection retrieval must not run for an un-governed turn; Universal RAG owns application retrieval');
 
@@ -451,7 +469,7 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
     assert.doesNotMatch(dispatched.userContent, /<evidence_pack/, 'the typed evidence pack must NOT govern an un-governed turn');
   });
 
-  test('un-governed turn (govern: false): EvidenceResolver is NEVER called and legacy mode-injection retrieval is not called', async () => {
+  test('un-governed turn (govern: false): application-owned RAG succeeds without EvidenceResolver or fallback', async () => {
     resolveCalls = 0;
     resolveArgsSeen = null;
     throwOnResolve = false;
@@ -460,6 +478,7 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
     const contract = buildRealContract();
     installGovernedDocumentMode();
     const helper = buildHelper();
+    const searches = installSuccessfulUniversalModeRag(helper);
     attachDispatchSpy(helper);
 
     const cogCtx = {
@@ -480,9 +499,10 @@ describe('evidence-execution-repair: EvidenceResolver wiring identity (a524329 r
       [],
       undefined,
       undefined,
-      { answerType: 'list_answer', contextOsGeneration: cogCtx },
+      { answerType: 'list_answer', contextOsGeneration: cogCtx, pinnedModeId: 'evidence-wiring-mode' },
     ));
 
+    assertScopedUniversalRetrieval(searches);
     assert.equal(resolveCalls, 0, 'EvidenceResolver must NOT be called when govern is false');
     assert.equal(hybridLegacyCalls + lexicalLegacyCalls, 0, 'legacy mode-injection retrieval must not run when govern is false; Universal RAG owns application retrieval');
     assert.equal(cogCtx.evidencePack, null, 'evidencePack must remain untouched (null) when govern is false');

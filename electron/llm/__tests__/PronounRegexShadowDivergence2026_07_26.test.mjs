@@ -1,28 +1,25 @@
 // electron/llm/__tests__/PronounRegexShadowDivergence2026_07_26.test.mjs
 //
-// Phase 6 Slice 4 (context-rebuild) item 2, follow-up pass (2026-07-26):
-// the plan's own pre-required test
+// WORK-0033 follow-up to Phase 6 Slice 4 (2026-07-26):
+// Historical context: the plan's pre-required test
 // (PronounRegexKnowledgeForkClosedByIsLayerAllowed2026_07_25.test.mjs)
 // already proved isLayerAllowed(plan, 'resume') resolves to a single,
 // uniform false for the exact 6-question corpus that documents the
 // pronoun-regex fork — but that test calls isLayerAllowed directly, not
 // through KnowledgeOrchestrator.processQuestion() itself. This file closes
 // that last gap: a real, additive SHADOW-ONLY observation wired into
-// processQuestion(), behind a new flag, that computes both decisions on
-// every real call and logs a divergence — with NO return-value change,
+// processQuestion(), behind a dev-only flag. After the canonical ContextPlanner
+// cutover the legacy observer was retired; the flag must not change results
+// or log personal decisions. Earlier diagnostics only mirrored
 // exactly mirroring the CanonicalTurnV2 shadow-wiring pattern already
 // established in ipcHandlers.ts for Slice 3 (resolveCanonicalTurn) and
 // documented as this codebase's safe way to observe a replacement
 // decision-maker before ever promoting it.
 //
-// Deliberately NOT attempted in this pass: retiring the pronoun regex
-// itself (CANDIDATE_REF_REGEX/CANDIDATE_FRAMING_REGEX/
-// isGenericKnowledgeQuestion) as the live gate — that is the actual Slice
-// 4 item 2 deletion, which the migration plan's own STATUS note correctly
-// defers pending a live-trace campaign (deleting a currently-LIVE gate
-// with real user traffic). This is strictly the shadow-observation
-// half — safe, additive, zero behavior change — built to make that future
-// promotion decision an evidence-based one instead of a cold start.
+// This suite now protects canonical source authority and non-interference
+// instead of requiring an obsolete side-channel trace. The flag name remains
+// in the registry only for backward-compatible configuration; removal of that
+// compatibility setting belongs to Change 19, not this LLM repair.
 //
 // Uses the same mock-KnowledgeDatabaseManager pattern already established
 // in LeadershipGroundingFixBehavioral2026_07_25.test.mjs /
@@ -106,7 +103,7 @@ describe('pronounRegexShadowObservation flag registration', () => {
   });
 });
 
-describe('processQuestion shadow-logs a divergence without changing its return value', () => {
+describe('legacy shadow flag cannot alter canonical processQuestion behavior', () => {
   test('flag OFF: no shadow log call, behavior identical to before this change', async () => {
     __resetIntelligenceFlagsCache();
     delete process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION;
@@ -124,65 +121,39 @@ describe('processQuestion shadow-logs a divergence without changing its return v
     }
   });
 
-  test('flag ON: a real question produces a shadow-divergence or shadow-agreement trace, and processQuestion\'s return value is byte-identical to flag-off', async () => {
-    __resetIntelligenceFlagsCache();
-    process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION = '1';
+  test('obsolete shadow flag cannot change canonical source authorization or reply', async () => {
     const question = 'Have I demonstrated Kubernetes experience?';
+    __resetIntelligenceFlagsCache();
+    delete process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION;
+    const resultOff = await makeOrchestrator().processQuestion(question);
+    process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION = '1';
+    __resetIntelligenceFlagsCache();
     try {
-      const oShadowOn = makeOrchestrator();
-      const logs = [];
-      const origLog = console.log;
-      const origWarn = console.warn;
-      console.log = (...args) => { logs.push(args); origLog.apply(console, args); };
-      console.warn = (...args) => { logs.push(args); origWarn.apply(console, args); };
-      let resultOn;
-      try {
-        resultOn = await oShadowOn.processQuestion(question);
-      } finally {
-        console.log = origLog;
-        console.warn = origWarn;
-      }
-      const shadowLogs = logs.filter((a) => String(a[0] || '').includes('[PronounRegexShadow]'));
-      assert.ok(shadowLogs.length > 0, 'flag ON must produce exactly one shadow trace line (agreement or divergence) per call');
-
-      __resetIntelligenceFlagsCache();
-      delete process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION;
-      const oShadowOff = makeOrchestrator();
-      const resultOff = await oShadowOff.processQuestion(question);
-
-      assert.deepEqual(resultOn, resultOff, 'the shadow observation must be a pure side-channel log — processQuestion\'s actual return value must be unaffected by the flag');
+      const resultOn = await makeOrchestrator().processQuestion(question);
+      assert.deepEqual(resultOn, resultOff, 'legacy observation flag must never affect canonical answer/evidence decisions');
     } finally {
       delete process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION;
       __resetIntelligenceFlagsCache();
     }
   });
 
-  test('flag ON: the shadow trace names both the legacy gate\'s decision and isLayerAllowed\'s decision', async () => {
+  test('legacy pronoun observer does not log personal content after canonical cutover', async () => {
     __resetIntelligenceFlagsCache();
     process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION = '1';
+    const logged = [];
+    const origLog = console.log;
+    const origWarn = console.warn;
+    console.log = (...args) => logged.push(args);
+    console.warn = (...args) => logged.push(args);
     try {
-      const o = makeOrchestrator();
-      const logs = [];
-      const origLog = console.log;
-      const origWarn = console.warn;
-      console.log = (...args) => { logs.push(args); };
-      console.warn = (...args) => { logs.push(args); };
-      try {
-        await o.processQuestion('Have I demonstrated Kubernetes experience?');
-      } finally {
-        console.log = origLog;
-        console.warn = origWarn;
-      }
-      const shadowLogs = logs.filter((a) => String(a[0] || '').includes('[PronounRegexShadow]'));
-      assert.equal(shadowLogs.length, 1, 'exactly one shadow trace per processQuestion call');
-      const payload = shadowLogs[0][1];
-      assert.ok(payload && typeof payload === 'object', 'the trace must carry a structured payload');
-      assert.ok('legacyResumeAllowed' in payload, 'must name the legacy gate\'s resume-allowed decision');
-      assert.ok('canonicalResumeAllowed' in payload, 'must name isLayerAllowed\'s resume-allowed decision');
-      assert.ok('answerType' in payload, 'must name the AnswerPlan\'s answerType for correlation');
+      await makeOrchestrator().processQuestion('Have I demonstrated Kubernetes experience?');
     } finally {
+      console.log = origLog;
+      console.warn = origWarn;
       delete process.env.NATIVELY_PRONOUN_REGEX_SHADOW_OBSERVATION;
       __resetIntelligenceFlagsCache();
     }
+    assert.equal(logged.filter(args => String(args[0] || '').includes('[PronounRegexShadow]')).length, 0,
+      'retired pronoun shadow must not reintroduce legacy logging of profile decisions');
   });
 });

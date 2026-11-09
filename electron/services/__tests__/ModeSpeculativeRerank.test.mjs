@@ -142,14 +142,18 @@ describe('Phase 3: live-path speculative rerank', () => {
     test('IntelligenceEngine prefetch gates allowRerank on isRagSpeculativeRerankEnabled', () => {
       const src = fs.readFileSync(path.resolve(__dirname, '../../IntelligenceEngine.ts'), 'utf8');
       assert.match(src, /isRagSpeculativeRerankEnabled/);
-      // The hybrid builder call in IntelligenceEngine must forward an allowRerank arg.
-      assert.match(src, /buildRetrievedActiveModeContextBlockHybrid\([\s\S]*?allowRerank[\s\S]*?\)/);
+      // The application-owned universal RAG prefetch receives the same t0
+      // mode pin and gates reranking on the speculative rollout flag.
+      assert.match(src, /retrieveUniversalChatContext\(wtaPrefetchQuery, snapshotModeInfo\?\.id,\s*\{/);
+      assert.match(src, /allowRerank:\s*\(\(\) => \{[\s\S]*?isRagSpeculativeRerankEnabled\(\)/);
     });
 
     test('WhatToAnswerLLM inline path gates allowRerank on isRagSpeculativeRerankEnabled', () => {
       const src = fs.readFileSync(path.resolve(__dirname, '../../llm/WhatToAnswerLLM.ts'), 'utf8');
       assert.match(src, /isRagSpeculativeRerankEnabled/);
-      assert.match(src, /buildRetrievedActiveModeContextBlockHybrid\([\s\S]*?allowRerank[\s\S]*?\)/);
+      const start = src.indexOf('ragManager.buildContext(retrievalQuery, {');
+      assert.ok(start >= 0, 'inline universal RAG context call must be wired');
+      assert.match(src.slice(start, start + 850), /allowRerank,/, 'RAG options must include the rollout-gated rerank decision');
     });
 
     test('the governed EvidenceResolver also requires the speculative rollout flag', () => {
@@ -160,9 +164,9 @@ describe('Phase 3: live-path speculative rerank', () => {
 
     test('rerank stays inside the existing raceWithBudget envelope (no new unbounded await)', () => {
       const src = fs.readFileSync(path.resolve(__dirname, '../../llm/WhatToAnswerLLM.ts'), 'utf8');
-      // The hybrid call must still be wrapped by raceWithBudget(...) — the
-      // safety guarantee for first-token latency.
-      assert.match(src, /raceWithBudget\([\s\S]*?buildRetrievedActiveModeContextBlockHybrid/);
+      // Universal RAG replaced the hybrid call, but it must remain under the
+      // same time budget before the model can start streaming.
+      assert.match(src, /raceWithBudget\(\s*ragManager\.buildContext\(retrievalQuery,/);
     });
   });
 

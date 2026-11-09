@@ -19,6 +19,15 @@ import Database from 'better-sqlite3';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function saveLegacyDocument(db, type, data) {
+    const now = new Date().toISOString();
+    const id = `legacy-${type}`;
+    db.getDb().prepare(`INSERT INTO profile_documents
+      (id, doc_type, raw_text, structured_data, extraction_mode, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(id, type, '', JSON.stringify(data), 'legacy', now, now);
+    return id;
+}
+
 const RESUME_FIXTURE = `Evin John\nsoftware engineer\nSKILLS\nPython, TypeScript, React, AWS, PostgreSQL, PyTorch, Docker\n`;
 
 function makeTempFile(content, ext = '.txt') {
@@ -31,7 +40,7 @@ const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
 const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
 const { KnowledgeOrchestrator } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
 const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
-const { createDocumentNodes } = await import(P('../../../dist-electron/premium/electron/knowledge/DocumentChunker.js'));
+const { coerceSkills, flattenSkills } = await import(P('../../../dist-electron/premium/electron/knowledge/skillsUtil.js'));
 
 // Extractor returns the NEW categorized shape (as the upgraded prompt instructs).
 const MOCK_GENERATE_CONTENT = async () => JSON.stringify({
@@ -77,22 +86,18 @@ describe('RC-3 integration: categorized skills end-to-end', () => {
         assert.ok(profile.skillsFlat.includes('Python'));
     });
 
-    test('DocumentChunker emits per-category skill nodes', () => {
+    test('the current profile schema retains separate skill buckets without leaked values', () => {
         const structured = {
             identity: { name: 'X' },
             skills: { languages: ['Python'], cloud: ['AWS', 'GCP'], frameworks: [], databases: [], ml: [], devops: [], tools: [] },
             experience: [], projects: [], education: [], achievements: [], certifications: [], leadership: []
         };
-        const nodes = createDocumentNodes(structured, DocType.RESUME);
-        const cats = nodes.map(n => n.category);
-        assert.ok(cats.includes('skills_languages'), 'must emit a skills_languages node');
-        assert.ok(cats.includes('skills_cloud'), 'must emit a skills_cloud node');
-        // empty categories produce no node
-        assert.ok(!cats.includes('skills_frameworks'));
-        const cloudNode = nodes.find(n => n.category === 'skills_cloud');
-        assert.ok(cloudNode.text_content.includes('AWS') && cloudNode.text_content.includes('GCP'));
-        // cloud node must NOT contain a language
-        assert.ok(!cloudNode.text_content.includes('Python'));
+        const categorized = coerceSkills(structured.skills);
+        assert.deepEqual(categorized.cloud, ['AWS', 'GCP']);
+        assert.deepEqual(categorized.languages, ['Python']);
+        assert.deepEqual(categorized.frameworks, []);
+        assert.ok(!categorized.cloud.includes('Python'), 'cross-bucket leakage must not occur');
+        assert.deepEqual(flattenSkills(categorized).sort(), ['Python','AWS','GCP'].sort());
     });
 });
 
@@ -115,7 +120,7 @@ describe('RC-3 integration: v1→v2 backfill of legacy flat-skills profile', () 
             skills: ['Python', 'AWS', 'React', 'PostgreSQL'],
             experience: [], projects: [], education: [], achievements: [], certifications: [], leadership: []
         };
-        const id = db.saveDocument({ type: DocType.RESUME, source_uri: 'legacy.pdf', structured_data: legacy });
+        const id = saveLegacyDocument(db, DocType.RESUME, legacy);
 
         // A fresh orchestrator over the same DB triggers refreshCache → migration.
         const orch2 = new KnowledgeOrchestrator(db);
@@ -128,9 +133,10 @@ describe('RC-3 integration: v1→v2 backfill of legacy flat-skills profile', () 
         assert.ok(profile.skills.databases.includes('PostgreSQL'));
 
         // Persisted back: re-read raw from DB shows categorized + version stamp.
-        const reread = db.getDocumentByType(DocType.RESUME);
-        assert.ok(!Array.isArray(reread.structured_data.skills), 'DB must now hold categorized skills');
-        assert.equal(reread.structured_data._schema_version, 2);
+        const reread = db.getDb().prepare('SELECT structured_data FROM profile_documents WHERE id = ?').get(id);
+        const persisted = JSON.parse(reread.structured_data);
+        assert.ok(!Array.isArray(persisted.skills), 'DB must now hold categorized skills');
+        assert.equal(persisted._schema_version, 2);
     });
 
     test('migration is idempotent — a second load does not corrupt categorized skills', async () => {
@@ -139,7 +145,7 @@ describe('RC-3 integration: v1→v2 backfill of legacy flat-skills profile', () 
             skills: ['Go', 'Kubernetes'],
             experience: [], projects: [], education: [], achievements: [], certifications: [], leadership: []
         };
-        db.saveDocument({ type: DocType.RESUME, source_uri: 'l.pdf', structured_data: legacy });
+        saveLegacyDocument(db, DocType.RESUME, legacy);
         new KnowledgeOrchestrator(db).getProfileData();           // first migration
         const profile = new KnowledgeOrchestrator(db).getProfileData(); // second load
         assert.ok(profile.skills.languages.includes('Go'));

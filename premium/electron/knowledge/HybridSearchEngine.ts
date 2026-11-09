@@ -9,7 +9,9 @@
  * Category configuration for context formatting
  * Maps knowledge node categories to XML tags for LLM context
  */
-export const categoryConfig = {
+type CategoryConfig = { tag: string; order: number; prefix?: string };
+
+export const categoryConfig: Record<string, CategoryConfig> = {
   'identity': {
     tag: 'candidate_identity_fact',
     order: 1,
@@ -65,6 +67,10 @@ export interface SearchNode {
   blendedScore?: number;
   boostSum?: number;
 }
+
+// Scored candidates always have these values; only external input nodes may omit them.
+type ScoredSearchNode = SearchNode & Required<Pick<SearchNode,
+  'semanticScore' | 'keywordScore' | 'blendedScore' | 'boostSum'>>;
 
 /**
  * Cosine similarity between two vectors (embeddings)
@@ -173,7 +179,7 @@ export async function getRelevantNodes(
 
   const embeddings = embeddingsOrResolver instanceof Map ? embeddingsOrResolver : undefined;
 
-  const scored: SearchNode[] = nodes.map((node: any) => {
+  const scored: ScoredSearchNode[] = nodes.map((node: any) => {
     let semanticScore = 0;
     let keywordScore = 0;
     const nodeContent = node.content || node.text_content || '';
@@ -276,7 +282,7 @@ export function formatContextBlock(nodes: SearchNode[]): string {
   );
 
   for (const [category, nodeList] of sortedCategories) {
-    const config = categoryConfig[category] || { tag: 'unknown' };
+    const config: CategoryConfig = categoryConfig[category] || { tag: 'unknown', order: 99 };
     const tag = config.tag;
     const prefix = config.prefix || '';
 
@@ -312,7 +318,7 @@ export class HybridSearchEngine {
   /**
    * Search for relevant nodes
    */
-  search(question: string, embedding?: number[]): SearchNode[] {
+  search(question: string, embedding?: number[]): Promise<SearchNode[]> {
     return getRelevantNodes(question, this.nodes, this.embeddings, embedding);
   }
 

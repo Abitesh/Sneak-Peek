@@ -1444,6 +1444,13 @@ const resolveJdSourceType = (
   matchesGapPattern: boolean,
 ): AnswerType | null => {
   if (hasWriteCodeVerb) return null;
+  // The user is asking about the TARGET role they applied for, not their own
+  // work history. It is an implicit JD reference and must remain JD-only even
+  // when no resume has been uploaded. Never reinterpret a technical "role" or
+  // a past employment-history question as permission to open a job description.
+  if (/^(?:what|which)\s+(?:job|role|position)\s+(?:am i|are we)\s+(?:applying|interviewing)\s+for\s*[?.!]*$/i.test(text)) {
+    return 'jd_summary_answer';
+  }
   const jdRef = hasJdReferenceCue(text);
   // First-person candidate ownership ("my resume", "I built", "should I").
   const firstPerson = hasCandidateOwnershipCue(text);

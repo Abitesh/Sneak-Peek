@@ -39,6 +39,7 @@
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs';
 import Module from 'node:module';
 import { EventEmitter } from 'node:events';
@@ -316,6 +317,21 @@ Module._load = function patched(request, parentModule, isMain) {
   return origModuleLoad.apply(this, arguments);
 };
 
+// Worker-delegation tests intentionally mock ONNX inference. Since the live
+// reranker now fail-closes on missing/Git-LFS-placeholder model assets, give
+// the mock worker a *synthetic* correctly shaped asset directory. This tests
+// worker isolation without silently relying on a real 280 MB model download
+// or weakening the production asset preflight.
+const rerankerFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'reranker-worker-mock-'));
+const rerankerFixtureDir = path.join(rerankerFixtureRoot, 'Xenova', 'bge-reranker-base');
+fs.mkdirSync(path.join(rerankerFixtureDir, 'onnx'), { recursive: true });
+fs.writeFileSync(path.join(rerankerFixtureDir, 'tokenizer.json'), '{"fixture":"mock-worker-only"}');
+fs.writeFileSync(path.join(rerankerFixtureDir, 'config.json'), '{"fixture":"mock-worker-only"}');
+fs.writeFileSync(path.join(rerankerFixtureDir, 'tokenizer_config.json'), '{"fixture":true}');
+fs.writeFileSync(path.join(rerankerFixtureDir, 'onnx', 'model_quantized.onnx'), Buffer.alloc(2048, 1));
+const oldLocalModelsPath = process.env.NATIVELY_LOCAL_MODELS_PATH;
+process.env.NATIVELY_LOCAL_MODELS_PATH = rerankerFixtureRoot;
+
 const embeddingModPath = path.resolve(repoRoot, 'dist-electron/electron/rag/providers/LocalEmbeddingProvider.js');
 const { LocalEmbeddingProvider } = await import(pathToFileURL(embeddingModPath).href);
 const rerankerModPath = path.resolve(repoRoot, 'dist-electron/electron/rag/LocalReranker.js');
@@ -323,6 +339,9 @@ const { getLocalReranker } = await import(pathToFileURL(rerankerModPath).href);
 
 after(() => {
   Module._load = origModuleLoad;
+  if (oldLocalModelsPath === undefined) delete process.env.NATIVELY_LOCAL_MODELS_PATH;
+  else process.env.NATIVELY_LOCAL_MODELS_PATH = oldLocalModelsPath;
+  fs.rmSync(rerankerFixtureRoot, { recursive: true, force: true });
 });
 
 describe('LocalEmbeddingProvider — behavioral worker delegation (mocked Worker)', () => {

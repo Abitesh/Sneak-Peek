@@ -58,6 +58,7 @@ function makeRetrieverCapture() {
   const captured = [];
   const vectorStore = {
     searchSimilar: async (_q, options) => { captured.push(options); return []; },
+    searchLexical: async () => [],
     searchSummaries: async () => [],
   };
   const embeddingPipeline = {
@@ -72,8 +73,8 @@ function makeRetrieverCapture() {
 test('RAGRetriever passes the space-resolved minSimilarity to searchSimilar (both paths)', async () => {
   process.env.NATIVELY_MIN_SIMILARITY_BY_SPACE = JSON.stringify({ 'gemini:gemini-embedding-2:768': 0.19 });
   const { retriever, captured } = makeRetrieverCapture();
-  await retriever.retrieve('what was decided?', 'meeting-1').catch(() => {});
-  await retriever.retrieveGlobal?.('what was decided across meetings?')?.catch?.(() => {});
+  await retriever.retrieve('what was decided?', { meetingId: 'meeting-1' });
+  await retriever.retrieveGlobal('what was decided across meetings?');
   assert.ok(captured.length >= 1, 'searchSimilar must have been called');
   for (const options of captured) {
     assert.equal(options.minSimilarity, 0.19,
@@ -84,7 +85,7 @@ test('RAGRetriever passes the space-resolved minSimilarity to searchSimilar (bot
 
 test('RAGRetriever default is byte-identical to legacy (0.25)', async () => {
   const { retriever, captured } = makeRetrieverCapture();
-  await retriever.retrieve('what was decided?', 'meeting-1').catch(() => {});
+  await retriever.retrieve('what was decided?', { meetingId: 'meeting-1' });
   assert.ok(captured.length >= 1);
   assert.equal(captured[0].minSimilarity, 0.25);
 });

@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sourcePath = path.resolve(__dirname, '../../audio/LocalWhisperSTT.ts');
 const source = fs.readFileSync(sourcePath, 'utf8');
-const stopStart = source.indexOf('    stop(): void');
-const stopEnd = source.indexOf('    write(chunk: Buffer): void', stopStart);
+const stopStart = source.search(/^\s*stop\(\): void\s*\{/m);
+const stopEnd = source.indexOf('write(chunk: Buffer): void', stopStart);
 const stopSource = source.slice(stopStart, stopEnd);
-const flushPendingStart = source.indexOf('    private flushPending(): void');
-const flushPendingEnd = source.indexOf('    private beginWorkerTermination', flushPendingStart);
+const flushPendingStart = source.search(/^\s*private flushPending\(\): void\s*\{/m);
+const flushPendingEnd = source.indexOf('private beginWorkerTermination', flushPendingStart);
 const flushPendingSource = source.slice(flushPendingStart, flushPendingEnd);
-const listenerStart = source.indexOf('    private attachWorkerListeners(): void');
-const listenerEnd = source.indexOf('    private flushPending(): void', listenerStart);
+const listenerStart = source.search(/^\s*private attachWorkerListeners\(\): void\s*\{/m);
+const listenerEnd = flushPendingStart;
 const listenerSource = source.slice(listenerStart, listenerEnd);
 
 test('LocalWhisperSTT.stop does not clear queued VAD finals before worker readiness', () => {
@@ -32,7 +32,7 @@ test('LocalWhisperSTT drains queued stop-time finals before terminating worker',
   // `outgoing` in dispatchFinal since it's a Nemotron-only delta slice, not
   // always the raw input `audio`. Both are additive to the same
   // drain-before-terminate control flow this test pins.
-  assert.match(source, /if \(this\.isDrainingFinals\) \{\n\s+this\.drainingFinalsInFlight\+\+;\n\s+\}\n\s+this\.sendTranscribe\(outgoing, false, nemotronReset\);/);
+  assert.match(source, /if \(this\.isDrainingFinals\) \{\s*this\.drainingFinalsInFlight\+\+;\s*\}[\s\S]{0,250}this\.sendTranscribe\(outgoing, false, nemotronReset\);/);
   assert.match(flushPendingSource, /queued\.forEach\(\(\{ audio, nemotronReset \}\) => this\.sendTranscribe\(audio, false, nemotronReset\)\);/);
   assert.match(listenerSource, /!this\.isActive && !\(this\.isDrainingFinals && msg\.type === 'result'\)/);
   assert.match(listenerSource, /this\.drainingFinalsInFlight = Math\.max\(0, this\.drainingFinalsInFlight - 1\);/);

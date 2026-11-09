@@ -545,9 +545,11 @@ test('streamChat: custom CHAT_MODE_PROMPT still injects custom mode prompt and r
     dispatched.systemPrompt.includes('supplemental behavioral layer for this mode'),
     'custom mode instructions must be elevated above default templates without overriding immutable safety rules',
   );
+  assert.match(dispatched.context, /^\[Document-grounded mode: Seminar mode\]\nREFERENCE_FILE_CONTEXT_SENTINEL/,
+    'the reference evidence must follow its mode provenance header');
   assert.ok(
-    dispatched.context.startsWith('REFERENCE_FILE_CONTEXT_SENTINEL'),
-    `reference file context must outrank prior chat context; saw ${JSON.stringify(dispatched.context)}`,
+    dispatched.context.indexOf('LOW_PRIORITY_PRIOR_CHAT_CONTEXT') > dispatched.context.indexOf('REFERENCE_FILE_CONTEXT_SENTINEL'),
+    'reference-file evidence must precede lower-priority prior chat context',
   );
 });
 
@@ -839,9 +841,11 @@ test('chatWithGemini: doc-grounded custom mode injects pinned instructions + ref
     dispatched.systemPrompt.includes('PINNED_CUSTOM_MODE_SENTINEL'),
     `custom mode pinned instructions must be injected into chatWithGemini system prompt; saw ${JSON.stringify(dispatched.systemPrompt).slice(0, 200)}`,
   );
+  assert.match(dispatched.context, /^\[Document-grounded mode: Seminar mode\]\nREFERENCE_FILE_CONTEXT_SENTINEL/,
+    'the reference evidence must follow its mode provenance header');
   assert.ok(
-    dispatched.context.startsWith('REFERENCE_FILE_CONTEXT_SENTINEL'),
-    `reference file context must outrank prior chat context; saw ${JSON.stringify(dispatched.context).slice(0, 200)}`,
+    dispatched.context.indexOf('LOW_PRIORITY_PRIOR_CHAT_CONTEXT') > dispatched.context.indexOf('REFERENCE_FILE_CONTEXT_SENTINEL'),
+    'reference-file evidence must precede lower-priority prior chat context',
   );
   assert.equal(result, 'spy-response', 'dispatch must have produced the spy response');
 });

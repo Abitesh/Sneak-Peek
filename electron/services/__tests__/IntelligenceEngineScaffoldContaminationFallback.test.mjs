@@ -143,6 +143,9 @@ Still contaminated.`;
 
     const answer = await engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
 
+    // No newer generation was created here: the failed repair is rejected,
+    // and the original result is retained rather than substituting a second
+    // (equally contaminated) draft. This is distinct from supersession below.
     assert.equal(answer, A4_UNRECOVERED_SCAFFOLD);
     assert.deepEqual(finals, [A4_UNRECOVERED_SCAFFOLD]);
     assert.equal(
@@ -321,7 +324,8 @@ Time O(n), Space O(1).`;
 
     const answer = await engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
 
-    assert.equal(answer, A4_UNRECOVERED_SCAFFOLD);
+    assert.equal(answer, null, 'a superseded generation must not return an old draft');
+    assert.deepEqual(finals, [], 'a superseded generation cannot emit a final answer');
     assert.equal(
       session.getFullTranscript().some(segment => segment.text.includes('tail-aggregation for high-cardinality')),
       false,

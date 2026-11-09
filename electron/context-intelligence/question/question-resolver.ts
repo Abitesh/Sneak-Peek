@@ -185,6 +185,7 @@ export function resolveQuestion(input: ResolveInput): ResolvedQuestion {
 // expensive/retrieval stages downstream of one explicit interpretation.
 
 import type { ModePolicy } from '../policies/mode-policy-registry';
+import { isBroadCandidateProjectsQuestion } from './ProjectOverviewIntent';
 import { classifyTurn, type Classification } from './turn-classifier';
 import { extractEntities, extractTopicPhrase, resolveReference, type ConversationState, type ResolvedReference } from './conversation-state';
 
@@ -279,7 +280,7 @@ function heuristicIntent(text: string, input: UnderstandTurnInput, classificatio
   if (types.has('FOLLOW_UP')) return 'follow-up';
   if (types.has('CODING_TASK')) return 'coding-request';
   if (types.has('SYSTEM_DESIGN')) return 'system-design';
-  if (PROFILE_PROJECT_SUMMARY_CUE.test(q) && !PROJECT_IMPLEMENTATION_DETAIL_CUE.test(q)) {
+  if ((isBroadCandidateProjectsQuestion(q) || PROFILE_PROJECT_SUMMARY_CUE.test(q)) && !PROJECT_IMPLEMENTATION_DETAIL_CUE.test(q)) {
     return 'personal-question';
   }
   // The operator's own résumé is a profile source, even when the question

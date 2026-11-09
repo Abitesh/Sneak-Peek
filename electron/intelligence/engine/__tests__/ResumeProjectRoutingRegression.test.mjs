@@ -30,7 +30,7 @@ function request(message, permissions = allPermissions) {
     userMessage: message,
     currentTurn: { id: 'turn-1', role: 'user', content: message },
     recentConversation: [],
-    activeContext: { profileId: 'local-profile' },
+    activeContext: { profileId: 'local-profile', resumeSourceIds: ['resume-allowed'] },
     contextPermissions: { ...permissions },
   };
 }
@@ -44,30 +44,34 @@ function plan(message, permissions = allPermissions) {
   return { understanding, contextPlan: planContext({ request: req, understanding }) };
 }
 
-test('broad interview request for candidate projects uses profile/personal evidence', () => {
-  const { understanding, contextPlan } = plan('Explain your projects while you are at it');
+// These tests previously pinned the legacy profile-only policy. Portfolio
+// questions now use project-tagged PDFs plus an explicit authorized resume ID;
+// keep the negative named-project and general-CS controls below unchanged.
+for (const phrase of [
+  'Explain your projects while you are at it',
+  'Tell me about the projects on my resume',
+  'What projects have I worked on?',
+  'Then can you explain me Your projects you mentioned in the resume',
+]) {
+  test(`portfolio retrieval selects project-tagged evidence with explicit resume IDs: ${phrase}`, () => {
+    const { contextPlan } = plan(phrase);
+    assert.ok(contextPlan.requiredSources.includes('project_knowledge'), phrase);
+    assert.ok(contextPlan.requiredSources.includes('my_files'), phrase);
+    assert.ok(contextPlan.requiredSources.includes('rag'), phrase);
+    assert.ok(contextPlan.forbiddenSources.includes('profile'), 'project evidence must outrank generic profile facts');
+    assert.ok(contextPlan.forbiddenSources.includes('mode_documents'), phrase);
+  });
+}
 
-  assert.equal(understanding.intent, 'personal-question');
-  assert.ok(contextPlan.requiredSources.includes('personal_knowledge'));
-  assert.ok(contextPlan.requiredSources.includes('profile'));
-  assert.ok(contextPlan.forbiddenSources.includes('project_knowledge'));
-});
-
-test('resume-explicit project listing remains profile-owned even when project files exist', () => {
-  const { understanding, contextPlan } = plan('Tell me about the projects on my resume');
-
-  assert.equal(understanding.intent, 'personal-question');
-  assert.ok(contextPlan.requiredSources.includes('personal_knowledge'));
-  assert.ok(contextPlan.requiredSources.includes('profile'));
-  assert.ok(contextPlan.forbiddenSources.includes('project_knowledge'));
-});
-
-test('generic project-history wording is profile recall rather than project-file proof', () => {
-  const { understanding, contextPlan } = plan('What projects have I worked on?');
-
-  assert.equal(understanding.intent, 'personal-question');
-  assert.ok(contextPlan.requiredSources.includes('profile'));
-  assert.ok(contextPlan.requiredSources.includes('personal_knowledge'));
+test('resume-only portfolio uses the exact authorized résumé source, not all project files', () => {
+  const permissions = { ...allPermissions, project: false };
+  const { contextPlan } = plan('Then explain your projects on my resume', permissions);
+  assert.ok(contextPlan.requiredSources.includes('my_files'));
+  assert.ok(contextPlan.requiredSources.includes('rag'));
+  assert.ok(!contextPlan.requiredSources.includes('project_knowledge'));
+  assert.ok(contextPlan.forbiddenSources.includes('profile'));
+  assert.ok(contextPlan.forbiddenSources.includes('personal_knowledge'));
+  assert.ok(contextPlan.forbiddenSources.includes('mode_documents'));
 });
 
 test('named implementation question keeps project-file authority when available', () => {

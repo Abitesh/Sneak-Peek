@@ -133,9 +133,10 @@ describe('End-to-end wiring: screen button -> capture -> vision/OCR -> gate -> c
     const handlerStart = source.indexOf('const _geminiChatStreamHandler');
     assert.ok(handlerStart !== -1, 'gemini-chat-stream handler must exist');
     const gateCall = source.indexOf('resolveVisionGate(', handlerStart);
-    const v3Call = source.indexOf("surface: 'manual-chat'", handlerStart);
+    const v3Call = source.indexOf('const composed = await buildV3Prompt({', handlerStart);
     assert.ok(gateCall !== -1, 'manual-chat handler must call resolveVisionGate');
-    assert.ok(gateCall < v3Call, 'the vision gate must run before prompt assembly picks a routing branch');
+    assert.ok(v3Call !== -1 && gateCall < v3Call,
+      'the vision gate must run before the actual V3 prompt-composer invocation');
   });
 
   test('both screen-ask surfaces auto-switch via llmHelper.setModel when the gate finds a vision binding, never silently', () => {

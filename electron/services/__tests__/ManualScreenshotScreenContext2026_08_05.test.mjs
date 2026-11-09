@@ -36,10 +36,10 @@ describe('Bug 002: manually attached screenshots set hasScreenContext', () => {
   test('manual-chat surface: the gemini-chat-stream buildV3Prompt call passes hasScreenContext from imagePaths', () => {
     const source = read('electron/ipcHandlers.ts');
     // Scope the assertion to the manual-chat V3 composition block.
-    const start = source.indexOf("surface: 'manual-chat'");
+    const start = source.indexOf('const composed = await buildV3Prompt({');
     assert.ok(start !== -1, 'manual-chat V3 composition must exist');
     const block = source.slice(start, start + 4000);
-    assert.match(block, /hasScreenContext: \(imagePaths\?\.length \?\? 0\) > 0,/,
+    assert.match(block, /surface: 'manual-chat'[\s\S]{0,1500}hasScreenContext: \(imagePaths\?\.length \?\? 0\) > 0,/,
       'the manual-chat buildV3Prompt call must derive hasScreenContext from attached imagePaths');
   });
 });

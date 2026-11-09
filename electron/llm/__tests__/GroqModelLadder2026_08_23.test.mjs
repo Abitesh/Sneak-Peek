@@ -41,7 +41,7 @@ const { isRetiredModelId } = await load('../../../dist-electron/electron/service
 
 describe('the ladder ends somewhere durable', () => {
   test('the primary is the preview-tier multimodal model', () => {
-    assert.equal(GROQ_PRIMARY_MODEL, 'qwen/qwen3.6-27b');
+    assert.equal(GROQ_PRIMARY_MODEL, 'qwen/qwen3.8-27b');
     assert.equal(GROQ_TEXT_MODEL_LADDER[0], GROQ_PRIMARY_MODEL);
   });
 
@@ -80,7 +80,7 @@ describe('isGroqModelGone: only a retirement advances the ladder', () => {
 
   test('404 with Groq\'s own body is model-gone (axios shape)', () => {
     assert.equal(
-      isGroqModelGone(axiosErr(404, { error: { message: 'The model `qwen/qwen3.6-27b` does not exist or you do not have access to it' } })),
+      isGroqModelGone(axiosErr(404, { error: { message: 'The model `qwen/qwen3.8-27b` does not exist or you do not have access to it' } })),
       true,
     );
   });

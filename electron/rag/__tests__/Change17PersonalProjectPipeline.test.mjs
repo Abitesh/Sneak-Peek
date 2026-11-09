@@ -116,6 +116,9 @@ test('CHG-17 real personal ingestion/listing/retrieval and engine generation pre
     assert.deepEqual(first.result.evidencePack.items.map(i => i.sourceId), [records[0].id]);
     assert.match(first.result.finalAnswer.text, /violet job leases/);
     assert.doesNotMatch(first.prompt, /amber rate counters|resume decoy/);
+    const overview = await ask('Tell me about Linkship.');
+    assert.deepEqual(overview.result.evidencePack.items.map(i => i.sourceId), [records[0].id]);
+    assert.doesNotMatch(overview.prompt, /amber rate counters|resume decoy/);
     const followup = await ask('Why is Redis used in your project?');
     assert.deepEqual(followup.result.evidencePack.items.map(i => i.sourceId), [records[0].id]);
     const sibling = await ask('Why did Linkship Legacy use Redis?');

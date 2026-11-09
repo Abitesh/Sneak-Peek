@@ -5,7 +5,8 @@
 // (installTarget, connectUrl, maybeAdvanceTarget, forceAdvanceTarget) and
 // assert target advancement relay → alternate → railway, token-fatal advance,
 // and — critically — that with the flag OFF the resolver is never called and
-// connect() dials BACKEND_URL with the legacy frame.
+// connect() fails closed to a disabled local endpoint with the legacy frame.
+// Real premium STT requires a separately authorized/configured live relay.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -154,7 +155,13 @@ test('flag OFF: resolver never called, connect() dials BACKEND_URL, legacy frame
   assert.equal(startedResolve, false, 'flag OFF → maybeResolveRelayTarget returns false synchronously (no async resolve)');
   assert.equal(resolverCalls, 0, 'BUG: resolver must NEVER be called when the flag is off');
   assert.equal(stt.target, null, 'flag OFF → no relay target installed');
-  assert.equal(stt.connectUrl(), 'wss://api.natively.software/v1/transcribe', 'flag OFF → connect() dials the hardcoded BACKEND_URL');
+  // The legacy production endpoint is deliberately disabled in this
+  // rebranded build. Do not revive an external endpoint simply because a
+  // historical test expected it: the flag-off path must fail closed instead.
+  const disabledUrl = new URL(stt.connectUrl());
+  assert.equal(disabledUrl.hostname, '127.0.0.1', 'flag OFF must never dial the old hosted STT service');
+  assert.equal(disabledUrl.port, '1', 'flag OFF uses the disabled local sentinel');
+  assert.match(disabledUrl.pathname, /disabled/, 'flag OFF must identify the disabled endpoint');
 
   // And the auth frame must be the legacy shape for that url.
   const frame = stt.buildAuthFrame(stt.connectUrl());

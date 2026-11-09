@@ -24,15 +24,18 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
+import { installCanonicalRagSchema } from '../../../dist-electron/electron/rag/canonical/CanonicalRagSchema.js';
+import { CanonicalRagStorage } from '../../../dist-electron/electron/rag/canonical/CanonicalRagStorage.js';
+import { CanonicalEmbeddingService } from '../../../dist-electron/electron/rag/canonical/CanonicalEmbeddingService.js';
+import { CanonicalRagIndexer } from '../../../dist-electron/electron/rag/canonical/CanonicalRagIndexer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const esPath = path.resolve(__dirname, '../../../dist-electron/electron/rag/embeddingSpace.js');
 const vsPath = path.resolve(__dirname, '../../../dist-electron/electron/rag/VectorStore.js');
-const kdbPath = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
 
 const ES = await import(pathToFileURL(esPath).href);
 const { VectorStore } = await import(pathToFileURL(vsPath).href);
-const { KnowledgeDatabaseManager } = await import(pathToFileURL(kdbPath).href);
 const { buildLegacySpaceCaseSql, legacySpaceForProvider, LEGACY_PROVIDER_MODEL, embeddingSpaceKey } = ES;
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -170,62 +173,62 @@ describe('VectorStore search hard-guard (real compiled VectorStore, pure-SQL pat
 // ──────────────────────────────────────────────────────────────────────────
 // (7) Cross-feature isolation + local-only no-op
 // ──────────────────────────────────────────────────────────────────────────
-describe('Cross-feature: meetings RAG vs knowledge base do not interfere', () => {
-  test('separate tables: knowledge re-embed never reads/writes RAG meeting tables', () => {
-    // Build BOTH schemas in one DB (worst case: shared file) and prove the knowledge
-    // re-embed sweep only touches context_nodes.
+function seedCanonical(db, sourceId, dimensions) {
+  let ext = sqliteVec.getLoadablePath();
+  ext = ext.replace('app.asar', 'app.asar.unpacked').replace(/\.(dylib|so|dll)$/,'');
+  db.loadExtension(ext);
+  installCanonicalRagSchema(db);
+  const storage = new CanonicalRagStorage(db);
+  const doc = storage.createDocument({sourceType:'personal',sourceId,name:'resume.txt'});
+  const revision = storage.createRevision({documentId:doc.id,contentHash:'resume-hash',
+    extractionVersion:'extract-v1',chunkingVersion:'chunk-v1',normalizationVersion:'norm-v1'});
+  storage.replaceChunks(doc.id,revision.id,[{chunkIndex:0,text:'Rohan built backend APIs',sourceLocator:'resume:0'}]);
+  let calls = 0;
+  const provider = {provider:'local',model:'Xenova/all-MiniLM-L6-v2',dimensions,version:'v1',
+    async embedBatch(texts) { calls++; return texts.map(()=>new Array(dimensions).fill(0.01)); }};
+  return {storage,doc,revision,embedding:new CanonicalEmbeddingService(storage,provider),calls:()=>calls};
+}
+describe('Cross-feature: canonical personal indexing never mutates the legacy meeting tables', () => {
+  test('personal canonical reindex cannot write to meeting chunks or meeting embedding space', async () => {
     const db = new Database(':memory:');
-    db.exec(`
-      CREATE TABLE meetings (id TEXT PRIMARY KEY, embedding_space TEXT, is_processed INTEGER DEFAULT 1);
-      CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id TEXT, embedding BLOB);
-      CREATE TABLE chunk_summaries (id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id TEXT, embedding BLOB);
-    `);
-    const SPACE_V1 = embeddingSpaceKey({ name: 'gemini', model: 'gemini-embedding-001', dimensions: 768 });
-    const SPACE_V2 = embeddingSpaceKey({ name: 'gemini', model: 'gemini-embedding-2', dimensions: 768 });
-    // A v1 meeting (would be a meetings-reindex candidate).
-    db.prepare("INSERT INTO meetings (id, embedding_space) VALUES ('m1', ?)").run(SPACE_V1);
-    db.prepare("INSERT INTO chunks (meeting_id, embedding) VALUES ('m1', ?)").run(Buffer.alloc(768 * 4));
-
-    const kdb = new KnowledgeDatabaseManager(db);
-    kdb.initializeSchema();
-    kdb.saveNodes([{ source_type: 'RESUME', category: 'c', title: 't', text_content: 'x', tags: [], embedding: new Array(768).fill(0.1), embedding_space: SPACE_V1 }]);
-
-    // Knowledge sweep finds its node, NOT the meeting.
-    const staleNodes = kdb.getNodesNeedingReembed(SPACE_V2);
-    assert.equal(staleNodes.length, 1, 'knowledge sweep finds its own node');
-    assert.equal(staleNodes[0].source_type, 'RESUME');
-
-    // The meetings table row is wholly unaffected by knowledge operations.
-    const m = db.prepare("SELECT embedding_space FROM meetings WHERE id='m1'").get();
-    assert.equal(m.embedding_space, SPACE_V1, 'meeting space untouched by knowledge sweep');
-    // updateNodeEmbedding must not touch chunks.
-    kdb.updateNodeEmbedding(staleNodes[0].id, new Array(768).fill(0.9), SPACE_V2);
-    const chunkStillThere = db.prepare("SELECT COUNT(*) c FROM chunks WHERE meeting_id='m1' AND embedding IS NOT NULL").get();
-    assert.equal(chunkStillThere.c, 1, 'meeting chunk embedding untouched by knowledge updateNodeEmbedding');
-    db.close();
+    try {
+      db.exec(`CREATE TABLE meetings (id TEXT PRIMARY KEY, embedding_space TEXT, is_processed INTEGER DEFAULT 1);
+        CREATE TABLE chunks (id INTEGER PRIMARY KEY, meeting_id TEXT, embedding BLOB);`);
+      const oldSpace=embeddingSpaceKey({name:'gemini',model:'gemini-embedding-001',dimensions:768});
+      db.prepare("INSERT INTO meetings(id, embedding_space) VALUES ('m1', ?)").run(oldSpace);
+      db.prepare("INSERT INTO chunks(meeting_id,embedding) VALUES ('m1', ?)").run(Buffer.alloc(768*4));
+      const before=db.prepare("SELECT id, embedding_space FROM meetings WHERE id='m1'").get();
+      const beforeBlob=db.prepare("SELECT embedding FROM chunks WHERE meeting_id='m1'").get().embedding;
+      const ctx=seedCanonical(db,'profile-safe',3);
+      const result=await ctx.embedding.embedRevision(ctx.revision.id);
+      assert.equal(result.complete,true);
+      assert.deepEqual(db.prepare("SELECT id, embedding_space FROM meetings WHERE id='m1'").get(),before);
+      assert.deepEqual(db.prepare("SELECT embedding FROM chunks WHERE meeting_id='m1'").get().embedding,beforeBlob);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM rag_embeddings WHERE embedding_space_id=?").get(result.embeddingSpaceId).n,1);
+    } finally {db.close();}
   });
-
-  test('local-only 384d user (spaces already match) triggers NEITHER reindex NOR re-embed', () => {
+  test('local space already READY does not trigger a redundant reindex or touch meeting rows', async () => {
     const db = new Database(':memory:');
-    db.exec(`
-      CREATE TABLE meetings (id TEXT PRIMARY KEY, embedding_space TEXT, is_processed INTEGER DEFAULT 1, created_at TEXT);
-      CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id TEXT, embedding BLOB);
-      CREATE TABLE chunk_summaries (id INTEGER PRIMARY KEY AUTOINCREMENT, meeting_id TEXT, embedding BLOB);
-    `);
-    const LOCAL = embeddingSpaceKey({ name: 'local', model: 'Xenova/all-MiniLM-L6-v2', dimensions: 384 });
-
-    // Meeting already embedded in the LOCAL space.
-    db.prepare("INSERT INTO meetings (id, embedding_space) VALUES ('m1', ?)").run(LOCAL);
-    db.prepare("INSERT INTO chunks (meeting_id, embedding) VALUES ('m1', ?)").run(Buffer.alloc(384 * 4));
-    const vs = new VectorStore(db, ':memory:', '/nonexistent-ext');
-    assert.equal(vs.getIncompatibleSpaceCount(LOCAL), 0, 'no meetings need reindex when space matches active');
-    assert.deepEqual(vs.getMeetingIdsNeedingReindex(LOCAL), [], 'no meeting ids to reindex');
-
-    // Knowledge node already in the LOCAL space.
-    const kdb = new KnowledgeDatabaseManager(db);
-    kdb.initializeSchema();
-    kdb.saveNodes([{ source_type: 'RESUME', category: 'c', title: 't', text_content: 'x', tags: [], embedding: new Array(384).fill(0.1), embedding_space: LOCAL }]);
-    assert.equal(kdb.getNodesNeedingReembed(LOCAL).length, 0, 'no knowledge nodes need re-embed when space matches active');
-    db.close();
+    let vs;
+    try {
+      db.exec(`CREATE TABLE meetings (id TEXT PRIMARY KEY, embedding_space TEXT, is_processed INTEGER DEFAULT 1, created_at TEXT);
+        CREATE TABLE chunks (id INTEGER PRIMARY KEY, meeting_id TEXT, embedding BLOB);
+        CREATE TABLE chunk_summaries (id INTEGER PRIMARY KEY, meeting_id TEXT, embedding BLOB);`);
+      const local=embeddingSpaceKey({name:'local',model:'Xenova/all-MiniLM-L6-v2',dimensions:384});
+      db.prepare("INSERT INTO meetings(id,embedding_space) VALUES('m1',?)").run(local);
+      db.prepare("INSERT INTO chunks(meeting_id,embedding) VALUES ('m1',?)").run(Buffer.alloc(384*4));
+      vs=new VectorStore(db,':memory:','/nonexistent-ext');
+      assert.equal(vs.getIncompatibleSpaceCount(local),0);
+      assert.deepEqual(vs.getMeetingIdsNeedingReindex(local),[]);
+      const ctx=seedCanonical(db,'profile-ready',384);
+      const indexer=new CanonicalRagIndexer(ctx.storage,ctx.embedding);
+      assert.equal((await indexer.indexRevision(ctx.revision.id,{workerId:'no-churn'})).complete,true);
+      const calls=ctx.calls();
+      const beforeJobs=db.prepare('SELECT count(*) n FROM rag_index_jobs').get().n;
+      assert.equal((await indexer.indexRevision(ctx.revision.id,{workerId:'no-churn'})).complete,true);
+      assert.equal(ctx.calls(),calls,'a READY revision must not require embedding again');
+      assert.equal(db.prepare('SELECT count(*) n FROM rag_index_jobs').get().n,beforeJobs);
+      assert.equal(db.prepare("SELECT embedding_space FROM meetings WHERE id='m1'").get().embedding_space,local);
+    } finally {if(vs?.destroy) await vs.destroy();db.close();}
   });
 });

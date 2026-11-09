@@ -87,9 +87,15 @@ export async function streamRagEngineAnswer(input: {
     input.settle('failed');
     failed = true;
     const message = error instanceof Error ? error.message : String(error);
-    input.send('rag:stream-error', { ...input.meta, error: message });
+    // The live RAG handler has a fallback to ordinary chat. Do not also send
+    // a terminal error event: the renderer would tear down its streaming row
+    // just before the fallback starts writing into it. Meeting/global RAG has
+    // no such fallback and must retain its visible terminal error.
+    if (!input.meta.live) input.send('rag:stream-error', { ...input.meta, error: message });
     input.abort?.();
-    return { success: false, error: message };
+    return input.meta.live
+      ? { success: false, fallback: true, error: message }
+      : { success: false, error: message };
   } finally {
     if (onAbort) signal?.removeEventListener('abort', onAbort);
     // Do not await return(): a provider ignoring abort may still have a pending

@@ -2054,3 +2054,7 @@ Everything else is a capability underneath that engine.
 ```
 
 </details>
+
+## STAB-001 — Pre-Change-19 stabilization (owner-authorized 2026-11-08)
+
+Dependency: implemented CHG-17/18; prerequisite to accepting readiness for CHG-19. No roadmap renumbering or gate relaxation. Owner-requested S1–S11 cover architecture, isolated full-product macOS, retrieval/profile correctness, generation reliability, all baseline failure identities classified or explicitly unresolved, React errors, measured local/real-provider latency distinction, available Windows checks, regression and data/Git safety. Scope excludes Change 19 implementation and protected native/audio/STT/packaging. Execution and evidence: TASK_TRACKER STAB-001 / WORK-0027.

@@ -76,8 +76,8 @@ describe('resources/models/Xenova/bge-reranker-base is actually present on disk 
   });
 });
 
-describe('LocalReranker.isCached() resolves true against a SIMULATED packaged-build resourcesPath layout', () => {
-  test('with app.isPackaged=true and resourcesPath pointing at a copy mirroring extraResources\' output layout, isCached() is true and rerank() actually runs (not a silent no-op)', async () => {
+describe('LocalReranker packaged-layout preflight and actual inference', () => {
+  test('packaged LFS pointers fail closed; genuine model assets must actually run inference', async () => {
     // Simulate electron-builder's packaged layout: a resourcesPath directory
     // containing models/Xenova/bge-reranker-base/... — exactly what
     // extraResources: [{from: 'resources/models/', to: 'models/'}] produces,
@@ -122,8 +122,21 @@ describe('LocalReranker.isCached() resolves true against a SIMULATED packaged-bu
       reranker = getLocalReranker();
 
       const cached = await reranker.isCached();
-      assert.equal(cached, true, 'isCached() must resolve true against the simulated packaged resourcesPath layout — this is the direct regression check for the audit\'s "unbundled in packaged production" finding');
+      const { inspectRerankerAssets } = await import(
+        `${pathToFileURL(path.resolve(repoRoot, 'dist-electron/electron/rag/RerankerAssetPreflight.js')).href}?t=${Date.now()}`
+      );
+      const preflight = inspectRerankerAssets(path.join(simulatedResourcesPath, 'models'), 'Xenova/bge-reranker-base');
+      assert.equal(cached, preflight.ready,
+        'packaged preflight must reject LFS pointers, not treat filename existence as a loaded model');
+      if (!preflight.ready) {
+        // A Git-LFS pointer is NOT a model. An optional absent model must
+        // preserve answer generation instead of attempting broken inference.
+        assert.match(preflight.reason ?? '', /missing|invalid|pointer/i);
+        assert.equal(await reranker.isAvailable(), false);
+        return;
+      }
 
+      // Only when genuine assets are available may we claim inference works.
       const available = await reranker.isAvailable();
       assert.equal(available, true, 'the packaged-layout model must actually load and be usable, not silently degrade to top-K');
 

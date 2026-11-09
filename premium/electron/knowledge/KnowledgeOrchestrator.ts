@@ -13,14 +13,20 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { DatabaseManager } from '../../../electron/DatabaseManager';
+import { randomUUID } from 'node:crypto';
+import type { DatabaseManager } from '../../../electron/db/DatabaseManager';
 import { extractSafeDocumentText } from '../../../electron/services/SafeDocumentTextExtractor';
 import { isIntelligenceFlagEnabled } from '../../../electron/intelligence/intelligenceFlags';
 import { planAnswer } from '../../../electron/llm/AnswerPlanner';
 import { isLayerAllowed } from '../../../electron/llm/contextRoute';
 import { DocType, DocumentIngestResult, ProfileStatus, ProfileData } from './types';
 import { ContextAssembler, generateCandidateIntro } from './ContextAssembler';
-import { isGenericKnowledgeQuestion } from './IntentClassifier';
+import { buildGroundingBlock } from './ProfileContextBuilder';
+import { isProfileGroundingV2Enabled } from '../../../electron/llm/profileGroundingV2';
+import { classifyIntentWithContext, isGenericKnowledgeQuestion } from './IntentClassifier';
+import { coerceSkills, flattenSkills, isLegacyFlatSkills } from './skillsUtil';
+import { heuristicResumeExtract, heuristicJDExtract } from './HeuristicExtractor';
+import { searchCompanyInfo } from './CompanyResearchEngine';
 
 export class KnowledgeOrchestrator {
   private db: DatabaseManager;
@@ -32,6 +38,7 @@ export class KnowledgeOrchestrator {
   private coverLetter: string | null = null;
   private negotiationTracker: any = null;
   private companyDossier: Map<string, any> = new Map();
+  private companyResearchApi: any = null;
   private generateContentFn: ((contents: any[]) => Promise<any>) | null = null;
   private liveCoachingContentFn: ((contents: any[]) => Promise<any>) | null = null;
   private searchProviderResolver: (() => any) | null = null;
@@ -42,9 +49,21 @@ export class KnowledgeOrchestrator {
   private fastQueryEmbedFn: (() => any) | null = null;
   private conversationContextProvider: (() => any) | null = null;
   private depthScoringHistory: string[] = [];
+  // Ingestion belongs to the main process, not the lifetime of a settings panel.
+  // Queue only same-type writes so a slow resume parse cannot overwrite newer
+  // resume state, while independent JD uploads can run concurrently.
+  private ingestChains = new Map<DocType, Promise<void>>();
+  private ingestPending = new Map<DocType, number>();
 
   constructor(db: DatabaseManager) {
     this.db = db;
+    // The compatibility DatabaseManager supplies an idempotent profile schema
+    // initializer. Never create the retired knowledge_nodes schema.
+    if (typeof (db as any).initializeSchema === 'function' &&
+        typeof (db as any).getDb === 'function' &&
+        typeof (db as any).isAvailable !== 'function') {
+      (db as any).initializeSchema();
+    }
     this.loadProfileData();
   }
 
@@ -178,19 +197,34 @@ export class KnowledgeOrchestrator {
       }
 
       const resumeRow = sqliteDb?.prepare ? sqliteDb.prepare(
-        'SELECT raw_text, structured_data, extraction_mode FROM profile_documents WHERE doc_type = ? ORDER BY updated_at DESC LIMIT 1'
+        'SELECT id, raw_text, structured_data, extraction_mode FROM profile_documents WHERE doc_type = ? ORDER BY updated_at DESC LIMIT 1'
       ).get(DocType.RESUME) : null;
 
       if (resumeRow) {
-        this.activeResume = {
-          raw_text: resumeRow.raw_text,
-          structured_data: typeof resumeRow.structured_data === 'string' ? JSON.parse(resumeRow.structured_data) : resumeRow.structured_data,
-        };
+        let data = typeof resumeRow.structured_data === 'string' ? JSON.parse(resumeRow.structured_data) : resumeRow.structured_data;
+        // Existing v1 rows used string[] skills. Upgrade their typed shape
+        // once, in the active profile_documents table; never revive the
+        // retired context_nodes/KnowledgeDatabaseManager storage layer.
+        if (isLegacyFlatSkills(data?.skills)) {
+          data = this.normalizedResume(data);
+          try {
+            sqliteDb.prepare('UPDATE profile_documents SET structured_data = ?, updated_at = ? WHERE id = ?')
+              .run(JSON.stringify(data), new Date().toISOString(), resumeRow.id);
+          } catch (error) {
+            console.warn('[KnowledgeOrchestrator] Legacy skills migration remains in memory:', error);
+          }
+        }
+        this.activeResume = { raw_text: resumeRow.raw_text, structured_data: data };
         console.log('[KnowledgeOrchestrator] Resume loaded from database');
       } else if (hasDocumentLookup) {
         const doc = (this.db as any).getDocumentByType?.(DocType.RESUME);
         if (doc?.structured_data || doc?.raw_text) {
-          this.activeResume = doc;
+          // Some compatibility stores still return v1 flat skills without a
+          // backing profile_documents row. Normalize IN MEMORY, without mutating
+          // the store's object or reviving the retired knowledge node tables.
+          this.activeResume = isLegacyFlatSkills(doc.structured_data?.skills)
+            ? { ...doc, structured_data: this.normalizedResume(doc.structured_data) }
+            : doc;
           console.log('[KnowledgeOrchestrator] Resume loaded from document lookup');
         }
       }
@@ -216,7 +250,9 @@ export class KnowledgeOrchestrator {
       if (hasDocumentLookup && !this.activeResume && !this.activeJD) {
         const doc = (this.db as any).getDocumentByType?.(DocType.RESUME);
         if (doc && (doc.structured_data || doc.raw_text)) {
-          this.activeResume = doc;
+          this.activeResume = isLegacyFlatSkills(doc.structured_data?.skills)
+            ? { ...doc, structured_data: this.normalizedResume(doc.structured_data) }
+            : doc;
         }
       }
 
@@ -227,9 +263,86 @@ export class KnowledgeOrchestrator {
   }
 
   /**
+   * A failed external extractor must not make a correctly uploaded resume vanish.
+   * Only document-derived facts are used in this degraded mode; provider errors
+   * are never passed through into profile facts or user-visible context.
+   */
+  private heuristicExtractionEnabled(): boolean {
+    return process.env.PI_HEURISTIC_EXTRACTION?.toLowerCase() !== 'off';
+  }
+
+  private normalizedResume(data: any): any {
+    const parsed = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    const skills = coerceSkills(parsed.skills ?? parsed.skillsFlat ?? parsed.skills_flat);
+    const experience = Array.isArray(parsed.experience) ? parsed.experience.map((item: any) => ({
+      ...item, bullets: Array.isArray(item?.bullets) ? item.bullets : [],
+    })) : [];
+    const projects = Array.isArray(parsed.projects) ? parsed.projects.map((item: any) => ({
+      ...item, technologies: Array.isArray(item?.technologies) ? item.technologies : [],
+    })) : [];
+    const education = Array.isArray(parsed.education) ? parsed.education : [];
+    return {
+      ...parsed,
+      skills, skillsFlat: flattenSkills(skills), skills_flat: flattenSkills(skills),
+      experience, projects, education,
+      experienceCount: experience.length, educationCount: education.length,
+      achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
+      certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+      leadership: Array.isArray(parsed.leadership) ? parsed.leadership : [],
+      _schema_version: 2,
+    };
+  }
+
+  private resumeNeedsRecovery(data: any, text: string): boolean {
+    if (!data || typeof data !== 'object') return true;
+    const name = String(data.identity?.name ?? '').trim();
+    const hasBody = Boolean(
+      flattenSkills(data.skills ?? data.skillsFlat).length
+      || (Array.isArray(data.experience) && data.experience.length)
+      || (Array.isArray(data.projects) && data.projects.length)
+      || (Array.isArray(data.education) && data.education.length)
+    );
+    // Only replace a sparse parse when the source has concrete facts to rescue.
+    if (hasBody) return false;
+    const source = heuristicResumeExtract(text);
+    return Boolean((/^(unknown|n\/?a|candidate)$/i.test(name) || !hasBody)
+      && (source.experience.length || source.projects.length || source.skillsFlat.length || source.education.length));
+  }
+
+  private jdNeedsRecovery(data: any, text: string): boolean {
+    if (!data || typeof data !== 'object') return true;
+    const title = String(data.title ?? '').trim();
+    if (!title || /^(unknown|n\/?a|unspecified)(?:\s+role)?$/i.test(title)) return true;
+    return false;
+  }
+
+  /**
    * Ingest a document (resume, JD, or company data)
    */
+  isIngesting(docType: DocType): boolean {
+    return (this.ingestPending.get(docType) ?? 0) > 0;
+  }
+
   async ingestDocument(filePath: string, docType: DocType): Promise<DocumentIngestResult> {
+    this.ingestPending.set(docType, (this.ingestPending.get(docType) ?? 0) + 1);
+    const preceding = this.ingestChains.get(docType) ?? Promise.resolve();
+    const running = preceding.catch(() => {}).then(() => this.ingestDocumentCore(filePath, docType));
+    // A rejected ingest must not poison the queue or leave the panel busy.
+    const settled = running.then(() => {}, () => {});
+    this.ingestChains.set(docType, settled);
+    try {
+      return await running;
+    } finally {
+      const remaining = (this.ingestPending.get(docType) ?? 1) - 1;
+      if (remaining > 0) this.ingestPending.set(docType, remaining);
+      else this.ingestPending.delete(docType);
+      if (this.ingestChains.get(docType) === settled && remaining === 0) {
+        this.ingestChains.delete(docType);
+      }
+    }
+  }
+
+  private async ingestDocumentCore(filePath: string, docType: DocType): Promise<DocumentIngestResult> {
     try {
       if (!fs.existsSync(filePath)) {
         return {
@@ -259,37 +372,56 @@ export class KnowledgeOrchestrator {
       let documentId = '';
       
       switch (docType) {
-        case DocType.RESUME:
-          if (this.generateContentFn) {
+        case DocType.RESUME: {
+          if (!this.generateContentFn) {
+            return { success: false, error: 'LLM content generator is not configured. Please set generateContentFn before ingesting.' };
+          }
+          try {
             parsedData = await this.parseResumeWithLLM(rawText);
-            usedLLM = true;
-          } else {
-            return {
-              success: false,
-              error: 'LLM content generator is not configured. Please set generateContentFn before ingesting.',
-            };
+            if (this.heuristicExtractionEnabled() && this.resumeNeedsRecovery(parsedData, rawText)) {
+              parsedData = heuristicResumeExtract(rawText);
+            } else {
+              usedLLM = true;
+            }
+          } catch (error) {
+            if (!this.heuristicExtractionEnabled()) throw error;
+            console.warn('[KnowledgeOrchestrator] Resume extractor unavailable; using document-only heuristic');
+            parsedData = heuristicResumeExtract(rawText);
           }
-          this.activeResume = { raw_text: rawText, structured_data: { ...parsedData, _extraction_mode: usedLLM ? 'llm' : 'heuristic' } };
-          documentId = `resume-${Date.now()}`;
+          parsedData = this.normalizedResume(parsedData);
+          parsedData._extraction_mode = usedLLM ? 'llm' : 'heuristic';
+          this.activeResume = { raw_text: rawText, structured_data: parsedData };
+          documentId = `resume-${randomUUID()}`;
           break;
-        case DocType.JD:
-          if (this.generateContentFn) {
+        }
+        case DocType.JD: {
+          if (!this.generateContentFn) {
+            return { success: false, error: 'LLM content generator is not configured. Please set generateContentFn before ingesting.' };
+          }
+          try {
             parsedData = await this.parseJDWithLLM(rawText);
-            usedLLM = true;
-          } else {
-            return {
-              success: false,
-              error: 'LLM content generator is not configured. Please set generateContentFn before ingesting.',
-            };
+            if (this.heuristicExtractionEnabled() && this.jdNeedsRecovery(parsedData, rawText)) {
+              parsedData = heuristicJDExtract(rawText);
+            } else {
+              usedLLM = true;
+            }
+          } catch (error) {
+            if (!this.heuristicExtractionEnabled()) throw error;
+            console.warn('[KnowledgeOrchestrator] JD extractor unavailable; using document-only heuristic');
+            parsedData = heuristicJDExtract(rawText);
           }
-          this.activeJD = { raw_text: rawText, structured_data: { ...parsedData, _extraction_mode: usedLLM ? 'llm' : 'heuristic' } };
-          documentId = `jd-${Date.now()}`;
+          parsedData._extraction_mode = usedLLM ? 'llm' : 'heuristic';
+          this.activeJD = { raw_text: rawText, structured_data: parsedData };
+          documentId = `jd-${randomUUID()}`;
           break;
+        }
         case DocType.COMPANY:
           parsedData = { raw_text: rawText };
           this.activeCompany = { raw_text: rawText, structured_data: parsedData };
-          documentId = `company-${Date.now()}`;
+          documentId = `company-${randomUUID()}`;
           break;
+        default:
+          return { success: false, error: 'Unsupported document type' };
       }
 
       // Store in database
@@ -316,22 +448,17 @@ export class KnowledgeOrchestrator {
         
         if (sqliteDb) {
           const now = new Date().toISOString();
-          // First delete any existing document of this type
-          sqliteDb.prepare('DELETE FROM profile_documents WHERE doc_type = ?').run(docType);
-          
-          // Then insert the new document
-          sqliteDb.prepare(`
-            INSERT INTO profile_documents (id, doc_type, raw_text, structured_data, extraction_mode, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(
-            documentId,
-            docType,
-            rawText,
-            JSON.stringify(parsedData),
-            usedLLM ? 'llm' : 'heuristic',
-            now,
-            now
-          );
+          // Replacement is atomic. An insert failure must not leave an older
+          // valid profile deleted, and per-type queuing prevents overtaking.
+          const replaceProfile = sqliteDb.transaction(() => {
+            sqliteDb.prepare('DELETE FROM profile_documents WHERE doc_type = ?').run(docType);
+            sqliteDb.prepare(`
+              INSERT INTO profile_documents (id, doc_type, raw_text, structured_data, extraction_mode, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(documentId, docType, rawText, JSON.stringify(parsedData),
+              usedLLM ? 'llm' : 'heuristic', now, now);
+          });
+          replaceProfile();
           console.log(`[KnowledgeOrchestrator] Stored ${docType} document in database (${rawText.length} chars)`);
         } else {
           console.warn('[KnowledgeOrchestrator] Database not available for storage');
@@ -394,8 +521,7 @@ Return ONLY valid JSON, no markdown or extra text.`;
       
       return parsed;
     } catch {
-      // Fall back to heuristic if JSON parsing fails
-      return this.parseResume(text);
+      throw new Error('Resume extraction response was not valid JSON');
     }
   }
 
@@ -426,8 +552,7 @@ Return ONLY valid JSON, no markdown or extra text.`;
       }
       return parsed;
     } catch {
-      // Fall back to heuristic if JSON parsing fails
-      return this.parseJD(text);
+      throw new Error('JD extraction response was not valid JSON');
     }
   }
 
@@ -1044,28 +1169,53 @@ Return ONLY valid JSON, no markdown or extra text.`;
   }
 
   /**
-   * Get company research engine
+   * The manual company-research IPC expects a stable provider-aware facade.
+   * Never fabricate a dossier when no search provider is configured. The
+   * standalone app currently disables network company search by policy.
    */
   getCompanyResearchEngine(): any {
-    const gapRelevantTypes = new Set(['jd_fit_answer', 'gap_analysis_answer', 'behavioral_interview_answer']);
-    return {
-      researchCompany: async (name: string) => {
-        const researchPromise = Promise.resolve({
-          company_name: name,
-          hiring_strategy: 'Placeholder research data',
-          research_timestamp: new Date().toISOString(),
-        });
-        return await Promise.race([
-          researchPromise,
-          new Promise((resolve) => setTimeout(() => resolve(null), 300)),
-        ]);
-      },
-      getCachedDossier: (name: string) => {
-        return this.companyDossier.get(name) || null;
-      },
-      gapRelevantTypes,
+    if (this.companyResearchApi) return this.companyResearchApi;
+    const dossiers = this.companyDossier;
+    const api = {
+      searchProvider: null as any,
       quotaExhausted: false,
+      setSearchProvider(provider: any): void {
+        api.searchProvider = provider && typeof provider.search === 'function' ? provider : null;
+      },
+      getCachedDossier(name: string): any {
+        const key = String(name || '').trim().toLowerCase();
+        const cached = dossiers.get(key);
+        if (!cached || Date.now() - cached.cachedAt > 24 * 60 * 60 * 1000) return null;
+        return cached.dossier;
+      },
+      async researchCompany(name: string, _jobContext?: any, useCache = true): Promise<any> {
+        const company = String(name || '').trim();
+        if (!company) return null;
+        if (useCache) {
+          const cached = api.getCachedDossier(company);
+          if (cached) return cached;
+        }
+        if (!api.searchProvider) return null;
+        const result = await searchCompanyInfo(company, api.searchProvider);
+        if (!result) return null;
+        // Only fields that the actual search returned are populated. In
+        // particular, do not invent a hiring strategy, values, or salary data.
+        const dossier = {
+          company_name: company,
+          description: result.research.description ?? '',
+          industry: result.research.industry ?? null,
+          technologies: result.research.technologies ?? [],
+          locations: result.research.locations ?? [],
+          sources: result.sources ?? [],
+          research_timestamp: result.timestamp,
+          degraded: false,
+        };
+        if (useCache) dossiers.set(company.toLowerCase(), { dossier, cachedAt: Date.now() });
+        return dossier;
+      },
     };
+    this.companyResearchApi = api;
+    return api;
   }
 
   /**
@@ -1073,7 +1223,10 @@ Return ONLY valid JSON, no markdown or extra text.`;
    */
   getRoleInsightService(): any {
     return {
-      analyzeRole: async (jobDescription: string, resume: string) => {
+      analyzeRole: async (jobDescription: string, resume: string): Promise<{
+        insights: unknown[];
+        gaps: unknown[];
+      }> => {
         // Placeholder for role analysis
         return { insights: [], gaps: [] };
       },
@@ -1152,18 +1305,51 @@ Return ONLY valid JSON, no markdown or extra text.`;
   }
 
   /**
+   * Only an explicitly extracted, well-formed resume salary estimate may be
+   * exposed as a derived PROFILE_FACT. Persisted structured_data is the single
+   * source of truth and is loaded again on restart. Never invent numbers or
+   * serve a stale estimate from a deleted/replaced resume.
+   */
+  getResumeSalaryEstimate(): Record<string, unknown> | null {
+    const estimate = this.activeResume?.structured_data?.salary_estimate;
+    if (!estimate || typeof estimate !== 'object' || Array.isArray(estimate)) return null;
+    const min = Number(estimate.min);
+    const max = Number(estimate.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return null;
+    if (typeof estimate.min !== 'number' || typeof estimate.max !== 'number') return null;
+    if (typeof estimate.currency !== 'string' || !/^[A-Z]{3}$/.test(estimate.currency)) return null;
+    return { ...estimate, min, max };
+  }
+
+  /**
    * Process question with profile grounding
    */
   async processQuestion(question: string): Promise<any> {
     const normalized = typeof question === 'string' ? question.trim() : '';
     if (!normalized || !this.knowledgeMode) return null;
 
-    const profile = this.activeResume?.structured_data ?? this.activeResume ?? null;
-    if (!profile) return null;
+    // This compatibility surface is also called by older typed-chat clients.
+    // Honor their explicit conversation hint for short compensation follow-ups,
+    // but never use it to authorize resume/JD retrieval. Provider failure must
+    // not crash factual question handling or expose any private documents.
+    let conversationHint: { recentIntentWasNegotiation?: boolean; recentInterviewerComp?: boolean; negotiationActive?: boolean } = {};
+    try { conversationHint = this.conversationContextProvider?.() ?? {}; } catch { /* optional hint unavailable */ }
+    const classifiedIntent = classifyIntentWithContext(normalized, conversationHint);
+    // Category-only diagnostic: never log query text, transcript or content.
+    console.log('[KnowledgeOrchestrator] Intent classified:', classifiedIntent);
+    if (classifiedIntent === 'negotiation') {
+      return {
+        question: normalized, answer: null, sources: [], answerType: 'negotiation',
+        resumeAllowed: false, factualRecall: false, liveNegotiationResponse: null,
+      };
+    }
 
+    const profile = this.activeResume?.structured_data ?? this.activeResume ?? null;
     const qLower = normalized.toLowerCase();
     const plan = planAnswer({ question: normalized, source: 'manual_input', speakerPerspective: 'user' });
-    const canonicalResumeAllowed = plan ? isLayerAllowed(plan, 'resume') : false;
+    const canonicalResumeAllowed = Boolean(plan && plan.profileContextPolicy === 'required' && isLayerAllowed(plan, 'resume'));
+    const jdAllowed = Boolean(plan?.requiredContextLayers.includes('jd') && isLayerAllowed(plan, 'jd'));
+    if (!(canonicalResumeAllowed && profile) && !(jdAllowed && this.activeJD)) return null;
 
     const isIntroQuestion = (() => {
       const introPatterns = [
@@ -1189,29 +1375,77 @@ Return ONLY valid JSON, no markdown or extra text.`;
       };
     }
 
-    if (isGenericKnowledgeQuestion(normalized)) {
+    if (isGenericKnowledgeQuestion(normalized) && !canonicalResumeAllowed && !jdAllowed) {
       return null;
     }
 
-    const contextAssembly = ContextAssembler.assembleContext(this.activeResume, this.activeJD, this.activeCompany, normalized);
     const answer = normalized ? `Profile-grounded answer for: ${normalized}` : null;
 
-    const leadershipEntries = Array.isArray(profile.leadership) ? profile.leadership : [];
+    const leadershipEntries = canonicalResumeAllowed && Array.isArray(profile?.leadership) ? profile.leadership : [];
     const leadershipMatches = leadershipEntries.filter((entry: any) => {
       const org = String(entry?.organization || entry?.company || '').toLowerCase();
       return org && (qLower.includes(org) || /\b(role at|for)\b/.test(qLower) || /\b(leadership|led|managed|head|president|coordinator|director)\b/.test(qLower));
     });
 
-    let contextBlock = contextAssembly.contextBlock || '';
-    if (leadershipMatches.length > 0 && !contextBlock.includes('<candidate_leadership>')) {
+    // Profile V2 uses typed, deterministic evidence for explicitly authorized
+    // profile answers, not RAG score thresholds or unscoped personal search.
+    // A forbidden resume/JD layer is never passed to this builder. This path
+    // does not run for generic technical/coding questions.
+    // A named-project drill-in must not leak sibling project descriptions.
+    // Canonical RAG remains the authority for project documents/IDs; this
+    // compatibility formatter only narrows the structured résumé projection.
+    let authorizedResume = canonicalResumeAllowed ? this.activeResume : null;
+    if (authorizedResume && /^(?:project_answer|project_followup_answer)$/.test(plan.answerType)
+        && /\b(?:my|your|the|a)\s+project\s+[\w]/i.test(normalized)) {
+      const projects = Array.isArray(profile?.projects) ? profile.projects : [];
+      const escapeName = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const selected = [...projects]
+        .sort((a: any, b: any) => String(b?.name ?? b?.title ?? '').length - String(a?.name ?? a?.title ?? '').length)
+        .find((project: any) => {
+          const name = String(project?.name ?? project?.title ?? '').trim();
+          return name.length > 0 && new RegExp(`\\b(?:my|your|the|a)\\s+project\\s+${escapeName(name)}(?=\\s|[?!.,]|$)`, 'i').test(normalized);
+        });
+      // An unknown named project supplies zero PROJECT evidence, never a
+      // fallback to sibling project descriptions.
+      authorizedResume = {
+        ...authorizedResume,
+        structured_data: { ...profile, projects: selected ? [selected] : [] },
+      };
+    }
+    // A plain skills inventory must not send every previous employer and
+    // project to the answer provider. Skill-experience probes keep experience
+    // and projects because those are evidence for actual use of a technology.
+    if (authorizedResume && plan.answerType === 'skills_answer') {
+      authorizedResume = {
+        ...authorizedResume,
+        structured_data: {
+          ...authorizedResume.structured_data,
+          experience: [], projects: [], education: [], achievements: [],
+          certifications: [], leadership: [],
+        },
+      };
+    }
+    // Even with V2 explicitly disabled, the legacy formatter must receive
+    // only the same narrowed structured résumé projection.
+    const contextAssembly = ContextAssembler.assembleContext(
+      authorizedResume, jdAllowed ? this.activeJD : null, null, normalized,
+    );
+    const v2Block = isProfileGroundingV2Enabled()
+      ? buildGroundingBlock(
+          authorizedResume,
+          jdAllowed ? this.activeJD : null,
+        ).block
+      : '';
+    let contextBlock = v2Block || contextAssembly.contextBlock || '';
+    if (!v2Block && leadershipMatches.length > 0 && !contextBlock.includes('<candidate_leadership>')) {
       contextBlock += `\n<candidate_leadership>\n${leadershipMatches.map((entry: any) => `${entry.role || 'Leadership'} at ${entry.organization || entry.company || 'Organization'}${entry.description ? ` — ${entry.description}` : ''}`).join('\n')}\n</candidate_leadership>`;
     }
 
-    if (!contextBlock && profile.identity?.name) {
+    if (!contextBlock && canonicalResumeAllowed && profile?.identity?.name) {
       contextBlock = `<candidate_identity>\nName: ${profile.identity.name}\n</candidate_identity>`;
     }
 
-    if (isIntroQuestion) {
+    if (isIntroQuestion && canonicalResumeAllowed && profile) {
       const introResponse = generateCandidateIntro(profile, normalized);
       return {
         answer,
@@ -1235,7 +1469,6 @@ Return ONLY valid JSON, no markdown or extra text.`;
       resumeAllowed: canonicalResumeAllowed,
       factualRecall: containsProfileContent || Boolean(contextBlock),
       isIntroQuestion: false,
-      introResponse: generateCandidateIntro(profile, normalized),
       contextBlock,
     };
   }

@@ -44,8 +44,8 @@ describe('ModeHybridRetriever chunk cache (audit finding #8)', () => {
     retriever = new ModeHybridRetriever(db, stubVectorStore, stubEmbeddingPipeline);
     // Spy on the private chunkText to count how often chunking actually runs.
     chunkCalls = new Map();
-    const realChunk = retriever.chunkText.bind(retriever);
-    retriever.chunkText = (content) => {
+    const realChunk = retriever.chunkRecords.bind(retriever);
+    retriever.chunkRecords = (content) => {
       chunkCalls.set(content, (chunkCalls.get(content) || 0) + 1);
       return realChunk(content);
     };

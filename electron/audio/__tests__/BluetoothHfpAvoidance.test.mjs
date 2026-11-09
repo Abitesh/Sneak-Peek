@@ -183,10 +183,13 @@ test('reconfigureAudio awaits capture destroy before constructing replacements',
 });
 
 test('active meeting reconfigure starts replacement captures and STT streams', () => {
-  const activeStartIndex = reconfigureBody.indexOf('if (this.isMeetingActive)');
+  // A meeting can be active while Listen/capture is intentionally paused.
+  // Only restart native channels when they were already active; otherwise a
+  // settings reconfigure would unexpectedly turn the microphone back on.
+  const activeStartIndex = reconfigureBody.indexOf('if (this.isMeetingActive && this._listenAudioActive)');
   assert.ok(
     activeStartIndex > reconfigureBody.indexOf('new MicrophoneCapture(wantedInput)'),
-    'BUG: active-meeting reconfigure must start replacements after new captures are constructed and wired.',
+    'BUG: reconfigure must only restart active Listen channels, after replacement captures are constructed and wired.',
   );
 
   let activeStartBlock = reconfigureBody.slice(activeStartIndex);

@@ -955,6 +955,7 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
       sourceType: 'personal',
       limit: 8,
       tokenBudget: 1800,
+      resolveScope: ({ request }) => ({ projectFileIds: request.activeContext?.resumeSourceIds }),
       read: (input) => ragManager.readPlannedCanonicalSource(input),
     }),
     createCanonicalRagRetrievalCapability({
@@ -1249,6 +1250,10 @@ function buildSneakPeekMeetingRequest(
   })();
   const projectScope = resolveProjectFileScopeForTurn(query, personalFiles, projectTurns, requestId);
   const projectFilesAvailable = projectScope.projectAvailable;
+  const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
+  const resumeSourceIds = isBroadCandidateProjectsQuestion(query)
+    ? personalFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
+    : undefined;
 
   return {
     requestId,
@@ -1270,6 +1275,7 @@ function buildSneakPeekMeetingRequest(
       meetingId,
       profileId: profileAvailable ? 'local-profile' : undefined,
       projectSourceIds: projectScope.selectedFileIds,
+      resumeSourceIds,
       projectName: projectScope.namedProject,
     },
     cancellationSignal,
@@ -1352,8 +1358,12 @@ async function streamSneakPeekMeetingAnswer(
     settleMeetingQuestion(abortController.signal.aborted ? 'cancelled' : 'failed');
     if (!abortController.signal.aborted) {
       const message = error?.message || String(error);
-      event.sender.send('rag:stream-error', { ...streamMeta, error: message });
-      return { success: false, error: message };
+      // Only meeting/global requests emit a terminal RAG error; live requests
+      // fall through to the ordinary chat path instead (one UX outcome).
+      if (!streamMeta.live) event.sender.send('rag:stream-error', { ...streamMeta, error: message });
+      return streamMeta.live
+        ? { success: false, fallback: true, error: message }
+        : { success: false, error: message };
     }
     return { success: true };
   } finally {
@@ -1454,6 +1464,10 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     const scopedConversationTurns = getRecentConversationTurns(nativeSessionId, 12);
     const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles, scopedConversationTurns, nativeCurrentTurn.id);
     const projectFilesAvailable = projectScope.projectAvailable;
+    const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
+    const resumeSourceIds = isBroadCandidateProjectsQuestion(String(message || ''))
+      ? personalFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
+      : undefined;
     const meetingId = String(
       appState.getIntelligenceManager?.()?.getMeetingMetadata?.()?.id
       ?? '',
@@ -1483,6 +1497,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
         projectSourceIds: projectScope.selectedFileIds,
+        resumeSourceIds,
         projectName: projectScope.namedProject,
       },
       cancellationSignal: myController.signal,

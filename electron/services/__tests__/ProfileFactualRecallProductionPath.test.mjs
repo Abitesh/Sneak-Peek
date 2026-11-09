@@ -100,7 +100,7 @@ describe('Profile factual recall — production path', () => {
     for (const p of SYNTHETIC_RESUME.structured_data.projects) {
       assert.match(result.contextBlock, new RegExp(p.name), `project "${p.name}" must be in context`);
     }
-    assert.match(result.contextBlock, /candidate_projects/, 'must render into the <candidate_projects> block');
+    assert.match(result.contextBlock, /<projects>/, 'must render into the <candidate_projects> block');
   });
 
   test('"tell me about my work experience" returns ALL experience entries', async () => {
@@ -113,7 +113,7 @@ describe('Profile factual recall — production path', () => {
       assert.match(result.contextBlock, new RegExp(e.company), `company "${e.company}" must be in context`);
       assert.match(result.contextBlock, new RegExp(e.role), `role "${e.role}" must be in context`);
     }
-    assert.match(result.contextBlock, /candidate_experience/);
+    assert.match(result.contextBlock, /<experience>/);
   });
 
   test('"what are my skills?" surfaces the skills list', async () => {
@@ -197,8 +197,8 @@ describe('Profile factual recall — production path', () => {
       assert.match(result.contextBlock, new RegExp(s));
     }
     // ...but the dedicated experience/project XML blocks must NOT appear.
-    assert.doesNotMatch(result.contextBlock, /candidate_experience/, 'skills query must not dump experience');
-    assert.doesNotMatch(result.contextBlock, /candidate_projects/, 'skills query must not dump projects');
+    assert.doesNotMatch(result.contextBlock, /<experience>/, 'skills query must not dump experience');
+    assert.doesNotMatch(result.contextBlock, /<projects>/, 'skills query must not dump projects');
   });
 
   test('empty projects array: "what are my projects?" does not crash or fabricate a block', async () => {
@@ -211,7 +211,7 @@ describe('Profile factual recall — production path', () => {
     // crash and must not emit a fabricated <candidate_projects> block.
     assert.ok(result, 'should still return a result (compact identity), not throw');
     if (result.contextBlock) {
-      assert.doesNotMatch(result.contextBlock, /candidate_projects/, 'must not fabricate a projects block');
+      assert.doesNotMatch(result.contextBlock, /<projects>/, 'must not fabricate a projects block');
     }
   });
 

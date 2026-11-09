@@ -156,7 +156,8 @@ describe('FINDING-004: KnowledgeOrchestrator ingest pipeline', () => {
         // the derived flat list is exposed as skillsFlat.
         assert.ok(profile.skills && typeof profile.skills === 'object');
         assert.ok(Array.isArray(profile.skillsFlat) && profile.skillsFlat.length > 0);
-        assert.ok(profile.nodeCount > 0);
+        const stored = db.getDb().prepare('SELECT structured_data FROM profile_documents WHERE doc_type = ?').get(DocType.RESUME);
+        assert.ok(stored, 'resume must be persisted in active profile_documents storage');
     });
 
     test('JD ingest produces context nodes distinct from resume nodes', async () => {
@@ -164,14 +165,12 @@ describe('FINDING-004: KnowledgeOrchestrator ingest pipeline', () => {
         const jdResult = await orchestrator.ingestDocument(tmpJdFile, DocType.JD);
         assert.equal(jdResult.success, true, `JD ingest failed: ${jdResult.error}`);
 
-        const resumeNodes = db.getAllNodes().filter(n => n.source_type === DocType.RESUME);
-        const jdNodes = db.getAllNodes().filter(n => n.source_type === DocType.JD);
-        assert.ok(resumeNodes.length > 0);
-        assert.ok(jdNodes.length > 0);
-
-        const resumeCategories = [...new Set(resumeNodes.map(n => n.category))];
-        const jdCategories = [...new Set(jdNodes.map(n => n.category))];
-        assert.ok(resumeCategories.join(';') !== jdCategories.join(';'));
+        const docs = db.getDb().prepare('SELECT doc_type, structured_data FROM profile_documents').all();
+        assert.deepEqual(docs.map(d=>d.doc_type).sort(), [DocType.JD, DocType.RESUME].sort(),
+          'separate resume/JD records must persist');
+        assert.equal(JSON.parse(docs.find(d=>d.doc_type===DocType.RESUME).structured_data).identity.name, 'Sarah Chen');
+        assert.ok(JSON.parse(docs.find(d=>d.doc_type===DocType.JD).structured_data).requirements.length > 0);
+        assert.equal(orchestrator.getProfileData().hasActiveJD, true);
     });
 
     test('sparse-but-valid LLM resume entries retain persistence and atomic nodes', async () => {
@@ -190,7 +189,9 @@ describe('FINDING-004: KnowledgeOrchestrator ingest pipeline', () => {
         assert.deepEqual(profile.experience[0].bullets, []);
         assert.deepEqual(profile.projects[0].technologies, []);
         assert.ok(profile.projects[0].highlights.includes('Improved activation by 42%.'));
-        assert.ok(db.getAllNodes().some(n => n.category === 'skills_languages'));
+        assert.ok(profile.skills.languages.includes('TypeScript'));
+        const stored = db.getDb().prepare('SELECT structured_data FROM profile_documents WHERE doc_type = ?').get(DocType.RESUME);
+        assert.ok(JSON.parse(stored.structured_data).skills.languages.includes('TypeScript'));
     });
 
     test('deleteDocumentsByType removes resume and resets knowledge mode', async () => {
@@ -202,7 +203,9 @@ describe('FINDING-004: KnowledgeOrchestrator ingest pipeline', () => {
         assert.equal(orchestrator.isKnowledgeMode(), false);
 
         const profile = orchestrator.getProfileData();
-        assert.equal(profile, null, 'Profile must be null after resume deletion');
+        assert.equal(profile.resume, null, 'Deleted resume must not remain in profile');
+        assert.equal(orchestrator.getStatus().hasResume, false);
+        assert.equal(db.getDb().prepare('SELECT COUNT(*) AS n FROM profile_documents WHERE doc_type = ?').get(DocType.RESUME).n, 0);
     });
 
     test('profile shape has all fields the IPC renderer expects', async () => {
@@ -221,14 +224,11 @@ describe('FINDING-004: KnowledgeOrchestrator ingest pipeline', () => {
         assert.ok(result.error?.includes('not configured'));
     });
 
-    test('re-ingest does not multiply nodes unboundedly', async () => {
+    test('re-ingest replaces the typed resume row instead of duplicating data', async () => {
         await orchestrator.ingestDocument(tmpResumeFile, DocType.RESUME);
-        const nodeCount1 = db.getAllNodes().length;
-
         await orchestrator.ingestDocument(tmpResumeFile, DocType.RESUME);
-        const nodeCount2 = db.getAllNodes().length;
-
-        assert.ok(nodeCount2 <= nodeCount1 * 2, 'Re-ingest must replace not multiply');
+        const count = db.getDb().prepare('SELECT COUNT(*) AS n FROM profile_documents WHERE doc_type = ?').get(DocType.RESUME).n;
+        assert.equal(count, 1, 'the active profile store must retain one current resume row');
     });
 });
 
@@ -335,7 +335,7 @@ describe('KnowledgeOrchestrator — degenerate resume → heuristic fallback', (
         // The RESUME_FIXTURE has clean section headers, so the heuristic recovers a body.
         const profile = orchestrator.getProfileData();
         assert.ok(profile.experience.length > 0, 'heuristic must recover experience from the raw text');
-        assert.ok(profile.nodeCount > 0, 'atomic nodes must be created from the recovered body');
+        assert.ok(profile.projects.length > 0, 'heuristic must recover project evidence');
         assert.equal(orchestrator.activeResume?.structured_data?._extraction_mode, 'heuristic');
     });
 
@@ -354,8 +354,7 @@ describe('KnowledgeOrchestrator — degenerate resume → heuristic fallback', (
         const profile = orchestrator.getProfileData();
         assert.equal(profile.identity.name, 'Sarah Chen');
         assert.ok(profile.experience.length >= 2);
-        assert.ok(profile.nodeCount > 0);
-        assert.notEqual(orchestrator.activeResume?.structured_data?._extraction_mode, 'heuristic');
+        assert.equal(orchestrator.activeResume?.structured_data?._extraction_mode, 'llm');
     });
 });
 

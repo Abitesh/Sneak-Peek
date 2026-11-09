@@ -399,33 +399,33 @@ const PRODUCT_ABOUT_PATTERNS = [
   /\bwhat\s+(?:problem|issue|pain\s?point)s?\s+(?:does|do|did)\s+(?:sneak[- ]?peek)\s+solves?\b/i,
   /\bhow\s+(?:did|do|was)\s+you\s+(?:build|develop|design|architect)\s+(?:sneak[- ]?peek)\b/i,
   /\bwhat\s+(kind|kinda|type|sort)\s+(of\s+)?(app|application|product|tool|project|software)\b/i,
-  /\bhow(?:'?s| is| does)\s+(natively|nativley|nativly|it|the (app|product|backend|architecture|frontend|stack))\b/i,
-  /\bwhat\s+(do you think about|about)\s+(natively|nativley|nativly)\b/i,
-  /\bwhat (tech|technolog|stack|languages?|framework)\w*\s+(does|do)\s+(natively|nativley|it|this)\b/i,
-  /\bis (natively|nativley|it|this)\s+(local|cloud|open[- ]?source|source[- ]?available|privacy|low[- ]?distraction|on[- ]?device|transparent|accessib)\w*/i,
-  /\b(natively|nativley|nativly)'?s\s+(backend|architecture|stack|frontend|core)\b/i,
+  /\bhow(?:'?s| is| does)\s+(sneak[- ]?peek|natively|nativley|nativly|it|the (app|product|backend|architecture|frontend|stack))\b/i,
+  /\bwhat\s+(do you think about|about)\s+(sneak[- ]?peek|natively|nativley|nativly)\b/i,
+  /\bwhat (tech|technolog|stack|languages?|framework)\w*\s+(does|do)\s+(sneak[- ]?peek|natively|nativley|it|this)\b/i,
+  /\bis (sneak[- ]?peek|natively|nativley|it|this)\s+(local|cloud|open[- ]?source|source[- ]?available|privacy|low[- ]?distraction|on[- ]?device|transparent|accessib)\w*/i,
+  /\b(sneak[- ]?peek|natively|nativley|nativly)'?s\s+(backend|architecture|stack|frontend|core)\b/i,
   // Safe product-attribute / behavior probes ("is it low-distraction?", "does it
   // process locally?", "is it privacy-first?", "does it use Ollama?", "what part
   // uses Rust?") — these are about the PRODUCT, grounded in loaded metadata.
   /\b(is|are) (it|this|they)\s+(local|cloud[- ]?based|open[- ]?source|source[- ]?available|privacy[- ]?first|low[- ]?distraction|on[- ]?device|free|paid|safe|secure)\b/i,
   /\b(does|do)\s+(it|this|natively|nativley)\s+(process|run|store|work|use|have|support|need)\b/i,
-  /\b(what|which) part (of (natively|nativley|it|the app))?\s*(uses|is in|runs|handles|does)\b|\b(does|do) (it|natively) (use|have) (a )?(backend|server|database|ollama|rust|electron|local)\b/i,
+  /\b(what|which) part (of (sneak[- ]?peek|natively|nativley|it|the app))?\s*(uses|is in|runs|handles|does)\b|\b(does|do) (it|natively) (use|have) (a )?(backend|server|database|ollama|rust|electron|local)\b/i,
   // "what uses Rust", "what runs on Electron", "what's written in Go" — asking which
   // part of the product uses a named technology (release 2026-06-07 multimode-1000).
   /\bwhat (uses|runs on|is (written|built) (in|with)|handles|powers)\s+(rust|electron|react|node|python|go|typescript|sqlite|the (backend|frontend|audio|stt|ml))\b/i,
-  /\bwhat (does|do) (natively|nativley|it) use\b|\bwhat'?s (natively|nativley|it) (built|made|written) (with|in)\b/i,
+  /\bwhat (does|do) (sneak[- ]?peek|natively|nativley|it) use\b|\bwhat'?s (sneak[- ]?peek|natively|nativley|it) (built|made|written) (with|in)\b/i,
   // Architecture / build-stack questions ABOUT the product: "what is Sneak-Peek built
   // with", "what is it made using", "what are the technologies behind Sneak-Peek",
   // "what is the architecture of Sneak-Peek", "how did you build Sneak-Peek" (release
   // 2026-06-07: residual pattern #1). Grounded in loaded project metadata. NOTE:
   // "how did you build" about a project = a product-about/architecture question;
   // it's distinct from the project-LIST ("what projects have you built").
-  /\bwhat (is|'?s|are) (the )?(tech ?(stack)?|technolog\w*|stack|architecture|framework\w*)\s+(of\s+|behind\s+|powering\s+)?(natively|nativley|it|this|the (app|product|project))\b/i,
-  /\b(natively|nativley|nativly|it|this)\s+(is\s+)?(built|made|written|developed|created|powered)\s+(with|using|in|on)\b/i,
+  /\bwhat (is|'?s|are) (the )?(tech ?(stack)?|technolog\w*|stack|architecture|framework\w*)\s+(of\s+|behind\s+|powering\s+)?(sneak[- ]?peek|natively|nativley|it|this|the (app|product|project))\b/i,
+  /\b(sneak[- ]?peek|natively|nativley|nativly|it|this)\s+(is\s+)?(built|made|written|developed|created|powered)\s+(with|using|in|on)\b/i,
   /\bwhat (is|'?s) (it|natively|nativley)\s+(made|built|written|developed)\s+(of|with|using|in)\b/i,
-  /\b(what is|whats|describe) (the )?architecture (of )?(natively|nativley|it|this|the (app|product|project))\b/i,
-  /\bhow (did|do|was) (you|natively|it|this)\s+(build|built|develop\w*|architect\w*|design\w*)\s+(natively|it|this|the (app|product))\b/i,
-  /\bhow (is|was) (natively|nativley|it|this) (built|made|developed|architected|designed)\b/i,
+  /\b(what is|whats|describe) (the )?architecture (of )?(sneak[- ]?peek|natively|nativley|it|this|the (app|product|project))\b/i,
+  /\bhow (did|do|was) (you|natively|it|this)\s+(build|built|develop\w*|architect\w*|design\w*)\s+(sneak[- ]?peek|natively|it|this|the (app|product))\b/i,
+  /\bhow (is|was) (sneak[- ]?peek|natively|nativley|it|this) (built|made|developed|architected|designed)\b/i,
   // "how (do you make|to make) it low-distraction / privacy-first / local" — a
   // product-design question about Sneak-Peek, grounded in metadata (1000-q
   // benchmark 2026-06-06b). NOT a stealth ask (no evasion/interview object).
@@ -583,6 +583,11 @@ export // Spec Case F exception: "have you used / worked with / do you know <tec
 // generic technical concept. This must be checked BEFORE coding/DSA patterns so
 // "have you used a hashmap?" routes to skills, not to the coding contract.
 const SKILL_EXPERIENCE_PATTERNS = [
+  // The manual chat surface uses first-person candidate wording.  "Have I
+  // used WebRTC?" asks about recorded experience, not for a definition of
+  // WebRTC. Keep this narrower than generic "have I" questions so a plain
+  // technical query never opens the resume.
+  /\b(?:have|did)\s+i\s+(?:ever\s+)?(?:used?|worked\s+(?:with|on)|built\s+with|implemented|deployed|programmed\s+in|coded\s+in|written)\b/i,
   // "have you used/built/managed <tech>" is a skill probe. But "have you managed/handled/led
   // PEOPLE / a TEAM" is a behavioral STORY, not a skill — the negative lookahead lets those
   // fall through to BEHAVIORAL_PATTERNS (code-review caveat 2026-06-16). A tech object after
@@ -723,7 +728,7 @@ export const PROJECT_PATTERNS = [
   // "Tell me about Sneak-Peek", "explain Sneak-Peek", "what is Sneak-Peek", "talk about
   // Sneak-Peek" — direct asks about a named project (benchmark 2026-06-05). The
   // known project entity is resolved at runtime; here we recognise the intent.
-  /\b(tell me about|talk about|explain|describe|walk me through|what(?:'s| is)?)\s+natively\b/i,
+  /\b(tell me about|talk about|explain|describe|walk me through|what(?:'s| is)?)\s+(?:sneak[- ]?peek|natively)\b/i,
   /\bwhat (did|have) you (build|built|made|create|created|develop)\b/i,
   /\bwhat (was|is) your (best|strongest|most important|favou?rite|biggest) (project|work)\b/i,
 ];
@@ -865,6 +870,10 @@ export // Profile FACT lookups (education, target role) — short factual answer
 // (benchmark 2026-06-05): "where did you study?", "what role are you applying
 // for?", "what's your degree?".
 const PROFILE_FACT_PATTERNS = [
+  // Personal factual recall must authorize profile evidence; generic questions
+  // about certifications/achievements must remain outside private retrieval.
+  /\b(?:what|which) (?:are|is) (?:my|your) (?:achievements?|accomplishments?|certifications?|certificates?|awards?)\b/i,
+  /\b(?:what|which) (?:achievements?|accomplishments?|certifications?|certificates?|awards?) (?:do|did|have) (?:i|you) (?:have|earn|earned|receive|received)\b/i,
   /\bwhere did (you|i) (study|go to (school|college|university)|graduate)\b/i,
   /\bwhat (role|job|position) (are|am) (you|i) (applying|interviewing) for\b/i,
   /\bwhat(?:'s| is) (your|my) (degree|major|gpa|cgpa|grade\s*point|qualification)\b/i,

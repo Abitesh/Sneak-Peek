@@ -68,8 +68,8 @@ describe('EmbeddingProviderResolver explicit key-management policy', () => {
     assert.match(gemini, /ragManager\.initializeEmbeddings\([\s\S]*explicitKeyManagement:\s*true/, 'Gemini Settings save/remove should use explicitKeyManagement');
     assert.match(openai, /ragManager\.initializeEmbeddings\([\s\S]*explicitKeyManagement:\s*true/, 'OpenAI Settings save/remove should use explicitKeyManagement');
     assert.match(gemini, /openaiKey:\s*cm\.getOpenaiApiKey\(\)\s*\|\|\s*undefined/, 'Gemini handler should use stored OpenAI key only');
-    assert.match(gemini, /geminiKey:\s*apiKey\s*\|\|\s*undefined/, 'Gemini handler should pass the just-saved/cleared key only');
-    assert.match(openai, /openaiKey:\s*apiKey\s*\|\|\s*undefined/, 'OpenAI handler should pass the just-saved/cleared key only');
+    assert.match(gemini, /geminiKey:\s*normalizedKey\s*\|\|\s*undefined/, 'Gemini handler should pass only the trimmed, just-saved/cleared key');
+    assert.match(openai, /openaiKey:\s*normalizedKey\s*\|\|\s*undefined/, 'OpenAI handler should pass only the trimmed, just-saved/cleared key');
     assert.match(openai, /geminiKey:\s*cm\.getGeminiApiKey\(\)\s*\|\|\s*undefined/, 'OpenAI handler should use stored Gemini key only');
 
     const initArgs = `${gemini}\n${openai}`;

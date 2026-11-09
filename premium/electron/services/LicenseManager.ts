@@ -123,6 +123,15 @@ export class LicenseManager {
 
     const existing = this.readStoredLicense();
     if (existing && existing.provider !== 'natively_api' && !this.isPerpetualLicenseSafeToReplace(existing)) {
+      // A verified same-device perpetual license already grants Pro; do not
+      // replace it or report a misleading native-module failure.
+      const currentHwid = this.getHardwareId();
+      const boundHwid = (existing.hwid || '').trim();
+      if (boundHwid && currentHwid !== 'UNAVAILABLE' && currentHwid.toLowerCase() === boundHwid.toLowerCase()) {
+        return { success: false, skipped: true };
+      }
+      // If the device cannot be identified, preserve the existing license and
+      // explain the blocker. Do not try a network activation or overwrite.
       return { success: false, skipped: true, error: 'The stored device-bound license cannot be replaced until its device binding can be verified. Check the native module installation.' };
     }
 

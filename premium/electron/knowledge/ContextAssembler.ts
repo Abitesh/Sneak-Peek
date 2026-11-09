@@ -96,7 +96,7 @@ export class ContextAssembler {
     const q = String(question || '').toLowerCase();
 
     const skills = Array.isArray(profile.skillsFlat) ? profile.skillsFlat : [];
-    const flatSkills = (Array.isArray(profile.skills) ? profile.skills : []).flatMap((entry: any) => Array.isArray(entry) ? entry : [entry]);
+    const flatSkills = (Array.isArray(profile.skills) ? profile.skills : Object.values(profile.skills ?? {})).flatMap((entry: any) => Array.isArray(entry) ? entry : [entry]);
     const allSkills = [...new Set([...skills, ...flatSkills].filter(Boolean))];
 
     const shouldIncludeLeadership =
@@ -109,7 +109,7 @@ export class ContextAssembler {
       );
 
     const candidateFit = /\b(?:hire (?:me|you)|(?:i am|i'm|you are|you're) (?:the )?(?:right|best|good) fit|make (?:my|your) case)\b/.test(q);
-    const shouldIncludeExperience = candidateFit || /\b(experience|work history|worked|career|role|company|background)\b/.test(q);
+    const shouldIncludeExperience = candidateFit || /\b(experience|internships?|work history|worked|career|role|company|background)\b/.test(q);
     const shouldIncludeProjects = /\b(project|projects|built|ship|shipped|portfolio|work on|created)\b/.test(q);
     const shouldIncludeEducation = /\b(education|degree|school|college|university|graduated|study)\b/.test(q);
     const shouldIncludeAchievements = candidateFit || /\b(achievements?|awards?|honou?rs?|recognition|patents?)\b/.test(q);

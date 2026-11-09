@@ -151,11 +151,10 @@ test('source: streamingTick arms the watchdog in the dispatch path', () => {
   // within the dispatch path (anywhere in the body — before or after
   // postMessage is acceptable; the implementation currently arms it BEFORE
   // postMessage, which is a known minor concern but not the bug under test).
-  const tickBlock = source.match(
-    /private\s+streamingTick\s*\(\s*\)\s*:\s*void\s*\{([\s\S]*?)\n\s{4}\}/,
-  );
-  assert.ok(tickBlock, 'streamingTick method must be locatable');
-  const body = tickBlock[1];
+  // Extract the method structurally: the source is no longer four-space
+  // indented, and a non-greedy regex can stop at a nested if block.
+  const body = extractPrivateVoidMethod('streamingTick');
+  assert.ok(body, 'streamingTick method must be locatable');
   const armIdx = body.search(/armStreamingWatchdog\s*\(\s*\)/);
   const postIdx = body.search(/worker\.postMessage/);
   assert.ok(armIdx >= 0, 'streamingTick must call armStreamingWatchdog');
@@ -173,11 +172,8 @@ test('source: streamingTick arms the watchdog in the dispatch path', () => {
 test('source: stopStreamingLoop clears the watchdog so stop() does not leak timers', () => {
   // Otherwise the watchdog would fire 30s after stop() and try to operate
   // on a torn-down instance.
-  const stopBlock = source.match(
-    /private\s+stopStreamingLoop\s*\(\s*\)\s*:\s*void\s*\{([\s\S]*?)\n\s{4}\}/,
-  );
-  assert.ok(stopBlock, 'stopStreamingLoop must be locatable');
-  const body = stopBlock[1];
+  const body = extractPrivateVoidMethod('stopStreamingLoop');
+  assert.ok(body, 'stopStreamingLoop must be locatable');
   assert.match(
     body,
     /clearStreamingWatchdog/,
@@ -225,6 +221,11 @@ test('behavioral: instance constructs without throwing when worker is dead', () 
  *      call" finds the WRONG block (whatever code happens to follow the
  *      attach call), silently mis-locating the handler body.
  */
+function extractPrivateVoidMethod(methodName) {
+  const match = new RegExp(`private\\s+${methodName}\\s*\\(\\s*\\)\\s*:\\s*void\\s*\\{`).exec(source);
+  return match ? extractBalancedBrace(source, match.index + match[0].length - 1) : null;
+}
+
 function extractHandlerBody(source, eventName) {
   const attachRe = new RegExp(`this\\.worker\\.on\\(\\s*['"]${eventName}['"]\\s*,`);
   const attachMatch = attachRe.exec(source);

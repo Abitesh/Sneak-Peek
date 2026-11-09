@@ -85,7 +85,7 @@ describe('#6 — runWhatShouldISay captures ONE mode snapshot at t0 and threads 
     // (wtaPrefetchQuery, transcript-blob fallback) and a provisional
     // answerType replaces the old `undefined` — the pinned t0 mode id this
     // test exists for is unchanged.
-    assert.match(body, /buildRetrievedActiveModeContextBlockHybrid\(\s*wtaPrefetchQuery, preparedTranscript, 1800, wtaPrefetchAnswerType, true, snapshotModeInfo\?\.id,/,
+    assert.match(body, /retrieveUniversalChatContext\(wtaPrefetchQuery, snapshotModeInfo\?\.id,\s*\{[\s\S]*?tokenBudget:\s*1800,[\s\S]*?answerType:\s*wtaPrefetchAnswerType,/,
       'the prefetched retrieval must pin the snapshot mode id');
   });
 

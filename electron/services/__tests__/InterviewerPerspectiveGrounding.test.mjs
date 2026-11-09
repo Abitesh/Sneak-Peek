@@ -73,7 +73,10 @@ async function ground(orchestrator, turns, question = undefined) {
   // Gate 2: only when no manually-typed question was supplied.
   if (!groundable || question) return { extracted, candidateProfile: '' };
   let lookupQ = toCandidateFraming(extracted.latestQuestion);
-  if (extracted.isFollowUp && extracted.followUpTarget) lookupQ = `Tell me about my ${extracted.followUpTarget}`;
+  // A resolved project follow-up must preserve its PROJECT type when crossing
+  // into the canonical AnswerPlanner, rather than a generic possessive name
+  // lookup (which correctly cannot authorize arbitrary personal files).
+  if (extracted.isFollowUp && extracted.followUpTarget) lookupQ = `Tell me about my project ${extracted.followUpTarget}`;
   const k = await orchestrator.processQuestion(lookupQ);
   let candidateProfile = '';
   // Gate 3: only the orchestrator's own factualRecall results (never the gated
@@ -94,7 +97,7 @@ describe('interviewer-perspective grounding (extractor → orchestrator)', () =>
     assert.equal(extracted.questionType, 'profile_detail');
     assert.match(candidateProfile, /LedgerFlow/);
     assert.match(candidateProfile, /PinMesh/);
-    assert.match(candidateProfile, /candidate_projects/);
+    assert.match(candidateProfile, /<projects>/);
   });
 
   test('Interviewer: "What is your name?" → identity fact grounded for first-person restatement', async () => {
@@ -140,9 +143,8 @@ describe('interviewer-perspective grounding (extractor → orchestrator)', () =>
     ]);
     assert.equal(extracted.isFollowUp, true);
     assert.equal(extracted.followUpTarget, 'LedgerFlow');
-    // The orchestrator sees "can you explain that in more detail?" — a candidate-
-    // framed question — and returns at least compact identity (never empty-blind).
-    assert.ok(candidateProfile.length > 0, 'follow-up should still ground some candidate context');
+    assert.match(candidateProfile, /LedgerFlow/, 'resolved project must be actually grounded');
+    assert.doesNotMatch(candidateProfile, /<target_job>/, 'no unrelated job source');
   });
 
   test('noise before the real question does not derail grounding', async () => {

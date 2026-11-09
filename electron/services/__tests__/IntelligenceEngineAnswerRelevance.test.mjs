@@ -268,10 +268,11 @@ describe('answer-relevance guard — flag ON (opt-in): full regeneration behavio
 
     const answer = await engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
 
-    // The repair must be discarded — the original hallucination survives as
-    // the return value (this generation's own answer), and the superseded
-    // repair text must never have been persisted into session history.
-    assert.equal(answer, hallucination);
+    // Supersession now cancels the entire stale generation, not just its
+    // repair. Returning its original draft would resurrect an obsolete answer
+    // over the new request in the UI.
+    assert.equal(answer, null);
+    assert.deepEqual(finals, [], 'no obsolete final event after supersession');
     assert.equal(
       session.getFullTranscript().some(segment => segment.text.includes('distributed rate limiting')),
       false,

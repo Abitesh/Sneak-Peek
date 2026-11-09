@@ -70,7 +70,7 @@ test('ipcHandlers still has a re-retrieval fallback for the rare case retrievedB
   // source order (both start with "else if"/"else" chained off the same if).
   const governedIdx = src.indexOf('if (_governedPack && _governedPack.items.length > 0)');
   const capturedIdx = src.indexOf('else if (_capturedRawBlock && _capturedRawBlock.trim())');
-  const fallbackIdx = src.indexOf("else if (!_governedPack) {\n                // Re-retrieve the reference block");
+  const fallbackIdx = src.indexOf('} else if (!_governedPack) {', capturedIdx);
   assert.ok(governedIdx > 0 && capturedIdx > governedIdx && fallbackIdx > capturedIdx,
     'the three branches (governed pack, captured raw block, re-retrieval fallback) must be ordered with re-retrieval last');
 });

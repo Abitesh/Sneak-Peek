@@ -93,11 +93,17 @@ describe('Acceptance step 3: select model → "hi" → answer via the single cha
 });
 
 describe('Acceptance step 4: Listen → live transcript → Analyze → auto-stop → answer in chat', () => {
-  test('handleStartListening starts the real mic/STT pipeline (not just a UI flag)', () => {
-    assert.match(
-      NATIVELY_INTERFACE,
-      /const handleStartListening = \(\) => \{[\s\S]*?setIsManualRecording\(true\);[\s\S]*?setIsExpanded\(true\);[\s\S]*?startMeeting\(\)/,
-    );
+  test('handleStartListening starts or resumes real microphone/system capture (not only a UI flag)', () => {
+    const from = NATIVELY_INTERFACE.indexOf('const handleStartListening =');
+    const to = NATIVELY_INTERFACE.indexOf('const handleAnalyzeNow =', from);
+    assert.ok(from >= 0 && to > from, 'the active Listen callback must exist');
+    const handler = NATIVELY_INTERFACE.slice(from, to);
+    assert.match(handler, /setIsManualRecording\(true\)/, 'the recording UI must enter Listen mode');
+    assert.match(handler, /getMeetingActive\(\)/, 'it must check whether a capture session already exists');
+    assert.match(handler, /await window\.electronAPI\.startMeeting\(\{/,
+      'a non-active session must start a real meeting capture');
+    assert.match(handler, /ensureListenAudioCapture\?\.\(\)/,
+      'active and newly started sessions must ensure microphone and system capture');
   });
 
   test('handleAnalyzeNow auto-stops the Listen session, finalizes STT, and sends the transcript for an answer', () => {

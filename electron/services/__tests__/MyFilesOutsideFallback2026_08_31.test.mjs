@@ -19,7 +19,7 @@ test('manual-chat V3 counts My Files in attachedSourceCount (so file-miss falls 
   );
   assert.match(
     ipc,
-    /personalFiles\.map\(\(f\) => f\.fileName\)/,
+    /personalFiles\.map\(\(f(?::\s*any)?\) => f\.fileName\)/,
     'BUG: My Files names must be listed alongside mode attachments for the evidence narrative.',
   );
 });

@@ -35,6 +35,7 @@ const NON_PROJECT_NAMES = new Set([
   'code', 'design', 'implementation', 'architecture', 'repository',
   'python', 'javascript', 'typescript', 'java', 'redis', 'sql', 'postgresql',
   'data', 'file', 'document', 'resume', 'api', 'database',
+  'yourself', 'myself', 'me', 'us', 'you', 'we', 'they', 'he', 'she', 'it',
 ]);
 const DOCUMENT_SUFFIXES = new Set([
   'architecture', 'design', 'spec', 'specification', 'specifications',
@@ -46,6 +47,7 @@ const DOCUMENT_SUFFIXES = new Set([
 const QUERY_STOP_WORDS = new Set([
   'for', 'in', 'on', 'of', 'with', 'using', 'through', 'via', 'and',
   'where', 'when', 'why', 'how', 'what', 'was', 'is', 'did', 'does', 'do',
+  'please', 'briefly', 'detail', 'details',
 ]);
 
 function words(text: string): string[] {
@@ -57,6 +59,13 @@ function normalizedProjectIdentity(file: ProjectFileDescriptor): string[] {
     ? file.projectName : String(file.fileName ?? '').replace(/\.[^.]+$/, '');
   const tokens = words(raw);
   if (!file.projectName) {
+    // Real My Files uploads commonly include a two-word document descriptor,
+    // e.g. "Linkship _Intermediate_Interview.pdf". Strip only this complete
+    // descriptor; never strip generic "interview" or "answer" by itself,
+    // because those could be part of a distinct project identity.
+    if (tokens.length > 2 && tokens.slice(-2).join(' ') === 'intermediate interview') {
+      tokens.splice(-2);
+    }
     while (tokens.length > 1 && DOCUMENT_SUFFIXES.has(tokens[tokens.length - 1])) tokens.pop();
   }
   return tokens;
@@ -66,10 +75,20 @@ function projectNameFromQuestion(question: string): string | undefined {
   // Named source after an explicit preposition, including lowercase project
   // identifiers. Stop at predicate words rather than accidentally including
   // "for caching" in the project name.
-  const preposition = question.match(/\b(?:in|for|on|of)\s+(?:the\s+)?([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,2})/i);
+  const preposition = question.match(/\b(?:in|for|on|of)\s+(?:(?:the|my|your|our)\s+)?(?:(?:project|repo|repository|codebase)\s+)?([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,2})/i);
   const imperative = question.match(/\b(?:explain|describe|review|inspect)\s+([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,2})\s+(?:architecture|project|codebase|repository)\b/i);
   const subject = question.match(/\b(?:how|why|what)\s+(?:did|does|do|was|is|has|have)\s+([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,2})\s+(?:use|work|integrate|implement|choose|handle|support|store|scale|perform)\b/i);
-  const extracted = preposition?.[1] ?? imperative?.[1] ?? subject?.[1];
+  // Resolve an explicit named-project overview *before* incidental phrases
+  // such as "in detail" or "for an interview". The previous preposition-first
+  // order interpreted those modifiers as project names and could fall through
+  // to a broad project retrieval instead of an exact file-ID allowlist.
+  const overview = question.match(/\b(?:tell\s+(?:me|us)\s+about|describe|explain|summari[sz]e|give\s+(?:me|us)\s+(?:an?\s+)?overview\s+of)\s+(?:(?:the|my|your|our)\s+)?(?:(?:project|repo|repository|codebase)\s+)?([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,3})(?:,?\s+(?:please|briefly|in\s+detail|for\s+(?:me|an?\s+interview)))?[.!?]?\s*$/i);
+  // In "Why did you use Redis in Linkship?", the subject is "you", not a
+  // project name. Fall back to the explicit "in Linkship" source instead.
+  const subjectName = subject?.[1];
+  const validSubject = subjectName && words(subjectName).every((token) => !NON_PROJECT_NAMES.has(token))
+    ? subjectName : undefined;
+  const extracted = overview?.[1] ?? imperative?.[1] ?? validSubject ?? preposition?.[1];
   if (!extracted) return undefined;
   const tokens = words(extracted);
   // Remove a syntactically trailing modifier and filename-style document label.

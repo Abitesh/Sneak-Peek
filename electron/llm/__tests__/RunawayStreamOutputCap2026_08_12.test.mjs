@@ -104,7 +104,7 @@ describe('the cap covers EVERY public streaming entry point', () => {
   //
   // Enumerate the public streaming generators and require each to be bounded,
   // so adding a third one fails here rather than shipping unbounded.
-  const PUBLIC_STREAM_ENTRY_POINTS = ['streamChat', 'streamChatWithGemini', 'streamWithGroqOrGemini'];
+  const PUBLIC_STREAM_ENTRY_POINTS = ['streamChat', 'streamChatWithGemini', 'streamFinalPrompt', 'streamWithGroqOrGemini'];
 
   test('every public streaming generator is enumerated', () => {
     const declared = [...src.matchAll(/public async \* (\w+)\(/g)].map(m => m[1]);
@@ -161,7 +161,7 @@ describe('the cap covers EVERY public streaming entry point', () => {
     // the overshoot is bounded by one chunk, which is the right trade.
     const start = src.indexOf('for await (const chunk of this._streamChatInner');
     const body = src.slice(start, start + 900);
-    const yieldIdx = body.indexOf('yield dashReducer.reduce(chunk);');
+    const yieldIdx = body.indexOf('yield dashReducer.reduce(visibleChunk);');
     const capIdx = body.indexOf('emittedChars > outputCeiling');
     assert.ok(yieldIdx > 0 && capIdx > 0);
     assert.ok(yieldIdx < capIdx, 'the chunk must be yielded before the cap check');

@@ -85,6 +85,6 @@ describe('the prompt builders forward the pinned id to resolveMode (source guard
     // pass pinnedModeId through so the fallback path pins the same mode.
     // The fallback forwards pinnedModeId; a trailing retrievalOptions arg
     // (round-6) may follow it.
-    assert.match(src, /buildRetrievedActiveModeContextBlock\(\s*query, transcript, tokenBudget, answerType, excludeCustomContext, pinnedModeId(, retrievalOptions)?\s*\)/);
+    assert.match(src, /buildRetrievedActiveModeContextBlock\(\s*query, transcript, tokenBudget, answerType, excludeCustomContext, pinnedModeId,\s*\{\s*\.\.\.\(retrievalOptions\s*\?\?\s*\{\}\),\s*canonicalShadowAlreadyHandled:\s*true\s*\}/);
   });
 });

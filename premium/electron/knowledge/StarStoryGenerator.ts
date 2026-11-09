@@ -75,7 +75,7 @@ export function generateStarStories(experience: any[]): StarStory[] {
   }
 
   return experience
-    .map((exp) => {
+    .map((exp): StarStory | null => {
       // Try to extract STAR elements from experience text
       const content = exp.description || exp.title || '';
       const lowerContent = content.toLowerCase();

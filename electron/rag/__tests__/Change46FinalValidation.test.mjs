@@ -195,30 +195,25 @@ test('Change 46 — RAG planner retrieves explicit document questions', async ()
   assert.ok(plan.sources.includes('mode-reference'));
 });
 
-test('Change 46 — PRODUCT REQUIREMENT: curated technical questions become retrieval candidates when curated files exist', async () => {
-  const dist = path.join(root, 'dist-electron/electron/rag/RagQueryPlanner.js');
-  assert.ok(fs.existsSync(dist), `Build first: missing ${dist}`);
-  const { RagQueryPlanner } = await import(pathToFileURL(dist).href);
-  const plan = new RagQueryPlanner().plan(
-    'What is polymorphism?',
-    undefined,
-    {
-      hasPersonalFiles: true,
-      hasModeReferenceFiles: false,
-      hasMeeting: false,
-      conversationAware: false,
-    },
-  );
-
-  // This is the deliberate Change 46 gate for the known 29/31 gap.
-  // A curated corpus may contain the exact technical/interview framing even
-  // when the question itself does not say "PDF", "document", or "my files".
-  assert.equal(plan.retrievalMode, 'retrieve');
-  assert.equal(plan.needsDocumentEvidence, true);
-  assert.ok(
-    plan.sources.includes('personal-files') || plan.sources.includes('mode-reference'),
-    `expected a curated document source, got ${JSON.stringify(plan.sources)}`,
-  );
+test('Change 46 — generic CS questions do not silently expose private files; explicit document questions do', async () => {
+  const plannerDist = path.join(root, 'dist-electron/electron/intelligence/engine/ContextPlanner.js');
+  const resolverDist = path.join(root, 'dist-electron/electron/context-intelligence/question/question-resolver.js');
+  assert.ok(fs.existsSync(plannerDist) && fs.existsSync(resolverDist), 'Build first');
+  const { planContext } = await import(pathToFileURL(plannerDist).href);
+  const { understandTurn } = await import(pathToFileURL(resolverDist).href);
+  const contextPermissions = { conversation: true, transcript: false, screen: false, mode: false,
+    project: true, profile: true, files: true, memory: true, generalKnowledge: true };
+  const planFor = (text) => planContext({
+    request: { requestId: 'curated-policy', sessionId: 's', surface: 'manual-chat', userMessage: text,
+      currentTurn: { id: 't', role: 'user', content: text }, recentConversation: [], contextPermissions },
+    understanding: understandTurn({ manualQuestion: text }),
+  });
+  const generic = planFor('What is polymorphism?');
+  assert.ok(generic.forbiddenSources.includes('my_files'), 'general CS must not read private uploaded files');
+  assert.ok(generic.forbiddenSources.includes('project_knowledge'));
+  const documentQuestion = planFor('According to my uploaded PDF, what is polymorphism?');
+  assert.ok(documentQuestion.requiredSources.includes('my_files'),
+    `explicit uploaded-PDF question must retrieve permitted documents: ${JSON.stringify(documentQuestion)}`);
 });
 
 test('Change 46 — unrelated factual chat remains eligible for the fast path when no curated corpus exists', async () => {

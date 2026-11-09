@@ -125,7 +125,7 @@ const CUSTOM_MODES = {
     sentinels: {
       pricing: 'Pro tier is $24/user/mo annual',
       feature_matrix: 'per_mode_reference_files,YES,NO,NO,NO',
-      security: 'Sneak-Peek does not currently hold SOC2 Type 2',
+      security: 'does not currently hold SOC2 Type 2', // Certification truth must survive branding changes.
       roadmap: 'first-class custom modes and Playwright E2E gating',
       case_study: 'Halo Labs reported a 40 percent faster interview prep cycle',
     },

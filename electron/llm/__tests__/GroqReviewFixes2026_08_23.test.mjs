@@ -58,13 +58,15 @@ describe('FINDING 2: a persisted RETIRED default is repaired even when a Groq ke
 });
 
 describe('FINDING 3: a deliberate picker choice is never treated as an auto-default', () => {
-  test('CredentialsManager only auto-replaces ids the app itself auto-assigns', () => {
+  test('CredentialsManager preserves deliberate preferred-model selection', () => {
     const source = src('electron/services/CredentialsManager.ts');
-    assert.match(source, /AUTO_ASSIGNED_MODEL_IDS = new Set/);
-    assert.doesNotMatch(source, /current\.startsWith\('openai\/gpt-oss-'\)/,
-      'gpt-oss ids are only ever user-chosen; replacing them discards a deliberate choice');
-    // legacy auto-set ids must still be promoted off (both are retired)
-    assert.match(source, /'llama-3\.3-70b-versatile',\s*\n\s*'meta-llama\/llama-4-scout-17b-16e-instruct',/);
+    const method = source.match(/public setPreferredModel\(provider: PreferredModelProvider, modelId: string\): void \{([\s\S]*?)\n    \}/);
+    assert.ok(method, 'preferred-model setter must remain explicit and independently persisted');
+    assert.match(method[1], /\(this\.credentials as any\)\[key\] = modelId/);
+    assert.doesNotMatch(method[1], /this\.credentials\.defaultModel\s*=/,
+      'saving a chosen Groq model must not silently replace the user default');
+    assert.doesNotMatch(method[1], /isGroqModelId|isRetiredModelId|AUTO_ASSIGNED_MODEL_IDS/,
+      'the preferred-model setter must not silently overwrite a user-selected model');
   });
 });
 

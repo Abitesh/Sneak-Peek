@@ -1,220 +1,107 @@
-// electron/rag/__tests__/IngestConcurrencyStarLoss2026_08_02.test.mjs
-//
-// Regression: re-uploading a résumé while the previous ingest was still
-// generating STAR stories SILENTLY DESTROYED the first ingest's stories.
-//
-// Straight off a production log (2026-08-02, packaged 2.8.5):
-//   03:46:41  upload A saves doc 61, starts STAR generation (~35s of LLM calls)
-//   03:47:03  upload B runs deleteDocumentsByType(RESUME) -> doc 61 deleted,
-//             saves doc 62
-//   03:47:18  upload A's STAR nodes finally land -> saveNodes(..., docId=61)
-//             -> [KnowledgeOrchestrator] Failed to generate STAR stories:
-//                FOREIGN KEY constraint failed
-//
-// ingestDocument's step 4 deletes every document of the type before saving the
-// new one, while step 8 awaits multi-second LLM calls AFTER its document row
-// exists — so two same-type ingests interleave destructively. The STAR catch
-// treats the failure as "optional enrichment", which is right for a flaky LLM
-// and wrong for "our parent row was deleted underneath us": six generated
-// stories were thrown away and nothing surfaced to the user.
-//
-// Fixed by serializing ingests per DocType (_ingestChainByType). This test
-// drives the REAL orchestrator against an in-memory DB and reproduces the
-// interleaving deterministically with a gate, rather than pinning source text.
-//
-// Run: ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron --test <file>
-
-import { test, describe, afterEach } from 'node:test';
+// WORK0039: Same-type profile uploads are serialized by the ACTIVE profile
+// owner and replaced atomically in profile_documents. The retired STAR-node
+// tables are not part of the app's source of truth. These tests exercise the
+// same re-upload race with the active schema and real compiled orchestrator.
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
+import { KnowledgeOrchestrator } from '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js';
+import { KnowledgeDatabaseManager } from '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js';
+import { DocType } from '../../../dist-electron/premium/electron/knowledge/types.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dist = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge');
-const { KnowledgeOrchestrator } = await import(pathToFileURL(path.join(dist, 'KnowledgeOrchestrator.js')).href);
-const { KnowledgeDatabaseManager } = await import(pathToFileURL(path.join(dist, 'KnowledgeDatabaseManager.js')).href);
-const { DocType } = await import(pathToFileURL(path.join(dist, 'types.js')).href);
-
-const tmpFiles = [];
-afterEach(() => { for (const f of tmpFiles.splice(0)) { try { fs.rmSync(f, { force: true }); } catch {} } });
-
-function resumeFile(tag) {
-  const file = path.join(os.tmpdir(), `ingest-race-${process.pid}-${tag}-${Date.now()}.txt`);
-  fs.writeFileSync(file, 'Rohan Varma\nSoftware Engineering Intern at AetherGrid\nShipped a streaming pipeline.', 'utf8');
-  tmpFiles.push(file);
-  return file;
+function fixture() {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'work0039-ingest-race-'));
+  const db = new Database(':memory:');
+  const orch = new KnowledgeOrchestrator(new KnowledgeDatabaseManager(db));
+  const file = (name) => {
+    const p = path.join(directory, `${name}.txt`);
+    fs.writeFileSync(p, `Rohan Varma\nSoftware Engineer at AetherGrid\nProject ${name}: shipped a streaming pipeline using TypeScript, Redis, and PostgreSQL. I built the APIs, tested retry behavior and improved production reliability.`);
+    return p;
+  };
+  return {db, orch, file, close() { db.close(); fs.rmSync(directory, {recursive:true,force:true}); }};
+}
+const resumeJson = (name) => JSON.stringify({ identity: {name}, skills: {languages:['TypeScript']},
+  experience:[{role:'Engineer',company:'AetherGrid',bullets:['Shipped streaming pipeline']}],
+  projects:[], education:[], certifications:[] });
+const jdJson = JSON.stringify({title:'Backend Developer',company:'AetherGrid',requirements:['TypeScript'],technologies:['Redis']});
+function gate() {
+  let release, reached;
+  const wait = new Promise((resolve)=>{release=resolve;});
+  const entered = new Promise((resolve)=>{reached=resolve;});
+  return {wait,entered,release:()=>release(),reached:()=>reached()};
 }
 
-const RESUME_JSON = JSON.stringify({
-  identity: { name: 'Rohan Varma' },
-  skills: { languages: ['TypeScript'], frameworks: [], cloud: [], databases: [], ml: [], devops: [], tools: [] },
-  experience: [{
-    company: 'AetherGrid', role: 'Software Engineering Intern',
-    start_date: '2025-06', end_date: '2025-08',
-    bullets: ['Shipped a streaming pipeline with sub-80ms latency.'],
-  }],
-  projects: [], education: [], achievements: [], certifications: [], leadership: [],
+test('re-upload waits for existing same-type ingestion and atomically installs newest résumé', async () => {
+  const f=fixture(), g=gate();
+  try {
+    let calls=0, active=0, overlap=false;
+    f.orch.setGenerateContentFn(async parts => {
+      const prompt=parts.map(x=>x.text).join(' ');
+      if (/job description data/i.test(prompt)) return jdJson;
+      active++; if(active>1) overlap=true;
+      const index=++calls;
+      if (index===1) { g.reached(); await g.wait; }
+      active--;
+      return resumeJson(index===1?'First Candidate':'Second Candidate');
+    });
+    const first=f.orch.ingestDocument(f.file('first'),DocType.RESUME);
+    await g.entered;
+    const second=f.orch.ingestDocument(f.file('second'),DocType.RESUME);
+    assert.equal(f.orch.isIngesting(DocType.RESUME),true);
+    assert.equal(f.orch.isIngesting(DocType.JD),false);
+    // Allow the second queued task a chance to interleave before releasing.
+    await new Promise(resolve=>setTimeout(resolve,25));
+    assert.equal(calls,1,'second extraction must not start before first completes');
+    g.release();
+    const [a,b]=await Promise.all([first,second]);
+    assert.equal(a.success,true,a.error); assert.equal(b.success,true,b.error);
+    assert.equal(overlap,false);
+    assert.equal(calls,2);
+    const rows=f.db.prepare("SELECT * FROM profile_documents WHERE doc_type = 'resume'").all();
+    assert.equal(rows.length,1);
+    assert.equal(JSON.parse(rows[0].structured_data).identity.name,'Second Candidate');
+    assert.equal(f.orch.isIngesting(DocType.RESUME),false);
+  } finally { g.release(); f.close(); }
 });
 
-const STAR_JSON = JSON.stringify([{
-  index: 1, situation: 'A latency-sensitive pipeline.', task: 'Cut end-to-end latency.',
-  action: 'Rewrote the transport and batched writes.', result: 'Sub-80ms interaction latency.',
-  full_narrative: 'I owned a streaming pipeline that needed to feel instant, so I rewrote the transport and batched the writes, landing sub-80ms interaction latency.',
-}]);
+test('JD ingestion can finish while an independent résumé extraction is blocked', async () => {
+  const f=fixture(),g=gate();
+  try {
+    f.orch.setGenerateContentFn(async parts=>{
+      const prompt=parts.map(x=>x.text).join(' ');
+      if (/job description data/i.test(prompt)) return jdJson;
+      g.reached(); await g.wait; return resumeJson('Rohan Varma');
+    });
+    const resume=f.orch.ingestDocument(f.file('resume'),DocType.RESUME);
+    await g.entered;
+    const jd=await Promise.race([
+      f.orch.ingestDocument(f.file('jd'),DocType.JD),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('JD blocked by résumé')),2000)),
+    ]);
+    assert.equal(jd.success,true,jd.error);
+    assert.equal(f.db.prepare("SELECT count(*) n FROM profile_documents WHERE doc_type='jd'").get().n,1);
+    assert.equal(f.orch.isIngesting(DocType.RESUME),true);
+    g.release();
+    assert.equal((await resume).success,true);
+  } finally {g.release();f.close();}
+});
 
-const isStarPrompt = (parts) => {
-  const text = Array.isArray(parts) ? parts.map((p) => p?.text ?? '').join(' ') : String(parts ?? '');
-  return /STAR \(Situation, Task, Action, Result\)/.test(text);
-};
-
-/**
- * KnowledgeDatabaseManager that RECORDS the write ops ingestDocument performs.
- *
- * The distinguishing signal is ordering, not row counts: both before and after
- * the fix exactly one résumé survives with one STAR node (the loser's rows are
- * CASCADE-deleted either way). What separates them is whether one ingest's
- * writes interleave with another's delete — verified pre-fix as
- *   delete, saveNodes(doc 1), delete, saveNodes(doc 2), saveNodes(doc 2),
- *   "Failed to generate STAR stories: FOREIGN KEY constraint failed"
- * i.e. doc 1's STAR write arrived after doc 1 had been deleted.
- */
-function recordingDb(db, ops) {
-  const kdb = new KnowledgeDatabaseManager(db);
-  const wrap = (name, describe) => {
-    const orig = kdb[name].bind(kdb);
-    kdb[name] = (...args) => {
-      // Record the ATTEMPT, including one that throws. The failing write IS the
-      // defect — recording only successes hid it completely: an earlier version
-      // of this helper pushed after `orig(...)` returned, so the FOREIGN KEY
-      // throw skipped the push and the invariant below saw a clean sequence.
-      try {
-        const out = orig(...args);
-        ops.push({ ...describe(args, out), ok: true });
-        return out;
-      } catch (err) {
-        ops.push({ ...describe(args, undefined), ok: false, error: String(err?.message ?? err) });
-        throw err;
-      }
-    };
-  };
-  wrap('deleteDocumentsByType', (args) => ({ op: 'delete', type: args[0] }));
-  wrap('saveDocument', (args, id) => ({ op: 'saveDocument', docId: id }));
-  wrap('saveNodes', (args) => ({ op: 'saveNodes', docId: args[1], count: (args[0] ?? []).length }));
-  return kdb;
-}
-
-/**
- * Orchestrator wired to an in-memory DB. Only the FIRST STAR call is gated —
- * gating every call made both ingests park on one promise and resume in order,
- * which never reproduced the interleaving (an earlier version of this test
- * passed against the UNFIXED code; that is the vacuity this shape avoids).
- */
-function makeOrchestrator(db, gate, ops) {
-  const orch = new KnowledgeOrchestrator(recordingDb(db, ops));
-  let starCalls = 0;
-  orch.setGenerateContentFn(async (parts) => {
-    if (isStarPrompt(parts)) {
-      starCalls += 1;
-      if (starCalls === 1) { gate.markReached(); await gate.promise; }
-      return STAR_JSON;
-    }
-    return RESUME_JSON;
-  });
-  orch.setEmbedFn(async () => new Array(384).fill(0.01));
-  return { orch, starCount: () => starCalls };
-}
-
-function makeGate() {
-  let release;
-  const promise = new Promise((r) => { release = r; });
-  let reached;
-  const reachedPromise = new Promise((r) => { reached = r; });
-  return { promise, release: () => release(), reached: reachedPromise, markReached: () => reached() };
-}
-
-/** Every saveNodes must target a document that had not already been deleted. */
-function firstWriteAfterDelete(ops) {
-  const live = new Set();
-  for (const e of ops) {
-    if (e.op === 'delete') live.clear();
-    else if (e.op === 'saveDocument') live.add(e.docId);
-    else if (e.op === 'saveNodes' && !live.has(e.docId)) return e;
-  }
-  return null;
-}
-
-describe('concurrent same-type ingests must not destroy each other (2026-08-02)', () => {
-  test('a re-upload during STAR generation does not orphan the first ingest\'s nodes', async () => {
-    const db = new Database(':memory:');
-    try {
-      const gate = makeGate();
-      const ops = [];
-      const { orch, starCount } = makeOrchestrator(db, gate, ops);
-
-      const first = orch.ingestDocument(resumeFile('a'), DocType.RESUME);
-      await gate.reached;                        // A is now parked inside STAR generation
-
-      // B arrives mid-flight. Before the fix its step-4 delete removed A's
-      // document row while A was still awaiting the LLM.
-      const second = orch.ingestDocument(resumeFile('b'), DocType.RESUME);
-      // Real time, not one tick: B must get an actual chance to run
-      // delete -> saveDocument -> saveNodes while A is parked. Releasing
-      // immediately is what made the earlier version of this test vacuous.
-      await new Promise((r) => setTimeout(r, 400));
-      gate.release();
-
-      const [ra, rb] = await Promise.all([first, second]);
-      assert.equal(ra.success, true, `first ingest must succeed: ${ra.error ?? ''}`);
-      assert.equal(rb.success, true, `second ingest must succeed: ${rb.error ?? ''}`);
-      assert.equal(starCount(), 2, 'each ingest generates its own STAR stories');
-
-      // THE invariant. Pre-fix this finds saveNodes(docId=1) after doc 1's
-      // delete — the FOREIGN KEY error and the six discarded STAR stories.
-      const violation = firstWriteAfterDelete(ops);
-      assert.equal(violation, null,
-        `an ingest wrote nodes to a document another ingest had already deleted: ${JSON.stringify(violation)} — ops=${JSON.stringify(ops)}`);
-
-      // And directly: no write may fail. The orchestrator swallows a STAR
-      // failure as "optional enrichment", so `success:true` above is NOT
-      // evidence the stories survived — this is what makes the loss silent.
-      const failed = ops.filter((e) => e.ok === false);
-      assert.deepEqual(failed, [],
-        `a database write failed during concurrent ingest (production logged "FOREIGN KEY constraint failed" here): ${JSON.stringify(failed)}`);
-
-      // And the shape holds end-to-end: one live résumé, with its STAR story.
-      const docs = db.prepare("select id from knowledge_documents where type = 'resume'").all();
-      assert.equal(docs.length, 1, 'one active résumé is the documented invariant');
-      const starNodes = db.prepare(
-        "select count(*) c from context_nodes where document_id = ? and category = 'star_story'").get(docs[0].id);
-      assert.ok(starNodes.c > 0, 'the active résumé must keep its STAR stories');
-      const orphans = db.prepare(
-        'select count(*) c from context_nodes n left join knowledge_documents d on d.id = n.document_id where d.id is null').get();
-      assert.equal(orphans.c, 0, 'no node may outlive its document');
-    } finally {
-      db.close();
-    }
-  });
-
-  test('a résumé and a JD still ingest concurrently — only same-type writers queue', async () => {
-    const db = new Database(':memory:');
-    try {
-      const gate = makeGate();
-      const { orch } = makeOrchestrator(db, gate, []);
-      // Nothing gates the JD path (no STAR stories), so it must complete even
-      // while the résumé is parked — serialization is per type, not global.
-      const resume = orch.ingestDocument(resumeFile('r'), DocType.RESUME);
-      const jd = await Promise.race([
-        orch.ingestDocument(resumeFile('j'), DocType.JD).then(() => 'jd-done'),
-        new Promise((r) => setTimeout(() => r('timeout'), 5000)),
-      ]);
-      assert.equal(jd, 'jd-done', 'a JD upload must not be blocked behind an in-flight résumé ingest');
-      gate.release();
-      await resume;
-    } finally {
-      db.close();
-    }
-  });
+test('failed replacement does not destroy an earlier valid résumé row', async () => {
+  const f=fixture();
+  try {
+    f.orch.setGenerateContentFn(async()=>resumeJson('Original Candidate'));
+    assert.equal((await f.orch.ingestDocument(f.file('original'),DocType.RESUME)).success,true);
+    const before=f.db.prepare("SELECT id,structured_data FROM profile_documents WHERE doc_type='resume'").get();
+    f.orch.setGenerateContentFn(async()=>{throw new Error('provider unavailable');});
+    const old=process.env.PI_HEURISTIC_EXTRACTION;
+    process.env.PI_HEURISTIC_EXTRACTION='off';
+    try { assert.equal((await f.orch.ingestDocument(f.file('failed'),DocType.RESUME)).success,false); }
+    finally {if(old===undefined) delete process.env.PI_HEURISTIC_EXTRACTION;else process.env.PI_HEURISTIC_EXTRACTION=old;}
+    const after=f.db.prepare("SELECT id,structured_data FROM profile_documents WHERE doc_type='resume'").get();
+    assert.deepEqual(after,before);
+    assert.equal(f.orch.isIngesting(DocType.RESUME),false);
+  } finally {f.close();}
 });

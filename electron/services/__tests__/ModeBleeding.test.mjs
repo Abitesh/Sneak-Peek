@@ -197,8 +197,10 @@ describe('BUG-MODE-BLEEDING: Mode-context clearing on mode switch', () => {
 
     assert.ok(source.includes('clearAllSessions(): void'),
       'ConversationMemoryService must have a clearAllSessions() method');
-    assert.ok(source.includes('this.bySession.clear()'),
-      'clearAllSessions must clear the entire bySession map, not one session');
+    assert.match(source, /clearAllSessions\(\): void\s*\{[\s\S]{0,160}clearConversationState\(\)/,
+      'clearAllSessions must clear the canonical ConversationState for every session');
+    assert.doesNotMatch(source, /this\.bySession\.clear\(/,
+      'the compatibility facade must not resurrect a second session map');
   });
 
   test('modes:set-active also clears _manualCodingState (sibling per-session store, same defense-in-depth)', () => {
@@ -217,7 +219,7 @@ describe('BUG-MODE-BLEEDING: Mode-context clearing on mode switch', () => {
     assert.ok(source.includes('clearAllSessions(): void'),
       'CodingConversationState must have a clearAllSessions() method');
     assert.ok(source.includes('this.bySession.clear()'),
-      'clearAllSessions must clear the entire bySession map, not one session');
+      'the coding state must still clear its owned bySession map');
   });
 });
 

@@ -224,9 +224,10 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
     useEffect(() => {
         if (isOpen && initialQuery && messages.length === 0) {
             setChatState('opening');
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 submitQuestion(initialQuery);
             }, 100);
+            return () => clearTimeout(timer);
         }
     }, [isOpen, initialQuery]);
 

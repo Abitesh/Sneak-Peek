@@ -73,7 +73,7 @@ test('the manual-chat call site passes the server-cascade flag', () => {
   const src = fs.readFileSync(path.join(root, 'electron/ipcHandlers.ts'), 'utf8');
   assert.ok(/firstUsefulDeadlineMs\(answerPlan\.answerType,\s*usingLocalLlm,\s*viaServerCascade\)/.test(src),
     'the manual-chat handler must pass viaServerCascade into firstUsefulDeadlineMs (F-301)');
-  assert.ok(/isUsingNativelyServerCascade\?\.\(\)/.test(src),
+  assert.ok(/isUsingSneakPeekServerCascade\?\.\(\)/.test(src),
     'viaServerCascade must be derived from the LLMHelper route predicate');
 });
 
@@ -101,7 +101,7 @@ test('the phone-mirror call site passes BOTH route flags', () => {
     'the phone-mirror handler must pass isLocal AND viaServerCascade into firstUsefulDeadlineMs (CR-05)',
   );
   assert.ok(
-    /phoneViaServerCascade\s*=\s*llmHelper\.isUsingNativelyServerCascade\?\.\(\)\s*===\s*true/.test(codeOnly),
+    /phoneViaServerCascade\s*=\s*llmHelper\.isUsingSneakPeekServerCascade\?\.\(\)\s*===\s*true/.test(codeOnly),
     'phone viaServerCascade must come from the same LLMHelper route predicate as manual chat',
   );
   assert.ok(

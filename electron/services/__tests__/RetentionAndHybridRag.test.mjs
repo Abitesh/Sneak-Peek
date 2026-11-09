@@ -1,6 +1,6 @@
 // Phase 4 + Phase 9 — source-level wiring tests.
-// Phase 4: WhatToAnswerLLM should prefer the new async hybrid retriever
-//          when ModesManager exposes it. Lexical sync remains as fallback.
+// Phase 4: ModeContextRetriever retains its legacy hybrid wrapper; the active
+//          WhatToAnswerLLM path uses bounded canonical RAG, with compatibility fallback.
 // Phase 9: stopMeeting must early-return when meetingRetention is 'never'
 //          OR when meeting metadata has doNotPersist === true.
 
@@ -30,41 +30,18 @@ describe('Phase 4 — Hybrid RAG default in WhatToAnswerLLM', () => {
     assert.match(src, /['"]rag_miss['"]/, 'must record empty result');
   });
 
-  test('WhatToAnswerLLM prefers async hybrid when method exists, falls back to sync', () => {
+  test('WhatToAnswerLLM bounds canonical RAG retrieval and constrains source context', () => {
     const src = read('electron/llm/WhatToAnswerLLM.ts');
-    // Type slot for the new method (so callers can detect it).
-    assert.match(src, /buildRetrievedActiveModeContextBlockHybrid\?:/, 'type alias must declare optional hybrid method');
-    // Runtime branch: prefer hybrid, await it.
-    // `this.modesManager` OR a local `modesManager` — the call site now reads the
-    // manager into a local before the feature-detect. The invariant is the
-    // DETECT-then-fall-back itself: the hybrid method is optional on the type
-    // (asserted above), so calling it unguarded would throw on any manager that
-    // predates it.
-    assert.match(
-      src,
-      /typeof (?:this\.)?modesManager\.buildRetrievedActiveModeContextBlockHybrid\s*===\s*['"]function['"]/,
-      'the async hybrid path must be feature-detected before use',
-    );
-    // Awaited DIRECTLY or through the deadline race. The call is now
-    // `await raceWithBudget(modesManager.buildRetrievedActiveModeContextBlockHybrid(…), budget, '')`
-    // so a cold embedder cannot stall the turn past the first-useful deadline —
-    // the same guard LLMHelper's hybrid path carries. It is still awaited and its
-    // value still feeds modeContextBlock, which is what this pins.
-    assert.match(
-      src,
-      /await[\s\S]{0,120}(?:this\.)?modesManager\.buildRetrievedActiveModeContextBlockHybrid\(/,
-      'the hybrid retrieval result must be awaited (directly or via the budget race)',
-    );
-    // Lexical fallback path remains.
-    // Same receiver relaxation as above — the lexical fallback is still there
-    // (two call sites: the post-hybrid `!modeContextBlock` retry and the
-    // no-hybrid-method branch), just reached through the local reference.
-    assert.match(
-      src,
-      /(?:this\.)?modesManager\.buildRetrievedActiveModeContextBlock\(/,
-      'the synchronous lexical fallback must remain reachable',
-    );
+    assert.match(src, /ragManager\.buildContext\(/,
+      'current WhatToAnswer uses the canonical RAG retrieval adapter, not the retired ModesManager hybrid path');
+    assert.match(src, /await\s+raceWithBudget\(\s*ragManager\.buildContext\(/,
+      'retrieval must be subject to a per-request time budget');
+    assert.match(src, /allowRerank/,
+      'optional rerank must obey the request policy');
+    assert.match(src, /modeId|modeUniqueId/,
+      'retrieval must carry an explicit mode source boundary');
   });
+
 });
 
 describe('Phase 9 — Retention & doNotPersist gate in MeetingPersistence', () => {

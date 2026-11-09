@@ -71,7 +71,7 @@ describe('P2: ProfileContextBuilder renders the full typed profile', () => {
         assert.match(b, /AWS, GCP/);                    // cloud distinct
         assert.match(b, /RedisMart/);
         assert.match(b, /CUSAT/);
-        assert.match(b, /internship/);                  // is_internship surfaced
+        assert.match(b, /internship/i);                  // is_internship surfaced
     });
 
     test('target job block includes role, company, requirements, technologies (the JD finally rendered)', () => {
@@ -86,10 +86,12 @@ describe('P2: ProfileContextBuilder renders the full typed profile', () => {
     test('grounding block carries authorization + completeness + scoped-security rules', () => {
         const { block } = buildGroundingBlock(RESUME_DOC, JD_DOC);
         assert.match(block, /USER'S OWN data/);
-        assert.match(block, /NEVER reply that you lack access/i);
+        assert.match(block, /NEVER refuse the user's authorized request/i);
         assert.match(block, /COMPLETENESS/);
         assert.match(block, /FIELD PRECISION/);
-        assert.match(block, /NEVER to the user's own uploaded data/);
+        assert.match(block, /sensitive personal data/i);
+        assert.match(block, /only to answer this user's authorized questions/i);
+        assert.doesNotMatch(block, /ARE NOT private information/i);
     });
 
     test('empty inputs → empty block', () => {
@@ -172,7 +174,7 @@ describe('P2: orchestrator injection (flag ON for file)', () => {
     test('the grounding block forbids the "I don\'t have access" refusal', async () => {
         const orch = makeOrchestrator(RESUME_DOC, JD_DOC);
         const result = await orch.processQuestion('what AI tools are on my resume?');
-        assert.match(result.contextBlock, /NEVER reply that you lack access/i);
+        assert.match(result.contextBlock, /NEVER refuse the user's authorized request/i);
     });
 
     test('idempotent, no double injection', async () => {

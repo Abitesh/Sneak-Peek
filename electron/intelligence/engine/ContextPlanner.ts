@@ -1,5 +1,6 @@
 import type { SneakPeekIntelligenceRequest } from './types';
 import type { TurnUnderstanding } from '../../context-intelligence/question/question-resolver';
+import { isBroadCandidateProjectsQuestion } from '../../context-intelligence/question/ProjectOverviewIntent';
 import type { ContextAvailability, ContextPlan, ContextRequirement, ContextSource, ContextSourceDecision } from './ContextTypes';
 
 const SOURCES: ContextSource[] = [
@@ -151,7 +152,22 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   );
 
   let projectFallbackSelected = false;
-  switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : understanding.intent) {
+  // Portfolio questions may cite the candidate's explicitly tagged project PDFs,
+  // plus only the resume files whose IDs were authorized by the IPC inventory.
+  // Named/singular project questions retain their stricter exact-ID boundary.
+  // Broad portfolio questions can use either current project-tagged files or
+  // an explicitly allowed resume, including when the user uploaded *only*
+  // a resume. Neither inventory alone authorizes unrelated My Files.
+  const authorizedPortfolioResume = request.contextPermissions.files
+    && (request.activeContext?.resumeSourceIds?.length ?? 0) > 0;
+  if (isBroadCandidateProjectsQuestion(understanding.question)
+    && (request.contextPermissions.project || authorizedPortfolioResume)) {
+    require('recent_conversation');
+    if (request.contextPermissions.project) require('project_knowledge');
+    if (authorizedPortfolioResume) require('my_files');
+    require('rag');
+    rationale.push('Portfolio overview uses project-tagged documents and/or explicitly authorized résumé file IDs.');
+  } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : understanding.intent) {
     case 'project-question':
       require('recent_conversation');
       if (request.contextPermissions.project) {
@@ -251,7 +267,8 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   // even if a broad classifier also marks the turn as personal. This keeps
   // résumé facts such as "I have used Redis" from overriding the actual
   // Linkship implementation evidence.
-  if (required.has('project_knowledge')) {
+  if (required.has('project_knowledge')
+    || (isBroadCandidateProjectsQuestion(understanding.question) && authorizedPortfolioResume && required.has('my_files'))) {
     for (const source of ['personal_knowledge', 'profile', 'structured_knowledge'] as ContextSource[]) {
       required.delete(source);
       optional.delete(source);

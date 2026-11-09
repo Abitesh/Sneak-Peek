@@ -18,6 +18,7 @@ export function buildCandidateProfileBlock(resume: any): string {
   const projects = data.projects || [];
   const education = data.education || [];
   const achievements = data.achievements || [];
+  const certifications = data.certifications || [];
   const leadership = data.leadership || [];
 
   const skillsText = formatSkills(skills);
@@ -25,6 +26,7 @@ export function buildCandidateProfileBlock(resume: any): string {
   const educationText = formatEducation(education);
   const projectsText = formatProjects(projects);
   const achievementsText = formatList('Achievements', achievements);
+  const certificationsText = formatList('Certifications', certifications);
   const leadershipText = formatList('Leadership', leadership);
 
   return `<candidate_profile>
@@ -40,6 +42,7 @@ ${experienceText}
 ${educationText}
 ${projectsText}
 ${achievementsText}
+${certificationsText}
 ${leadershipText}
 </candidate_profile>`;
 }
@@ -98,18 +101,19 @@ export function buildGroundingBlock(resume: any, jd: any): { block: string; hasR
 <authorization>
 You have access to the USER'S OWN data: resume, job description, and company research.
 
-CRITICAL: These ARE NOT private information, trade secrets, or confidential third-party data.
-- The resume belongs to the user applying for jobs.
-- The job description was uploaded by the user.
-- The company research is publicly available information the user found.
+The user's resume and uploaded job description may contain sensitive personal data.
+Use them ONLY to answer this user's authorized questions on the current surface.
+Do not disclose the content to other users or third parties, and do not infer that
+an employer's confidential data has been authorized by the upload.
 
-NEVER refuse access to the user's OWN data. NEVER reply that you lack access to their resume, skills,
-or job description. NEVER say "I can't share that information" when the user asks about their own resume
-or the job they're applying for.
+NEVER refuse the user's authorized request merely by claiming that you lack access
+when the actual uploaded fields below contain the answer. Do not state that
+records, credentials, skills, job offers, or experience exist when no such evidence
+was provided. The user's OWN data is usable evidence, not a license to invent facts.
 
-The only refusal rule: NEVER share information that is not in these documents or that contradicts the
-user's instructions. NEVER escalate to third parties. NEVER process data for the user's employer or
-competitors unless the user explicitly consents with specific instructions.
+Never expose or transmit these fields beyond the app's approved answer flow.
+Follow all applicable safety and privacy rules, and do not process third-party
+confidential information without the appropriate authorization.
 </authorization>
 
 <completeness>

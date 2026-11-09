@@ -38,6 +38,7 @@
 
 import path from 'path';
 import fs from 'fs';
+import { inspectRerankerAssets } from './RerankerAssetPreflight';
 import { Worker } from 'worker_threads';
 import { app } from 'electron';
 import {
@@ -80,6 +81,7 @@ class LocalRerankerImpl {
     private pendingRequests = new Map<number, { resolve: (v: any) => void; reject: (e: any) => void; timer: ReturnType<typeof setTimeout> }>();
     private loadingPromise: Promise<void> | null = null;
     private loadFailed = false;
+    private assetWarning: string | null = null;
     private loaded = false;
     // Release function for the shared ONNX slot acquired in ensureLoaded().
     // Wired into worker error/exit handlers so the slot frees when the worker
@@ -184,6 +186,11 @@ class LocalRerankerImpl {
                 this.pendingRequests.delete(msg.requestId);
 
                 if (msg.type === 'error') {
+                    // A handled parser/ONNX error is NOT a native crash. Do not
+                    // leave a poisoned-load sentinel behind, but latch the
+                    // genuine init failure to avoid 60s retries on each query.
+                    if (!this.loaded) this.loadFailed = true;
+                    clearOnnxLoadSentinel('reranker', this.modelId);
                     pending.reject(new Error(msg.error || 'Worker error'));
                 } else if (msg.type === 'ready') {
                     // Worker reached `ready` — clear the poisoned-load sentinel.
@@ -293,18 +300,13 @@ class LocalRerankerImpl {
      * download vs. just prewarm. Never throws.
      */
     async isCached(): Promise<boolean> {
-        try {
-            const marker = path.join(this.modelPath, ...this.modelId.split('/'), 'tokenizer.json');
-            const onnxFile = path.join(this.modelPath, ...this.modelId.split('/'), 'onnx', `model_${this.dtype === 'q8' ? 'quantized' : ''}.onnx`);
-            // Some transformers.js v3 layouts ship model.onnx without the dtype suffix.
-            const onnxFileAlt = path.join(this.modelPath, ...this.modelId.split('/'), 'onnx', 'model.onnx');
-            if (!fs.existsSync(marker)) return false;
-            if (fs.existsSync(onnxFile)) return true;
-            if (fs.existsSync(onnxFileAlt)) return true;
-            return false;
-        } catch {
-            return false;
+        const asset = inspectRerankerAssets(this.modelPath, this.modelId, this.dtype);
+        if (!asset.ready && asset.reason !== this.assetWarning) {
+            this.assetWarning = asset.reason || 'missing local model';
+            console.warn('[LocalReranker] skipping optional rerank:', this.assetWarning);
         }
+        if (asset.ready) this.assetWarning = null;
+        return asset.ready;
     }
 
     /**
@@ -325,6 +327,9 @@ class LocalRerankerImpl {
     async isAvailable(): Promise<boolean> {
         if (startupPoisoned) return false;
         if (this.loadFailed) return false;
+        // Never download/repair the optional cross-encoder during a user chat.
+        // Model downloads belong to the existing explicit download service.
+        if (!this.loaded && !(await this.isCached())) return false;
         try {
             await this.ensureLoaded();
             return this.loaded;
@@ -338,6 +343,7 @@ class LocalRerankerImpl {
         if (startupPoisoned) throw new Error('reranker skipped: previous launch poisoned the load');
         if (this.loadFailed) throw new Error('reranker previously failed to load');
         if (this.loadingPromise) return this.loadingPromise;
+        if (!(await this.isCached())) throw new Error('reranker assets unavailable; optional reranking skipped');
 
         // Cross-loader ONNX gate (electron/utils/onnxThreadConfig.ts). Two
         // checks before admitting a new session: a free-memory floor, and a

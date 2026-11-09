@@ -48,17 +48,18 @@ describe('P2: identity probe routing', () => {
         for (const q of ['who are you?', 'introduce yourself']) {
             const d = resolveIdentityProbe(q, false);
             assert.equal(d.kind, 'assistant_reply', q);
-            assert.match(d.reply, /I'm Sneak-Peek/);
+            assert.match(d.reply, /AI assistant/i);
+            assert.doesNotMatch(d.reply, /Aarav Menon/);
         }
     });
     test('assistant-meta probes stay canned even WITH a profile', () => {
         const cases = [
-            ['are you an AI?', /I'm Sneak-Peek/],
-            ['are you chatgpt?', /I'm Sneak-Peek/],
-            ['what is natively?', /I'm Sneak-Peek/],
-            ['what model are you?', /I'm Sneak-Peek/],
-            ['who built natively?', /developed by Evin John/],
-            ['who made you', /developed by Evin John/],
+            ['are you an AI?', /AI assistant/i],
+            ['are you chatgpt?', /AI assistant/i],
+            ['what is natively?', /AI assistant/i],
+            ['what model are you?', /AI assistant/i],
+            ['who built natively?', /app team behind this project/i],
+            ['who made you', /app team behind this project/i],
         ];
         for (const [q, re] of cases) {
             const d = resolveIdentityProbe(q, true);
@@ -294,11 +295,30 @@ describe('wiring pins', () => {
         assert.match(ipcSrc, /!context && !autoContextSnapshot && isBareFollowUp\(message\)/);
         assert.match(ipcSrc, /buildContextFreeClarification\(clarSurface\)/);
     });
-    test('gap pivots gated on fit/gap/behavioral answer types', () => {
-        assert.match(orchSrc, /gapRelevantTypes = new Set\(\['jd_fit_answer', 'gap_analysis_answer', 'behavioral_interview_answer'\]\)/);
+    test('profile/JD evidence for gap and interview answers obeys AnswerPlanner source permissions', () => {
+        // Legacy gapRelevantTypes was removed when the canonical AnswerPlanner
+        // became the authority for all profile/JD source selection.
+        assert.match(orchSrc, /const plan = planAnswer\(\{ question: normalized, source: 'manual_input'/);
+        assert.match(orchSrc, /plan\.profileContextPolicy === 'required' && isLayerAllowed\(plan, 'resume'\)/);
+        assert.match(orchSrc, /plan\?\.requiredContextLayers\.includes\('jd'\) && isLayerAllowed\(plan, 'jd'\)/);
+        assert.match(orchSrc, /if \(\!\(canonicalResumeAllowed && profile\) && \!\(jdAllowed && this\.activeJD\)\) return null/);
+        const technical = planAnswer({ question: 'Explain binary search', source: 'manual_input', speakerPerspective: 'user' });
+        assert.ok(technical.forbiddenContextLayers.includes('resume'),
+            'general technical questions cannot receive the candidate résumé');
+        assert.ok(technical.forbiddenContextLayers.includes('jd'),
+            'general technical questions cannot receive a private job description');
     });
-    test('live company research is budget-bounded in the hot path', () => {
-        assert.match(orchSrc, /Promise\.race\(\[\s*researchPromise/);
+    test('live company research is deadline-bounded and source-backed in the active provider', () => {
+        // The deadline moved out of KnowledgeOrchestrator into the shared
+        // CompanyResearchEngine; a `Promise.race([researchPromise, ...])` in
+        // the orchestrator would now duplicate work and create late responses.
+        const researchSrc = readFileSync(path.resolve(__dirname, '../../../premium/electron/knowledge/CompanyResearchEngine.ts'), 'utf8');
+        assert.match(orchSrc, /await searchCompanyInfo\(company, api\.searchProvider\)/);
+        assert.match(researchSrc, /DEFAULT_COMPANY_RESEARCH_TIMEOUT_MS = 2500/);
+        assert.match(researchSrc, /const results = await Promise\.race\(\[search, deadline, abortPromise\]\)/);
+        assert.match(researchSrc, /if \(controller\.signal\.aborted \|\| \!Array\.isArray\(results\)\) return null/);
+        assert.match(researchSrc, /const cited = results\.filter/,
+            'company claims must be grounded in actual provider search hits');
     });
     test('foreground gate wired: manual begin/end + embedding queue + live indexer yield', () => {
         assert.match(ipcSrc, /ForegroundGate\.begin\('manual'\)/);

@@ -167,9 +167,10 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
     // Submit initial query when overlay opens
     useEffect(() => {
         if (isOpen && initialQuery && messages.length === 0) {
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 submitQuestion(initialQuery);
             }, 100);
+            return () => clearTimeout(timer);
         }
     }, [isOpen, initialQuery]);
 

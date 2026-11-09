@@ -54,16 +54,32 @@ function wireConnectedStatus(stt, sendSttStatus) {
   });
 }
 
-test('production SneakPeekProSTT wiring maps handshake connected to awaiting-audio', () => {
-  const sneakPeekBlockMatch = /if \(stt instanceof SneakPeekProSTT\) \{([\s\S]*?)\n    \}/.exec(mainSource);
-  assert.ok(sneakPeekBlockMatch, 'could not locate SneakPeekProSTT-specific wiring block in main.ts');
+function extractBraceBody(source, openBrace) {
+  let depth = 1;
+  for (let i = openBrace + 1; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return source.slice(openBrace + 1, i);
+  }
+  return null;
+}
 
-  const sneakPeekBlock = sneakPeekBlockMatch[1];
+test('production SneakPeekProSTT wiring maps handshake connected to awaiting-audio', () => {
+  // Locate the provider-specific branch independent of indentation, and
+  // assert on the connected callback itself, not a later 'connected' status
+  // legitimately emitted only after a final transcript.
+  const branch = /if\s*\(\s*stt\s+instanceof\s+SneakPeekProSTT\s*\)\s*\{/.exec(mainSource);
+  assert.ok(branch, 'could not locate SneakPeekProSTT-specific wiring block in main.ts');
+  const sneakPeekBlock = extractBraceBody(mainSource, branch.index + branch[0].length - 1);
+  assert.ok(sneakPeekBlock, 'SneakPeekProSTT branch must have a complete body');
+  const connected = /stt\.on\(\s*['"]connected['"]\s*,\s*\(\s*\)\s*=>\s*\{/.exec(sneakPeekBlock);
+  assert.ok(connected, 'SneakPeekProSTT connected handler must exist');
+  const connectedBody = extractBraceBody(sneakPeekBlock, connected.index + connected[0].length - 1);
+  assert.ok(connectedBody, 'SneakPeekProSTT connected handler must have a complete body');
   assert.ok(/stt\.on\(\s*['"]connected['"]/.test(sneakPeekBlock), 'BUG: main.ts must listen for SneakPeekProSTT connected events.');
-  assert.ok(/_consecutiveErrors\s*=\s*0/.test(sneakPeekBlock), 'BUG: connected handshake must reset consecutive STT errors.');
-  assert.ok(/_lastState\s*=\s*['"]awaiting-audio['"]/.test(sneakPeekBlock), 'BUG: connected handshake must enter awaiting-audio, not connected.');
-  assert.ok(/state\s*:\s*['"]awaiting-audio['"]/.test(sneakPeekBlock), 'BUG: connected handshake must broadcast awaiting-audio.');
-  assert.ok(!/stt\.on\(\s*['"]connected['"][\s\S]*?state\s*:\s*['"]connected['"]/.test(sneakPeekBlock), 'BUG: handshake connected must not broadcast verified connected status.');
+  assert.ok(/_consecutiveErrors\s*=\s*0/.test(connectedBody), 'BUG: connected handshake must reset consecutive STT errors.');
+  assert.ok(/_lastState\s*=\s*['"]awaiting-audio['"]/.test(connectedBody), 'BUG: connected handshake must enter awaiting-audio, not connected.');
+  assert.ok(/state\s*:\s*['"]awaiting-audio['"]/.test(connectedBody), 'BUG: connected handshake must broadcast awaiting-audio.');
+  assert.ok(!/state\s*:\s*['"]connected['"]/.test(connectedBody), 'BUG: handshake connected must not broadcast verified connected status.');
 });
 
 test('SneakPeekProSTT connected event clears reconnecting status back to awaiting audio without waiting for a final transcript', () => {

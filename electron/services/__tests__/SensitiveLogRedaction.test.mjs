@@ -114,11 +114,14 @@ test('main.ts transcript content traces are gated, never unconditional', () => {
   // on. It must never be reachable without the Context-Intelligence content
   // gate, which itself requires a dev build AND verbose AND an explicit env
   // opt-in, and fails closed when unbound or packaged.
-  const helper = source.match(/private contentTraceEnabled\(\)[\s\S]{0,400}?\n  \}/);
-  assert.ok(helper, 'the contentTraceEnabled gate helper must exist');
-  assert.match(helper[0], /getContentInclusionEnabled\(\) === true/,
+  const gateStart = source.indexOf('private contentTraceEnabled(): boolean');
+  const gateEnd = source.indexOf('private readonly simpleAutoAnswer', gateStart);
+  assert.ok(gateStart >= 0 && gateEnd > gateStart, 'the content trace gate must exist');
+  const helper = source.slice(gateStart, gateEnd);
+  assert.match(helper, /getContentInclusionEnabled\(\) === true/,
     'the gate must delegate to the content-inclusion resolver, not re-implement it');
-  assert.match(helper[0], /catch \{ return false; \}/, 'and fail CLOSED if that lookup throws');
+  assert.match(helper, /catch\s*\{\s*return false;\s*\}/,
+    'and fail CLOSED if that lookup throws');
 
   for (const tag of ['\\[AutoAnswer:text\\]', '\\[STT:']) {
     const re = new RegExp(`[^\\n]*${tag}[^\\n]*`, 'g');

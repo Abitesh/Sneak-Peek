@@ -536,3 +536,35 @@ Do not mark resolved because an agent proposed code. If another error appears af
 - **State:** In progress; DOM assertions pass, visual acceptance pending.
 
 **2026-11-08 WORK-0026 resolution — Verified:** Added two renderer requestAnimationFrame boundaries before screenshot capture. Rerun exits 0 with two reads/generations/completions, correct DOM text and a visually inspected image showing the answer. Evidence: /var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/chg1718-desktop-84cF3r/result.json and visible-answer.png; stdout /tmp/chg1718-resume-desktop-painted.log. This confirms a harness capture-before-paint defect; no production fix was necessary.
+
+## ERR-049 — Overlay delayed submission survives close/unmount (2026-11-08)
+
+WORK-0027 / STAB-001. Installed React Doctor 0.2.10 reproduced exactly two effect-needs-cleanup errors in GlobalChatOverlay.tsx:168 and MeetingChatOverlay.tsx:224 (48 warnings). Both opening effects schedule submitQuestion after 100 ms without cancelling on close, initial-query replacement or unmount. Confirmed source defect; stale submission can start after closing and clearing. Repair with effect-owned timeout cleanup, verify executed effect lifecycle and rerun installed tooling. In progress.
+
+## ERR-050 — Compatibility project routing and entity validation omit hyphenated names (2026-11-08)
+
+WORK-0027 / STAB-001. Saved baseline ResidualFixes/RoutingReleaseFixes/WtaManualParity and CustomModeSourceIsolation failures assert wrong project route or split Sneak-Peek entity. Production answerPlannerPatterns retains old alias-only named-project patterns; extractCandidateEntities splits a hyphenated proper noun into unrelated parts. Repair generic hyphenated entity recognition and support current project alias alongside existing compatibility aliases; preserve source authorization. Existing failing cases plus a nonbrand hyphenated name regression required. In progress.
+
+## ERR-051 — Parser regressions depend on missing/invalid binary fixtures (2026-11-08)
+
+WORK-0027 / STAB-001. Fresh baseline reproduces six failures: SafeDocumentTextExtractor PDF/DOCX paths absent, parser-timeout assertion fails on ENOENT before parsing, RealPdfIngestion fixture is not parseable PDF. These are fixture failures, not established extractor defects. Replace with generated valid synthetic PDF/DOCX in disposable test directories, retain actual parser/destroy/timeout assertions, and add supported TXT/CSV cases. No owner document or fixture binary overwritten. In progress.
+
+## ERR-052 — Compatibility profile processing ignores planned source exclusions (2026-11-08)
+
+WORK-0027/STAB-001. Fresh baseline ProfileIntelligenceE2E reproduces JD context on coding/sales questions. KnowledgeOrchestrator.processQuestion computes canonicalResumeAllowed but passes every loaded resume/JD/company into ContextAssembler regardless. It also returns early without a resume even for authorized JD-only questions and emits an intro fallback for non-intro requests. Source-confirmed privacy/grounding boundary defect; use the existing plan's layer permissions before assembly, preserve canonical engine ownership, and test denied and JD-only cases. In progress.
+
+## ERR-053 — Regression spies/assertions target superseded implementation boundaries (2026-11-08)
+
+WORK-0027/STAB-001. ModeHybridChunkCache's four failures spy on chunkText while current locator-preserving retrieval calls chunkRecords and caches by original ID/content hash. ProfileIntelligenceGate compares classification order to removed inline ragManager; actual handler delegates to engine. Update these boundary references only; retain executed cache invalidation/count and source exclusion assertions. In progress.
+
+## ERR-054 — Named project overview loses exact source scope in actual app (2026-11-08)
+
+WORK-0027 / STAB-001. Before fix, actual production main/preload/React overlay in OS-isolated macOS app: synthetic Linkship and Linkship Legacy ingested through real personal-files IPC. “Why did you use Redis in Linkship?” selects only Linkship; next “Tell me about Linkship.” omits projectFileIds and retrieves both files, placing both canary facts in final prompt and visible deterministic answer. Evidence: /var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-stabilization-kpwub3iu/scenarios.json. Confirmed in-scope source isolation defect, not provider hallucination. In progress; investigate ProjectFileScope and IPC scope propagation before repair.
+
+## ERR-055 — Explicit project overview with trailing modifier loses exact file scope (2026-11-08)
+
+WORK-0028 / STAB-001. Source-level reproduction against the owner-supplied WORK-0027 snapshot: `resolveProjectFileScope("Tell me about Linkship in detail.", ...)` returns no `selectedFileIds` while `Linkship` and `Linkship Legacy` are present. Incidental `in detail` can defeat anchored overview parsing, so the downstream engine may lack its intended project-ID allowlist. Patch prioritizes explicit overview extraction over incidental prepositions, recognizes common polite/detail modifiers, and rejects pronoun subjects when an explicit named-source phrase exists. An isolated compiled TypeScript module passed 16 source-scope tests, including exact sibling exclusion, absent named source and unbound follow-up. **Status: offline-focused verified; full macOS application rerun required before marking runtime resolved.** Do not widen retrieval on missing identity.
+
+## ERR-056 — Stabilization harness skips mandatory résumé picker authorization (2026-11-08)
+
+WORK-0028 / STAB-001. Source-level check of actual production `profile:upload-resume` reveals it deliberately consumes an expiring allowlist populated only by `profile:select-file`. The owner-supplied `stabilization-full-product.cjs` tried `profileUploadResume(resumePath)` directly, causing an expected rejection unrelated to résumé ingestion quality. Patch performs `profileSelectFile()` through the real preload/IPC route after supplying its disposable selected file to the test dialog stub; then uses the returned path in `profileUploadResume()`. Clear-chat actions are awaited and their success checked. JavaScript syntax checked; **full app scenario not executed outside macOS**. Production path-selection checks must stay intact.

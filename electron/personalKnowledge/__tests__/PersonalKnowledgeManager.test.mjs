@@ -38,6 +38,31 @@ test('Person 1 ingests, persists, searches, and deletes a text file', async () =
   }
 });
 
+test('personal-file deletion removes canonical index-status rows when the optional table exists', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'person1-index-status-'));
+  const db = new Database(path.join(dir, 'test.db'));
+  const sourcePath = path.join(dir, 'projects.md');
+  fs.writeFileSync(sourcePath, 'A project uses Redis and PostgreSQL.');
+  try {
+    const { PersonalKnowledgeManager } = await import('../../../dist-electron/electron/personalKnowledge/PersonalKnowledgeManager.js');
+    PersonalKnowledgeManager.instance = null;
+    const manager = PersonalKnowledgeManager.getInstance(db);
+    const file = await manager.ingestFile(sourcePath, 'project');
+    // The full application schema contains this table; a standalone personal
+    // knowledge manager does not. Both forms must delete safely.
+    db.exec('CREATE TABLE IF NOT EXISTS rag_index_status (source_type TEXT, document_id TEXT)');
+    db.prepare('INSERT INTO rag_index_status (source_type, document_id) VALUES (?, ?)').run('personal', file.id);
+    db.prepare('INSERT INTO rag_index_status (source_type, document_id) VALUES (?, ?)').run('meeting', 'unrelated-meeting');
+    assert.equal(manager.deleteFile(file.id), true);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rag_index_status WHERE document_id = ?').get(file.id).n, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rag_index_status WHERE source_type = ?').get('meeting').n, 1);
+    assert.equal(manager.getFile(file.id), null);
+  } finally {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('Person 1 rejects oversized, empty, unsupported, and binary-mislabeled files', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'person1-validation-'));
   const db = new Database(path.join(dir, 'test.db'));

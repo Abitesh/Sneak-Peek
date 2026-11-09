@@ -1,3 +1,4 @@
+import { syntheticDocuments } from './syntheticDocuments.mjs';
 // Resource-leak fix 2026-07-28: on a PDF parse timeout, `withTimeout` must
 // (a) actually cancel the underlying pdfjs work via `parser.destroy()`
 // rather than merely giving up on it, and (b) never let the original
@@ -34,7 +35,9 @@ const moduleUrl = pathToFileURL(path.resolve(
 )).href;
 const { extractSafeDocumentText } = await import(moduleUrl);
 
-const fixturePath = path.resolve(__dirname, '../../../test-fixtures/profiles/p01/resume.pdf');
+const documents = syntheticDocuments();
+test.after(documents.cleanup);
+const fixturePath = documents.pdf;
 
 test('a PDF parse timeout cancels the underlying parse and never emits an unhandled rejection', async () => {
   const { PDFParse } = require('pdf-parse');

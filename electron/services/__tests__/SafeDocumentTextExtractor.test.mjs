@@ -1,3 +1,4 @@
+import { syntheticDocuments } from './syntheticDocuments.mjs';
 // Shared document extraction contract for Modes Manager + Profile Intelligence
 // upload paths. Senior-review fix 2026-07-16 (audit ab9dc2f0): this test
 // file was lost during the prior broken-commit recovery; restored here to
@@ -97,10 +98,11 @@ test('rejects a symlink instead of following it', async (t) => {
 // pdf-parse's caret range (fixed to an exact pin in the same change) could
 // have shipped without any test catching it. Reuses the existing profile
 // eval fixtures (synthetic data) instead of adding new binary fixtures.
-const fixturesRoot = path.resolve(__dirname, '../../../test-fixtures/profiles');
+const documents = syntheticDocuments();
+test.after(documents.cleanup);
 
 test('extracts real PDF resume text via the pdf-parse/pdfjs-dist branch', async () => {
-  const result = await extractSafeDocumentText(path.join(fixturesRoot, 'p01', 'resume.pdf'));
+  const result = await extractSafeDocumentText(documents.pdf);
   assert.equal(result.extension, '.pdf');
   assert.ok(result.content.includes('MARCUS J. HOLLOWAY'), 'expected known fixture text in extracted content');
   assert.ok(result.pageCount >= 1, 'expected a populated page count');
@@ -108,7 +110,7 @@ test('extracts real PDF resume text via the pdf-parse/pdfjs-dist branch', async 
 });
 
 test('extracts real DOCX resume text via the mammoth branch', async () => {
-  const result = await extractSafeDocumentText(path.join(fixturesRoot, 'p03', 'resume.docx'));
+  const result = await extractSafeDocumentText(documents.docx);
   assert.equal(result.extension, '.docx');
   assert.ok(result.content.includes('MARGARET'), 'expected known fixture text in extracted content');
 });
@@ -131,9 +133,15 @@ test('calls parser.destroy() exactly once on a successful PDF parse', async () =
   const { PDFParse } = require('pdf-parse');
   const destroySpy = mock.method(PDFParse.prototype, 'destroy');
   try {
-    await extractSafeDocumentText(path.join(fixturesRoot, 'p01', 'resume.pdf'));
+    await extractSafeDocumentText(documents.pdf);
     assert.equal(destroySpy.mock.callCount(), 1, 'expected destroy() to be called exactly once');
   } finally {
     destroySpy.mock.restore();
   }
+});
+
+for (const extension of ['txt', 'csv']) test(`extracts generated ${extension} through the production reader`, async () => {
+  const content = 'name,skill\nSynthetic,Violet leases';
+  const result = await extractSafeDocumentText(createFixture(`synthetic.${extension}`, content));
+  assert.equal(result.content, content);
 });

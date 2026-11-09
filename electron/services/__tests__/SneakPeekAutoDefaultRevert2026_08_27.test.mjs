@@ -78,17 +78,17 @@ test('a refused key un-parks the default model from natively', () => {
   );
 });
 
-test('reverting works when the model was ALREADY natively before the save', () => {
-  // The re-save case. A snapshot-based revert would restore 'natively' here and
-  // leave the user exactly as broken as before.
+test('disabled hosted-key setter cannot promote a model or persist a hosted key', () => {
   const env = makeEnv();
   const cm = freshManager(env);
   cm.setSneakPeekApiKey('natively_sk_whatever');
-  assert.equal(cm.getDefaultModel(), 'natively', 'precondition: the key save auto-promoted the model');
-
-  cm.revertSneakPeekAutoDefaults('Sneak-Peek key refused by server');
-
-  assert.equal(cm.getDefaultModel(), 'gemini-3.1-flash-lite');
+  assert.equal(cm.getDefaultModel(), 'gemini-3.1-flash-lite',
+    'a retired hosted backend must not become the active default');
+  assert.ok(!cm.getSneakPeekApiKey(), 'disabled credentials must not be retained');
+  cm.setDefaultModel('natively'); // simulate credentials persisted by an older release
+  cm.setSneakPeekApiKey('natively_sk_whatever');
+  assert.equal(cm.getDefaultModel(), 'gemini-3.1-flash-lite',
+    'a disabled-key write must also unwind a previously parked hosted model');
 });
 
 test('an explicitly chosen model is NOT collateral', () => {
@@ -166,40 +166,22 @@ const HANDLER_BLOCK = fs.readFileSync(
   'utf8',
 );
 
-test('set-natively-api-key undoes the auto-promotion when the key is REFUSED', () => {
-  const block = sliceSafeHandleBlock(HANDLER_BLOCK, 'set-natively-api-key');
-  assert.ok(block.length > 0, 'precondition: handler block not found — this test is vacuous without it');
-
-  assert.match(
-    block,
-    /result\.keyRejected/,
-    'the revert must be gated on keyRejected specifically, not on any activation failure',
-  );
-  assert.match(
-    block,
-    /revertNativelyAutoDefaults/,
-    'a refused key leaves the user parked on the natively endpoint unless the promotion is undone',
-  );
+// Hosted Sneak-Peek key activation was intentionally removed from this build.
+// Keep the old IPC channel absent: restoring a UI-writable credential without
+// a genuine authenticated backend would silently put the user on a dead model.
+test('retired hosted API-key handler cannot be reached from the renderer', () => {
+  assert.equal(sliceSafeHandleBlock(HANDLER_BLOCK, 'set-natively-api-key'), '',
+    'retired activation must stay unregistered');
 });
 
-test('set-natively-api-key reports a refusal instead of returning unconditional success', () => {
-  const block = sliceSafeHandleBlock(HANDLER_BLOCK, 'set-natively-api-key');
-  assert.match(
-    block,
-    /return keyRejection[\s\S]{0,120}success:\s*false/,
-    'the handler returned { success: true } even for a key that authenticates nowhere; the settings UI renders `error` only on a failed save',
-  );
+test('retired hosted key cannot be saved by a legacy IPC alias', () => {
+  assert.equal(sliceSafeHandleBlock(HANDLER_BLOCK, 'set-sneakpeek-api-key'), '',
+    'legacy alias must not silently re-enable a disabled backend');
 });
 
-test('the no-Pro branch is separate from the refusal branch', () => {
-  // A standard-plan key still authenticates against /v1/chat. If the two
-  // branches ever collapse, a working standard user gets torn down.
-  const block = sliceSafeHandleBlock(HANDLER_BLOCK, 'set-natively-api-key');
-  const rejectedAt = block.indexOf('result.keyRejected');
-  const noProAt = block.indexOf('Pro not activated');
-  assert.ok(rejectedAt >= 0 && noProAt >= 0, 'both branches must exist');
-  assert.ok(
-    rejectedAt < noProAt,
-    'the refusal branch must be its own arm, ahead of the generic no-Pro fallthrough',
-  );
+test('trial IPC explicitly fails closed rather than claiming activation', () => {
+  const block = sliceSafeHandleBlock(HANDLER_BLOCK, 'trial:start');
+  assert.ok(block, 'there must be a fail-closed response for an old trial caller');
+  assert.match(block, /ok:\s*false/);
+  assert.match(block, /natively_api_disabled/);
 });

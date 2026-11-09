@@ -15,6 +15,7 @@ import { applyLocalPrivateRagAnswers, applyLocalPrivateRagScopes, readLocalPriva
 import { dedupeRagSearchResults } from './dedupeRagSearchResults';
 import { resolveRagSearchSources } from './resolveRagSearchSources';
 import { resolveCanonicalRerankLimits } from './resolveCanonicalRerankLimits';
+import { withOptionalRerankDeadline } from './OptionalRerankDeadline';
 import { RagQueryPlanner, type RagQueryPlan, type RagQueryPlanningContext, type RagSourceSelection } from './RagQueryPlanner';
 import { CanonicalRagComparisonService } from './canonical/CanonicalRagComparisonService';
 import type { RagRetrievalComparisonCandidate, RagRetrievalComparisonSourceType } from './canonical/CanonicalRagComparisonTypes';
@@ -865,12 +866,15 @@ results = await this.modeAdapter.retrieve({ query, options, candidatePoolSize, t
 results = await this.personalAdapter.retrieve({ query, options, candidatePoolSize, signal: input.signal });
 }
 if (input.signal?.aborted) return [];
-if (input.projectFilesOnly) {
-  const allowed = input.projectFileIds ? new Set(input.projectFileIds) : null;
-  // Keep the source adapter from widening the already-authorized project scope.
-  results = results.filter((result) => result.source?.sourceType === 'personal'
-    && String(result.source.metadata?.fileType ?? '') === 'project'
-    && (!allowed || allowed.has(String(result.source.id ?? ''))));
+if (input.projectFilesOnly || input.projectFileIds !== undefined) {
+  const allowed = input.projectFileIds !== undefined ? new Set(input.projectFileIds) : null;
+  // The engine's explicit file-ID allowlist applies to résumé and project
+  // evidence alike, including if a fallback source adapter returns too much.
+  results = results.filter((result) => (!allowed || allowed.has(String(result.source?.id ?? '')))
+    && (!input.projectFilesOnly || (
+      result.source?.sourceType === 'personal'
+      && String(result.source.metadata?.fileType ?? '') === 'project'
+    )));
 }
 return results;
 };
@@ -909,12 +913,13 @@ query,
 candidates,
 rerankCandidatePoolSize,
 readResult.usedCanonical,
+input.signal,
 );
 } catch (error) {
 if (!readResult.usedCanonical) throw error;
 candidates = dedupeRagSearchResults(await fallback());
 if (input.signal?.aborted) return cancelled();
-candidates = await this.rerankCanonicalResults(query, candidates, rerankCandidatePoolSize);
+candidates = await this.rerankCanonicalResults(query, candidates, rerankCandidatePoolSize, false, input.signal);
 readResult = { results: candidates, usedCanonical: false, fallbackReason: 'error' };
 }
 if (input.signal?.aborted) return cancelled();
@@ -926,7 +931,7 @@ let finalResults = this.gateCanonicalResults(candidates.slice(0, topK), query, s
 if (readResult.usedCanonical && finalResults.length === 0) {
 const fallbackResults = dedupeRagSearchResults(await fallback());
 if (input.signal?.aborted) return cancelled();
-const rerankedFallback = await this.rerankCanonicalResults(query, fallbackResults, rerankCandidatePoolSize);
+const rerankedFallback = await this.rerankCanonicalResults(query, fallbackResults, rerankCandidatePoolSize, false, input.signal);
 if (input.signal?.aborted) return cancelled();
 rerankedFallback.sort((a, b) => b.score - a.score);
 finalResults = this.gateCanonicalResults(rerankedFallback.slice(0, topK), query, spaceKey);
@@ -1339,6 +1344,7 @@ normalizedQuery,
 results,
 rerankCandidatePoolSize,
 canonicalReadEnabled && canonicalReadFallbacks.length > 0,
+options.signal,
 );
 results.splice(0, results.length, ...reranked);
 } catch (error) {
@@ -1564,6 +1570,7 @@ query: string,
 results: RagSearchResult[],
 candidatePoolSize: number,
 forceSingleResult = false,
+signal?: AbortSignal,
 ): Promise<RagSearchResult[]> {
 if (results.length === 0) return results;
 if (results.length < 2 && !forceSingleResult) return results;
@@ -1581,22 +1588,35 @@ const reranker = getLocalReranker() as {
 rerank: (q: string, passages: string[]) => Promise<Array<{ index: number; score: number }> | null>;
 };
 const pool = results.slice(0, Math.min(candidatePoolSize, results.length));
-const reranked: Array<{ result: RagSearchResult; score: number }> = [];
-const batchSize = 6;
-for (let start = 0; start < pool.length; start += batchSize) {
-const batch = pool.slice(start, start + batchSize);
-const scores = await reranker.rerank(query, batch.map(result => result.chunk.text));
-if (!scores || scores.length < batch.length) {
-throw new Error('local reranker returned incomplete scores');
+// The entire OPTIONAL rerank (including a cold model load or ONNX slot wait)
+// receives one short budget. A timeout returns the already authorized,
+// deduplicated source candidates; late model results are never used.
+const outcome = await withOptionalRerankDeadline(async () => {
+  const reranked: Array<{ result: RagSearchResult; score: number }> = [];
+  const batchSize = 6;
+  for (let start = 0; start < pool.length; start += batchSize) {
+    const batch = pool.slice(start, start + batchSize);
+    const scores = await reranker.rerank(query, batch.map(result => result.chunk.text));
+    if (!scores || scores.length < batch.length) {
+      throw new Error('local reranker returned incomplete scores');
+    }
+    for (const item of scores) {
+      const index = Number(item.index);
+      if (!Number.isInteger(index) || index < 0 || index >= batch.length) continue;
+      const rawScore = Number(item.score);
+      if (!Number.isFinite(rawScore)) continue;
+      reranked.push({ result: batch[index], score: rawScore });
+    }
+  }
+  return reranked;
+}, { signal });
+if (outcome.status !== 'completed') {
+  if (outcome.status === 'timeout') {
+    console.warn('[RAGManager] Optional local rerank exceeded its deadline; preserving scoped candidate order');
+  }
+  return results;
 }
-for (const item of scores) {
-const index = Number(item.index);
-if (!Number.isInteger(index) || index < 0 || index >= batch.length) continue;
-const rawScore = Number(item.score);
-if (!Number.isFinite(rawScore)) continue;
-reranked.push({ result: batch[index], score: rawScore });
-}
-}
+const reranked = outcome.value;
 if (reranked.length !== pool.length) return results;
 const byId = new Map(
 reranked.map(item => [item.result.chunk.id, { ...item.result, rerankScore: item.score }]),
@@ -1613,8 +1633,10 @@ score: normalized,
 ranked.sort((a, b) => b.score - a.score);
 return ranked;
 } catch (error) {
-console.warn('[RAGManager] Local rerank failed; keeping unified retrieval order:', error);
-if (forceSingleResult) throw error;
+console.warn('[RAGManager] Optional local rerank failed; preserving source-scoped candidate order:', error);
+// A broken/slow optional cross-encoder must not turn valid authorized
+// canonical evidence into a second legacy search or an empty answer.
+// The canonical relevance gate still runs after this method returns.
 return results;
 }
 }
