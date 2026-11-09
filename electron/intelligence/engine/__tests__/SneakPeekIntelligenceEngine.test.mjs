@@ -149,3 +149,46 @@ describe('SneakPeekIntelligenceEngine contract', () => {
   });
 
 });
+
+// CHG-19: cancellation returns diagnostics without opening another retrieval or
+// generation path, regardless of which surface would have owned the answer.
+for (const [surface, question] of [
+  ['manual-chat', 'What is DBMS?'],
+  ['manual-chat', 'Tell me about myself.'],
+  ['manual-chat', 'Why did Linkship use Redis?'],
+  ['manual-chat', 'Write binary search in Python.'],
+  ['manual-chat', 'Give me its code.'],
+  ['screenshot', 'Explain this screen.'],
+  ['meeting-overlay', 'Summarize this meeting.'],
+  ['global-rag', 'Search all meetings.'],
+]) {
+  test(`CHG-19 pre-cancelled ${surface}: ${question}`, async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let reads = 0, generations = 0;
+    const engine = new SneakPeekIntelligenceEngine({
+      retrievalCoordinator: { retrieve() { reads++; throw new Error('Unexpected retrieval'); } },
+      generationPort: { async *stream() { generations++; throw new Error('Unexpected generation'); } },
+    });
+    const request = {
+      requestId: `cancel-${question}`, sessionId: `chg19-${question}`, surface,
+      userMessage: question, currentTurn: { id: 'cancelled-turn', role: 'user', content: question, createdAt: 1 },
+      recentConversation: [], contextPermissions: permissions, cancellationSignal: controller.signal,
+      activeContext: { projectName: 'Linkship', projectSourceIds: ['synthetic-only'], profileId: 'synthetic-profile' },
+    };
+    const result = await engine.handle(request);
+    assert.equal(result.providerAttempt.status, 'cancelled');
+    assert.equal(result.streamLifecycle.status, 'cancelled');
+    assert.equal(result.finalAnswer, null);
+    assert.deepEqual(result.evidence.items, []);
+    assert.deepEqual(result.evidencePack.items, []);
+    assert.equal(result.retrievalPlan.shouldRetrieve, false);
+    assert.deepEqual(result.diagnostics.stages, ['cancelled']);
+    // Diagnostic fields remain coherent and the prompt has no retrieved evidence.
+    assert.equal(result.resolvedQuestion, question);
+    assert.equal(result.turnUnderstanding.question, question);
+    assert.doesNotMatch(result.prompt.finalPrompt, /<item\s/);
+    assert.equal(reads, 0);
+    assert.equal(generations, 0);
+  });
+}

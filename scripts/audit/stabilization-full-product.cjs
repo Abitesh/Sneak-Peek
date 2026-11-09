@@ -85,6 +85,13 @@ app.whenReady().then(async () => {
     assert.equal((await win.webContents.executeJavaScript(`window.electronAPI.personalFilesSetFileType(${JSON.stringify(item.file.id)},'project')`)).success,true);
     files.push(item.file);
   }
+  // A portfolio may read both project-tagged files, but never an unrelated
+  // general file merely because it shares the same project vocabulary.
+  const decoyPath = path.join(temp, 'Unrelated General.txt');
+  fs.writeFileSync(decoyPath, 'Linkship and Orchid projects: forbidden-general-file-canary.');
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [decoyPath] });
+  const decoy = await win.webContents.executeJavaScript('window.electronAPI.personalFilesPickAndIngest()');
+  assert.equal(decoy.success, true, JSON.stringify(decoy));
   const scenarios=[];
   async function ask(question,expected,excluded){
     const before=reads.length, pbefore=requests.length, start=performance.now();
@@ -97,6 +104,9 @@ app.whenReady().then(async () => {
     const final=data.events.find(e=>e.type==='done')?.d;
     const answer=final?.finalText??final?.text??data.events.filter(e=>e.type==='token').map(e=>e.t).join('');
     await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.includes(${JSON.stringify(answer)})`));
+    // The reveal ticker can settle after the stream's earlier frame barrier.
+    // Capture only after Chromium has painted the final visible text as well.
+    await overlay.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
     const row={question,answer,visible:true,events:data.events,reads:reads.slice(before),prompts:requests.slice(pbefore),completeVisibleMs:performance.now()-start};scenarios.push(row);
     fs.writeFileSync(path.join(temp,'scenarios.json'),JSON.stringify({files,scenarios},null,2));
     assert.equal(data.events.filter(e=>e.type==='error').length,0,JSON.stringify(data.events));
@@ -132,7 +142,14 @@ app.whenReady().then(async () => {
   assert.equal((await win.webContents.executeJavaScript('window.electronAPI.profileSetMode(true)')).success,true);
   const clearedBeforeProfile=await overlay.webContents.executeJavaScript('window.electronAPI.clearChatContext()');
   assert.equal(clearedBeforeProfile.success,true,JSON.stringify(clearedBeforeProfile));
-  for(const [q,expected] of [['Tell me about yourself.',/Violet Example/],['What skills do I have?',/TypeScript/],['Explain my internship.',/orchid leases/],['What projects have I built?',/orchid leases/],['What certifications do I have?',/Violet Database Certificate/]])await ask(q,expected,/amber rate counters|violet job leases/);
+  for(const [q,expected] of [['Tell me about yourself.',/Violet Example/],['What skills do I have?',/TypeScript/],['Explain my internship.',/orchid leases/],['What certifications do I have?',/Violet Database Certificate/]])await ask(q,expected,/amber rate counters|violet job leases|forbidden-general-file-canary/);
+  await ask('What projects have I built?', /orchid leases/, /forbidden-general-file-canary/);
+  assert.match(scenarios.at(-1).answer, /violet job leases/);
+  assert.match(scenarios.at(-1).answer, /amber rate counters/);
+  const portfolioReads = scenarios.at(-1).reads.filter(read => read.input.projectFilesOnly);
+  assert.ok(portfolioReads.length > 0, 'portfolio must retrieve actual tagged projects');
+  const retrievedIds = [...new Set(portfolioReads.flatMap(read => read.result.results.map(item => item.source.id)))].sort();
+  assert.deepEqual(retrievedIds, files.map(file => file.id).sort(), 'portfolio project evidence must have original authorized IDs');
   fs.writeFileSync(path.join(temp,'answer.png'),(await overlay.webContents.capturePage()).toPNG());
   console.log('ACCEPTANCE_PASS',JSON.stringify({scenarios:scenarios.length,temp}));
   app.quit();

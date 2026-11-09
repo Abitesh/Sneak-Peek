@@ -357,6 +357,23 @@ export class SneakPeekIntelligenceEngine {
       question: cancelledUnderstanding.question || this.resolveQuestion(request),
       turnUnderstanding: cancelledUnderstanding,
     });
+    // Cancellation still returns the public diagnostic contract, but it must
+    // describe one decision snapshot. Reuse the canonical owners instead of
+    // independently re-running understanding/planning for each output field.
+    const contextPlan = planContext({ request, understanding: cancelledUnderstanding });
+    const conversationContext = getRecentConversationContext({
+      sessionId: request.sessionId,
+      currentTurn: this.toConversationTurn(request.currentTurn),
+      currentQuestion: request.userMessage,
+    });
+    const evidence = { items: [], sufficient: false };
+    const evidencePack = buildEvidencePackFromSneakPeekEvidence({
+      turnId: request.currentTurn.id || request.requestId,
+      query: request.userMessage,
+      contextPlan,
+      evidence,
+      answerPolicy: 'ask_clarification',
+    });
     return {
       requestId: request.requestId,
       resolvedQuestion: this.resolveQuestion(request),
@@ -365,20 +382,8 @@ export class SneakPeekIntelligenceEngine {
       intent: 'ambiguous',
       responseType: request.responseShape?.type ?? 'answer',
       selectedContext: { items: [] },
-      contextPlan: planContext({
-        request,
-        understanding: understandTurn({
-          manualQuestion: request.manualQuestion ?? request.userMessage,
-          sessionId: request.sessionId,
-          conversationState: getConversationState(request.sessionId),
-          hasScreenContext: Boolean(request.screenContext),
-        }),
-      }),
-      conversationContext: getRecentConversationContext({
-        sessionId: request.sessionId,
-        currentTurn: this.toConversationTurn(request.currentTurn),
-        currentQuestion: request.userMessage,
-      }),
+      contextPlan,
+      conversationContext,
       retrievalPlan: {
         shouldRetrieve: false,
         mode: 'none',
@@ -386,55 +391,15 @@ export class SneakPeekIntelligenceEngine {
         sources: [],
         maximumResults: 0,
       },
-      evidence: { items: [], sufficient: false },
-      evidencePack: buildEvidencePackFromSneakPeekEvidence({
-        turnId: request.currentTurn.id || request.requestId,
-        query: request.userMessage,
-        contextPlan: planContext({
-          request,
-          understanding: understandTurn({
-            manualQuestion: request.manualQuestion ?? request.userMessage,
-            sessionId: request.sessionId,
-            conversationState: getConversationState(request.sessionId),
-            hasScreenContext: Boolean(request.screenContext),
-          }),
-        }),
-        evidence: { items: [], sufficient: false },
-        answerPolicy: 'ask_clarification',
-      }),
+      evidence,
+      evidencePack,
       prompt: assembleSneakPeekPrompt({
         request,
         question: '',
-        contextPlan: planContext({
-          request,
-          understanding: understandTurn({
-            manualQuestion: request.manualQuestion ?? request.userMessage,
-            sessionId: request.sessionId,
-            conversationState: getConversationState(request.sessionId),
-            hasScreenContext: Boolean(request.screenContext),
-          }),
-        }),
-        conversationContext: getRecentConversationContext({
-          sessionId: request.sessionId,
-          currentTurn: this.toConversationTurn(request.currentTurn),
-          currentQuestion: request.userMessage,
-        }),
+        contextPlan,
+        conversationContext,
         responsePlan: cancelledResponsePlan,
-        evidencePack: buildEvidencePackFromSneakPeekEvidence({
-          turnId: request.currentTurn.id || request.requestId,
-          query: request.userMessage,
-          contextPlan: planContext({
-            request,
-            understanding: understandTurn({
-              manualQuestion: request.manualQuestion ?? request.userMessage,
-              sessionId: request.sessionId,
-              conversationState: getConversationState(request.sessionId),
-              hasScreenContext: Boolean(request.screenContext),
-            }),
-          }),
-          evidence: { items: [], sufficient: false },
-          answerPolicy: 'ask_clarification',
-        }),
+        evidencePack,
       }),
       providerAttempt: { status: 'cancelled' },
       streamLifecycle: { status: 'cancelled' },

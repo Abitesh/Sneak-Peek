@@ -394,3 +394,7 @@ STAB-001 / CHG-17/18 acceptance: In progress. Owner authorized safe production/r
 ## WORK-0028 — STAB-001 follow-up source-scope and acceptance-harness patch (2026-11-08)
 
 **Status:** Prepared externally; pending safe application and Mac-side verification. Source baseline is the user's 24-file WORK-0027 ZIP. ERR-055: explicit Linkship overview modifiers failed exact source ID resolution; offline patched regression 16/16. ERR-056: full-app acceptance called résumé upload without required picker authorization; patch uses real profile selection IPC. Remaining full macOS acceptance, 157 failure triage, React Doctor and Windows checks stay under WORK-0027. Do not start Change 19 solely because these offline checks passed. See WORK-0028 CHANGE_LOG and the accompanying patch README for commands and limitations.
+
+## WORK-0041 / TASK-0002 — CHG-19 safe duplicated-responsibility cleanup (2026-11-09)
+
+In progress. Owner explicitly requested CHG-19 on clean main/9e19e964 after owner-reported WORK-0032–0040; those IDs are reserved although their entries are not present in this repository's records. Preserve baseline and do not implement CHG-20. Inventory: scripts/audit/chg19-responsibility-inventory.md. C19-AC1: inventory complete, safe cancelled-path consolidation pending equivalence. C19-AC2: builds/full suites/manual limitations pending. Active legacy callers remain blockers to wholesale deletion. No uncommitted owner edits at start.
