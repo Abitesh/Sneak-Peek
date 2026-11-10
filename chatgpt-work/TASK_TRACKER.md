@@ -2,6 +2,16 @@
 
 Updated: 2026-11-10. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
 
+## Current CI repair proposal — WORK-0048 (2026-11-10)
+
+**BUG-004 / CI-MAC-001 (ERR-060) / CI-WIN-001 (ERR-061): Implementation patch prepared; owner checkout and CI verification pending.** This is separate from CHG-19, which remains Verified.
+
+- macOS and Windows checkout: hydrate only the LFS-managed BGE `tokenizer.json` before model install/verification. Do not bypass real inference or download unrelated LFS binaries.
+- Model download verifier: reject non-empty Git LFS pointer headers, including placeholders mislabeled `.onnx`; add an isolated no-network regression.
+- Windows intelligence: use `fileURLToPath(import.meta.url)` in the three source-inspection test helpers without changing assertions or production behavior.
+- Acceptance required after the owner applies the patch: `npm run test:scripts`, both targeted test groups, `npm run test:intelligence` on Windows, actual BGE reranker loading/ranking on macOS, then a fresh Build Smoke on the new pushed SHA. **No CI green status is claimed by this patch.**
+- All previous CHG-19 work, canonical RAG, provider settings, audio and licensing stay untouched. No commits/pushes by this agent.
+
 ## Current CHG-19 gate — WORK-0046 (2026-11-10)
 
 **CHG-19 / TASK-0002: Verified for the scoped cancellation-result cleanup. C19-AC1 PASS; C19-AC2 PASS.** This closes the previously missing isolated macOS desktop gate. Actual production launcher, rendered meeting/global overlays, preload, registered main IPC, lexical source retrieval, engine and stream lifecycle were exercised with synthetic meetings and a deliberately delayed provider transport. No production source was changed by WORK-0046.
@@ -438,3 +448,12 @@ In progress. Owner explicitly requested CHG-19 on clean main/9e19e964 after owne
 ## WORK-0046 — CHG-19 desktop acceptance executed (2026-11-10)
 
 TASK-0002 / CHG-19: Verified within the owner-approved scoped cancellation cleanup. G19-01–05 PASS; C19-AC1 remains PASS, C19-AC2 PARTIAL → PASS. Evidence directory: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136` (`result.json`, initial/relaunch JSON, git-review.json and 14 PNGs). Both genuine Electron processes exited0; PIDs47007/47125 used the same disposable userData/sessionData. Exact events and scenario screenshots are linked in the checklist. No application defect found; no production repair required. Owner profile/credential/microphone/network protections retained; sandbox owner-home read/write probes returned EPERM. No index mutation. Full suites, live-provider performance, Windows runtime and CI fixes deliberately not executed. Next: owner review; do not infer a green GitHub smoke run or release approval.
+
+## WORK-0047 — Current Build Smoke failure diagnosis (2026-11-10)
+
+**State:** Diagnosed only; no application, test, workflow, dependency, or model changes made. Current checkout was clean on `main` at `0fd4731a38ea9a20fcb1897eea2a165dbb094516`. The matching [Build Smoke run 42835657466](https://github.com/Abitesh/Sneak-Peek/actions/runs/42835657466) reports failing Electron tests on macOS and intelligence tests on Windows.
+
+- **CI-MAC-001 / ERR-060:** Separate model-asset integrity issue. The owner-provided macOS report has 1 failure in `LocalRerankerModel.test.mjs`; current local tokenizer is a 133-byte Git LFS pointer although the quantized ONNX file exists. Runtime correctly rejects the incomplete asset; source verification accepts any non-empty file. No model or workflow repair was attempted.
+- **CI-WIN-001 / ERR-061:** All 11 Windows intelligence failures are `ENOENT` in source-reading tests. Three tests construct the source root from `URL.pathname`, causing the logged doubled-drive path `D:\D:\a\...`. The assertions did not run, so these failures do not establish production intelligence regressions.
+
+**Recommended next step:** After owner approval, make only the Windows test helper path conversion and model asset hydration/content-verification fixes; preserve test assertions and reranker degradation behavior. Run the three affected test files on both platforms, then the Windows intelligence suite; verify real tokenizer JSON and run the focused reranker inference test on macOS. CHG-19 remains Verified; CHG-20 remains unstarted. See ERR-060/061 and WORK-0047 in CHANGE_LOG.

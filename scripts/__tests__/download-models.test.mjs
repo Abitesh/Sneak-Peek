@@ -11,6 +11,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
   REQUIRED_MODEL_FILES,
+  modelFileOk,
   shouldSkipModelDownload,
   resolvePostWorkerOutcome,
   isCiEnv,
@@ -59,6 +60,35 @@ describe('shouldSkipModelDownload', () => {
     const d = shouldSkipModelDownload({ CI: 'true' }, empty);
     assert.equal(d.skip, false);
   });
+});
+
+
+
+test('required model verifier rejects Git LFS placeholders without loading ONNX', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dm-pointer-'));
+  const rerankerTokenizer = 'Xenova/bge-reranker-base/tokenizer.json';
+  const rerankerOnnx = 'Xenova/bge-reranker-base/onnx/model_quantized.onnx';
+  const pointer = [
+    'version https://git-lfs.github.com/spec/v1',
+    'oid sha256:48564c5c7d3fa64d85d95e65414a542385f88b0f128fd8d4163fd7a57f2be05c',
+    'size 17098079',
+    '',
+  ].join('\n');
+  try {
+    seedModelsDir(dir);
+    assert.equal(shouldSkipModelDownload({}, dir).skip, true);
+    for (const rel of [rerankerTokenizer, rerankerOnnx]) {
+      const filename = path.join(dir, rel);
+      fs.writeFileSync(filename, pointer);
+      assert.equal(modelFileOk(dir, rel), false, rel);
+      assert.equal(shouldSkipModelDownload({}, dir).skip, false, rel);
+      fs.writeFileSync(filename, rel.endsWith('.json') ? '{"model":{}}' : 'mock-model-bytes');
+      assert.equal(modelFileOk(dir, rel), true, rel);
+    }
+    assert.equal(shouldSkipModelDownload({}, dir).skip, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 describe('resolvePostWorkerOutcome', () => {
