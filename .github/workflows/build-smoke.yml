@@ -218,6 +218,32 @@ jobs:
       - name: Verify packaged local fallback assets (source mode)
         run: npm run verify:packaged-local-assets
 
+      # GitHub stores an LFS POINTER for the BGE tokenizer, but the LFS blob is
+      # missing from the repository's LFS server. macOS must load the REAL
+      # cross-encoder; fetch the immutable upstream tokenizer with a pinned hash
+      # after npm ci, never via git lfs pull. Windows remains unchanged.
+      - name: Restore verified BGE tokenizer for macOS inference test
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tokenizer="resources/models/Xenova/bge-reranker-base/tokenizer.json"
+          expected="48564c5c7d3fa64d85d95e65414a542385f88b0f128fd8d4163fd7a57f2be05c"
+          if ! echo "$expected  $tokenizer" | shasum -a 256 -c - >/dev/null 2>&1; then
+            tmp="$(mktemp "${tokenizer}.ci.XXXXXX")"
+            trap 'rm -f "$tmp"' EXIT
+            curl --fail --location --silent --show-error --retry 3 \
+              --connect-timeout 30 --max-time 300 \
+              --output "$tmp" \
+              "https://huggingface.co/Xenova/bge-reranker-base/resolve/cbd4c47f870c4bb77534e06b8853de9c6e958b82/tokenizer.json"
+            echo "$expected  $tmp" | shasum -a 256 -c -
+            node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$tmp"
+            mv "$tmp" "$tokenizer"
+            trap - EXIT
+          fi
+          echo "$expected  $tokenizer" | shasum -a 256 -c -
+          node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$tokenizer"
+
       # Windows runs these ADVISORY (2026-08-10). Previously both steps were
       # skipped outright on Windows, which meant the windows-latest leg reported
       # green while running ZERO tests — its signal covered install and build

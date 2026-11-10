@@ -75,13 +75,59 @@ describe('buildCppProgram (pure)', () => {
   });
 });
 
+// This suite checks correctness, not a guaranteed compiler-startup latency.
+// Under a heavily parallel full Electron test run, macOS g++/clang++ can hit
+// the production 10s compile deadline before any submitted code executes.
+// Retry ONLY that compiler timeout once. A repeated timeout, compilation error,
+// wrong answer, or runtime timeout keeps its original failure semantics.
+async function retryOneCompileTimeout(run) {
+  const first = await run();
+  if (first.status !== 'error' || !/^compile timed out after \d+ms$/.test(first.error ?? '')) {
+    return first;
+  }
+  console.warn('[CppRunner test] compiler timed out under test load; retrying once');
+  return run();
+}
+
+test('compile timeout retry is bounded and never retries a wrong answer or runtime timeout', async () => {
+  let attempts = 0;
+  const recovered = await retryOneCompileTimeout(async () => {
+    attempts++;
+    return attempts === 1
+      ? { status: 'error', error: 'compile timed out after 10000ms' }
+      : { status: 'pass' };
+  });
+  assert.equal(recovered.status, 'pass');
+  assert.equal(attempts, 2);
+
+  attempts = 0;
+  const stillTimedOut = await retryOneCompileTimeout(async () => {
+    attempts++;
+    return { status: 'error', error: 'compile timed out after 10000ms' };
+  });
+  assert.equal(stillTimedOut.status, 'error');
+  assert.equal(attempts, 2);
+
+  for (const status of [
+    { status: 'fail', error: 'wrong answer' },
+    { status: 'error', error: 'timed out after 3000ms' },
+    { status: 'error', error: 'compile error: invalid C++' },
+  ]) {
+    attempts = 0;
+    const result = await retryOneCompileTimeout(async () => { attempts++; return status; });
+    assert.equal(result, status);
+    assert.equal(attempts, 1);
+  }
+});
+
 describe('C++ real execution (g++)', async () => {
   const have = await localLanguageAvailable('cpp');
   const maybe = (name, fn) => test(name, { skip: have ? false : 'g++ unavailable' }, fn);
 
   maybe('correct Two Sum (Solution method, vector<int>) → pass', async () => {
     const code = 'class Solution { public: vector<int> twoSum(vector<int>& nums, int target){ unordered_map<int,int> m; for(int i=0;i<(int)nums.size();i++){ if(m.count(target-nums[i])) return {m[target-nums[i]],i}; m[nums[i]]=i;} return {}; } };';
-    const r = await runCase('cpp', code, 'twoSum', tc([[2, 7, 11, 15], 9], [0, 1]));
+    const r = await retryOneCompileTimeout(() =>
+      runCase('cpp', code, 'twoSum', tc([[2, 7, 11, 15], 9], [0, 1])));
     assert.equal(r.status, 'pass', r.error);
   });
   maybe('correct firstMissingPositive (free fn) → pass with actual 3', async () => {
