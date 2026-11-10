@@ -1,5 +1,32 @@
 # Sneak-Peek — current session handoff
 
+## Latest CI handoff — WORK-0053/0054, 2026-11-10
+
+**Confirmed previous GitHub run:** [Build Smoke 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761) at `d90bc8a3` failed on both platforms. macOS checksum-verified tokenizer retrieval **passed** but `LocalRerankerModel.test.mjs` selected a model root different from the verified repository assets (one failure); a separate packaged-layout real inference passed. **WORK-0053 is now applied locally by the owner**, not yet committed/pushed at this record's creation. Focused actual reranker inference with an intentionally invalid external model path passed **2/2**, including the Paris ranking. Owner's sequential full Mac verification passed all builds, reported typechecks, model/packaged/native/sqlite-vec gates and four full suites: Electron 8,992 passed/0 failed/67 skipped; intelligence 2,142/0/9 TODO; lib 382/0/1 skip; scripts 97/0. Full logs at `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-work0050-verify.89EPF3`. **Next:** inspect `git status`/diff, commit the single test change, then verify a new GitHub macOS run; ERR-060 stays open until CI passes. **Windows WORK-0054 is prepared but not applied**, and the 11 source-path ENOENTs remain unresolved. Do not combine it into this macOS commit.
+
+The previous WORK-0052 tracking patch did not apply: its base files were from a newer unattached-to-Git WORK-0047 snapshot; the original `git apply --check` stopped before mutation. Rebased records from the owner-provided CHG19 Final Review ZIP with blob hashes matching GitHub at `d90bc8a3`. Do not force the superseded patch or treat a prepared records patch as an applied code fix.
+
+
+## Current handoff — WORK-0052, main/d90bc8a3 (2026-11-10)
+
+**Owner has committed and pushed WORK-0050 + WORK-0051** as [`d90bc8a3`](https://github.com/Abitesh/Sneak-Peek/commit/d90bc8a3097574cba57f88b7baa863f4b285693f). Comparison against pre-WORK-0048 `0fd4731a` confirms **only** the macOS workflow BGE tokenizer recovery and C++ test-timeout stabilization remain; the problematic WORK-0048 LFS/Windows patch was reverted. Scoped CHG-19 is Verified (G19-01–05 PASS); CHG-20 is not started.
+
+**macOS Build Smoke ERR-060:** Mac-local source and full-suite verification **passed** after the fix (Electron 8,992 pass/0 fail/67 skip; intelligence 2,142 pass/0 fail/9 TODO; src/lib 382 pass/0 fail/1 skip; scripts 97 pass/0 fail; checks/builds/assets green). GitHub [Build Smoke 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761) for `d90bc8a3` was **in progress** when checked on 2026-11-10; not confirmed green. Do not mark CI Verified resolved until its reranker real-inference test and enforcing steps pass. ERR-063 covers the C++ compile timeout and test-only retry. ERR-062 documents failed unavailable GitHub LFS hydration and its revert; ERR-064 records a transient non-reproduced compiled-output symptom, not an app-code fix.
+
+**Windows ERR-061:** Previously reported 11 source-reading intelligence tests fail due to `D:\D:\...` paths from `URL.pathname`. The WORK-0048 draft correction was reverted, so **Windows remains unresolved**. Next user turn will supply current Windows CI failures. Read the new logs before changing code; preferred fix is test-only `fileURLToPath(import.meta.url)` with assertions untouched. Verify the complete Windows intelligence and other enforced suites in a fresh job. No Windows code has been modified in `d90bc8a3`.
+
+**Records:** This WORK-0052 update was prepared using the owner's four uploaded markdown files (through WORK-0047), plus GitHub **commit comparison metadata**, not full remote file fetching. Patch is for owner review/application; it is **not** installed on the Mac and not committed. If patch preflight fails, obtain the owner workspace versions and reconcile; do not force-apply or overwrite. **Source priority for future work:** newest explicitly supplied owner checkout/ZIP and test logs first; use GitHub only when matching files are missing/stale or live CI metadata is needed, and ask the owner to resolve material conflicts instead of guessing. Keep ERR-038/039/040, legacy feature/provider acceptance and CHG-17/18 broader criteria independently open where their original reproductions remain unverified. See new ERROR_LOG WORK-0052 disposition and CHANGE_LOG WORK-0048–0052 entries.
+
+
+## Current separate CI findings — WORK-0047 (2026-11-10)
+
+The current clean `main` HEAD (`0fd4731a38ea9a20fcb1897eea2a165dbb094516`) matches GitHub Build Smoke run [42835657466](https://github.com/Abitesh/Sneak-Peek/actions/runs/42835657466). CHG-19 remains Verified; neither CI issue is a CHG-19 regression.
+
+- **ERR-060 / CI-MAC-001:** macOS `LocalRerankerModel.test.mjs` fails its bundled-load assertion. Current local checkout contains a 133-byte LFS pointer at the tokenizer path; runtime correctly refuses it, while the model-download verifier accepts any non-empty file. See ERROR_LOG ERR-060 and WORK-0047.
+- **ERR-061 / CI-WIN-001:** 11 Windows intelligence tests fail before their assertions because three test helpers feed `URL.pathname` into Windows `path.resolve()`, producing `D:\D:\a\...`. The minimal recommendation is `fileURLToPath(import.meta.url)` in those test helpers, preserving all assertions and production paths.
+
+No CI, test, source or asset fixes were made. Both issues remain diagnosed and unresolved pending owner approval. Next: approve narrowly scoped test-path and model-asset integrity fixes, then rerun the affected suites on their respective platforms. Do not start CHG-20.
+
 ## Current result — WORK-0046 / CHG-19 desktop acceptance (2026-11-10)
 
 **Scoped CHG-19 Verified. C19-AC1 PASS; C19-AC2 PASS.** Actual isolated production meeting/global overlays were driven with Escape/X; late provider output was released and rejected. Independent actual window survived cancellation. Repeated Enter guard preserved; actual same-sender IPC supersession verified. Two Electron launches shared the same disposable profile; no old stream resumed and a new query completed once. This supersedes the pending GUI gate in historical WORK-0045 below. No production source change or new application defect in this request.

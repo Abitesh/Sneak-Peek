@@ -1,6 +1,25 @@
 # Sneak-Peek — authoritative task tracker
 
+## Current priority — WORK-0053/0054 Build Smoke path repairs (2026-11-10)
+
+**Observed CI:** `main` at `d90bc8a3` still fails both platform jobs in [run 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761). **macOS:** tokenizer restoration/sha256 passed, but `LocalRerankerModel.test.mjs` selected the wrong model root under `ELECTRON_RUN_AS_NODE`, one Electron failure. **Windows:** 11 source-path ENOENT failures persist in Change13/15/16 intelligence tests. CI install/build, lib/scripts pass as separately reported. The earlier WORK-0050/0051 complete Mac local tests were green but did not simulate a clean runner model cache.
+
+**Updated owner verification (WORK-0053):** The single-file macOS test-root correction **is applied locally**, not committed/pushed at record time. Focused real BGE ONNX inference passed **2/2** with `NATIVELY_LOCAL_MODELS_PATH=/tmp/invalid-reranker-models`; the ranking assertion ran, not skipped. Sequential macOS full verification passed all typechecks/builds/asset/native/sqlite-vec prerequisites plus Electron **8,992 pass/0 fail/67 skipped**, intelligence **2,142 pass/0 fail/9 TODO**, src/lib **382 pass/0 fail/1 skip**, scripts **97 pass/0 fail**. Owner-provided complete logs: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-work0050-verify.89EPF3`. Only `electron/rag/__tests__/LocalRerankerModel.test.mjs` is modified relative to pushed `d90bc8a3`; production code and assertions untouched. **Next:** commit/push WORK-0053 after diff review; confirm macOS CI rerun before resolving ERR-060. Windows WORK-0054 remains prepared/unapplied; diagnose 11 Windows failures in a separate verified change. Scoped CHG-19 remains Verified; CHG-20 not started. The rebased records patch is separate from the test fix.
+
+
 Updated: 2026-11-10. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
+
+## Current priority — CI stabilization after CHG-19 (WORK-0052; 2026-11-10)
+
+**Authoritative pushed baseline (owner-reported and connector-confirmed):** `main` commit [`d90bc8a3`](https://github.com/Abitesh/Sneak-Peek/commit/d90bc8a3097574cba57f88b7baa863f4b285693f), **Fix macOS Build Smoke reranker tokenizer and C++ test timeout**. This contains the two-file WORK-0050/0051 change. GitHub commit comparison from pre-WORK-0048 `0fd4731a` to `d90bc8a3` shows **only** `.github/workflows/build-smoke.yml` and `electron/llm/codeVerification/__tests__/CppRunner.test.mjs` differ; WORK-0048's broader failed patch was reverted by `ab3f74bb`. The four tracking files are reconciled from the owner's uploaded post-WORK-0047 snapshot; no remote source-file replacement was needed.
+
+**macOS (ERR-060 / CI-MAC-001): Fix implemented and pushed; CI verification pending.** The workflow restores the 17,098,079-byte BGE reranker tokenizer from a pinned publisher revision with SHA-256 verification, without fetching the unavailable GitHub LFS object. The real reranker inference test remains enabled. The owner's sequential full Mac run after WORK-0050/0051 passed: Electron **8,992/8,992 applicable, 0 failed, 67 skipped** (9,059 total), intelligence **2,142 pass/0 fail/9 TODO**, src/lib **382 pass/0 fail/1 skipped**, script tests **97 pass/0 fail**; all reported typechecks, renderer/Electron builds, model/package/native/sqlite-vec checks and whitespace checks passed. GitHub [Build Smoke run 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761) on `d90bc8a3` was **in progress** at the 2026-11-10 status check; its macOS job must finish successfully before ERR-060 is `Verified resolved`. Local hydrated assets do **not** establish clean-runner hydration.
+
+**Windows (ERR-061 / CI-WIN-001): Diagnosed, unresolved.** The 11 source-reading intelligence test failures from the prior push use `URL.pathname` on `file:` URLs and produce doubled `D:\D:\...` paths. WORK-0048's proposed test changes were reverted; no Windows correction remains in `d90bc8a3`. Next: review the owner's forthcoming Windows logs and fix the test-only path conversion, preserving assertions, with full Windows CI verification. Do not bundle it with a macOS workflow change.
+
+**Other dispositions:** ERR-057, ERR-058, ERR-059, ERR-048, and the narrowly evidenced delayed-overlay-close ERR-049 have passing scoped regressions/acceptance. The WORK-0048 GitHub LFS 404 workflow regression is recorded as ERR-062 (removed by revert); the full-suite C++ compile timeout test flake as ERR-063 (test-only retry locally green, CI pending); transient 229-case local compiled-output failures as ERR-064 (`Cannot reproduce` in sequential reruns, not proven fixed). Historical feature/provider/CHG-17/18 acceptance gaps **are not resolved just because these unit suites pass**; consult ERROR_LOG before reclassifying them.
+
+**Status:** Scoped CHG-19 remains Verified. CHG-17/18 implementations remain not fully accepted for their broader criteria. CHG-20 is not started. No documentation-only patch is a new code fix. This WORK-0052 reconciliation is **prepared for owner application**, not installed in the owner's working tree.
 
 ## Current CHG-19 gate — WORK-0046 (2026-11-10)
 
@@ -169,7 +188,7 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-14 | Not assessed | ROADMAP CHG-14 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-15 | Not assessed | ROADMAP CHG-15 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-16 | Not assessed | ROADMAP CHG-16 | Reconcile historical implementation/evidence; do not reimplement blindly. |
-| CHG-18 | Planned | ROADMAP CHG-18 | Wait for predecessor acceptance; do not start by deleting legacy code. |
+| CHG-18 | Implemented, unverified for broader acceptance | ROADMAP CHG-18 / WORK-0026 | Combined implementation was owner-authorized; scoped engine/IPC and desktop tests pass, but full acceptance/cutover criteria are not all verified. Do not mark planned or fully accepted based on CHG-19. |
 | CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
 | CHG-20 | Planned | ROADMAP CHG-20 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | CHG-21 | Planned | ROADMAP CHG-21 | Wait for predecessor acceptance; do not start by deleting legacy code. |
@@ -438,3 +457,12 @@ In progress. Owner explicitly requested CHG-19 on clean main/9e19e964 after owne
 ## WORK-0046 — CHG-19 desktop acceptance executed (2026-11-10)
 
 TASK-0002 / CHG-19: Verified within the owner-approved scoped cancellation cleanup. G19-01–05 PASS; C19-AC1 remains PASS, C19-AC2 PARTIAL → PASS. Evidence directory: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136` (`result.json`, initial/relaunch JSON, git-review.json and 14 PNGs). Both genuine Electron processes exited0; PIDs47007/47125 used the same disposable userData/sessionData. Exact events and scenario screenshots are linked in the checklist. No application defect found; no production repair required. Owner profile/credential/microphone/network protections retained; sandbox owner-home read/write probes returned EPERM. No index mutation. Full suites, live-provider performance, Windows runtime and CI fixes deliberately not executed. Next: owner review; do not infer a green GitHub smoke run or release approval.
+
+## WORK-0047 — Current Build Smoke failure diagnosis (2026-11-10)
+
+**State:** Diagnosed only; no application, test, workflow, dependency, or model changes made. Current checkout was clean on `main` at `0fd4731a38ea9a20fcb1897eea2a165dbb094516`. The matching [Build Smoke run 42835657466](https://github.com/Abitesh/Sneak-Peek/actions/runs/42835657466) reports failing Electron tests on macOS and intelligence tests on Windows.
+
+- **CI-MAC-001 / ERR-060:** Separate model-asset integrity issue. The owner-provided macOS report has 1 failure in `LocalRerankerModel.test.mjs`; current local tokenizer is a 133-byte Git LFS pointer although the quantized ONNX file exists. Runtime correctly rejects the incomplete asset; source verification accepts any non-empty file. No model or workflow repair was attempted.
+- **CI-WIN-001 / ERR-061:** All 11 Windows intelligence failures are `ENOENT` in source-reading tests. Three tests construct the source root from `URL.pathname`, causing the logged doubled-drive path `D:\D:\a\...`. The assertions did not run, so these failures do not establish production intelligence regressions.
+
+**Recommended next step:** After owner approval, make only the Windows test helper path conversion and model asset hydration/content-verification fixes; preserve test assertions and reranker degradation behavior. Run the three affected test files on both platforms, then the Windows intelligence suite; verify real tokenizer JSON and run the focused reranker inference test on macOS. CHG-19 remains Verified; CHG-20 remains unstarted. See ERR-060/061 and WORK-0047 in CHANGE_LOG.
