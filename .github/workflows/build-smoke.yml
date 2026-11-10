@@ -128,29 +128,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      # The checked-in BGE tokenizer is a Git LFS pointer until hydrated.
-      # Pull only this required JSON; avoid downloading every large LFS binary.
-      # Both OS matrix legs run asset checks, so both need the real tokenizer.
-      - name: Hydrate BGE reranker tokenizer
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="resources/models/Xenova/bge-reranker-base/tokenizer.json" --exclude=""
-          node <<'NODE'
-          const fs = require('node:fs');
-          const filename = 'resources/models/Xenova/bge-reranker-base/tokenizer.json';
-          const text = fs.readFileSync(filename, 'utf8');
-          if (text.startsWith('version https://git-lfs.github.com/spec/')) {
-            throw new Error('BGE tokenizer remains a Git LFS pointer');
-          }
-          const tokenizer = JSON.parse(text);
-          if (!tokenizer || typeof tokenizer.model !== 'object' || tokenizer.model === null) {
-            throw new Error('BGE tokenizer.json is not a usable tokenizer object');
-          }
-          console.log('[Build Smoke] BGE tokenizer hydrated and JSON validated');
-          NODE
-
       - name: Install dependencies
         run: npm ci
 

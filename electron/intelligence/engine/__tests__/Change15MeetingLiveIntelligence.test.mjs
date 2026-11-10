@@ -2,9 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 const engineModule = await import('../../../../dist-electron/electron/intelligence/engine/SneakPeekIntelligenceEngine.js');

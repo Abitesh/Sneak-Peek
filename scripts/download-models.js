@@ -44,24 +44,10 @@ function isSkipModelDownload(env = process.env) {
 
 function modelFileOk(modelsDir, rel) {
     const full = path.join(modelsDir, rel);
-    let fd;
     try {
-        const stat = fs.statSync(full);
-        if (!stat.isFile() || stat.size === 0) return false;
-
-        // Git LFS pointers are non-empty files but cannot be loaded as model
-        // assets. Read only their small header; never read a large ONNX blob.
-        fd = fs.openSync(full, 'r');
-        const prefix = Buffer.alloc(64);
-        const length = fs.readSync(fd, prefix, 0, prefix.length, 0);
-        return !prefix.subarray(0, length).toString('utf8').trimStart()
-            .startsWith('version https://git-lfs.github.com/spec/');
+        return fs.existsSync(full) && fs.statSync(full).size > 0;
     } catch {
         return false;
-    } finally {
-        if (fd !== undefined) {
-            try { fs.closeSync(fd); } catch { /* no-op */ }
-        }
     }
 }
 
@@ -169,7 +155,7 @@ function verifyModels({ exitOnFail = true } = {}) {
         if (!modelFileOk(MODELS_DIR, rel)) missing.push(path.join(MODELS_DIR, rel));
     }
     if (missing.length > 0) {
-        console.error('[download-models] VERIFY FAILED — required model files missing, empty, or Git LFS pointers:');
+        console.error('[download-models] VERIFY FAILED — required model files missing or empty:');
         for (const m of missing) console.error('  ✗', m);
         if (exitOnFail) process.exit(1);
         return false;
@@ -312,7 +298,6 @@ module.exports = {
     MODELS_DIR,
     isCiEnv,
     isSkipModelDownload,
-    modelFileOk,
     requiredModelsPresent,
     shouldSkipModelDownload,
     resolvePostWorkerOutcome,

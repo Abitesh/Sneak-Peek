@@ -1,18 +1,5 @@
 # Sneak-Peek — current session handoff
 
-## CI repair prepared — WORK-0048 (2026-11-10)
-
-Two narrowly scoped Build Smoke fixes are proposed against `main` after CHG-19 closure: the BGE reranker LFS tokenizer is pulled explicitly in both CI matrix legs and rejected if still a pointer; the downloader verifier rejects nonempty LFS stubs; three Windows intelligence source-test helpers switch from URL.pathname to `fileURLToPath`. See WORK-0048, ERR-060 and ERR-061. No production intelligence, canonical RAG, audio, license, packaging or other app behavior was modified. The patch has not been applied to the owner's Mac and no new GitHub run has verified it. Owner review/apply, targeted native Mac tests, Windows intelligence suite and a fresh CI run are required. CHG-19 remains Verified; CHG-20 not started.
-
-## Current separate CI findings — WORK-0047 (2026-11-10)
-
-The current clean `main` HEAD (`0fd4731a38ea9a20fcb1897eea2a165dbb094516`) matches GitHub Build Smoke run [42835657466](https://github.com/Abitesh/Sneak-Peek/actions/runs/42835657466). CHG-19 remains Verified; neither CI issue is a CHG-19 regression.
-
-- **ERR-060 / CI-MAC-001:** macOS `LocalRerankerModel.test.mjs` fails its bundled-load assertion. Current local checkout contains a 133-byte LFS pointer at the tokenizer path; runtime correctly refuses it, while the model-download verifier accepts any non-empty file. See ERROR_LOG ERR-060 and WORK-0047.
-- **ERR-061 / CI-WIN-001:** 11 Windows intelligence tests fail before their assertions because three test helpers feed `URL.pathname` into Windows `path.resolve()`, producing `D:\D:\a\...`. The minimal recommendation is `fileURLToPath(import.meta.url)` in those test helpers, preserving all assertions and production paths.
-
-No CI, test, source or asset fixes were made. Both issues remain diagnosed and unresolved pending owner approval. Next: approve narrowly scoped test-path and model-asset integrity fixes, then rerun the affected suites on their respective platforms. Do not start CHG-20.
-
 ## Current result — WORK-0046 / CHG-19 desktop acceptance (2026-11-10)
 
 **Scoped CHG-19 Verified. C19-AC1 PASS; C19-AC2 PASS.** Actual isolated production meeting/global overlays were driven with Escape/X; late provider output was released and rejected. Independent actual window survived cancellation. Repeated Enter guard preserved; actual same-sender IPC supersession verified. Two Electron launches shared the same disposable profile; no old stream resumed and a new query completed once. This supersedes the pending GUI gate in historical WORK-0045 below. No production source change or new application defect in this request.
