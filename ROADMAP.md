@@ -52,7 +52,7 @@ Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md
 | CHG-16 | Project/My Files/personal sources | Not assessed (historical stage) | CHG-14, CHG-15 |
 | CHG-17 | Canonical RAG under the intelligence engine | In progress (owner-reported; local reconciliation pending) | Reconcile actual CHG-01–16 state; preserve uncommitted Change 17/chat-RAG repair. |
 | CHG-18 | Legacy meeting/global RAG answer paths | Planned | CHG-17 verified; preserve CHG-15 behavior. |
-| CHG-19 | Duplicated responsibility cleanup | Planned | CHG-18 and active behavioral protection. |
+| CHG-19 | Duplicated responsibility cleanup | Verified (scoped cancellation cleanup) | C19-AC1/C19-AC2 PASS; WORK-0046 isolated desktop evidence. Active compatibility retained; CHG-20 not started. |
 | CHG-20 | One primary intelligence pipeline | Planned | CHG-19 |
 | CHG-21 | Final intelligence quality/regression pass | Planned | CHG-20; packaging work requires separate authorization. |
 | CHG-22 | Final verified-dead architecture deletion | Planned | CHG-01–21 verified for affected responsibilities. |
@@ -530,7 +530,7 @@ GLOBAL RULES FOR EVERY CHANGE
 15. Every change must have a manual verification procedure.
 16. Do not change packaging/native/audio functionality as part of the intelligence migration.
 
-CHANGE 1: 
+CHANGE 1:
 CURRENT ARCHITECTURE BASELINE AND SAFETY LOCK
 
 what need to be changed:
@@ -1638,7 +1638,7 @@ IPC
 → PromptAssembler
 → Provider
 
-The current project documentation explicitly identifies these as parallel/legacy RAG answer paths. 
+The current project documentation explicitly identifies these as parallel/legacy RAG answer paths.
 
 which files need to be changed:
 - electron/ipcHandlers.ts

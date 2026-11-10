@@ -1,0 +1,54 @@
+# CHG-19 — final GUI acceptance protocol (WORK-0045)
+
+**Status: Executed PASS — WORK-0046, 2026-11-10.** The new `run-chg19-desktop-acceptance.mjs` and `chg19-desktop-acceptance.cjs` exercise the actual production desktop/overlays/IPC. C19-AC2 is now PASS for the scoped macOS acceptance defined below. The older stabilization harness remains manual-chat-only and was not used as a substitute for these checks.
+
+## Safety preconditions
+
+- Use the original `Abitesh/Sneak-Peek` checkout and read `AGENTS.md` first. Never use code/logs from `sneak-peek-standalone`. Record branch, HEAD and `git status --short` before/after. Preserve all staged/unstaged changes.
+- Use **only an isolated disposable Electron profile**, synthetic meeting records, a deterministic deliberately delayed fake provider, and temporary evidence files. Confirm `userData`, `sessionData`, logs, downloads and `appData` are redirected to a temporary location; owner profile and OS keychain/credentials must be inaccessible. A sandbox or equivalent read/write isolation should be demonstrated before executing the scenario. Do not loosen production permissions to make tests work.
+- Do **not** call paid providers, real microphones, screen capture, network APIs, or real personal files. The existing macOS `scripts/audit/run-stabilization-full-product.mjs` demonstrates one bounded sandbox entry, but its current scenarios are insufficient; extend an *isolated copy/test harness* first rather than running GUI acceptance unsandboxed. Do not quietly alter production IPC to inject test data.
+- The top-bar **Stop** control is separate from meeting/global overlay **close/Escape**, which is required here. Record these separately; do not equate one with the other.
+- For all event tests capture: request ID, sender ID, meeting/global scope, token and completion event counts, cancellation time, any post-cancel chunk, and optional sanitized screenshot. Strip sensitive data and secrets. If the disposable profile or fake stream cannot be set up, report **NOT TESTED**, not PASS.
+
+## Required isolated GUI checks
+
+| ID | User action (through actual rendered overlay) | Required evidence and PASS condition |
+| --- | --- | --- |
+| G19-01 | Open a synthetic **meeting** overlay for meeting A; start a delayed answer; press **Escape** while it streams (repeat with close X if both paths exist). | Only meeting A is authorized; its request emits no token after cancellation, no late final answer/duplicate completion. Event log proves the overlay close calls `ragCancelQuery` with the correct meeting identity. |
+| G19-02 | Open **global meetings** overlay using two synthetic meetings A/B; start a delayed answer; close via Escape. | Retrieval is restricted to meeting records; no personal/project source; no late chunk or duplicate terminal event; global cancellation affects only the calling sender. |
+| G19-03 | Per owner clarification on 2026-11-10: preserve the overlay busy guard and verify repeated Enter cannot submit again; verify overlapping A/B supersession through actual preload IPC and the existing IPC tests. | GUI adds no duplicate request. IPC B receives its own tokens/completion; A late output is rejected. Distinguish request IDs/senders and verify independent-window cancellation. Do not remove submitInFlightRef to force overlap. |
+| G19-04 | Quit and relaunch **using the same disposable profile**, then issue a new request in the prior meeting/global scope. | No old pending stream resumes, no stale previous-request token appears, new request completes once and authorized source scope remains correct. Prove both launches used the same disposable path, not a fresh unrelated profile. |
+| G19-05 | Inspect final CHG-19 Git diff and record protected boundaries. | No unauthorized change to canonical RAG storage, audio/STT/native capture, security/license, provider-selection policy, or user data. Remaining active compatibility modules retained. `git diff HEAD --check` and `git diff --cached --check` pass. |
+
+## Existing complementary automated evidence (not a replacement for GUI)
+
+- `electron/intelligence/engine/__tests__/Change18RagIpcIntegration.test.mjs`: meeting/global source restriction, pre-abort/during-retrieval cancellation, post-commit supersession, sender identity and cancel IPC.
+- `electron/intelligence/engine/__tests__/SneakPeekIntelligenceEngine.test.mjs`: already-cancelled requests and the WORK-0042 follow-up question consistency fix.
+- Reported owner Mac matching source: 37/37 focused, intelligence 2,142 pass (9 TODO), Electron 8,991 pass (67 skipped), isolated manual-chat desktop harness exit 0. These were not re-executed by WORK-0045.
+
+Only if additional code changed or the gate's behavior is suspect, rerun the focused batch after `npm run build:electron` using the project's existing `scripts/run-with-env.mjs` with a disposable `NATIVELY_TEST_USERDATA`. Avoid rerunning all 9,000 tests just to reproduce previously accepted totals.
+
+## Executed evidence — WORK-0046
+
+- Branch/HEAD: main/3e37608c; existing 10 staged paths preserved byte-for-byte. Current source/diff reviewed against HEAD; no new production edits. G19-05 final post-record Git checks also saved in `final-git-review.json`.
+- Environment: macOS26.4.1 arm64, Electron43.1.0, Node CLI22.18.0. Original app main/launcher/React overlay/preload/IPC and source adapter run. Only final provider/model query transports are deterministic fixtures; lexical retrieval is real (no claim of vector/model parity).
+- Command: `node scripts/audit/run-chg19-desktop-acceptance.mjs` — PASS, both launches exit0. Evidence: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136`.
+- Shared userData: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136/userData`; shared sessionData: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136/sessionData`. Initial PID47007; relaunch PID47125. No new userData on the second launch.
+- Safety: unchanged enclosing Seatbelt policy blocks network and owner-home data/writes, `.env` reads and process execution outside Electron helpers. Owner-home negative read/write probes return EPERM before data is returned. App paths/cwd redirected, environment whitelisted, OS keychain/media permission/capture calls disabled in the harness. Chromium's existing test-only no-sandbox switch runs **inside** the enclosing OS sandbox, as in the original runner; production startup/security unchanged.
+- Machine-readable data: `result.json`, `initial.json`, `relaunch.json`, `git-before.json`, `git-review.json`, `final-git-review.json`. Reports contain only synthetic prompts/records, request/sender/source IDs and counts. Private temporary root is access-restricted. PNGs captured after paint; representative open/closed, independent-window, repeated-Enter and relaunch images visually inspected.
+
+| Gate | Result | Observed main/renderer behavior and screenshots (relative to evidence directory) |
+| --- | --- | --- |
+| G19-01 | PASS | Meeting A only; Escape and X each: 1 chunk, 0 completions/errors, 0 post-cancel events, late provider output attempted and rejected. Correct sender/meeting/clearContext cancellation. `initial-meeting-Escape-2-streaming.png`, `initial-meeting-Escape-2-closed.png`, `initial-meeting-X-5-streaming.png`, `initial-meeting-X-5-closed.png`. |
+| G19-02 | PASS | Global reads only meeting A/B, no personal-source read or canary in prompt. Escape/X each: 1 chunk, 0 completions/errors/late events. A second actual global overlay on another sender survives cancellation and finishes 2 chunks/1 completion. `initial-global-Escape-8-*.png`, `initial-global-X-10-*.png`, `initial-global-Escape-14-*.png`, `initial-global-independent-sender.png`. |
+| G19-03 | PASS | Three Enter presses during busy rendered global overlay add 0 requests; original completes once. Real same-sender/scope preload IPC: A1 chunk/0 completions; B2 chunks/1 completion; late A rejected. Renderer events: chunk(A), chunk(B), chunk(B), complete(B). `initial-repeated-enter.png`; exact IPC IDs/counts in initial.json. Existing Change18RagIpcIntegration tests14/14 also pass. |
+| G19-04 | PASS | App quits with a pending global request, restarts with the same profile and stored synthetic meetings; 0 resumed requests/events. Fresh global query: 2 chunks, 1 completion, 0 errors. `initial-quit-pending.png`, `relaunch-relaunch-completed.png`. |
+| G19-05 | PASS | `git diff HEAD --check` and `git diff --cached --check` pass; original index patch identical before/after. Final source diff scoped to prior cancellation metadata/tests; new work is audit scripts/records. Active legacy modules retained; canonical storage/native/audio/STT/security/license/provider policies untouched. `git-review.json` and final-git-review.json. |
+
+Fresh checks: `npm run build:electron` PASS; `npm run typecheck:electron`, `npm run typecheck:premium`, `npm run typecheck:ts5` PASS. `node --check` on both new scripts PASS. Focused Electron command using `scripts/run-with-env.mjs --default-tmpdir NATIVELY_TEST_USERDATA=chg19-desktop-focused --set ELECTRON_RUN_AS_NODE=1 -- electron --test electron/intelligence/engine/__tests__/Change18RagIpcIntegration.test.mjs electron/intelligence/engine/__tests__/SneakPeekIntelligenceEngine.test.mjs`: 29 pass/0 fail/0 skip. Separate HindsightMemory.test.mjs:16 pass/0 fail/0 skip. Logs `/tmp/chg19-desktop-build.log`, `/tmp/chg19-desktop-typecheck-{electron,premium,renderer}.log`, `/tmp/chg19-desktop-focused.log`, `/tmp/chg19-desktop-queue.log`.
+
+No production defect was exposed. Setup attempts qMpBB0 (nonexistent read probe returned ENOENT) and nQhLM6 (executeJavaScript returned non-cloneable subscription functions) failed before functional assertions; corrected only in harness. Earlier passing iterations exercised scenarios before adding cross-window/IPC strengthening and unique screenshot filenames; final evidence above is authoritative. No 9,000-test rerun, real provider, physical media capture, Windows runtime, Build Smoke fix, CHG-20 implementation or commit/push. These exclusions are not claimed as passed.
+
+**Recommendation: C19-AC1 PASS; C19-AC2 PASS; scoped CHG-19 Verified.** No remaining blocker within this gate. ERR-060/Windows CI remain separate and unresolved. Next action: owner review of the new unstaged audit/record changes; existing staged patch remains unchanged.
+
+**Decision rule:** Until all required checks have their own credible recorded PASS evidence, keep **C19-AC2 PARTIAL** and **CHG-19 Implemented, unverified**. If a test fails, preserve evidence and open/update an ERR entry before proposing a minimal production change. If all pass, reconcile the roadmap/task/change-log/handoff to `Verified` **only after reviewing** the evidence. This does not resolve the separately documented macOS reranker Build Smoke or Windows test-path issues.

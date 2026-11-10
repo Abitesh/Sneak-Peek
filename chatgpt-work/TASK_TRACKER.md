@@ -1,6 +1,16 @@
 # Sneak-Peek — authoritative task tracker
 
-Updated: 2026-11-08. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
+Updated: 2026-11-10. Maintained by the active coding agent; the owner supplies goals and approval, not manual bookkeeping.
+
+## Current CHG-19 gate — WORK-0046 (2026-11-10)
+
+**CHG-19 / TASK-0002: Verified for the scoped cancellation-result cleanup. C19-AC1 PASS; C19-AC2 PASS.** This closes the previously missing isolated macOS desktop gate. Actual production launcher, rendered meeting/global overlays, preload, registered main IPC, lexical source retrieval, engine and stream lifecycle were exercised with synthetic meetings and a deliberately delayed provider transport. No production source was changed by WORK-0046.
+
+Agent-executed evidence: `scripts/audit/run-chg19-desktop-acceptance.mjs` passed two launches sharing the same disposable userData/sessionData; G19-01–05 passed. Meeting/global Escape and X each cancel after one visible chunk; released late output produces zero further chunk/error/complete events in main and renderer. Another real sender completes independently. Actual same-sender IPC A is superseded by B: A 1 chunk/0 completions, B 2 chunks/1 completion; A's released late token is rejected. Three repeated Enter presses in the busy global overlay add zero requests. Relaunch resumes zero streams; a new global request delivers 2 chunks/1 completion. Final diff reviewed, protected paths unchanged, original staged patch byte-identical.
+
+Evidence and exact commands: [desktop checklist/results](../scripts/audit/CHG19-FINAL-ACCEPTANCE.md), WORK-0046 below and CHANGE_LOG WORK-0046. Fresh focused engine/IPC 29/29 (including Change18 IPC 14/14); Hindsight 16/16; Electron/premium/renderer typechecks and Electron build pass. The owner-reported 2,142 intelligence passes/9 TODO and 8,991 Electron passes/67 skips remain historical baseline evidence; full suites were intentionally not rerun because this task changed only audit scripts and records.
+
+**Deferred, outside this verification:** ERR-060 macOS reranker Build Smoke and Windows CI path fixes. Physical microphone/capture, real-provider latency and Windows runtime were not tested by this isolated gate. Active compatibility modules retained. CHG-20 has not started. Next action: owner review of the new unstaged audit/record changes alongside the preserved staged patch.
 
 ## Current state — WORK-0026 continuation, 2026-11-08
 
@@ -160,7 +170,7 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-15 | Not assessed | ROADMAP CHG-15 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-16 | Not assessed | ROADMAP CHG-16 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-18 | Planned | ROADMAP CHG-18 | Wait for predecessor acceptance; do not start by deleting legacy code. |
-| CHG-19 | Planned | ROADMAP CHG-19 | Wait for predecessor acceptance; do not start by deleting legacy code. |
+| CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
 | CHG-20 | Planned | ROADMAP CHG-20 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | CHG-21 | Planned | ROADMAP CHG-21 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | CHG-22 | Planned | ROADMAP CHG-22 | Wait for predecessor acceptance; do not start by deleting legacy code. |
@@ -397,4 +407,34 @@ STAB-001 / CHG-17/18 acceptance: In progress. Owner authorized safe production/r
 
 ## WORK-0041 / TASK-0002 — CHG-19 safe duplicated-responsibility cleanup (2026-11-09)
 
+**Continuation from owner-uploaded `CHG19-current-files.zip` (proposed patch, not applied to Mac):** Prior interrupted Copilot work already consolidated the repeated cancelledResult decision inputs and added eight pre-cancelled surface cases. Proposed incremental follow-up: reuse resolved question once; prove pre-cancelled prepareAndStream settles and does not retrieve/generate; replace ERR-058's fixed test sleeps with bounded observable queue completion. These proposed edits plus the original cleanup must be verified together against the user's local tree. ERR-057 harness assertion has been corrected in the uploaded snapshot; ERR-048 final painted screenshot remains awaiting reinspection.
+
+**C19-AC1:** Safe local cancellation snapshot consolidation and caller inventory present in uploaded snapshot, but the proposed streaming-boundary regression is not yet applied or executed on Mac. No other legacy responsibility is proven dead; active compatibility callers remain. **C19-AC2:** Not verified; full Mac/Windows/runtime acceptance and diff inspection pending. Do not start CHG-20 or delete still-active modules on this evidence.
+
 In progress. Owner explicitly requested CHG-19 on clean main/9e19e964 after owner-reported WORK-0032–0040; those IDs are reserved although their entries are not present in this repository's records. Preserve baseline and do not implement CHG-20. Inventory: scripts/audit/chg19-responsibility-inventory.md. C19-AC1: inventory complete, safe cancelled-path consolidation pending equivalence. C19-AC2: builds/full suites/manual limitations pending. Active legacy callers remain blockers to wholesale deletion. No uncommitted owner edits at start.
+
+
+## WORK-0042 — CHG-19 cancellation metadata consistency; macOS Build Smoke diagnosis (2026-11-10)
+
+**State:** Patch prepared from the owner's `CHG19-current-files.zip` plus the separately supplied, previously applied WORK-0041 continuation patch. This is **not** a fresh read of the Mac worktree and does not claim installation on the owner's machine. Copilot's read-only review identifies one remaining C19-AC1 concern (ERR-059); WORK-0042 proposes the smallest source fix and seeded follow-up regression. Existing user-reported 30/30 focused, 2,141 intelligence passes/9 TODO, full 8,991 passes/67 skipped and synthetic desktop exit 0 remain historical observations, not rerun for this proposed diff. The remaining caller inventory establishes no module is safe to delete yet. **CHG-19 remains In progress; C19-AC1 PARTIAL, C19-AC2 PARTIAL** pending Mac verification, final tracking updates, and required actual desktop manual/STOP/meeting evidence. Do not broaden this small patch into Change 20.
+
+**CI-MAC-001 — macOS Build Smoke**: ERR-060 diagnosed from the attached complete 34,705-line `npm test` log, GitHub repository-content inspection, and owner resources ZIP. The BGE tokenizer is an LFS pointer and size-only source checks can falsely pass. **Status: Diagnosed, unresolved, deferred until CHG-19 is accepted** per owner; then fix asset hydration and strict verification without weakening inference tests. CI run 42622632335 has 1 macOS test failure in 9,056; run 42631802303 has the same macOS reranker test failure. Windows remains separate and out of scope for this task.
+
+
+## WORK-0044 — CHG-19 post-WORK-0042 evidence reconciliation and manual acceptance gate (2026-11-10)
+
+**Owner scope:** Finish CHG-19 first; do not implement CHG-20 or repair macOS/Windows Build Smoke in this work. The owner explicitly confirmed that the standalone-repository logs were a mistaken cross-project paste; do not apply WORK-0043 standalone CI triage records or the Smart Turn restoration to this repo. Public GitHub run 42631802303 tests pushed `3e37608c`, **not** the locally patched WORK-0041/0042 source.
+
+**Source baseline:** The owner reported applying WORK-0041 and WORK-0042 on Mac, leaving staged plus unstaged changes; this documentation-only addendum was prepared against the reconstructed owner ZIP + applied WORK-0041/0042 patch state, **not a direct live `git status` of the Mac**. Apply only after `git apply --check`; do not overwrite newer edits. No production code, test behavior, RAG, provider or audio file is changed by WORK-0044.
+
+**Owner-provided matching post-WORK-0042 results:** `npm run build:electron` passed; focused Hindsight/GenerationController/SneakPeekIntelligenceEngine tests **37/37 pass** (includes cancelled resolved-follow-up regression); `npm run typecheck:electron` and `npm run typecheck:ts5` returned successfully; `npm run test:intelligence` **2,151 total / 2,142 pass / zero fail / nine TODO**; `npm test` **9,058 total / 8,991 pass / zero fail / 67 skipped**; `node scripts/audit/run-stabilization-full-product.mjs` exited **0**, with reported evidence directory `.../sneak-stabilization-lUs3uK`. The user pasted the exact command transcript in this chat. These are **owner-executed**, not re-executed by this patch author. The earlier Copilot audit predates this matching WORK-0042 log and therefore its missing-test objection is superseded.
+
+**C19-AC1 — scoped implementation:** The cancellation/decision duplication is consolidated and regression-tested. `scripts/audit/chg19-responsibility-inventory.md` lists active callers and reasons for retaining `IntelligenceEngine`, `ContextRouter`, `ContextFusionEngine`, `PromptAssemblerV2`, `WhatToAnswerLLM`, V3 orchestrator/composer, and other compatibility owners. **No whole-module deletion is proven safe**, and none is proposed. Legacy compatibility migration is deferred to CHG-20, verified-dead module deletion to CHG-22. The described cleanup is **implemented and locally supported**; no additional code change is justified by current results.
+
+**C19-AC2 — still PARTIAL:** The synthetic desktop harness validates offline/manual-chat evidence and visible answers, but is not a physical STOP/restart/meeting/global RAG or real-provider test. A matching owner-reviewed final `git diff HEAD -- ...` across CHG-19 files plus a bounded real/simulated meeting/global STOP/supersession check remains **unreported**. No user data or paid/live provider is required for the proposed isolated checks. Record environment, exact steps, single-generation/no-late-token behavior, and screenshot or sanitized report. Do not mark `Verified` or begin CHG-20 until the required acceptance evidence is produced or a separately approved scope change is recorded.
+
+**Separate future CI issue:** ERR-060 / CI-MAC-001 is diagnosed but unresolved (BGE reranker tokenizer represented by a Git LFS pointer in the previously pushed smoke run). Windows duplicate-drive source-test paths are separate and deferred. **Do not confuse old pushed failures with newly edited unpushed CHG-19 code.**
+
+## WORK-0046 — CHG-19 desktop acceptance executed (2026-11-10)
+
+TASK-0002 / CHG-19: Verified within the owner-approved scoped cancellation cleanup. G19-01–05 PASS; C19-AC1 remains PASS, C19-AC2 PARTIAL → PASS. Evidence directory: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-F7Q136` (`result.json`, initial/relaunch JSON, git-review.json and 14 PNGs). Both genuine Electron processes exited0; PIDs47007/47125 used the same disposable userData/sessionData. Exact events and scenario screenshots are linked in the checklist. No application defect found; no production repair required. Owner profile/credential/microphone/network protections retained; sandbox owner-home read/write probes returned EPERM. No index mutation. Full suites, live-provider performance, Windows runtime and CI fixes deliberately not executed. Next: owner review; do not infer a green GitHub smoke run or release approval.

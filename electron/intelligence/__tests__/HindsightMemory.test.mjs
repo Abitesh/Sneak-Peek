@@ -10,6 +10,16 @@ import { LongTermMemoryService } from '../../../dist-electron/electron/intellige
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Wait for the observable async result, not a fixed scheduler delay. This
+// preserves the ordered-drain assertion even under heavily loaded CI runners.
+async function waitForRetained(predicate, timeoutMs = 1500) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('Retain queue did not drain within the bounded test deadline');
+    await sleep(10);
+  }
+}
+
 describe('NoopMemoryProvider (disabled default)', () => {
   test('retain is a no-op, recall is empty, never throws', async () => {
     const p = new NoopMemoryProvider();
@@ -55,7 +65,7 @@ describe('HindsightRetainQueue — async, non-blocking', () => {
     q.enqueue({ content: 'a', scope: { userId: 'u' }, source: 'chat_history' });
     q.enqueue({ content: 'b', scope: { userId: 'u' }, source: 'chat_history' });
     assert.ok(seen.length <= 2); // not necessarily done yet — non-blocking
-    await sleep(40);
+    await waitForRetained(() => seen.length === 2);
     assert.deepEqual(seen, ['a', 'b']);
   });
   test('a throwing worker never stops the queue', async () => {
@@ -63,7 +73,7 @@ describe('HindsightRetainQueue — async, non-blocking', () => {
     const q = new HindsightRetainQueue(async (item) => { if (item.content === 'bad') throw new Error('x'); seen.push(item.content); });
     q.enqueue({ content: 'bad', scope: { userId: 'u' }, source: 'chat_history' });
     q.enqueue({ content: 'good', scope: { userId: 'u' }, source: 'chat_history' });
-    await sleep(30);
+    await waitForRetained(() => seen.includes('good'));
     assert.deepEqual(seen, ['good']);
   });
 });

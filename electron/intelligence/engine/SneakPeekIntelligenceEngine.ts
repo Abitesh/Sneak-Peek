@@ -353,8 +353,11 @@ export class SneakPeekIntelligenceEngine {
       conversationState: getConversationState(request.sessionId),
       hasScreenContext: Boolean(request.screenContext),
     });
+    // Follow-up resolution may use stored conversation state. The cancelled
+    // result and its response plan must expose the same canonical question.
+    const resolvedQuestion = cancelledUnderstanding.question || this.resolveQuestion(request);
     const cancelledResponsePlan = planResponse({
-      question: cancelledUnderstanding.question || this.resolveQuestion(request),
+      question: resolvedQuestion,
       turnUnderstanding: cancelledUnderstanding,
     });
     // Cancellation still returns the public diagnostic contract, but it must
@@ -376,7 +379,7 @@ export class SneakPeekIntelligenceEngine {
     });
     return {
       requestId: request.requestId,
-      resolvedQuestion: this.resolveQuestion(request),
+      resolvedQuestion,
       turnUnderstanding: cancelledUnderstanding,
       responsePlan: cancelledResponsePlan,
       intent: 'ambiguous',

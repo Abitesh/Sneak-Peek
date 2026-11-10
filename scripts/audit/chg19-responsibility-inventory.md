@@ -39,3 +39,11 @@ Primary profile adapter still calls V3 decide inside its authorized retrieval ca
 ## Remaining gates
 
 CHG-19 cannot certify all legacy intelligence responsibilities transferred: active callers above contradict that claim. CHG-20 must explicitly validate/migrate image/skill/caller-owned prompt, live/WTA/proactive, compatibility V3 and profile claim-authority boundaries. No CHG-20 implementation is authorized by this task. Windows runtime and real-provider manual UX are not established by offline macOS tests. Final commands/results and decision will be appended after execution.
+
+## WORK-0041 continuation — patch candidate and remaining active edges
+
+The owner-supplied current-files ZIP already contains the pre-cancelled result consolidation and eight cancelled-surface regressions. This continuation does **not** reapply the original change. The proposed patch reuses `resolvedQuestion` once inside that cancellation snapshot and adds an executed-entry regression for `prepareAndStream`: no retrieval/provider activity, empty stream, settled cancelled result and cancelled lifecycle. The same patch replaces ERR-058's timing-only waits with bounded observation of the actual ordered retain queue in a test; no memory implementation is changed.
+
+The proposed patch is built from owner-uploaded source, not applied to the owner's Mac checkout. All code and manual verification remain subject to local `git apply --check` and tests. No fully safe additional legacy deletion was established by the caller inventory. `ContextRouter`, `ContextFusionEngine`, `PromptAssemblerV2`, V3 composer/orchestrator, `WhatToAnswerLLM` and the live `IntelligenceEngine` still require CHG-20 migration/compatibility evidence before removal. Explicitly leave those files untouched.
+
+Remaining verification: inspect the post-reveal full-app screenshot, rerun ERR-058 on an idle runner, run focused engine/queue tests, Electron/TypeScript/build checks, `npm test`, `test:intelligence`, check clean diff boundaries, then record manual/macOS/Windows acceptance results without claiming they happened here. No audio/STT/native/DB/policy/licensing mutation is proposed.

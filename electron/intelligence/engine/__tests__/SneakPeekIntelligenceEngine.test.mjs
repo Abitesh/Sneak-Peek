@@ -10,6 +10,9 @@ const { SneakPeekIntelligenceEngine } = await import(
 const { RetrievalCoordinator, createRetrievalCapability } = await import(
   pathToFileURL(path.join(base, 'RetrievalCoordinator.js')).href,
 );
+const { advanceConversationState, clearConversationState } = await import(
+  pathToFileURL(path.resolve(process.cwd(), 'dist-electron/electron/context-intelligence/question/conversation-state-store.js')).href,
+);
 
 const permissions = {
   conversation: true,
@@ -192,3 +195,96 @@ for (const [surface, question] of [
     assert.equal(generations, 0);
   });
 }
+
+// CHG-19: The public stream entry must also settle its result for a request
+// cancelled before consumption, without opening retrieval or provider generation.
+test('CHG-19 prepareAndStream settles a pre-cancelled request without generation', { timeout: 5000 }, async () => {
+  const cancellation = new AbortController();
+  cancellation.abort();
+  let retrievals = 0;
+  let generations = 0;
+  const engine = new SneakPeekIntelligenceEngine({
+    retrievalCoordinator: {
+      async retrieve() { retrievals++; throw new Error('Pre-cancelled stream attempted retrieval'); },
+    },
+    generationPort: {
+      async *stream() { generations++; yield 'unexpected provider output'; },
+    },
+  });
+  const request = {
+    requestId: 'pre-cancelled-stream',
+    sessionId: 'chg19-pre-cancelled-stream',
+    surface: 'manual-chat',
+    userMessage: 'Why did Linkship use Redis?',
+    currentTurn: { id: 'turn-pre-cancel', role: 'user', content: 'Why did Linkship use Redis?', createdAt: 1 },
+    recentConversation: [],
+    contextPermissions: permissions,
+    activeContext: { projectName: 'Linkship', projectSourceIds: ['synthetic-project'] },
+    cancellationSignal: cancellation.signal,
+  };
+  const { stream, result, lifecycle } = engine.prepareAndStream(request);
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const final = await result;
+  assert.deepEqual(chunks, []);
+  assert.equal(retrievals, 0);
+  assert.equal(generations, 0);
+  assert.equal(final.providerAttempt.status, 'cancelled');
+  assert.equal(final.streamLifecycle.status, 'cancelled');
+  assert.equal(final.finalAnswer, null);
+  assert.equal(final.retrievalPlan.shouldRetrieve, false);
+  assert.deepEqual(final.evidencePack.items, []);
+  assert.equal(lifecycle.state, 'CANCELLED');
+});
+
+// A completed prior turn may resolve the cancelled follow-up differently from
+// the raw user input. All returned diagnostic/question contracts must agree,
+// while no private retrieval or provider stream is allowed to start.
+test('CHG-19 pre-cancelled follow-up uses one resolved question across result and response plan', { timeout: 5000 }, async () => {
+  const sessionId = 'chg19-cancelled-followup-consistency';
+  clearConversationState(sessionId);
+  advanceConversationState({
+    sessionId,
+    scope: { userId: 'local', sessionId },
+    question: 'Explain Redis.',
+    timestamp: Date.now() - 1000,
+  });
+  try {
+    let retrievals = 0;
+    let generations = 0;
+    const engine = new SneakPeekIntelligenceEngine({
+      retrievalCoordinator: {
+        async retrieve() { retrievals++; throw new Error('Pre-cancelled follow-up retrieved private evidence'); },
+      },
+      generationPort: {
+        async *stream() { generations++; yield 'unexpected output'; },
+      },
+    });
+    const cancellation = new AbortController();
+    cancellation.abort();
+    const question = 'Give me its code.';
+    const result = await engine.handle({
+      requestId: 'chg19-cancelled-followup', sessionId, surface: 'manual-chat',
+      userMessage: question,
+      currentTurn: { id: 'cancelled-followup-turn', role: 'user', content: question, createdAt: Date.now() },
+      recentConversation: [], contextPermissions: permissions,
+      cancellationSignal: cancellation.signal,
+    });
+    assert.match(result.turnUnderstanding.question, /Redis/i);
+    assert.notEqual(result.turnUnderstanding.question, question, 'seeded referent must actually resolve');
+    assert.equal(result.resolvedQuestion, result.turnUnderstanding.question);
+    assert.equal(result.responsePlan.question, result.resolvedQuestion);
+    assert.equal(result.requestId, 'chg19-cancelled-followup');
+    assert.ok(result.diagnostics.traceId);
+    assert.equal(result.providerAttempt.status, 'cancelled');
+    assert.equal(result.streamLifecycle.status, 'cancelled');
+    assert.equal(result.finalAnswer, null);
+    assert.deepEqual(result.evidence.items, []);
+    assert.deepEqual(result.evidencePack.items, []);
+    assert.equal(result.retrievalPlan.shouldRetrieve, false);
+    assert.equal(retrievals, 0);
+    assert.equal(generations, 0);
+  } finally {
+    clearConversationState(sessionId);
+  }
+});
