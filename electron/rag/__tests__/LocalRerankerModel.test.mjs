@@ -9,7 +9,7 @@
 // model IS bundled (the shipping case), this proves the dtype/local_files_only
 // load path and the logits→ranking contract end-to-end.
 
-import { test, describe, after } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
+const bundledModelsRoot = path.join(repoRoot, 'resources', 'models');
 const modelOnnx = path.join(repoRoot, 'resources/models/Xenova/bge-reranker-base/onnx/model_quantized.onnx');
 const MODEL_PRESENT = fs.existsSync(modelOnnx);
 
@@ -31,10 +32,28 @@ async function loadReranker() {
 
 describe('LocalReranker — real bundled model', () => {
   let rerankerForTest = null;
+  let previousModelsRoot;
+
+  before(() => {
+    // ELECTRON_RUN_AS_NODE does not expose electron.app.getAppPath().
+    // Bind this real-model smoke test to the repository assets that the
+    // workflow verifies, rather than an unrelated userData/HOME cache or
+    // the fallback <cwd>/models directory.
+    previousModelsRoot = process.env.NATIVELY_LOCAL_MODELS_PATH;
+    process.env.NATIVELY_LOCAL_MODELS_PATH = bundledModelsRoot;
+  });
 
   after(() => {
-    rerankerForTest?.__resetForTests();
-    rerankerForTest = null;
+    try {
+      rerankerForTest?.__resetForTests();
+      rerankerForTest = null;
+    } finally {
+      if (previousModelsRoot === undefined) {
+        delete process.env.NATIVELY_LOCAL_MODELS_PATH;
+      } else {
+        process.env.NATIVELY_LOCAL_MODELS_PATH = previousModelsRoot;
+      }
+    }
   });
 
   test('ranks a relevant passage above an irrelevant one', { skip: !MODEL_PRESENT ? 'reranker model not downloaded' : false }, async () => {
