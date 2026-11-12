@@ -63,9 +63,9 @@
 │   │   ├── icon-CLPrU7Zm.png
 │   │   ├── icon-ijIq8h_5.png
 │   │   ├── icon-vendor-ChSg_Kh8.js
-│   │   ├── index-D47hSgAE.js
+│   │   ├── index-D-6N_E5E.js
 │   │   ├── index-Nh8O4xvT.css
-│   │   ├── index.es-BD11n8mu.js
+│   │   ├── index.es-BwADdjDc.js
 │   │   ├── KaTeX_AMS-Regular-BQhdFMY1.woff2
 │   │   ├── KaTeX_AMS-Regular-DMm9YOAa.woff
 │   │   ├── KaTeX_AMS-Regular-DRggAlZN.ttf
@@ -127,10 +127,10 @@
 │   │   ├── KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf
 │   │   ├── litellm-RI7uRd0T.png
 │   │   ├── mainui-CYouFfDL.png
-│   │   ├── markdown-vendor-DsP22y5H.js
+│   │   ├── markdown-vendor-punbj2Qc.js
 │   │   ├── Masterfont - Celeb MF Light-DZ7SWwTH.otf
 │   │   ├── Masterfont - Celeb MF Medium-QyODFAhU.otf
-│   │   ├── media-vendor-C3Sf7sdY.js
+│   │   ├── media-vendor-3Tol-RZW.js
 │   │   ├── ort-wasm-simd-threaded.jsep-B0T3yYHD.wasm
 │   │   ├── radix-vendor-BvsA80Ry.js
 │   │   ├── react-vendor-DQphfE9I.js
@@ -286,6 +286,8 @@
 │   │   │   │   ├── conversation-state-store.js.map
 │   │   │   │   ├── conversation-state.js
 │   │   │   │   ├── conversation-state.js.map
+│   │   │   │   ├── ProjectOverviewIntent.js
+│   │   │   │   ├── ProjectOverviewIntent.js.map
 │   │   │   │   ├── question-resolver.js
 │   │   │   │   ├── question-resolver.js.map
 │   │   │   │   ├── turn-classifier.js
@@ -414,6 +416,8 @@
 │   │   │   │   ├── ProjectFileScope.js.map
 │   │   │   │   ├── PromptAssembler.js
 │   │   │   │   ├── PromptAssembler.js.map
+│   │   │   │   ├── RagIpcStream.js
+│   │   │   │   ├── RagIpcStream.js.map
 │   │   │   │   ├── ResponsePlanner.js
 │   │   │   │   ├── ResponsePlanner.js.map
 │   │   │   │   ├── RetrievalCoordinator.js
@@ -804,8 +808,8 @@
 │   │   │   ├── ManualRenderContext.js.map
 │   │   │   ├── OllamaBootstrap.js
 │   │   │   ├── OllamaBootstrap.js.map
-│   │   │   ├── prompts.js
-│   │   │   ├── prompts.js.map
+│   │   │   ├── OptionalRerankDeadline.js
+│   │   │   ├── OptionalRerankDeadline.js.map
 │   │   │   ├── providers
 │   │   │   │   ├── GeminiEmbeddingProvider.js
 │   │   │   │   ├── GeminiEmbeddingProvider.js.map
@@ -835,6 +839,8 @@
 │   │   │   ├── RagRelevanceGate.js.map
 │   │   │   ├── RAGRetriever.js
 │   │   │   ├── RAGRetriever.js.map
+│   │   │   ├── RerankerAssetPreflight.js
+│   │   │   ├── RerankerAssetPreflight.js.map
 │   │   │   ├── rerankerDownloadProvider.js
 │   │   │   ├── rerankerDownloadProvider.js.map
 │   │   │   ├── rerankerDownloadWorker.js
@@ -1201,6 +1207,8 @@
 │           │   ├── ContextAssembler.js.map
 │           │   ├── DocumentChunker.js
 │           │   ├── DocumentChunker.js.map
+│           │   ├── HeuristicExtractor.js
+│           │   ├── HeuristicExtractor.js.map
 │           │   ├── HybridSearchEngine.js
 │           │   ├── HybridSearchEngine.js.map
 │           │   ├── IntentClassifier.js
@@ -1218,6 +1226,8 @@
 │           │   ├── roleInsight
 │           │   │   ├── JdSourceResolver.js
 │           │   │   └── JdSourceResolver.js.map
+│           │   ├── skillsUtil.js
+│           │   ├── skillsUtil.js.map
 │           │   ├── StarStoryGenerator.js
 │           │   ├── StarStoryGenerator.js.map
 │           │   ├── types.js
@@ -1516,6 +1526,7 @@
 │   │   ├── question
 │   │   │   ├── conversation-state-store.ts
 │   │   │   ├── conversation-state.ts
+│   │   │   ├── ProjectOverviewIntent.ts
 │   │   │   ├── question-resolver.ts
 │   │   │   └── turn-classifier.ts
 │   │   └── retrieval
@@ -1714,6 +1725,7 @@
 │   │   │   │   ├── Change17PostAuditRegression.test.mjs
 │   │   │   │   ├── Change17ProjectFollowupScope.test.mjs
 │   │   │   │   ├── Change17SafetyGateRegression.test.mjs
+│   │   │   │   ├── Change18RagIpcIntegration.test.mjs
 │   │   │   │   ├── ContextPlanner.test.mjs
 │   │   │   │   ├── GenerationController.test.mjs
 │   │   │   │   ├── GenerationLifecycle.test.mjs
@@ -1726,6 +1738,8 @@
 │   │   │   │   ├── ResumeProjectRoutingRegression.test.mjs
 │   │   │   │   ├── RetrievalCoordinator.test.mjs
 │   │   │   │   ├── SneakPeekIntelligenceEngine.test.mjs
+│   │   │   │   ├── StabilizationPortfolioRetrieval.test.mjs
+│   │   │   │   ├── StabilizationProjectOverviewScope.test.mjs
 │   │   │   │   ├── TranscriptContext.test.mjs
 │   │   │   │   └── TurnUnderstanding.test.mjs
 │   │   │   ├── CanonicalRagRetrievalAdapter.ts
@@ -1734,6 +1748,7 @@
 │   │   │   ├── GenerationController.ts
 │   │   │   ├── ProjectFileScope.ts
 │   │   │   ├── PromptAssembler.ts
+│   │   │   ├── RagIpcStream.ts
 │   │   │   ├── ResponsePlanner.ts
 │   │   │   ├── RetrievalCoordinator.ts
 │   │   │   ├── SneakPeekIntelligenceEngine.ts
@@ -1969,6 +1984,7 @@
 │   │   │   ├── SteeringTail2026_08_23.test.mjs
 │   │   │   ├── StreamContextPolicy.test.mjs
 │   │   │   ├── StreamFaultInjection2026_08_14.test.mjs
+│   │   │   ├── StreamFinalPromptBudget2026_11_08.test.mjs
 │   │   │   ├── StripEmbeddedAnswerContract2026_07_18.test.mjs
 │   │   │   ├── StripPriorAssistantTurnsDedup2026_07_26.test.mjs
 │   │   │   ├── suggestionPromptAssembly.test.mjs
@@ -2143,6 +2159,7 @@
 │   │   │   ├── FileTypeTaggingAndRetrievalBoost2026_08_31.test.mjs
 │   │   │   ├── PersonalKnowledgeManager.test.mjs
 │   │   │   ├── PersonalKnowledgeRetrieval.integration.mjs
+│   │   │   ├── PortfolioLexicalOverview.test.mjs
 │   │   │   └── SprintS6ContextManagerWiring2026_08_31.test.mjs
 │   │   ├── index.ts
 │   │   ├── person1Ipc.ts
@@ -2181,8 +2198,11 @@
 │   │   │   ├── CanonicalRagShadow.test.mjs
 │   │   │   ├── CanonicalRagStorage.test.mjs
 │   │   │   ├── CanonicalRelevanceGate.test.mjs
+│   │   │   ├── Change17DeletedSourceLifecycle.test.mjs
 │   │   │   ├── Change17FinalCanonicalParity.test.mjs
+│   │   │   ├── Change17ModePageProvenance.test.mjs
 │   │   │   ├── Change17NoDuplicateFallbackRegression.test.mjs
+│   │   │   ├── Change17PersonalProjectPipeline.test.mjs
 │   │   │   ├── Change25Phase5DualWriteBoundary.test.mjs
 │   │   │   ├── Change25Phase9Phase10.test.mjs
 │   │   │   ├── Change45LegacyStorageKeepGate.test.mjs
@@ -2245,6 +2265,7 @@
 │   │   │   ├── SalaryEstimatePersistence2026_08_02.test.mjs
 │   │   │   ├── SearchSpaceFilter.test.mjs
 │   │   │   ├── SourceSelection.test.mjs
+│   │   │   ├── StabilizationRerankerRuntimeBudget.test.mjs
 │   │   │   ├── Stage3PersonalFilesAnswerTime2026_09_27.test.mjs
 │   │   │   ├── Stage647ZFManualDocumentGrounded2026_09_27.test.mjs
 │   │   │   ├── UniversalChatSourceRouting2026_09_27.test.mjs
@@ -2292,7 +2313,7 @@
 │   │   ├── localRerankerWorker.ts
 │   │   ├── ManualRenderContext.ts
 │   │   ├── OllamaBootstrap.ts
-│   │   ├── prompts.ts
+│   │   ├── OptionalRerankDeadline.ts
 │   │   ├── providers
 │   │   │   ├── GeminiEmbeddingProvider.ts
 │   │   │   ├── IEmbeddingProvider.ts
@@ -2308,6 +2329,7 @@
 │   │   ├── RagQueryPlanner.ts
 │   │   ├── RagRelevanceGate.ts
 │   │   ├── RAGRetriever.ts
+│   │   ├── RerankerAssetPreflight.ts
 │   │   ├── rerankerDownloadProvider.ts
 │   │   ├── rerankerDownloadWorker.ts
 │   │   ├── resolveCanonicalRerankLimits.ts
@@ -2359,6 +2381,7 @@
 │   │   │   ├── CodexOAuthService.test.mjs
 │   │   │   ├── CodexReasoningEffort.test.mjs
 │   │   │   ├── CodexVisionPayload2026_08_05.test.mjs
+│   │   │   ├── CompanySearchDeadline2026_11_09.test.mjs
 │   │   │   ├── CompanySearchProviderWiring.test.mjs
 │   │   │   ├── ContextOsRefusalGoverns2026_08_11.test.mjs
 │   │   │   ├── ContextOsStaticImport2026_08_07.test.mjs
@@ -2448,6 +2471,7 @@
 │   │   │   ├── LitellmModelLabel2026_08_06.test.mjs
 │   │   │   ├── LiteLLMProvider.test.mjs
 │   │   │   ├── LiveRagSingleSignal2026_08_14.test.mjs
+│   │   │   ├── LiveRagStreamRuntime2026_11_09.test.mjs
 │   │   │   ├── LLMHelperNegotiationCoachingGate.test.mjs
 │   │   │   ├── LocalEmbedBatchF22.test.mjs
 │   │   │   ├── LocalFallbackPreflight2026_07_07.test.mjs
@@ -2615,6 +2639,7 @@
 │   │   │   ├── SonioxApiKeyBug318.test.mjs
 │   │   │   ├── SprintAcceptanceWiring2026_08_31.test.mjs
 │   │   │   ├── SsrfProtection.test.mjs
+│   │   │   ├── StabilizationProfileSourceAuthority.test.mjs
 │   │   │   ├── StaleResponseModeSwitch2026_08_01.test.mjs
 │   │   │   ├── StaleSttConnectionGuards2026_08_18.test.mjs
 │   │   │   ├── StartupMicPermissionBanner.test.mjs
@@ -2627,6 +2652,7 @@
 │   │   │   ├── SttAwaitingAudioInitialState.test.mjs
 │   │   │   ├── SttReconfigureSerialization.test.mjs
 │   │   │   ├── StuckWatchdogTwelveSeconds.test.mjs
+│   │   │   ├── syntheticDocuments.mjs
 │   │   │   ├── TabularChunking.test.mjs
 │   │   │   ├── TargetedRetrievalRetry.test.mjs
 │   │   │   ├── TccRepairButtonAndIpc.test.mjs
@@ -2656,6 +2682,8 @@
 │   │   │   ├── WindowsAppChordSwallow.test.mjs
 │   │   │   ├── WindowsMicPermissionQueried2026_08_18.test.mjs
 │   │   │   ├── WindowsPlatformParity.test.mjs
+│   │   │   ├── Work0038CProfileGroundingRegression.test.mjs
+│   │   │   ├── Work0038ProfileSourceAuthority.test.mjs
 │   │   │   ├── WsTeardownKeepsErrorSink2026_08_14.test.mjs
 │   │   │   ├── WtaV3CodingContractWiring2026_08_11.test.mjs
 │   │   │   └── ZerofillDetectorPeakToPeak.test.mjs
@@ -104253,6 +104281,7 @@
 │       │   ├── CompanyResearchEngine.ts
 │       │   ├── ContextAssembler.ts
 │       │   ├── DocumentChunker.ts
+│       │   ├── HeuristicExtractor.ts
 │       │   ├── HybridSearchEngine.ts
 │       │   ├── IntentClassifier.ts
 │       │   ├── KnowledgeDatabaseManager.ts
@@ -104262,6 +104291,7 @@
 │       │   ├── ProfileContextBuilder.ts
 │       │   ├── roleInsight
 │       │   │   └── JdSourceResolver.ts
+│       │   ├── skillsUtil.ts
 │       │   ├── StarStoryGenerator.ts
 │       │   └── types.ts
 │       └── services
@@ -104337,6 +104367,10 @@
 │   ├── apply-modes-review-pending.sh
 │   ├── audit
 │   │   ├── BASELINE-failures.txt
+│   │   ├── chg1718-electron-harness.cjs
+│   │   ├── chg19-desktop-acceptance.cjs
+│   │   ├── CHG19-FINAL-ACCEPTANCE.md
+│   │   ├── chg19-responsibility-inventory.md
 │   │   ├── COOLDOWN-fix-unit.cjs
 │   │   ├── CR-01-surface-scope-inverse.mjs
 │   │   ├── CR-02-liverag-inert-guard.cjs
@@ -104406,6 +104440,8 @@
 │   │   ├── R-10-resolution-repro.cjs
 │   │   ├── R-11-repro.cjs
 │   │   ├── R-15-repro.cjs
+│   │   ├── run-chg19-desktop-acceptance.mjs
+│   │   ├── run-stabilization-full-product.mjs
 │   │   ├── SHORT-answer-band-conflict.mjs
 │   │   ├── SHORT-answer-live-app-forced.mjs
 │   │   ├── SHORT-answer-live-app.mjs
@@ -104413,6 +104449,7 @@
 │   │   ├── SHORT-answer-sneak-peek-backend.mjs
 │   │   ├── SHORT-answer-stream-timing.mjs
 │   │   ├── SHORT-answer-swap-repro.mjs
+│   │   ├── stabilization-full-product.cjs
 │   │   ├── stage10-legacy-mode-retrieval-reachability.md
 │   │   ├── stage9-failure-classification.md
 │   │   ├── V3-coding-metaretry-matrix.mjs
@@ -104425,6 +104462,7 @@
 │   │   ├── V3-metaretry-would-it-help.mjs
 │   │   ├── V3-verification-spec-safety.mjs
 │   │   ├── work0011-current-failures.md
+│   │   ├── work0027-failure-classification.json
 │   │   ├── wta-read-session.mjs
 │   │   ├── wta-shadow-session.sh
 │   │   └── wta-shadow-start.sh
@@ -104973,6 +105011,7 @@
 │   ├── index.css
 │   ├── lib
 │   │   ├── __tests__
+│   │   │   ├── chatOverlayInitialQueryCleanup.test.mjs
 │   │   │   ├── chatStreamGuardDesktopClaim2026_08_20.test.mjs
 │   │   │   ├── chatStreamGuardSurfaceScope2026_08_18.test.mjs
 │   │   │   ├── displayMarkup.test.mjs
@@ -105304,5 +105343,5 @@
     └── node
         └── index.js
 
-9152 directories, 96152 files
+9152 directories, 96191 files
 (.venv) abitesh@Abiteshs-MacBook-Air Sneak-Peek % 
