@@ -40,7 +40,7 @@ describe('W5: pipeline shape (source pins)', () => {
     });
 
     test('mode retrieval is kicked as a promise and handed to generateStream', () => {
-        assert.match(engineSrc, /const modeContextPromise: Promise<string>/);
+        assert.match(engineSrc, /const prefetchedModeContext = liveAnswerCandidate \? undefined : loadModeContext\(\)/);
         // The prefetch promise, request snapshot, and request-owned cancellation
         // signal are all threaded to WTA generation.
         // Anchored on the ORDER of the threaded values rather than on the call
@@ -53,7 +53,7 @@ describe('W5: pipeline shape (source pins)', () => {
     test('the floating intent promise carries an inline rejection handler', () => {
         const kickBlock = engineSrc.slice(
             engineSrc.indexOf('const intentPromise = classifyIntent('),
-            engineSrc.indexOf('const modeContextPromise'),
+            engineSrc.indexOf('const prefetchedModeContext'),
         );
         assert.match(kickBlock, /\.catch\(/);
     });

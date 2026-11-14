@@ -29,7 +29,6 @@ import { isBareCodeRequest, looksLikeCodingAnswer, buildPriorCodingContextBlock 
 import { planAnswer, formatAnswerPlanForPrompt, isCodingAnswerType, validateAnswerStructure, validateProfileOutput, validateProfileEvidence, buildProfileRepairInstruction, raceStreamWithDeadline, firstUsefulDeadlineMs, LIVE_LOCAL_FIRST_USEFUL_TIMEOUT_MS, CODING_REGEN_ABORT_CHARS, isStealthEvasionQuestion, stripProfileTokensFromCoding, isBareFollowUp, isRefinementFollowUp, buildContextFreeClarification, sanitizeCandidateAnswer, acceptRepairedAnswer, CANDIDATE_VOICE_ANSWER_TYPES, detectAssistantVoiceMisfire, ASSISTANT_VOICE_ANSWER_TYPES, piTelemetry, classifyProviderError, detectExplicitCodingContract, isCodingContinuation, buildPriorCodingContextBlock, buildCodingContractPrompt, explicitContractProducesCode, CODING_VERIFICATION_INSTRUCTION, humanizeDirectiveFor, detectCorporateFiller, humanizeForAnswerType, applySpeakabilityBudget, compressTechnicalConcept, checkCodeCompleteness, varySpokenOpening, type ExplicitCodingContract, type AnswerType } from './llm';
 import { stripPriorAssistantTurns } from './llm/conversationHistoryPolicy';
 import { mintTurnId } from './llm/turnIdentity';
-import type { StreamRouteOptions } from './llm/streamContextPolicy';
 import { buildProfileJitPrompt } from './llm/ProfileJitPromptBuilder';
 import { decideSessionWritePolicy, type FinalGenerationMode, type SessionWriteDecision } from './llm/FinalAnswerGenerationPolicy';
 import { stripEmbeddedAnswerContract } from './llm/stripEmbeddedAnswerContract';
@@ -43,13 +42,14 @@ import { beginTrace, commitTrace } from './intelligence/IntelligenceTrace';
 import { ProfileTreeService } from './intelligence/ProfileTreeService';
 import { isIntelligenceFlagEnabled, getSourceOwnerEnforcementStage, isRagCitationsEnabled } from './intelligence/intelligenceFlags';
 import { recordAttribution, hindsightModeFor, type AttributionInput } from './intelligence/IntelligenceAttribution';
-import { GenerationController, GenerationLifecycle } from './intelligence/engine/GenerationController';
+import { streamCanonicalProvider, GenerationLifecycle } from './intelligence/engine/GenerationController';
 import { SneakPeekIntelligenceEngine } from './intelligence/engine/SneakPeekIntelligenceEngine';
+import { conversationActionDataScopes } from './intelligence/engine/ConversationAction';
 import { RetrievalCoordinator, createRetrievalCapability } from './intelligence/engine/RetrievalCoordinator';
 import { createCanonicalRagRetrievalCapability } from './intelligence/engine/CanonicalRagRetrievalAdapter';
 import type { ContextSource } from './intelligence/engine/ContextTypes';
 import { readProviderScopePolicy } from './context-intelligence/policies/provider-scope-policy';
-import type { ProviderDataScope, ProviderAvailabilityState, ProviderModelState } from './llm/ProviderRouter';
+import type { ProviderDataScope, ProviderAvailabilityState, ProviderModelState, ProviderRouteOptions } from './llm/ProviderRouter';
 import { routeContext, isBackwardLookingQuery } from './intelligence/ContextRouter';
 import { SearchOrchestrator, type SearchCandidate } from './intelligence/SearchOrchestrator';
 import { CHAT_MODE_PROMPT } from './llm/prompts';
@@ -810,25 +810,51 @@ return { interviewer: '', user: '' };
 }
 });
 // IPC handler for analyzing image from file path
+function resolveAppImagePaths(imagePaths: readonly string[]): string[] {
+  const { validateImagePath } = require('./utils/curlUtils') as typeof import('./utils/curlUtils');
+  const root = fs.realpathSync(app.getPath('userData'));
+  return imagePaths.map(imagePath => {
+    if (typeof imagePath !== 'string') throw new Error('Invalid image path.');
+    const resolved = fs.realpathSync(imagePath);
+    const relative = path.relative(root, resolved);
+    if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`)
+      || path.isAbsolute(relative) || !fs.statSync(resolved).isFile()
+      || !validateImagePath(resolved, root).isValid) {
+      throw new Error('Path not allowed');
+    }
+    return resolved;
+  });
+}
+
 safeHandle('analyze-image-file', async (event, filePath: string) => {
-// Guard: only allow reading files within the app's own userData directory
-const userDataDir = app.getPath('userData');
-const resolved = path.resolve(filePath);
-if (!resolved.startsWith(userDataDir + path.sep)) {
-console.warn('[IPC] analyze-image-file: path outside userData rejected:', filePath);
-throw new Error('Path not allowed');
-}
-try {
-const result = await appState.processingHelper.getLLMHelper().analyzeImageFiles([resolved]);
-try {
-appState.getIntelligenceManager?.()?.addScreenAnalysis?.(result?.text);
-} catch (screenMemoryError) {
-console.warn('[IPC] screen analysis shared-context write failed:', screenMemoryError);
-}
-return result;
-} catch (error: any) {
-throw error;
-}
+  const validated = resolveAppImagePaths([filePath]);
+  const controller = new AbortController();
+  const destroy = () => controller.abort();
+  if (event.sender.isDestroyed()) throw new Error('Image analysis sender closed.');
+  event.sender.once('destroyed', destroy);
+  try {
+    const imagePaths = await optimizeImagesForVision(validated, 'analyze-image-file');
+    if (controller.signal.aborted) throw new Error('Image analysis cancelled.');
+    const id = `image-analysis-${crypto.randomUUID()}`;
+    const question = 'Describe the image concisely. If it shows a coding problem, explain the solution.';
+    const request: import('./intelligence/engine/types').SneakPeekIntelligenceRequest = {
+      requestId: id, sessionId: id, surface: 'screenshot', imageAnalysis: true,
+      userMessage: question, currentTurn: { id, role: 'user', content: question },
+      recentConversation: [], screenContext: { imagePaths }, cancellationSignal: controller.signal,
+      contextPermissions: {
+        conversation: false, transcript: false, screen: true, mode: false,
+        project: false, profile: false, files: false, memory: false, generalKnowledge: true,
+      },
+    };
+    const text = await collectCanonicalIpcAnswer(event, appState, request, controller);
+    try { appState.getIntelligenceManager?.()?.addScreenAnalysis?.(text); }
+    catch { console.warn('[IPC] could not store completed screen analysis'); }
+    return { text, timestamp: Date.now() };
+  } catch {
+    return { text: "I couldn't analyze the screen with the selected provider. Check its image capability and privacy settings.", timestamp: Date.now() };
+  } finally {
+    event.sender.removeListener('destroyed', destroy);
+  }
 });
 safeHandle(
 'gemini-chat',
@@ -896,6 +922,7 @@ const _chatStreamsBySender = new Map<number, { streamId: number; controller: Abo
 // surface. Phone supersession compares against this dedicated latest-phone marker instead,
 // so only a NEWER PHONE message supersedes a phone stream (desktop streams stay per-sender).
 let _phoneChatLatestId = 0;
+let _phoneChatController: AbortController | null = null;
 // Per-process diversity guard for manual chat (manual regression 2026-06-12):
 // last-20 answer fingerprints; repeated answers across DIFFERENT questions are
 // compressed to speakable prose. Survives across questions within the app run
@@ -966,44 +993,6 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
       resolveScope: ({ request }) => ({ scopeId: request.activeContext?.modeId }),
       read: (input) => ragManager.readPlannedCanonicalSource(input),
     }),
-    (() => {
-      const persistedMeeting = createCanonicalRagRetrievalCapability({
-        source: 'meeting_transcript',
-        sourceType: 'meeting',
-        limit: 8,
-        tokenBudget: 1800,
-        resolveScope: ({ request }) => ({ sourceId: request.activeContext?.meetingId }),
-        read: (input) => ragManager.readPlannedCanonicalSource(input),
-      });
-      return createRetrievalCapability('meeting_transcript', async (input) => {
-        if (input.signal?.aborted) return { items: [] };
-        try {
-          const persisted = await persistedMeeting.retrieve(input);
-          if (input.signal?.aborted) return { items: [] };
-          if (persisted.items.length > 0) return persisted;
-        } catch (error) {
-          console.warn('[Sneak-Peek Intelligence] persisted meeting retrieval unavailable; using live transcript window:', error instanceof Error ? error.message : String(error));
-        }
-        const turns = input.request.transcriptContext?.turns ?? [];
-        return {
-          items: turns
-            .filter((turn) => String(turn.content ?? '').trim())
-            .map((turn, index) => ({
-              id: String(turn.id || `meeting-live-${index}`),
-              source: 'meeting_transcript' as ContextSource,
-              content: String(turn.content),
-              score: 0.5,
-              metadata: {
-                sourceId: String(input.request.activeContext?.meetingId ?? 'live-transcript'),
-                speaker: turn.role === 'user' ? 'interviewer' : turn.role,
-                timestampStart: turn.createdAt,
-                timestampEnd: turn.createdAt,
-                retrievalSource: 'live-transcript-window',
-              },
-            })),
-        };
-      });
-    })(),
     createCanonicalRagRetrievalCapability({
       source: 'personal_knowledge',
       sourceType: 'personal',
@@ -1032,75 +1021,168 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
         })).filter((item: any) => item.content.trim()),
       };
     }),
-    createRetrievalCapability('profile', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      try {
-        const { ModesManager } = require('./services/ModesManager');
-        const { resolveModeIdOrWarn, resolveModePolicy } = require('./context-intelligence/policies/mode-policy-registry');
-        const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
-        const { createProfileRetrievalPort } = require('./context-intelligence/retrieval/profile-retrieval-port');
-        const { decide } = require('./context-intelligence/orchestration/orchestrator');
-        const modeInfo = ModesManager.getInstance().getActiveModeInfo?.() ?? null;
-        const modeId = resolveModeIdOrWarn(modeInfo?.templateType ?? null, 'ipc/manual-chat:natively-profile', { quietWhenAbsent: true });
-        const policy = resolveModePolicy(modeId);
-        const collected = collectV3ProfileSources(llmHelper.getKnowledgeOrchestrator?.() ?? null);
-        const profilePort = createProfileRetrievalPort({
-          docs: collected.docs,
-          allowedSourceTypes: policy.allowedSourceTypes,
-          profileSources: policy.profileSources,
-          userId: 'local',
-        });
-        if (!profilePort) return { items: [] };
-        const decision = decide({
-          requestId: request.requestId,
-          requestSequence: 0,
-          surface: 'manual-chat',
-          modeId,
-          scope: { userId: 'local', sessionId: request.sessionId },
-          sessionId: request.sessionId,
-          manualQuestion: query,
-          hasScreenContext: false,
-          hasAttachedDocuments: true,
-        });
-        const boundedDecision = {
-          ...decision,
-          retrievalPlan: {
-            ...decision.retrievalPlan,
-            shouldRetrieve: true,
-            queries: [query],
-          },
-        };
-        const result = await profilePort.retrieve({ decision: boundedDecision });
-        return {
-          items: result.evidence.map((item: any) => ({
-            id: item.evidenceId,
-            source: 'profile' as ContextSource,
-            content: item.content,
-            score: item.finalScore,
-            metadata: {
-              sourceId: item.sourceId,
-              sourceType: item.sourceType,
-              documentName: item.documentTitle,
-              pageStart: item.page,
-              section: item.section,
-              chunkId: item.chunkIndex !== undefined ? `${item.sourceId}:${item.chunkIndex}` : undefined,
-              provenance: item.provenance,
-              relevance: item.finalScore,
-              confidence: item.finalScore,
-              trustLevel: item.trustLevel,
-              authority: 'evidence',
-            },
-          })),
-          metadata: { source: 'profile', attempts: result.attempts.length },
-        };
-      } catch (error) {
-        // Preserve the error for RetrievalCoordinator's `failed` outcome.
-        // Never log provider error text here: it may contain private profile data.
-        console.warn('[Sneak-Peek Change 13] profile retrieval capability failed');
-        throw error;
-      }
-    }),
   ] : [];
+
+  capabilities.push(createRetrievalCapability('profile', async ({ request, contextPlan, signal }) => {
+    const decision = contextPlan.profileRead;
+    if (signal?.aborted) return { items: [] };
+    if (request.documentDraft && request.documentDraft.kind !== 'follow-up-email') {
+      const { buildActiveProfileContext } = require('./llm/ActiveProfileContext') as typeof import('./llm/ActiveProfileContext');
+      const profile = buildActiveProfileContext(appState.getKnowledgeOrchestrator?.());
+      if (!profile.activeResume) throw new Error('No active resume is available for this draft.');
+      return {
+        items: [
+          { document: profile.activeResume, sourceType: 'RESUME', title: 'Active resume' },
+          { document: profile.activeJD, sourceType: 'JOB_DESCRIPTION', title: 'Active job description' },
+        ].flatMap(({ document, sourceType, title }) => document ? [{
+          id: `${sourceType}:${document.sourceId}`,
+          source: 'profile' as const,
+          content: JSON.stringify(document.structured),
+          metadata: {
+            documentName: title,
+            documentId: String(document.sourceId),
+            sourceId: String(document.sourceId),
+            sourceType,
+            revisionId: document.documentHash,
+          },
+        }] : []),
+      };
+    }
+    if (!decision?.retrievalPlan.shouldRetrieve) return { items: [] };
+    try {
+      const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources') as typeof import('./services/knowledge/v3ProfileSources');
+      const { createProfileRetrievalPort } = require('./context-intelligence/retrieval/profile-retrieval-port') as typeof import('./context-intelligence/retrieval/profile-retrieval-port');
+      const sourceTypes = decision.retrievalPlan.sourceTypes;
+      const permittedKinds = [
+        ...(sourceTypes.includes('RESUME') ? ['resume' as const] : []),
+        ...(sourceTypes.includes('JOB_DESCRIPTION') ? ['jd' as const] : []),
+        ...(sourceTypes.includes('PROFILE_FACT') ? ['fact' as const] : []),
+      ];
+      const collected = collectV3ProfileSources(llmHelper.getKnowledgeOrchestrator?.() ?? null, permittedKinds);
+      const profilePort = createProfileRetrievalPort({
+        docs: collected.docs,
+        allowedSourceTypes: sourceTypes,
+        profileSources: sourceTypes,
+        userId: 'local',
+      });
+      if (!profilePort || signal?.aborted) return { items: [] };
+      const result = await profilePort.retrieve({ decision });
+      if (signal?.aborted) return { items: [] };
+      return {
+        items: result.evidence.map((item) => ({
+          id: item.evidenceId,
+          source: 'profile' as ContextSource,
+          content: item.content,
+          score: item.finalScore,
+          metadata: {
+            sourceId: item.sourceId,
+            sourceType: item.sourceType,
+            documentName: item.documentTitle,
+            pageStart: item.page,
+            section: item.section,
+            chunkId: item.chunkIndex !== undefined ? `${item.sourceId}:${item.chunkIndex}` : undefined,
+            provenance: item.provenance,
+            revisionId: item.versionId,
+            relevance: item.finalScore,
+            confidence: item.finalScore,
+            trustLevel: item.trustLevel,
+            authority: 'evidence',
+          },
+        })),
+        metadata: { source: 'profile', attempts: result.attempts.length },
+      };
+    } catch (error) {
+      // Preserve the error for RetrievalCoordinator's `failed` outcome.
+      // Never log provider error text here: it may contain private profile data.
+      console.warn('[Sneak-Peek Change 13] profile retrieval capability failed');
+      throw error;
+    }
+  }));
+
+  const persistedMeeting = ragManager ? createCanonicalRagRetrievalCapability({
+    source: 'meeting_transcript',
+    sourceType: 'meeting',
+    limit: 8,
+    tokenBudget: 1800,
+    resolveScope: ({ request }) => ({
+      sourceId: request.retrievalScope?.kind === 'meeting'
+        ? request.retrievalScope.meetingId : request.activeContext?.meetingId,
+    }),
+    read: (input) => ragManager.readPlannedCanonicalSource(input),
+  }) : undefined;
+
+  capabilities.push(createRetrievalCapability('meeting_transcript', async (input) => {
+    if (input.signal?.aborted) return { items: [] };
+    try {
+      const persisted = await persistedMeeting?.retrieve(input);
+      if (input.signal?.aborted) return { items: [] };
+      if (persisted?.items.length) return persisted;
+    } catch {
+      console.warn('[Sneak-Peek Intelligence] indexed meeting evidence unavailable');
+    }
+    if (input.signal?.aborted) return { items: [] };
+    const scope = input.request.retrievalScope;
+    if (scope?.kind === 'global-meetings') return { items: [] };
+    if (scope?.kind === 'meeting') {
+      // Read the selected record from the local store. The renderer cannot
+      // supply replacement evidence and another meeting is never consulted.
+      const meeting = DatabaseManager.getInstance().getMeetingDetails(scope.meetingId);
+      if (!meeting || meeting.id !== scope.meetingId) return { items: [] };
+
+      const summary = meeting.detailedSummary;
+      const overview = summary?.overview || meeting.summary;
+      const notes = [
+        overview,
+        summary?.keyPoints?.join('\n'),
+        summary?.actionItems?.join('\n'),
+      ].filter(Boolean).join('\n').slice(0, 4000);
+      const items: import('./intelligence/engine/types').SneakPeekEvidenceItem[] =
+        (meeting.transcript ?? [])
+          .filter(turn => turn.speaker === 'user' || turn.speaker === 'interviewer')
+          .slice(-20)
+          .filter(turn => turn.text.trim())
+          .map((turn, index) => ({
+            id: `${meeting.id}:transcript:${turn.timestamp}:${index}`,
+            source: 'meeting_transcript',
+            content: turn.text.slice(0, 400),
+            metadata: {
+              sourceId: meeting.id,
+              documentName: meeting.title,
+              speaker: turn.speaker,
+              timestampStart: turn.timestamp,
+              retrievalSource: 'saved-meeting-transcript',
+            },
+          }));
+
+      if (notes) items.unshift({
+        id: `${meeting.id}:saved-summary`,
+        source: 'meeting_transcript',
+        content: notes,
+        metadata: {
+          sourceId: meeting.id,
+          documentName: meeting.title,
+          section: 'Saved meeting summary',
+          retrievalSource: 'saved-meeting-summary',
+        },
+      });
+      return { items };
+    }
+    return {
+      items: (input.request.transcriptContext?.turns ?? [])
+        .filter(turn => turn.role !== 'assistant' && turn.content.trim())
+        .map((turn, index) => ({
+          id: turn.id || `meeting-live-${index}`,
+          source: 'meeting_transcript',
+          content: turn.content,
+          metadata: {
+            sourceId: input.request.activeContext?.meetingId ?? 'live-transcript',
+            timestampStart: turn.createdAt,
+            timestampEnd: turn.createdAt,
+            retrievalSource: 'live-transcript-window',
+          },
+        })),
+    };
+  }));
 
   const engine = new SneakPeekIntelligenceEngine({
     retrievalCoordinator: new RetrievalCoordinator({
@@ -1118,28 +1200,42 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
     }),
     generationPort: {
       stream: ({ request, prompt, contextPlan, lifecycle }) => {
-        const controller = new GenerationController({
-          streamFinalPrompt: (provider, model, finalPrompt, options) => llmHelper.streamFinalPrompt(provider, model, finalPrompt, options),
-        });
-        const scopes: ProviderDataScope[] = [];
         const required = new Set(contextPlan.requiredSources);
-        if (required.has('recent_conversation') || required.has('longer_conversation') || required.has('meeting_transcript')) scopes.push('transcript');
-        if (required.has('screen')) scopes.push('screenshots');
-        if (required.has('personal_knowledge') || required.has('profile') || required.has('structured_knowledge')) scopes.push('profile_history');
-        if (required.has('project_knowledge') || required.has('my_files') || required.has('mode_documents') || (required.has('rag') && !required.has('meeting_transcript'))) scopes.push('reference_files');
-        const route = llmHelper.getSneakPeekGenerationRouteOptions(
-          scopes,
-          false,
-        );
+        const scopes = new Set<ProviderDataScope>();
+        if ((request.imageConversationSnapshot || request.sessionSnapshot) && required.has('recent_conversation')) {
+          // Mixed session history can contain prior private-derived answers.
+          // Never send it through a provider with denied source scopes.
+          for (const scope of conversationActionDataScopes({ context: request.sessionSnapshot ?? request.imageConversationSnapshot })) scopes.add(scope);
+        }
+        if (required.has('recent_conversation') || required.has('longer_conversation') || required.has('meeting_transcript')) scopes.add('transcript');
+        if (required.has('screen')) scopes.add('screenshots');
+        if (required.has('personal_knowledge') || required.has('profile') || required.has('structured_knowledge')) scopes.add('profile_history');
+        if (required.has('project_knowledge') || required.has('my_files') || required.has('mode_documents') || (required.has('rag') && !required.has('meeting_transcript'))) scopes.add('reference_files');
+        const imagePaths = required.has('screen') ? request.screenContext?.imagePaths : undefined;
+        if (request.imageAnalysis && (!imagePaths?.length || !llmHelper.getCapabilities().supportsImages)) {
+          throw new Error('Selected model does not support the requested images.');
+        }
+        const route: ProviderRouteOptions | null = llmHelper.getSneakPeekGenerationRouteOptions([...scopes], Boolean(imagePaths?.length));
         if (!route) throw new Error('Active provider transport is not yet supported by the Sneak-Peek generation contract.');
-        if (request.providerPreferences?.preferredProvider) route.preferredProvider = request.providerPreferences.preferredProvider as any;
-        if (request.providerPreferences?.allowedProviders?.length) route.allowedProviders = request.providerPreferences.allowedProviders as any;
+        if (request.providerPreferences?.preferredProvider) route.preferredProvider = request.providerPreferences.preferredProvider as ProviderRouteOptions['preferredProvider'];
+        if (request.providerPreferences?.allowedProviders) {
+          const allowed = request.providerPreferences.allowedProviders as NonNullable<ProviderRouteOptions['allowedProviders']>;
+          route.allowedProviders = route.allowedProviders
+            ? route.allowedProviders.filter(provider => allowed.includes(provider))
+            : allowed;
+        }
         route.maxAttempts = request.providerPreferences?.maxAttempts ?? 3;
-        const generation = controller.stream({
+        if ((request.documentDraft || request.providerPreferences?.allowFallback === false) && route.preferredProvider) {
+          route.allowedProviders = (route.allowedProviders ?? [route.preferredProvider])
+            .filter(provider => provider === route.preferredProvider);
+          route.maxAttempts = 1;
+        }
+        const stream = streamCanonicalProvider(llmHelper, {
           requestId,
           finalPrompt: prompt.finalPrompt,
           route,
           abortSignal: request.cancellationSignal,
+          imagePaths,
           thinkingBudget: request.responseShape?.detailed ? 1024 : 0,
           lifecycle,
         });
@@ -1148,7 +1244,7 @@ function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, reque
           preferredProvider: route.preferredProvider,
           maxAttempts: route.maxAttempts,
         });
-        return generation.stream;
+        return stream;
       },
     },
   });
@@ -1166,7 +1262,7 @@ function buildSneakPeekMeetingTranscriptContext(appState: any, meetingId: string
     const manager = appState.getIntelligenceManager?.();
     const activeId = manager?.getMeetingMetadata?.()?.id;
     const isLiveMeeting = String(meetingId) === 'live-meeting-current';
-    if (!isLiveMeeting && activeId && String(activeId) !== String(meetingId)) return empty;
+    if (!isLiveMeeting && String(activeId ?? '') !== String(meetingId)) return empty;
     const brain = manager?.getLiveTranscriptBrain?.();
     const window = brain?.getHotWindow?.(180) ?? [];
     if (!Array.isArray(window) || window.length === 0) return empty;
@@ -1230,13 +1326,15 @@ function buildSneakPeekMeetingRequest(
   // Keep interview/meeting source availability identical to manual chat.
   // Hardcoding project/profile/files=true makes ContextPlanner select sources
   // that do not actually exist and can suppress the résumé fallback.
-  let profileAvailable = false;
+  let hasResume = false;
+  let hasJobDescription = false;
   try {
     const llmHelper = appState.processingHelper?.getLLMHelper?.();
-    const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
-    const collected = collectV3ProfileSources(llmHelper?.getKnowledgeOrchestrator?.() ?? null);
-    profileAvailable = collected.docs.length > 0;
-  } catch { profileAvailable = false; }
+    const orchestrator = llmHelper?.getKnowledgeOrchestrator?.();
+    hasResume = Boolean(orchestrator?.activeResume?.structured_data);
+    hasJobDescription = Boolean(orchestrator?.activeJD?.structured_data);
+  } catch { /* profile unavailable */ }
+  const profileAvailable = hasResume || hasJobDescription;
   const personalFiles = (() => {
     try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); }
     catch { return []; }
@@ -1272,6 +1370,11 @@ function buildSneakPeekMeetingRequest(
     activeContext: {
       modeId: modeInfo?.id,
       modeName: modeInfo?.name,
+      modeTemplateType: modeInfo?.templateType,
+      modeSourceContract: modeInfo?.sourceContract,
+      hasReferenceFiles: modeInfo?.hasReferenceFiles,
+      hasResume,
+      hasJobDescription,
       meetingId,
       profileId: profileAvailable ? 'local-profile' : undefined,
       projectSourceIds: projectScope.selectedFileIds,
@@ -1307,7 +1410,9 @@ async function streamSneakPeekMeetingAnswer(
   streamMeta: { meetingId?: string; live?: boolean; global?: boolean },
 ): Promise<{ success: boolean; fallback?: boolean; error?: string }> {
   const llmHelper = appState.processingHelper?.getLLMHelper?.();
-  if (!llmHelper) return { success: false, fallback: true };
+  if (!llmHelper) return streamMeta.live || streamMeta.global
+    ? { success: false, fallback: true }
+    : { success: false, error: 'Meeting chat is unavailable.' };
 
   const { streamRagEngineAnswer, ragQueryPrefix, buildGlobalRagRequest } = require('./intelligence/engine/RagIpcStream') as typeof import('./intelligence/engine/RagIpcStream');
   const requestId = `sneak-peek-rag-${crypto.randomUUID()}`;
@@ -1410,23 +1515,48 @@ _chatStreamsBySender.set(senderId, { streamId: myStreamId, controller: myControl
 
 // CHANGE 13: the canonical Sneak-Peek Intelligence Engine is now the PRIMARY
 // manual-chat route. The old handler below remains intact as compatibility
-// fallback. Image-bearing turns and explicit caller-owned prompt turns stay
-// on the compatibility path until their equivalent engine contracts are
-// proven. Ordinary `context` is NOT a reason to bypass the engine: the new
-// conversation-state layer is the canonical continuity source.
+// fallback. An explicit image-only turn can use canonical attachment handling.
+// Requests with caller-owned prompts, mode-specific image context, skills,
+// and identity probes still require their compatibility contracts.
 const nativeSkillPrefix = /^[\/$][A-Za-z0-9_-]+\s/.test(String(message || ''));
 const nativeCompatibilityOnlyTurn =
   isAssistantIdentityQuestion(String(message || ''))
   || isStealthEvasionQuestion(String(message || ''))
   || nativeSkillPrefix;
-if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !nativeCompatibilityOnlyTurn) {
+let validatedManualImages: string[] | undefined;
+if (imagePaths?.length) {
+  try {
+    if (!Array.isArray(imagePaths) || imagePaths.length > 5) throw new Error('Invalid image attachments.');
+    validatedManualImages = resolveAppImagePaths(imagePaths);
+    imagePaths = validatedManualImages;
+  } catch {
+    event.sender.send('gemini-stream-error', 'Path not allowed for one or more attached images.', { streamId: myStreamId });
+    return null;
+  }
+}
+const supportsCanonicalImageMode = !manualActiveMode || (
+  manualActiveMode.templateType === 'general'
+  && !manualActiveMode.isCustom && !manualActiveMode.hasReferenceFiles && !manualActiveMode.hasCustomPrompt
+  && !manualActiveMode.strictDocumentGroundedActive
+  && (manualActiveMode.sourceContract?.origin === 'default_new_mode'
+    || (manualActiveMode.sourceContract?.origin === 'migrated_from_prompt'
+      && manualActiveMode.sourceContract.sourceAuthority === 'ask_if_ambiguous'))
+);
+const canonicalImageRequest = Boolean(validatedManualImages?.length
+  && supportsCanonicalImageMode && llmHelper.getCapabilities?.().supportsImages
+  && llmHelper.getSneakPeekGenerationRouteOptions?.(['screenshots'], true));
+if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt && !nativeCompatibilityOnlyTurn) {
   let primaryHasVisibleOutput = false;
   let settlePrimaryTurn: ((generationStatus: 'completed' | 'cancelled' | 'failed') => void) | undefined;
   try {
-    const modeInfo = (() => {
-      try { return require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.() ?? null; }
-      catch { return null; }
-    })();
+    const canonicalImages = canonicalImageRequest
+      ? await optimizeImagesForVision(validatedManualImages!, 'manual-chat')
+      : undefined;
+    if (myController.signal.aborted) return null;
+    const imageConversationSnapshot = canonicalImages && !options?.skipRollingContext
+      ? llmHelper.fitContextForCurrentModel(typeof context === 'string' ? context.trim() : '')
+      : undefined;
+    const modeInfo = manualActiveMode;
     // A manual conversation belongs to this WebContents, even while a
     // meeting is active. The meeting ID remains in activeContext.meetingId
     // for authorized transcript retrieval; it must not also become the
@@ -1449,12 +1579,14 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     settlePrimaryTurn = (generationStatus) => {
       updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus });
     };
-    let profileAvailable = false;
+    let hasResume = false;
+    let hasJobDescription = false;
     try {
-      const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
-      const collected = collectV3ProfileSources(llmHelper.getKnowledgeOrchestrator?.() ?? null);
-      profileAvailable = collected.docs.length > 0;
-    } catch { profileAvailable = false; }
+      const orchestrator = llmHelper.getKnowledgeOrchestrator?.();
+      hasResume = Boolean(orchestrator?.activeResume?.structured_data);
+      hasJobDescription = Boolean(orchestrator?.activeJD?.structured_data);
+    } catch { /* profile unavailable */ }
+    const profileAvailable = hasResume || hasJobDescription;
     const personalFiles = (() => {
       try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); }
       catch { return []; }
@@ -1477,6 +1609,11 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       requestId,
       sessionId,
       surface: 'manual-chat' as const,
+      ...(canonicalImages ? {
+        imageAnalysis: true as const,
+        screenContext: { imagePaths: canonicalImages },
+        imageConversationSnapshot,
+      } : {}),
       userMessage: String(message || ''),
       currentTurn: {
         id: nativeCurrentTurn.id,
@@ -1494,6 +1631,11 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
       activeContext: {
         modeId: modeInfo?.id,
         modeName: modeInfo?.name,
+        modeTemplateType: modeInfo?.templateType,
+        modeSourceContract: modeInfo?.sourceContract,
+        hasReferenceFiles: modeInfo?.hasReferenceFiles,
+        hasResume,
+        hasJobDescription,
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
         projectSourceIds: projectScope.selectedFileIds,
@@ -1506,9 +1648,9 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
         maxAttempts: 3,
       },
       contextPermissions: {
-        conversation: true,
+        conversation: !canonicalImages || Boolean(imageConversationSnapshot),
         transcript: Boolean(meetingId),
-        screen: false,
+        screen: Boolean(canonicalImages),
         mode: Boolean(modeInfo?.id),
         project: projectFilesAvailable,
         profile: profileAvailable && !projectScope.unresolvedReference,
@@ -1596,7 +1738,7 @@ if ((!imagePaths || imagePaths.length === 0) && !options?.skipSystemPrompt && !n
     }
   } catch (sneakPeekErr: any) {
     settlePrimaryTurn?.(myController.signal.aborted ? 'cancelled' : 'failed');
-    if (primaryHasVisibleOutput || myController.signal.aborted) {
+    if (canonicalImageRequest || primaryHasVisibleOutput || myController.signal.aborted) {
       if (_chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
         event.sender.send('gemini-stream-error', myController.signal.aborted ? 'Generation cancelled.' : 'Generation interrupted.', { streamId: myStreamId });
       }
@@ -11041,9 +11183,15 @@ return optimized;
 return paths;
 }
 }
-safeHandle('generate-code-hint', async (_, imagePaths?: string[], problemStatement?: string) => {
+safeHandle('generate-code-hint', async (_, imagePaths?: string[], problemStatement?: string, codeHintRequestId?: string) => {
 return _tracked(async () => {
 try {
+// The optional renderer correlation ID is never an instruction or evidence.
+// Reject malformed values rather than echoing arbitrary renderer data over IPC.
+if (codeHintRequestId !== undefined &&
+    (typeof codeHintRequestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(codeHintRequestId))) {
+return { error: 'Invalid Code Hint request ID', hint: null };
+}
 // If no explicit images were passed from the frontend, fall back to the
 // screenshot queue so the AI can always "see" the user's screen.
 const screenshotQueue = appState.getScreenshotQueue();
@@ -11078,6 +11226,7 @@ const intelligenceManager = appState.getIntelligenceManager();
 const hint = await intelligenceManager.runCodeHint(
 optimizedPaths.length > 0 ? optimizedPaths : undefined,
 problemStatement,
+codeHintRequestId,
 );
 if (hint) {
 try {
@@ -11455,40 +11604,64 @@ return { success: true };
 // ==========================================
 // Follow-up Email Handlers
 // ==========================================
-safeHandle('generate-followup-email', async (_, input: any) => {
-return _tracked(async () => {
-try {
-const { FOLLOWUP_EMAIL_PROMPT, GROQ_FOLLOWUP_EMAIL_PROMPT } = require('./llm/prompts');
-const { buildFollowUpEmailPromptInput } = require('./utils/emailUtils');
-const llmHelper = appState.processingHelper.getLLMHelper();
-// Build the context string from input
-const contextString = buildFollowUpEmailPromptInput(input);
-// Prompt System v2 (flag promptSystemV2): one provider-neutral email
-// contract replaces the Gemini/Groq prompt pair. The transport shape is
-// unchanged (instructions concatenated into the user message with
-// skipSystemPrompt=true). Flag off → legacy constants, unchanged.
-let v2EmailPrompt: string | null = null;
-try {
-const { resolveV2SystemPrompt } = require('./llm/promptSystemV2');
-v2EmailPrompt = resolveV2SystemPrompt({ action: 'followup_email', tier: 'cloud', activeMode: null });
-} catch { /* legacy fallback below */ }
-// Build prompts
-const geminiPrompt = `${v2EmailPrompt ?? FOLLOWUP_EMAIL_PROMPT}\n\nMEETING DETAILS:\n${contextString}`;
-const groqPrompt = `${v2EmailPrompt ?? GROQ_FOLLOWUP_EMAIL_PROMPT}\n\nMEETING DETAILS:\n${contextString}`;
-// Use chatWithGemini with alternateGroqMessage for fallback
-const emailBody = await llmHelper.chatWithGemini(
-geminiPrompt,
-undefined,
-undefined,
-true,
-groqPrompt,
-);
-return emailBody;
-} catch (error: any) {
-console.error('Error generating follow-up email:', error);
-throw error;
+async function collectCanonicalIpcAnswer(
+  event: Electron.IpcMainInvokeEvent,
+  appState: AppState,
+  request: import('./intelligence/engine/types').SneakPeekIntelligenceRequest,
+  controller: AbortController,
+): Promise<string> {
+  const helper = appState.processingHelper.getLLMHelper();
+  const engine = createPrimaryManualSneakPeekEngine(helper, appState, request.requestId);
+  const { streamRagEngineAnswer } = require('./intelligence/engine/RagIpcStream') as typeof import('./intelligence/engine/RagIpcStream');
+  let answer: string | undefined;
+  const result = await streamRagEngineAnswer({
+    engine, request, meta: {},
+    isCurrent: () => !event.sender.isDestroyed(),
+    abort: () => controller.abort(),
+    send() {},
+    settle: (status, text) => { if (status === 'completed') answer = text; },
+  });
+  if (controller.signal.aborted && result.success) throw new Error('Generation cancelled.');
+  if (!result.success || !answer?.trim()) throw new Error(result.error ?? 'Generation did not complete.');
+  return answer;
 }
-});
+
+async function generateDocumentDraft(
+  event: Electron.IpcMainInvokeEvent,
+  appState: AppState,
+  documentDraft: import('./intelligence/engine/types').SneakPeekDocumentDraft,
+): Promise<string> {
+  const id = `document-draft-${crypto.randomUUID()}`;
+  const controller = new AbortController();
+  const destroy = () => controller.abort();
+  if (event.sender.isDestroyed()) throw new Error('Draft sender closed.');
+  event.sender.once('destroyed', destroy);
+  try {
+    const phrase = documentDraft.kind.replaceAll('-', ' ');
+    const question = `Write the requested ${phrase}.`;
+    return await collectCanonicalIpcAnswer(event, appState, {
+      requestId: id, sessionId: id, surface: 'document-draft',
+      userMessage: question, currentTurn: { id, role: 'user', content: question },
+      recentConversation: [], documentDraft, cancellationSignal: controller.signal,
+      contextPermissions: {
+        conversation: false, transcript: documentDraft.kind === 'follow-up-email',
+        screen: false, mode: false, project: false, profile: documentDraft.kind !== 'follow-up-email',
+        files: false, memory: false, generalKnowledge: false,
+      },
+    }, controller);
+  } finally {
+    event.sender.removeListener('destroyed', destroy);
+  }
+}
+
+safeHandle('generate-followup-email', async (event, input: import('./utils/emailUtils').FollowUpEmailInput) => {
+  return _tracked(async () => {
+    const { buildFollowUpEmailPromptInput } = require('./utils/emailUtils') as typeof import('./utils/emailUtils');
+    return generateDocumentDraft(event, appState, {
+      kind: 'follow-up-email',
+      meetingDetails: buildFollowUpEmailPromptInput(input),
+    });
+  });
 });
 safeHandle('extract-emails-from-transcript', async (_, transcript: Array<{ text: string }>) => {
 try {
@@ -12102,7 +12275,7 @@ console.error('[IPC] profile:research-company error:', error);
 return { success: false, error: error.message };
 }
 });
-safeHandle('profile:generate-negotiation', async (_, force: boolean = false) => {
+safeHandle('profile:generate-negotiation', async (event, force: boolean = false) => {
 try {
 // Premium gate
 if (!isProOrTrialActive()) {
@@ -12123,7 +12296,7 @@ return { success: false, error: 'No resume loaded' };
 // Use cache unless force-regenerating
 let script = force ? null : orchestrator.getNegotiationScript();
 if (!script) {
-script = await orchestrator.generateNegotiationScriptOnDemand();
+script = await generateDocumentDraft(event, appState, { kind: 'negotiation-script' });
 }
 if (!script) {
 return {
@@ -12138,7 +12311,7 @@ console.error('[IPC] profile:generate-negotiation error:', error);
 return { success: false, error: error.message };
 }
 });
-safeHandle('profile:generate-cover-letter', async (_, force: boolean = false) => {
+safeHandle('profile:generate-cover-letter', async (event, force: boolean = false) => {
 try {
 // Premium gate
 if (!isProOrTrialActive()) {
@@ -12159,7 +12332,7 @@ return { success: false, error: 'No resume loaded' };
 // Use cache unless force-regenerating
 let letter = force ? null : orchestrator.getCoverLetter();
 if (!letter) {
-letter = await orchestrator.generateCoverLetterOnDemand();
+letter = await generateDocumentDraft(event, appState, { kind: 'cover-letter' });
 }
 if (!letter) {
 return {
@@ -13810,9 +13983,11 @@ let phoneDocGrounded = false;
 // desktop it never registers in _chatStreamsBySender, so modes:set-active
 // does not abort it either.
 let phonePinnedModeId: string | null = null;
+let phonePinnedModeInfo: import('./llm/modeProfiles').ActiveModeInfo | null = null;
 try {
 const { ModesManager } = require('./services/ModesManager');
 const phoneModeInfo = ModesManager.getInstance().getActiveModeInfo();
+phonePinnedModeInfo = phoneModeInfo;
 phoneDocGrounded = phoneModeInfo?.documentGroundedCustomModeActive === true;
 phonePinnedModeId = phoneModeInfo?.id ?? null;
 } catch { /* mode unavailable — treat as non-doc-grounded */ }
@@ -13847,7 +14022,7 @@ try {
 phoneMirror.publishUserMessage(String(myStreamId), message);
 } catch (_) {}
 // Notify renderer so it can display the incoming phone message too.
-win?.webContents.send('phone-mirror:incoming-chat', {
+if (win && !win.isDestroyed()) win.webContents.send('phone-mirror:incoming-chat', {
 message,
 streamId: String(myStreamId),
 });
@@ -13855,14 +14030,15 @@ try {
 const llmHelper = appState.processingHelper.getLLMHelper();
 // AbortController so the live-deadline driver can cancel a stalled provider
 // request (not just stop emitting) — mirrors the desktop chat path.
+_phoneChatController?.abort();
 const phoneController = new AbortController();
+_phoneChatController = phoneController;
 // Compute the same routing decision the desktop gemini-chat-stream uses
 // (ipcHandlers.ts ~959) so the phone-chat path applies the active custom
 // mode's voice + retrieved product material just like the desktop surface.
 // Without this, the mode-suffix skip-gate (CHAT_MODE_PROMPT is a "universal
 // override") suppresses injection for non-custom regular modes like
 // lecture/team-meet + a sales question over phone (audit #2, 2026-07-05).
-let phoneRouteOptions: StreamRouteOptions | undefined;
 let phonePlanForOwnership: any = null;
 try {
 const llmMod = require('./llm');
@@ -13871,15 +14047,9 @@ const phonePlan = llmMod.planAnswer({
 question: message,
 source: 'manual_input',
 speakerPerspective: 'user',
-activeMode: (() => { try { return require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.(); } catch { return null; } })(),
+activeMode: phonePinnedModeInfo,
 });
 phonePlanForOwnership = phonePlan;
-phoneRouteOptions = {
-answerType: phonePlan?.answerType || 'unknown_answer',
-forbiddenContextLayers: phonePlan?.forbiddenContextLayers,
-// F-502: t0-pinned mode — see phonePinnedModeId above.
-pinnedModeId: phonePinnedModeId,
-};
 }
 } catch { /* plan unavailable — fall back to no routeOptions (legacy behavior) */ }
 // SOURCE-OWNERSHIP GATE (2026-07-06): the phone-mirror path mirrors the
@@ -13898,7 +14068,7 @@ const { buildCustomModeExecutionContract } = require('./llm/customModeExecutionC
 const { resolveSourceOwnership, buildSourceSwitchClarification } = require('./llm/sourceOwnership');
 const { resolveTurnSourceDecision } = require('./llm/turnSourceDecision') as typeof import('./llm/turnSourceDecision');
 const { resolveExplicitSourceRequest: _pResolveSwitch, resolveExplicitSourceRequests: _pResolveSwitches } = require('./intelligence/context-os/explicitSourceSwitch') as typeof import('./intelligence/context-os/explicitSourceSwitch');
-const _pMode = (() => { try { return require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.(); } catch { return null; } })();
+const _pMode = phonePinnedModeInfo;
 const _pOrch = llmHelper.getKnowledgeOrchestrator?.();
 const _pHasProfile = Boolean(_pOrch?.activeResume?.structured_data);
 const _pHasJd = Boolean((_pOrch as any)?.activeJD?.structured_data);
@@ -13959,8 +14129,8 @@ if (_pOwn.shouldClarifyInsteadOfProfile && _phoneChatLatestId === myPhoneId) {
 const clarify = buildSourceSwitchClarification(_pOwn.owner, _pExplicitSwitch);
 try { phoneMirror.publishToken(String(myStreamId), clarify); } catch (_) {}
 try { phoneMirror.publishDone(String(myStreamId), clarify); } catch (_) {}
-win?.webContents.send('gemini-stream-token', clarify, { streamId: myStreamId, source: 'phone' });
-win?.webContents.send('gemini-stream-done', { streamId: myStreamId, source: 'phone' });
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-token', clarify, { streamId: myStreamId, source: 'phone' });
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-done', { streamId: myStreamId, source: 'phone' });
 intelligenceManager.addAssistantMessage(clarify, undefined, 'phone_mirror');
 intelligenceManager.logUsage('chat', message, clarify);
 if (isIntelligenceFlagEnabled('trace')) {
@@ -13972,80 +14142,117 @@ return;
 // Best-effort — never break the phone path on the ownership check.
 if (isIntelligenceFlagEnabled('trace')) console.warn('[SOURCE-GUARD] phone ownership check skipped (non-fatal):', pOwnErr?.message);
 }
-const stream = llmHelper.streamChat(message, undefined, context, resolveManualChatBasePrompt(llmHelper, resolveCodingPromptSignals({ answerType: phoneRouteOptions?.answerType as any, question: message })), false, false, [], phoneController.signal, undefined, phoneRouteOptions);
-let full = '';
-let phoneSuperseded = false;
-// Deadline-guarded (Issue 1) — this is a live streaming surface too: a hung
-// provider must never block it forever. Uses the standard chat first-useful
-// budget; an inter-token stall guard protects long answers.
-//
-// CR-05: this passed NEITHER route flag, so it always took the 7s cloud
-// cap. Both defaults are wrong here for the same reasons the manual-chat
-// site documents, and the rationale is surface-agnostic:
-// • viaServerCascade — the natively-api server cuts over to the next
-// provider at AI_TTFT_BUDGET_MS (10s). Aborting at 7s tore the HTTP
-// request down 3s BEFORE the rescue, producing exactly the "did not
-// produce an answer in time" outcome F-301 exists to eliminate.
-// • isLocal — a local model cold-loads its weights (8-12s for a 7-9B)
-// before the first token, so 7s aborted every cold local generation
-// on the phone path to zero tokens.
+// Phone Mirror now uses the same primary canonical engine as desktop chat.
+// Keep the phone's own session and cancellation ownership, never a desktop
+// sender's stream ID. The mixed SessionTracker snapshot has unknown lineage;
+// it is not a meeting transcript or a source of citations.
+const { appendConversationTurn, getRecentConversationTurns, updateConversationTurn } = require('./context-intelligence/question/conversation-state-store') as typeof import('./context-intelligence/question/conversation-state-store');
+const { buildPhoneMirrorCanonicalRequest } = require('./intelligence/engine/PhoneMirrorRequest') as typeof import('./intelligence/engine/PhoneMirrorRequest');
+const { streamRagEngineAnswer } = require('./intelligence/engine/RagIpcStream') as typeof import('./intelligence/engine/RagIpcStream');
+const phoneSessionId = 'phone-mirror:active';
+const phoneRequestId = `phone-mirror-${myStreamId}`;
+const phoneMode = phonePinnedModeInfo;
+const phoneHistory = getRecentConversationTurns(phoneSessionId, 12);
+const phoneTurn = appendConversationTurn({
+sessionId: phoneSessionId, turnId: phoneRequestId, text: message,
+role: 'user', speaker: 'user', source: 'manual', finalized: true, generationStatus: 'pending',
+requestSequence: myStreamId,
+});
+const phoneFiles = (() => { try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); } catch { return []; } })();
+const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
+const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
+const projectScope = resolveProjectFileScopeForTurn(message, phoneFiles, phoneHistory, phoneRequestId);
+const phoneOrchestrator = llmHelper.getKnowledgeOrchestrator?.();
+const hasResume = Boolean(phoneOrchestrator?.activeResume?.structured_data);
+const hasJobDescription = Boolean(phoneOrchestrator?.activeJD?.structured_data);
+const meetingId = String(intelligenceManager.getMeetingMetadata?.()?.id ?? '') || undefined;
+const realTranscript = meetingId ? buildSneakPeekMeetingTranscriptContext(appState, meetingId) : undefined;
+const phoneRequest = buildPhoneMirrorCanonicalRequest({
+requestId: phoneRequestId, sessionId: phoneSessionId, question: message, signal: phoneController.signal,
+recentConversation: phoneHistory.map((turn) => ({
+id: turn.id, role: turn.role === 'assistant' ? 'assistant' as const : turn.role === 'system' ? 'system' as const : 'user' as const,
+content: turn.text, createdAt: turn.timestamp,
+})),
+sessionSnapshot: context ? llmHelper.fitContextForCurrentModel(context) : undefined,
+actualMeetingTranscript: realTranscript?.turns.length ? realTranscript : undefined,
+activeContext: {
+modeId: phonePinnedModeId ?? undefined, modeName: phoneMode?.name, modeTemplateType: phoneMode?.templateType,
+modeSourceContract: phoneMode?.sourceContract, hasReferenceFiles: phoneMode?.hasReferenceFiles,
+hasResume, hasJobDescription, meetingId,
+profileId: hasResume || hasJobDescription ? 'local-profile' : undefined,
+projectSourceIds: projectScope.selectedFileIds, resumeSourceIds: isBroadCandidateProjectsQuestion(message)
+? phoneFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
+: undefined,
+projectName: projectScope.namedProject,
+},
+available: {
+profile: hasResume || hasJobDescription, personalFiles: phoneFiles.length > 0,
+projectFiles: projectScope.projectAvailable, unresolvedProject: Boolean(projectScope.unresolvedReference),
+missingNamedProject: projectScope.missingNamedProject,
+},
+});
+const isPhoneCurrent = () => _phoneChatLatestId === myPhoneId && !phoneController.signal.aborted
+  && (phoneMirror.hasClients() || Boolean(win && !win.isDestroyed()));
+// The server cascade cuts over after ~10 seconds; never abort this phone
+// stream earlier. Local model cold-starts receive the full local budget.
 const phoneUsingLocalLlm = llmHelper.isUsingOllama() || llmHelper.isUsingCodexCli();
 const phoneViaServerCascade = llmHelper.isUsingSneakPeekServerCascade?.() === true;
-await raceStreamWithDeadline({
-stream: stream as AsyncGenerator<string>,
-firstUsefulDeadlineMs: firstUsefulDeadlineMs('general_meeting_answer', phoneUsingLocalLlm, phoneViaServerCascade),
-isUsefulYet: () => full.trim().length >= 5,
-shouldAbort: () => {
-if (_phoneChatLatestId !== myPhoneId) {
-console.log(`[PhoneMirror] phone-chat ${myStreamId} superseded by a newer phone message, stopping.`);
-phoneSuperseded = true; return true;
+const phoneStallTimeoutMs = Math.max(15_000,
+  firstUsefulDeadlineMs('general_meeting_answer', phoneUsingLocalLlm, phoneViaServerCascade));
+let full = '';
+let completed = false;
+const streamResult = await streamRagEngineAnswer({
+engine: createPrimaryManualSneakPeekEngine(llmHelper, appState, phoneRequestId),
+request: phoneRequest, meta: {}, isCurrent: isPhoneCurrent,
+abort: () => phoneController.abort(),
+// Reuse the canonical IPC stream's abort/supersession/stall guarantees,
+// while preserving the phone and desktop chat event contracts.
+send: (channel, payload) => {
+if (!isPhoneCurrent()) return;
+if (channel === 'rag:stream-chunk' && payload.chunk) {
+full += payload.chunk;
+try { phoneMirror.publishToken(String(myStreamId), payload.chunk); } catch (_) {}
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-token', payload.chunk, { streamId: myStreamId, source: 'phone' });
+} else if (channel === 'rag:stream-error') {
+const safeError = 'Sneak-Peek could not generate this answer using the permitted sources and selected provider.';
+try { phoneMirror.publishError(String(myStreamId), safeError); } catch (_) {}
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-error', safeError, { streamId: myStreamId, source: 'phone-mirror' });
 }
-// Cancel early if all phones disconnected and there's no desktop renderer.
-if (!phoneMirror.hasClients() && win?.isDestroyed()) return true;
-return false;
 },
-onToken: (token: string) => {
-try { phoneMirror.publishToken(String(myStreamId), token); } catch (_) {}
-// streamId lets the desktop renderer drop tokens from a superseded
-// chat stream (audit finding #3); backward-compatible optional arg.
-win?.webContents.send('gemini-stream-token', token, { streamId: myStreamId, source: 'phone' });
-full += token;
-},
-onCleanup: () => { try { phoneController.abort(); } catch { /* noop */ } },
-});
-if (phoneSuperseded) return;
-if (_phoneChatLatestId === myPhoneId) {
-try {
-phoneMirror.publishDone(String(myStreamId), full);
-} catch (_) {}
-win?.webContents.send('gemini-stream-done', { streamId: myStreamId, source: 'phone' });
-// Document-grounded: block a greeting/empty answer from SessionTracker
-// so it can't contaminate the next turn (same backstop as the desktop
-// path, minus the regenerate — the phone surface keeps it simple).
-const phoneTrim = full.trim();
+settle: (status, answer) => {
+updateConversationTurn({ sessionId: phoneSessionId, turnId: phoneTurn.id, generationStatus: status });
+if (status !== 'completed' || !isPhoneCurrent() || !answer) return;
+completed = true;
+full = answer;
+const phoneTrim = answer.trim();
 const phoneInvalid = phoneDocGrounded && (
-phoneTrim.length < 8
-|| /what would you like help with/i.test(phoneTrim)
+phoneTrim.length < 8 || /what would you like help with/i.test(phoneTrim)
 || /^\s*(?:hey|hi|hello)[!,.]?\s*(?:there)?[!,.]?\s*(?:what would you like help with|how can i help|what can i (?:help|do))/i.test(phoneTrim)
 );
-if (phoneInvalid) {
-console.warn('[PhoneMirror] document-grounded invalid answer blocked from SessionTracker', { chars: phoneTrim.length });
+try { phoneMirror.publishDone(String(myStreamId), answer); } catch (_) {}
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-done', { streamId: myStreamId, source: 'phone' });
+if (!phoneInvalid && phoneTrim) {
+appendConversationTurn({ sessionId: phoneSessionId, text: answer, role: 'assistant', speaker: 'assistant', source: 'manual', finalized: true, generationStatus: 'completed', requestSequence: myStreamId });
+intelligenceManager.addAssistantMessage(answer, undefined, 'phone_mirror');
+intelligenceManager.logUsage('chat', message, answer);
 }
-if (phoneTrim.length > 0 && !phoneInvalid) {
-intelligenceManager.addAssistantMessage(full, undefined, 'phone_mirror');
-intelligenceManager.logUsage('chat', message, full);
-}
+},
+stallTimeoutMs: phoneStallTimeoutMs,
+});
+if (!streamResult.success && isPhoneCurrent() && !completed) {
+// The stream helper already emitted a sanitized error on this sender.
+console.warn('[PhoneMirror] canonical phone generation failed before completion');
 }
 } catch (err: any) {
 console.error('[PhoneMirror] phone-chat stream error:', err);
 if (_phoneChatLatestId === myPhoneId) {
 try {
-phoneMirror.publishError(String(myStreamId), err?.message || 'stream error');
+phoneMirror.publishError(String(myStreamId), 'Sneak-Peek could not complete this phone answer.');
 } catch (_) {}
 // Tagged so the desktop renderer can tell this is a PHONE stream's
 // failure: untagged, it defaced whatever desktop bubble happened to
 // be streaming ("[Error: …]" appended to an unrelated answer).
-win?.webContents.send('gemini-stream-error', err?.message || 'stream error', { streamId: null, source: 'phone-mirror' });
+if (win && !win.isDestroyed()) win.webContents.send('gemini-stream-error', 'Sneak-Peek could not complete this phone answer.', { streamId: myStreamId, source: 'phone-mirror' });
 }
 }
 } else if (cmd.type === 'screenshot') {

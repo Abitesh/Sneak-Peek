@@ -90,6 +90,7 @@ export interface ContextItem {
     role: 'interviewer' | 'user' | 'assistant';
     text: string;
     timestamp: number;
+    origin?: TranscriptOrigin;
     /** STT provider id (WTA audit F9, additive; absent on legacy/assistant items). */
     sttProvider?: string;
     /** Punctuation provenance (WTA audit F9, additive; see TranscriptSegment). */
@@ -338,6 +339,7 @@ export class SessionTracker {
             role,
             text,
             timestamp: segment.timestamp,
+            ...(segment.origin ? { origin: segment.origin } : {}),
             // F9 provenance rides along when the seam supplied it (additive;
             // legacy writers leave both undefined = neutral treatment).
             ...(segment.sttProvider ? { sttProvider: segment.sttProvider } : {}),

@@ -335,8 +335,8 @@ export class IntelligenceManager extends EventEmitter {
         return this.engine.runManualAnswer(question);
     }
 
-    async runCodeHint(imagePaths?: string[], problemStatement?: string): Promise<string | null> {
-        return this.engine.runCodeHint(imagePaths, problemStatement);
+    async runCodeHint(imagePaths?: string[], problemStatement?: string, codeHintRequestId?: string): Promise<string | null> {
+        return this.engine.runCodeHint(imagePaths, problemStatement, codeHintRequestId);
     }
 
     setCodingQuestion(question: string, source: 'screenshot' | 'transcript'): void {

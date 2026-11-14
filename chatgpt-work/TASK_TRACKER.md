@@ -1,5 +1,47 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0062 / TASK-0003 / CHG-20 (2026-11-14)
+
+**Patch prepared, owner verification pending.** Replace the active Phone Mirror independent generation callback with canonical request, retrieval and generation while preserving pinned source/mode and phone sender ownership. Fix WORK-0060's obsolete exact listener signature assertion without removing Code Hint request IDs. Local static checks, adapter fixtures, and 87 source tests passed; macOS typechecks/builds/focused/full tests and phone UI acceptance remain pending. CHG-20 C20-AC1 FAIL / C20-AC2 PENDING. See WORK-0062 in CHANGE_LOG.
+
+## WORK-0061 / TASK-0003 / CHG-20 (2026-11-14)
+
+In progress. Scoped meeting/global overlay migration verified. Progress on canonical profile policy, eligible technical interview WTA, image chat/analysis, explicit visual brainstorm, three document drafts and custom/cURL vision. Focused 136/0/0/0, three typechecks, both builds and isolated desktop passed. ERR-068 resolved in the tested scope. C20-AC1 FAIL and C20-AC2 PENDING. Remaining production paths and Task 14 sequencing are in WORK-0061 and the surface map.
+
+## Current continuation — WORK-0060 / TASK-0003 / CHG-20 (2026-11-14)
+
+**Prepared, Mac verification pending.** Owner confirmed WORK-0059 fixes ERR-067 (57/57 focused; 9,021 Electron pass/0 fail/67 skipped). Copilot independently accepted WORK-0058/0059 and identified a queued-Code-Hint-token race worth testing. WORK-0060 tags UI Code Hint events with opaque request ownership across preload/IPC/engine/batch and drops stale batches after renderer STOP/supersession. Local pure renderer guard tests passed 19/19; Mac typecheck/build/focused/full/desktop validation remains pending. C20-AC1 **FAIL**; C20-AC2 **PENDING**; CHG-21 remains gated. See WORK-0060 in CHANGE_LOG.
+
+## Current continuation — WORK-0059 / ERR-067 / TASK-0003 / CHG-20 (2026-11-14)
+
+**Locally verified; Copilot PASS.** Owner applied WORK-0059 and confirmed Electron typecheck/build, focused 57/57 and full Electron 9,021 pass/0 fail/67 skipped with `--test-concurrency=4`. The denied screenshot scope test and engine error-reason test passed. Read-only Copilot independently passed 42 targeted tests and found no WORK-0058/0059 regression. This resolves ERR-067 in tested scope. **C20-AC1 FAIL; C20-AC2 PENDING.** Do not advance CHG-21.
+
+## Current continuation — WORK-0058 / TASK-0003 / CHG-20 (2026-11-14)
+
+**Prepared for owner application; verification pending.** A focused Code Hint hardening patch adds a final generation-ID token gate and behavioral tests for exact token/final event payloads, STOP after a parked provider resumes, and screenshot-derived text with allowed/denied screenshot data scopes. The prior WORK-0057 production behavior is preserved. No macOS runtime test has yet run for this patch; C20-AC1 **FAIL** and C20-AC2 **PENDING**, as other active generation routes remain. Do not advance CHG-21. Details: WORK-0058 in CHANGE_LOG.
+
+## Current continuation — WORK-0057 / TASK-0003 / CHG-20
+
+In progress. Text-only code-hint canonical dispatch and STOP regression are locally verified (24 focused tests, Electron build and typecheck pass). All other remaining categories in the surface map remain open. C20-AC1 FAIL; C20-AC2 PENDING. The complete implementation mandate is not fulfilled. Next: implement canonical mode/source contracts and migrate grounded WTA without widening permissions.
+
+## Current intelligence task — TASK-0003 / CHG-20 / WORK-0056 (2026-11-13)
+
+**In progress.** WORK-0055/R2 is applied and staged. WORK-0056 changes in the working directory cover eligible speech-only manual, automatic and speculative WTA, passive assist, selected vision code hints and selected text gateway/custom transports. ERR-066 is verified by the assist supersession fixture. Current macOS evidence is recorded in WORK-0056.
+
+**C20-AC1 FAIL.** Active alternate routes include WTA source/mode/coding/vision and repair branches, V3 assist/actions, manual variants, meeting fallback, Phone Mirror, generated email and role insight. The [surface map](../scripts/audit/chg20-surface-map.md) records each owner and remaining requirement.
+
+**C20-AC2 PENDING.** Offline renderer-to-IPC WTA and code hint, and meeting/global overlay cancellation, supersession and restart passed. Full-surface desktop/source parity, live-provider quality and Windows acceptance remain open. CHG-21 stays gated.
+
+## Current intelligence task — TASK-0003 / CHG-20 / WORK-0055 (2026-11-12)
+
+**In progress.** Partial patch prepared and verified in an isolated worktree at `96cfd2cacc1dbae4f2e97c3318b8ffa9554ccbc9`. Eligible text refinement, recap, follow-up questions, clarification and brainstorming use the canonical engine. ERR-065's global meeting-search unavailable branch ends inside the scoped overlay. Owner application is pending.
+
+**C20-AC1 FAIL.** Live WTA/auto-answer/assist, legacy manual/image/skill/mode/recovery paths, meeting fallback, source-policy ownership, code hints, specialized actions and unsupported transport branches remain active. See the [surface map](../scripts/audit/chg20-surface-map.md).
+
+**C20-AC2 PENDING.** Focused 49 pass. Mac full Electron 9,003 pass/0 fail/67 skipped, intelligence 2,142 pass/0 fail/9 TODO, lib 382 pass/0 fail/1 skipped, scripts 97 pass/0 fail. Typechecks/builds/assets pass. Isolated Electron meeting/global cancellation, global unavailable, repeated Enter, sender isolation, IPC supersession and same-profile restart pass. Desktop parity for every migrated live action and final full-surface parity, Windows and real provider checks remain open. See WORK-0055 for logs.
+
+**Next:** Extract WTA mode/source authority into canonical request and retrieval contracts and exercise parity for manual and automatic WTA, including first-token commitment, STOP and repair. Review and apply the partial patch only against a matching baseline. CHG-20 remains open.
+
 ## Current priority — WORK-0053/0054 Build Smoke path repairs (2026-11-10)
 
 **Observed CI:** `main` at `d90bc8a3` still fails both platform jobs in [run 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761). **macOS:** tokenizer restoration/sha256 passed, but `LocalRerankerModel.test.mjs` selected the wrong model root under `ELECTRON_RUN_AS_NODE`, one Electron failure. **Windows:** 11 source-path ENOENT failures persist in Change13/15/16 intelligence tests. CI install/build, lib/scripts pass as separately reported. The earlier WORK-0050/0051 complete Mac local tests were green but did not simulate a clean runner model cache.
@@ -190,7 +232,7 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-16 | Not assessed | ROADMAP CHG-16 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-18 | Implemented, unverified for broader acceptance | ROADMAP CHG-18 / WORK-0026 | Combined implementation was owner-authorized; scoped engine/IPC and desktop tests pass, but full acceptance/cutover criteria are not all verified. Do not mark planned or fully accepted based on CHG-19. |
 | CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
-| CHG-20 | Planned | ROADMAP CHG-20 | Wait for predecessor acceptance; do not start by deleting legacy code. |
+| CHG-20 | In progress | ROADMAP CHG-20 / TASK-0003 / WORK-0056 | Partial migration verified on macOS. C20-AC1 FAIL, C20-AC2 PENDING. |
 | CHG-21 | Planned | ROADMAP CHG-21 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | CHG-22 | Planned | ROADMAP CHG-22 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | FEAT-001 | Planned | ROADMAP FEAT-001 | Separate explicitly approved audio/UI integration task; do not rewrite capture during CHG-17. |

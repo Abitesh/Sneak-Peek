@@ -30,8 +30,12 @@ describe('#2 phone-mirror stream identity is independent of the desktop counter'
   });
 
   test('phone supersession compares the phone marker, NOT the shared _chatStreamId', () => {
-    // The phone block must check _phoneChatLatestId for supersession.
-    assert.match(src, /_phoneChatLatestId\s*!==\s*myPhoneId/, 'phone shouldAbort must compare _phoneChatLatestId');
+    // The canonical phone stream must check its own latest marker and abort
+    // signal on every chunk; this is stronger than the legacy shouldAbort.
+    assert.match(src, /const isPhoneCurrent = \(\) => _phoneChatLatestId === myPhoneId && !phoneController\.signal\.aborted/,
+      'canonical phone ownership must include the latest phone ID and request abort signal');
+    assert.match(src, /isCurrent: isPhoneCurrent/,
+      'the canonical stream bridge must enforce phone sender ownership');
     // And it must NOT gate phone supersession on the shared global id any more.
     assert.doesNotMatch(src, /_chatStreamId\s*!==\s*myStreamId/,
       'phone path must no longer supersede on the desktop-shared _chatStreamId');
@@ -100,7 +104,7 @@ describe('#3 stream id is emitted on the wire (backward-compatible 2nd arg)', ()
     // can scope supersession to a surface. The invariant this test protects is
     // that phone tokens carry a streamId — assert that without pinning the
     // payload to EXACTLY one field.
-    assert.match(src, /send\('gemini-stream-token',\s*token,\s*\{\s*streamId:\s*myStreamId\b/,
-      'phone onToken must include streamId');
+    assert.match(src, /send\('gemini-stream-token',\s*(?:token|payload\.chunk),\s*\{\s*streamId:\s*myStreamId,\s*source:\s*'phone'\s*\}\)/,
+      'phone streamed tokens must retain their streamId and phone source label');
   });
 });

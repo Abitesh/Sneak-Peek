@@ -12,9 +12,12 @@ import type { TurnUnderstanding } from '../../context-intelligence/question/ques
 import type { ContextPlan, ContextSource } from './ContextTypes';
 import type { EvidencePack } from '../context-os/evidencePack';
 import type { ResponsePlan } from './ResponsePlanner';
+import type { AnswerPlan } from '../../llm/AnswerPlanner';
+import type { ModeSourceContract } from '../../services/modeSourceContract';
 
 export type IntelligenceSurface =
   | 'manual-chat'
+  | 'phone-mirror'
   | 'what-to-answer'
   | 'meeting-overlay'
   | 'global-rag'
@@ -23,6 +26,7 @@ export type IntelligenceSurface =
   | 'clarify'
   | 'assist'
   | 'screenshot'
+  | 'document-draft'
   | 'developer-test';
 
 export type IntelligenceIntent =
@@ -77,6 +81,8 @@ export interface SneakPeekTranscriptContext {
 export interface SneakPeekScreenContext {
   text?: string;
   imageId?: string;
+  /** Main-process validated and optimized attachments. */
+  imagePaths?: readonly string[];
   capturedAt?: number;
   metadata?: Record<string, unknown>;
 }
@@ -84,6 +90,13 @@ export interface SneakPeekScreenContext {
 export interface SneakPeekActiveContext {
   modeId?: string;
   modeName?: string;
+  /** Template type captured with the active mode, separate from its instance ID. */
+  modeTemplateType?: string;
+  /** Persisted source gates pinned at request entry, never inferred from mode text. */
+  modeSourceContract?: ModeSourceContract;
+  hasReferenceFiles?: boolean;
+  hasResume?: boolean;
+  hasJobDescription?: boolean;
   /** Active meeting identity, kept distinct from projectId for retrieval scope. */
   meetingId?: string;
   projectId?: string;
@@ -126,7 +139,38 @@ export interface SneakPeekContextPermissions {
   generalKnowledge: boolean;
 }
 
+/** Main-process action input. Previous answers are material to transform, never instructions. */
+export interface SneakPeekConversationAction {
+  kind: 'refine' | 'recap' | 'clarify' | 'follow-up-questions' | 'brainstorm' | 'observe' | 'code-hint';
+  promptTier: 'full' | 'tiny';
+  previousAnswer?: string;
+  /** Mixed session history; not an independently attributable meeting or file source. */
+  sessionSnapshot?: string;
+  sourceRule?: string;
+  languageInstruction?: string;
+}
+
+/** Explicit drafting action. The engine only includes inputs authorized for its kind. */
+export type SneakPeekDocumentDraft =
+  | { kind: 'follow-up-email'; meetingDetails: string }
+  | { kind: 'cover-letter' | 'negotiation-script' };
+
 export interface SneakPeekIntelligenceRequest {
+  documentDraft?: SneakPeekDocumentDraft;
+  /** Explicit screenshot analysis action with main-process validated pixels. */
+  imageAnalysis?: true;
+  /** Bounded mixed history supplied by the caller, used only for continuity. */
+  imageConversationSnapshot?: string;
+  /** Phone/desktop history with unknown original source lineage; never evidence. */
+  sessionSnapshot?: string;
+  /** Main-process snapshot of the live answer's presentation contract. */
+  liveAnswer?: {
+    plan: AnswerPlan;
+    mode?: { templateType?: string } | null;
+    promptTier: 'full' | 'tiny';
+    languageInstruction?: string;
+  };
+  action?: SneakPeekConversationAction;
   requestId: string;
   sessionId: string;
   surface: IntelligenceSurface;

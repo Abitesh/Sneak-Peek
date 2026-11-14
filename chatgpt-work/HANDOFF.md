@@ -1,5 +1,43 @@
 # Sneak-Peek — current session handoff
 
+## Current CHG-20 handoff — WORK-0062 patch pending Mac validation (2026-11-14)
+
+WORK-0062 contains a current-snapshot patch for Phone Mirror's independent `LLMHelper.streamChat` generation path, replacing it with `buildPhoneMirrorCanonicalRequest` and the existing canonical engine transport. It also updates WORK-0060's outdated token-listener test assertion and the v2 source tests for the earlier WORK-0061 email and new phone canonical dispatch; 87 source tests passed in the patch workspace. The patch has not yet been applied by the owner or run through macOS Electron/desktop tests. Keep source and provider scopes, STOP/supersession, mixed-history provenance, selected mode/model and sender ownership under focused regression. If anything fails, reconcile against the latest modified local files rather than forcing the patch. CHG-20 C20-AC1 still FAIL / C20-AC2 PENDING: grounded WTA/repair, V3 assist/actions, manual compatibility and other active routes remain. Do not start CHG-21.
+
+## Current CHG-20 handoff — WORK-0061 (2026-11-14)
+
+Use the existing primary checkout and consult WORK-0061 and the surface map. The full mandate is incomplete. Next: migrate grounded WTA evidence within ContextPlanner/RetrievalCoordinator and carry the original evidence/provider binding into its repair calls. V3 assist and manual compatibility, mode-specific vision/actions, and Phone Mirror still have independent generation. Run Task 14 after production migration. C20-AC1 FAIL, C20-AC2 PENDING.
+
+## WORK-0060 queued Code Hint delivery ownership — patch for owner verification (2026-11-14)
+
+Owner's WORK-0059 patch was applied; focused 57/57 and full Electron 9,021 passed/0 failed/67 skipped. Read-only Copilot accepted WORK-0058 and WORK-0059 (42 independent targeted tests passed), but noted that ID-less Code Hint tokens already queued in the main batch may still arrive after STOP. WORK-0060 adds renderer-initiated opaque request identity across existing Code Hint preload, IPC, engine, main batch, and renderer delivery; STOP clears ownership before IPC cancellation. The existing selected-provider, screenshot scope, generation guards, answer events, and id-less legacy compatibility remain. In-container guard tests passed 19/19; macOS typecheck/build, affected focused engine/renderer tests and full Electron/desktop acceptance are pending. No commit/push. C20-AC1 FAIL; C20-AC2 PENDING. See WORK-0060 in CHANGE_LOG and continue after Mac verification.
+
+## WORK-0059 / ERR-067 resolved on macOS (2026-11-14)
+
+WORK-0058 exposed an error-propagation issue: screenshot-derived text was correctly withheld from cloud providers when the screenshot data scope was denied, but the visible error lost `no available provider`. WORK-0059 copies the failed generation lifecycle's safe reason into the final provider attempt. Owner applied the patch and confirmed focused 57/57 and full Electron 9,021 passed/0 failed/67 skipped, plus typecheck and build. Copilot independently passed 42 targeted tests and found no confirmed WORK-0058/0059 regressions. Scope/privacy/provider/cancellation contracts were not weakened; see ERR-067 for evidence. CHG-20's remaining alternate generation routes keep C20-AC1 FAIL and C20-AC2 PENDING; CHG-21 remains gated.
+
+## Prepared WORK-0058 Code Hint safety/test hardening (2026-11-14)
+
+WORK-0057 source was reconstructed from the owner's WORK-0056 full-source snapshot plus the six updated WORK-0057 files. A follow-up patch is **prepared, not yet applied or macOS-tested**, for an additional generation-ID guard at Code Hint token emission and targeted event, late-token and screenshot-derived text scope regressions. No change to `private_vision` semantics was made: that setting currently controls pixels/cloud vision, while the `screenshots` scope controls whether screenshot-derived text may enter cloud text generation. Clarify any stronger product requirement before changing that contract. After owner applies the patch, run the focused Electron tests and relevant typecheck, then remaining acceptance checks. CHG-20 stays open, C20-AC1 FAIL and C20-AC2 PENDING. See WORK-0058.
+
+## Current continuation — WORK-0057 (2026-11-14)
+
+Primary checkout remains at 96cfd2c with all prior staged/unstaged/untracked work preserved. Text-only code hints now use the eligible canonical action; see WORK-0057 for exact checks and logs. CHG-20 is incomplete, C20-AC1 FAIL and C20-AC2 PENDING. Continue the authorized full migration with canonical source/mode contracts and grounded WTA, then all remaining surface-map routes. No full-suite or desktop acceptance was executed this turn.
+
+## Current intelligence handoff — CHG-20 / TASK-0003 / WORK-0056 (2026-11-13)
+
+WORK-0056 edits the primary checkout of `96cfd2cacc1dbae4f2e97c3318b8ffa9554ccbc9` directly. WORK-0055/R2 remains staged byte for byte. New code is unstaged, including the untracked `electron/intelligence/engine/LiveAnswer.ts`. No patch application step remains for this work.
+
+The [surface map](../scripts/audit/chg20-surface-map.md) identifies the eligible live, assist and code-hint routes and active compatibility callers. Logs are in `/tmp/sneak-work0056.Uc0fqS`. C20-AC1 FAIL and C20-AC2 PENDING. Continue with the authoritative WTA mode/profile/file capabilities and repair paths under the canonical coordinator. Keep CHG-21 gated.
+
+## Current intelligence handoff — CHG-20 / TASK-0003 / WORK-0055 (2026-11-12)
+
+**In progress.** An isolated worktree at `96cfd2cacc1dbae4f2e97c3318b8ffa9554ccbc9` verified the partial CHG-20 patch. The primary checkout was untouched. The patch is `/tmp/sneak-chg20.xszQTf/Sneak-Peek-CHG20-FULL-Architecture-Unification.patch`. Test logs are in that directory. [The surface map](../scripts/audit/chg20-surface-map.md) describes the new text actions and all identified remaining compatibility branches.
+
+**Acceptance:** C20-AC1 FAIL because live WTA, automatic/assist, manual/vision/skill/mode/recovery, meeting fallback, profile-policy and specialized paths still have independent owners. C20-AC2 PENDING for full-surface parity. ERR-065 is verified in the isolated renderer with zero ordinary-chat calls when meeting search was unavailable. All required local macOS suites passed after correcting one obsolete source assertion. CI and platform issues below are separate.
+
+**Next:** Review the patch against the exact baseline. For the next CHG-20 implementation step, move WTA's authorized mode, profile and transcript evidence into canonical contracts, then exercise live and auto-answer fixtures including STOP and recovery. Keep subsequent roadmap changes gated.
+
 ## Latest CI handoff — WORK-0053/0054, 2026-11-10
 
 **Confirmed previous GitHub run:** [Build Smoke 42865159761](https://github.com/Abitesh/Sneak-Peek/actions/runs/42865159761) at `d90bc8a3` failed on both platforms. macOS checksum-verified tokenizer retrieval **passed** but `LocalRerankerModel.test.mjs` selected a model root different from the verified repository assets (one failure); a separate packaged-layout real inference passed. **WORK-0053 is now applied locally by the owner**, not yet committed/pushed at this record's creation. Focused actual reranker inference with an intentionally invalid external model path passed **2/2**, including the Paris ranking. Owner's sequential full Mac verification passed all builds, reported typechecks, model/packaged/native/sqlite-vec gates and four full suites: Electron 8,992 passed/0 failed/67 skipped; intelligence 2,142/0/9 TODO; lib 382/0/1 skip; scripts 97/0. Full logs at `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-work0050-verify.89EPF3`. **Next:** inspect `git status`/diff, commit the single test change, then verify a new GitHub macOS run; ERR-060 stays open until CI passes. **Windows WORK-0054 is prepared but not applied**, and the 11 source-path ENOENTs remain unresolved. Do not combine it into this macOS commit.

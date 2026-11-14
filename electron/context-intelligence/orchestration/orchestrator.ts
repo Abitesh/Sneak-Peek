@@ -132,6 +132,11 @@ function buildClaimRequirements(
 
 /** Decide ONCE. The result is deep-frozen; nothing downstream may reinterpret it. */
 export function decide(req: AnswerRequest): Readonly<TurnDecision> {
+  return planResolvedTurn(req, resolveQuestion(req).resolved);
+}
+
+/** Apply mode and claim policy to a question already resolved by the caller. */
+export function planResolvedTurn(req: AnswerRequest, resolvedQuestion: string): Readonly<TurnDecision> {
   const basePolicy = resolveModePolicy(req.modeId);   // THROWS on unknown id — fails closed
 
   // The user's Answer policy choice is applied ONCE, here, as an effective
@@ -156,10 +161,8 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     policy = { ...policy, allowedSourceTypes: [...policy.allowedSourceTypes, ...extra] };
   }
 
-  const q = resolveQuestion(req);
-
   const cls = classifyTurn({
-    resolvedQuestion: q.resolved,
+    resolvedQuestion,
     policy,
     isFollowUp: Boolean(req.isFollowUp),
     hasScreenContext: req.hasScreenContext,
@@ -183,7 +186,7 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
         : policy.allowedSourceTypes.filter((s) =>
           s === 'REFERENCE_FILE' || s === 'PROJECT_FILE' || s === 'CODING_SAMPLE' || s === 'MEETING_TRANSCRIPT'))
       : [],
-    queries: [q.resolved],
+    queries: [resolvedQuestion],
     entities: [],
     useSemanticSearch: true,
     useKeywordSearch: true,
@@ -207,11 +210,11 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     modePolicyVersion: policy.version,
 
     rawQuestion: req.manualQuestion ?? req.transcriptQuestion ?? '',
-    resolvedQuestion: q.resolved,
+    resolvedQuestion,
     isFollowUp: Boolean(req.isFollowUp) || cls.questionTypes.includes('FOLLOW_UP'),
 
     questionTypes: cls.questionTypes,
-    claimRequirements: buildClaimRequirements(policy, cls.claimTypes, cls.claimClauses, q.resolved),
+    claimRequirements: buildClaimRequirements(policy, cls.claimTypes, cls.claimClauses, resolvedQuestion),
 
     scope: req.scope,
     authorizedSources: [],            // populated by source authorization at retrieval time

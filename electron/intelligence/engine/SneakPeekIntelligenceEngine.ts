@@ -134,10 +134,17 @@ export class SneakPeekIntelligenceEngine {
 
         const completed = lifecycle.state === 'COMPLETED';
         const lifecycleHistory: GenerationLifecycleSnapshot['history'] = lifecycle.snapshot.history;
+        // GenerationController can fail without throwing (e.g. every cloud
+        // provider is excluded by a data-scope policy). Preserve its terminal
+        // reason so callers do not replace a real denial with a generic error.
+        const failureReason = lifecycle.state === 'FAILED'
+          ? lifecycleHistory.find((entry) => entry.state === 'FAILED')?.reason
+          : undefined;
         const finalResult: SneakPeekIntelligenceResult = {
           ...result,
           providerAttempt: {
             status: lifecycle.state === 'CANCELLED' ? 'cancelled' : completed ? 'succeeded' : lifecycle.state === 'FAILED' ? 'failed' : 'started',
+            ...(failureReason ? { error: failureReason } : {}),
           },
           streamLifecycle: {
             status: lifecycle.state === 'CANCELLED' ? 'cancelled' : completed ? 'completed' : lifecycle.state === 'FAILED' ? 'failed' : 'streaming',
@@ -205,12 +212,6 @@ export class SneakPeekIntelligenceEngine {
         timestamp: turn.createdAt ?? Date.now(),
       })),
     });
-    const responsePlan = planResponse({
-      question: turnUnderstanding.question || resolvedQuestion,
-      turnUnderstanding,
-    });
-    const intent = this.mapIntent(turnUnderstanding.intent);
-    const responseType = responsePlan.kind === 'coding' ? 'coding-answer' : this.resolveResponseType(request, intent);
 
     stages.push('plan-context');
     pipelineStages.push('ContextPlan');
@@ -223,9 +224,11 @@ export class SneakPeekIntelligenceEngine {
       request,
       understanding: turnUnderstanding,
       availability: {
-        recentConversation: conversationContext.immediatePreviousTurns.length > 0 || Boolean(conversationContext.currentTurnIncluded),
+        recentConversation: request.action
+          ? Boolean(request.action.sessionSnapshot?.trim() || request.action.previousAnswer?.trim())
+          : conversationContext.immediatePreviousTurns.length > 0 || Boolean(conversationContext.currentTurnIncluded),
         longerConversation: Boolean(conversationContext.olderConversationTurnsAvailable),
-        meetingTranscript: request.transcriptContext?.source === 'meeting',
+        meetingTranscript: request.transcriptContext?.source === 'meeting' || request.transcriptContext?.source === 'live',
         screen: Boolean(request.screenContext),
         // Permissions at this boundary are derived from the real source
         // inventories by IPC, not guessed as 'unavailable' by the planner.
@@ -262,6 +265,16 @@ export class SneakPeekIntelligenceEngine {
       contextPlan,
       evidence: retrievalResult.evidence,
     });
+    const responsePlan = planResponse({
+      question: turnUnderstanding.question || resolvedQuestion,
+      turnUnderstanding,
+      action: request.action,
+      documentDraft: request.documentDraft,
+      liveAnswer: request.liveAnswer,
+    });
+    const intent = this.mapIntent(turnUnderstanding.intent);
+    const responseType = responsePlan.kind === 'coding' ? 'coding-answer' : this.resolveResponseType(request, intent);
+
     stages.push('assemble-prompt');
     pipelineStages.push('PromptAssembler');
     const assembledPrompt = assembleSneakPeekPrompt({
@@ -272,7 +285,11 @@ export class SneakPeekIntelligenceEngine {
       evidencePack,
       responsePlan,
       screenContext: request.screenContext?.text,
-      systemInstructions: this.systemInstructionsForTurn(contextPlan, retrievalResult.evidence.items.length),
+      systemInstructions: this.systemInstructionsForTurn(contextPlan, retrievalResult.evidence.items.length
+        + (request.documentDraft?.kind === 'follow-up-email'
+          && contextPlan.requiredSources.includes('meeting_transcript')
+          && request.documentDraft.meetingDetails.trim() ? 1 : 0))
+        + (request.action?.languageInstruction ?? request.liveAnswer?.languageInstruction ?? ''),
     });
 
     return {
@@ -491,7 +508,7 @@ export class SneakPeekIntelligenceEngine {
     plan: import('./ContextTypes').ContextPlan,
   ): SneakPeekRetrievalPlan {
     const shouldRetrieve = plan.retrievalRequired;
-    const sources: ContextSource[] = plan.requiredSources.filter((source) => source === 'rag');
+    const sources: ContextSource[] = plan.requiredSources.filter(source => plan.retrievalSources.includes(source));
 
     return {
       shouldRetrieve,

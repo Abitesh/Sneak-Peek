@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## CHG-20 partial architecture patch — WORK-0055, 2026-11-12
+
+In the isolated WORK-0055 build, eligible text refinements, recaps, follow-up questions, clarification and brainstorming enter `SneakPeekIntelligenceEngine` through a bounded session-snapshot adapter. They reuse canonical planning, evidence assembly, provider selection/commitment and stream settlement while preserving existing events. Global meeting search reports scoped unavailability if its backend cannot serve a request. The [CHG-20 surface map](../scripts/audit/chg20-surface-map.md) identifies compatibility paths still in production. Owner application of this patch is pending.
+
 Updated: 2026-11-01. This pack contains **eight files: seven Markdown files and one tree text file**. It is a documentation/bootstrap deliverable, not an application patch.
 
 ## Verified local architecture update — WORK-0026, 2026-11-08

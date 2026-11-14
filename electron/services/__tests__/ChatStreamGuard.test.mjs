@@ -19,11 +19,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const modPath = path.resolve(__dirname, '../../../src/lib/chatStreamGuard.mjs');
-const { resolveChatStreamToken, resolveChatStreamDone, resolveLiveAnswerBatch } = await import(pathToFileURL(modPath).href);
+const { resolveChatStreamToken, resolveChatStreamDone, resolveLiveAnswerBatch, acceptsCodeHintDelivery } = await import(pathToFileURL(modPath).href);
 
 describe('resolveChatStreamToken', () => {
   test('no incoming id → accept, active id unchanged (backward compat)', () => {
@@ -128,4 +129,45 @@ describe('resolveLiveAnswerBatch (live answer generation supersession)', () => {
     assert.deepEqual(accepted, [true, true, true, false, true]);
     assert.equal(active, 11);
   });
+});
+
+// WORK-0060: Emulate main.ts buffering a Code Hint token before STOP and
+// delivering that batch only after STOP or a newer Code Hint starts.
+describe('Code Hint queued-token delivery ownership', () => {
+  test('STOP drops an already-queued token and final, and a new request does not revive them', () => {
+    let activeRequestId = 'renderer-old';
+    const queuedBeforeStop = { token: 'old', codeHintRequestId: activeRequestId };
+    const pendingFinal = { answer: 'old answer', codeHintRequestId: activeRequestId };
+    activeRequestId = null; // renderer Stop callback runs before IPC reaches main
+    assert.equal(acceptsCodeHintDelivery(activeRequestId, queuedBeforeStop.codeHintRequestId), false);
+    assert.equal(acceptsCodeHintDelivery(activeRequestId, pendingFinal.codeHintRequestId), false);
+
+    activeRequestId = 'renderer-new'; // next Code Hint starts before old batch flushes
+    assert.equal(acceptsCodeHintDelivery(activeRequestId, queuedBeforeStop.codeHintRequestId), false);
+    assert.equal(acceptsCodeHintDelivery(activeRequestId, pendingFinal.codeHintRequestId), false);
+    assert.equal(acceptsCodeHintDelivery(activeRequestId, 'renderer-new'), true);
+  });
+
+  test('legacy and non-Code-Hint ID-less events remain compatible', () => {
+    assert.equal(acceptsCodeHintDelivery(null, undefined), true);
+    assert.equal(acceptsCodeHintDelivery('renderer-new', undefined), true);
+  });
+});
+
+test('Code Hint correlation ID crosses the real preload, IPC, event batch and STOP renderer paths', () => {
+  const base = path.resolve(__dirname, '../../..');
+  const read = (name) => fs.readFileSync(path.join(base, name), 'utf8');
+  const preload = read('electron/preload.ts');
+  const ipc = read('electron/ipcHandlers.ts');
+  const manager = read('electron/IntelligenceManager.ts');
+  const engine = read('electron/IntelligenceEngine.ts');
+  const main = read('electron/main.ts');
+  const renderer = read('src/components/SneakPeekInterface.tsx');
+  assert.match(preload, /ipcRenderer\.invoke\('generate-code-hint', imagePaths, problemStatement, codeHintRequestId\)/);
+  assert.match(ipc, /codeHintRequestId,[\s]*\);/);
+  assert.match(manager, /this\.engine\.runCodeHint\(imagePaths, problemStatement, codeHintRequestId\)/);
+  assert.match(engine, /'suggested_answer_token', token, 'Code Hint', 1\.0, generationId, codeHintRequestId/);
+  assert.match(main, /queueBatch\('suggested_answer', \{ token, question, confidence, generationId, codeHintRequestId \}\)/);
+  assert.match(renderer, /activeCodeHintRequestIdRef\.current = null;[\s]*cancelActiveChatStream\(\)/);
+  assert.match(renderer, /acceptsCodeHintDelivery\(activeCodeHintRequestIdRef\.current, \(it as any\)\.codeHintRequestId\)/);
 });

@@ -24,6 +24,8 @@ export function resolveChatStreamDone(
   release: boolean;
 };
 
+export function acceptsCodeHintDelivery(activeRequestId: string | null | undefined, incomingRequestId: string | null | undefined): boolean;
+
 export function resolveLiveAnswerBatch(
   activeId: number | null | undefined,
   incomingId: number | null | undefined,

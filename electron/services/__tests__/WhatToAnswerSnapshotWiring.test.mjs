@@ -351,10 +351,10 @@ describe('#3 — live tokens carry the generationId end-to-end', () => {
 
   test('main forwards generationId per item on the token batch', () => {
     const src = read('../../main.ts');
-    assert.match(src, /on\('suggested_answer_token', \(token: string, question: string, confidence: number, generationId\?: number\)/,
-      'the main listener must accept generationId');
-    assert.match(src, /queueBatch\('suggested_answer', \{ token, question, confidence, generationId \}\)/,
-      'the batch item must carry generationId');
+    assert.match(src, /on\('suggested_answer_token', \(token: string, question: string, confidence: number, generationId\?: number(?:, codeHintRequestId\?: string)?\)/,
+      'the main listener must accept generationId and preserve optional Code Hint ownership');
+    assert.match(src, /queueBatch\('suggested_answer', \{ token, question, confidence, generationId(?:, codeHintRequestId)? \}\)/,
+      'the batch item must carry generationId and may carry Code Hint request ownership');
   });
 
   test('renderer drops superseded live batches via resolveLiveAnswerBatch', () => {

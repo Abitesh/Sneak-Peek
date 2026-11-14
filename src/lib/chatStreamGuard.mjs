@@ -142,6 +142,20 @@ export function resolveChatStreamDone(activeId, incomingId, activeSource, incomi
   return { honor: false, activeId: cur, activeSource: curSrc, release: false };
 }
 
+/**
+ * Reject an already-queued Code Hint token/final after STOP or supersession.
+ * The renderer assigns an opaque request ID before invoking the IPC handler;
+ * the engine echoes it only in the delivery metadata, never in model prompts.
+ * Id-less events remain backward-compatible with older / non-Code-Hint paths.
+ * @param {string|null|undefined} activeRequestId
+ * @param {string|null|undefined} incomingRequestId
+ */
+export function acceptsCodeHintDelivery(activeRequestId, incomingRequestId) {
+  if (typeof incomingRequestId !== 'string') return true;
+  return Boolean(activeRequestId && incomingRequestId && activeRequestId === incomingRequestId);
+}
+
+
 // ── Live-answer (what-to-answer) batch guard (audit finding #3, full) ──────────
 //
 // Background: the LIVE answer path streams on `intelligence-token-batch`

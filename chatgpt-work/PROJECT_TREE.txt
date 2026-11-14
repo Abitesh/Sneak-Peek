@@ -1745,6 +1745,7 @@
 │   │   │   ├── CanonicalRagRetrievalAdapter.ts
 │   │   │   ├── ContextPlanner.ts
 │   │   │   ├── ContextTypes.ts
+│   │   │   ├── ConversationAction.ts
 │   │   │   ├── GenerationController.ts
 │   │   │   ├── ProjectFileScope.ts
 │   │   │   ├── PromptAssembler.ts
@@ -2367,6 +2368,7 @@
 │   │   │   ├── AutoAnswerEngineReview2026_08_24.test.mjs
 │   │   │   ├── BrowserContextEnvelope.test.mjs
 │   │   │   ├── BrowserContextTypeParity.test.mjs
+│   │   │   ├── CanonicalConversationActions.test.mjs
 │   │   │   ├── BrowserMetadataClassifier.test.mjs
 │   │   │   ├── CaptureChannelIsolation2026_08_14.test.mjs
 │   │   │   ├── CaptureOwnershipGuards2026_08_14.test.mjs
@@ -104371,6 +104373,7 @@
 │   │   ├── chg19-desktop-acceptance.cjs
 │   │   ├── CHG19-FINAL-ACCEPTANCE.md
 │   │   ├── chg19-responsibility-inventory.md
+│   │   ├── chg20-surface-map.md
 │   │   ├── COOLDOWN-fix-unit.cjs
 │   │   ├── CR-01-surface-scope-inverse.mjs
 │   │   ├── CR-02-liverag-inert-guard.cjs

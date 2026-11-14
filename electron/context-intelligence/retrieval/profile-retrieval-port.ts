@@ -33,7 +33,6 @@
 // carry AOT artifacts the raw extraction does not).
 
 import type { EvidenceScope, SourceType } from '../contracts/types';
-import type { RetrievalPort } from '../orchestration/orchestrator';
 import { createLegacyRetrievalPort } from './legacy-retrieval-port';
 import type { LegacyChunk } from './legacy-adapter';
 import { Bm25Index, DEFAULT_BM25 } from './bm25';
@@ -502,7 +501,7 @@ const normText = (s: string): string => s.toLowerCase().replace(/\s+/g, ' ').tri
  * A fail-closed RetrievalPort over Profile Intelligence sources, or null when
  * the mode opts out of profile hydration or no authorized profile doc exists.
  */
-export function createProfileRetrievalPort(input: ProfilePortInput): RetrievalPort | null {
+export function createProfileRetrievalPort(input: ProfilePortInput): ReturnType<typeof createLegacyRetrievalPort> | null {
   const authorized = new Set<SourceType>(
     input.profileSources.filter((t) => input.allowedSourceTypes.includes(t)),
   );

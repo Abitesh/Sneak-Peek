@@ -35,7 +35,7 @@ const engineSrc = readFileSync(path.resolve(__dirname, '../../IntelligenceEngine
 
 describe('F5/F6/F7: pre-stream kicks run on the RESOLVED question, after extraction+resolution', () => {
   const kickIntent = engineSrc.indexOf('const intentPromise = classifyIntent(');
-  const kickMode = engineSrc.indexOf('const modeContextPromise: Promise<string>');
+  const kickMode = engineSrc.indexOf('const prefetchedModeContext =');
   const extraction = engineSrc.indexOf('const extractedQuestion = extractLatestQuestion(');
   const resolutionDone = engineSrc.indexOf("trace.mark('latest_question_extracted'");
   const groundingAwait = engineSrc.indexOf('await withTimeout(orchestrator.processQuestion(');
@@ -69,14 +69,14 @@ describe('F5/F6/F7: pre-stream kicks run on the RESOLVED question, after extract
     assert.match(engineSrc,
       /this\.retrieveUniversalChatContext\(\s*wtaPrefetchQuery,\s*snapshotModeInfo\?\.id,\s*\{/,
       'prefetch must enter the Universal chat RAG boundary with the resolved question and pinned mode');
-    const modeKickBlock = engineSrc.slice(kickMode, kickMode + 1200);
+    const modeKickBlock = engineSrc.slice(engineSrc.indexOf('const loadModeContext ='), kickMode);
     assert.doesNotMatch(modeKickBlock, /buildRetrievedActiveModeContextBlock(?:Hybrid)?\(/,
       'prefetch must not call the legacy application-level mode retrieval API');
   });
 
   test('F5: the prefetch passes a provisional answerType instead of undefined', () => {
     assert.match(engineSrc, /const wtaPrefetchAnswerType/);
-    const modeKickBlock = engineSrc.slice(kickMode, kickMode + 1200);
+    const modeKickBlock = engineSrc.slice(engineSrc.indexOf('const loadModeContext ='), kickMode);
     assert.match(modeKickBlock,
       /answerType:\s*wtaPrefetchAnswerType,/,
       'the Universal RAG prefetch must receive the provisional answerType');

@@ -1019,7 +1019,7 @@ export class LLMHelper {
    */
   private static readonly PROVIDER_LABEL_FAMILY: Readonly<Record<string, string>> = {
     gemini: 'gemini', groq: 'groq', natively: 'natively', openai: 'openai',
-    claude: 'claude', deepseek: 'deepseek', litellm: 'litellm', codex: 'codex-cli',
+    claude: 'claude', deepseek: 'deepseek', nvidia_nim: 'nvidia_nim', litellm: 'litellm', codex: 'codex-cli',
     custom_curl: 'custom', custom_provider: 'custom',
   };
 
@@ -1974,7 +1974,7 @@ export class LLMHelper {
     });
   }
 
-  private async *streamWithCodexCli(userContent: string, systemPrompt?: string, fastMode = false, imagePaths?: string[], signal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async *streamWithCodexCli(userContent: string, systemPrompt?: string, fastMode = false, imagePaths?: string[], signal?: AbortSignal, modelOverride?: string): AsyncGenerator<string, void, unknown> {
     if (!this.isCodexAvailable()) throw new Error('Codex CLI transport is disabled or ChatGPT is signed out.');
     // Codex routes to chatgpt.com/backend-api — it is a CLOUD provider, and it
     // needs the same local-only last boundary every other cloud provider has.
@@ -1988,7 +1988,7 @@ export class LLMHelper {
     // first next() rather than at call time — still strictly before any byte
     // reaches CodexCliService.stream, which is the property that matters.
     this.assertOutboundScopes('codex', userContent, imagePaths);
-    const model = this.getSelectedCodexCliModel(fastMode);
+    const model = modelOverride ?? this.getSelectedCodexCliModel(fastMode);
     // See note in generateWithCodexCli — system prompt is sent
     // separately as `body.instructions`, not concatenated.
     yield* CodexCliService.stream(this.codexCliConfig.path, {
@@ -2844,7 +2844,7 @@ ANSWER DIRECTLY:`;
    * lets Claude cache_control land on the static block above it.
    * Returns "" when no instruction is needed (English fixed mode).
    */
-  private buildLanguageInstructionSuffix(): string {
+  public buildLanguageInstructionSuffix(): string {
     if (!this.aiResponseLanguage || this.aiResponseLanguage === 'auto') {
       return `\n\n[LANGUAGE INSTRUCTION — HIGHEST PRIORITY]
 Detect the language of the user's most recent message and ALWAYS respond in that exact same language.
@@ -4353,7 +4353,9 @@ let isMultimodal = !!(imagePaths?.length);
     systemPrompt: string,
     rawUserMessage: string,
     context: string,
-    imagePath?: string
+    imagePath?: string,
+    signal?: AbortSignal,
+    requireImage = false,
   ): Promise<string> {
     this.assertOutboundScopes('custom_provider', combinedMessage, imagePath ? [imagePath] : undefined);
 
@@ -4414,8 +4416,15 @@ let isMultimodal = !!(imagePaths?.length);
       body = injectImageIntoMessages(body, base64Image, imagePath);
     }
 
+    if (requireImage && (!base64Image || !JSON.stringify(body).includes(base64Image))) {
+      throw new Error('The selected cURL provider template did not include the image.');
+    }
+
     // 5. Execute Fetch (30s timeout — same as RestSTT uploads)
     const customAbort = new AbortController();
+    const onAbort = () => customAbort.abort(signal?.reason);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener('abort', onAbort, { once: true });
     const customTimeout = setTimeout(() => customAbort.abort(), 30_000);
     try {
       const serializedBody = JSON.stringify(body);
@@ -4451,9 +4460,11 @@ let isMultimodal = !!(imagePaths?.length);
       console.log(`[LLMHelper] Custom Provider extracted text length: ${extracted.length}`);
       return extracted;
     } catch (error) {
-      clearTimeout(customTimeout);
       console.error("Custom Provider Error:", error);
       throw error;
+    } finally {
+      clearTimeout(customTimeout);
+      signal?.removeEventListener('abort', onAbort);
     }
   }
 
@@ -5548,13 +5559,30 @@ let isMultimodal = !!(imagePaths?.length);
     provider: LLMProviderId,
     model: string | undefined,
     finalPrompt: string,
-    options: { abortSignal?: AbortSignal; thinkingBudget?: number } = {},
+    options: { abortSignal?: AbortSignal; thinkingBudget?: number; imagePaths?: readonly string[] } = {},
   ): AsyncGenerator<string, void, unknown> {
     const abortSignal = options.abortSignal;
     const thinkingBudget = options.thinkingBudget ?? INTERACTIVE_THINKING_BUDGET;
 
     if (abortSignal?.aborted) return;
     if (!finalPrompt.trim()) throw new Error('Cannot generate from an empty final prompt.');
+    const localCustom = provider === 'custom' && this.customProvider && customProviderIsLocal(this.customProvider);
+    if (this.isLocalOnlyMode && provider !== 'ollama' && !localCustom) {
+      throw new Error('Cloud providers disabled in local-only mode');
+    }
+
+    const images = options.imagePaths?.length ? [...options.imagePaths] : undefined;
+    if (images) {
+      if (provider !== 'ollama') this.assertOutboundImagesAllowed(provider, true);
+      const visionProviders: LLMProviderId[] = ['ollama', 'openai', 'claude', 'gemini_flash', 'gemini_pro', 'codex'];
+      if (provider === 'custom') {
+        if (images.length !== 1 || !customProviderSupportsVision(this.customProvider ?? this.activeCurlProvider)) {
+          throw new Error('The selected custom provider requires a vision template and exactly one image.');
+        }
+      } else if (!visionProviders.includes(provider)) {
+        throw new Error('The selected provider cannot stream these images.');
+      }
+    }
 
     let providerStream: AsyncGenerator<string, void, unknown>;
     switch (provider) {
@@ -5570,7 +5598,7 @@ let isMultimodal = !!(imagePaths?.length);
         providerStream = this.streamWithGeminiModel(
           finalPrompt,
           model || GEMINI_FLASH_MODEL,
-          undefined,
+          images,
           undefined,
           abortSignal,
           thinkingBudget,
@@ -5580,26 +5608,52 @@ let isMultimodal = !!(imagePaths?.length);
         providerStream = this.streamWithGeminiModel(
           finalPrompt,
           model || GEMINI_PRO_MODEL,
-          undefined,
+          images,
           undefined,
           abortSignal,
           thinkingBudget,
         );
         break;
       case 'openai':
-        providerStream = this.streamWithOpenai(finalPrompt, '', model || OPENAI_MODEL, abortSignal);
+        providerStream = images
+          ? this.streamWithOpenaiMultimodal(finalPrompt, images, '', model || OPENAI_MODEL, abortSignal)
+          : this.streamWithOpenai(finalPrompt, '', model || OPENAI_MODEL, abortSignal);
         break;
       case 'claude':
-        providerStream = this.streamWithClaude(finalPrompt, '', model || CLAUDE_MODEL, abortSignal);
+        providerStream = images
+          ? this.streamWithClaudeMultimodal(finalPrompt, images, '', model || CLAUDE_MODEL, abortSignal)
+          : this.streamWithClaude(finalPrompt, '', model || CLAUDE_MODEL, abortSignal);
         break;
       case 'deepseek':
         providerStream = this.streamWithDeepseek(finalPrompt, '', model || DEEPSEEK_MODEL, abortSignal);
         break;
       case 'codex':
-        providerStream = this.streamWithCodexCli(finalPrompt, '', false, undefined, abortSignal);
+        providerStream = this.streamWithCodexCli(finalPrompt, '', false, images, abortSignal, model);
         break;
+      case 'nvidia_nim':
+        providerStream = this.streamWithNvidiaNim(finalPrompt, undefined, undefined, abortSignal, model);
+        break;
+      case 'litellm':
+        providerStream = this.streamWithLiteLLM(finalPrompt, undefined, undefined, abortSignal, model);
+        break;
+      case 'custom': {
+        const custom = this.customProvider;
+        const curl = this.activeCurlProvider;
+        if (!model || model !== (custom ?? curl)?.id || this.isProviderDisabled(model) || this.isProviderDisabled('custom')) {
+          throw new Error('The selected custom provider is no longer available.');
+        }
+        if (custom) {
+          providerStream = this.streamWithCustom(finalPrompt, undefined, images, '', abortSignal, Boolean(images));
+        } else {
+          providerStream = (async function* (helper: LLMHelper) {
+            const result = await helper.executeCustomProvider(curl!.curlCommand, finalPrompt, '', finalPrompt, '', images?.[0], abortSignal, Boolean(images));
+            if (!abortSignal?.aborted) yield result;
+          })(this);
+        }
+        break;
+      }
       case 'ollama':
-        providerStream = this.streamWithOllama(finalPrompt, undefined, '', undefined, abortSignal, model || this.ollamaModel);
+        providerStream = this.streamWithOllama(finalPrompt, undefined, '', images, abortSignal, model || this.ollamaModel);
         break;
       default:
         throw new Error(`Unsupported generation provider: ${provider}`);
@@ -7864,14 +7918,14 @@ let isMultimodal = !!(imagePaths?.length);
    * DeepSeek streaming path: scope-gated, rate-limited, abort-aware. Images are
    * forwarded when present and the upstream model decides vision support.
    */
-  private async * streamWithLiteLLM(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithLiteLLM(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal, modelId = this.currentModelId): AsyncGenerator<string, void, unknown> {
     if (this.isLocalOnlyMode) throw new Error("Cloud providers disabled in local-only mode");
     if (!this.litellmClient) throw new Error("LiteLLM client not initialized");
     this.assertOutboundScopes('litellm', userMessage, imagePaths);
 
     await this.rateLimiters.litellm.acquire();
 
-    const litellmModel = this.currentModelId.replace('litellm/', '');
+    const litellmModel = modelId.replace('litellm/', '');
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
     if (imagePaths?.length) {
@@ -7909,12 +7963,12 @@ let isMultimodal = !!(imagePaths?.length);
     }
   }
 
-  private async * streamWithNvidiaNim(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithNvidiaNim(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal, modelId = this.currentModelId): AsyncGenerator<string, void, unknown> {
     if (this.isLocalOnlyMode) throw new Error('Cloud providers disabled in local-only mode');
     if (!this.nvidiaNimClient) throw new Error('NVIDIA NIM client not initialized');
     this.assertOutboundScopes('nvidia_nim', userMessage, imagePaths);
     await this.rateLimiters.nvidia_nim.acquire();
-    const model = this.currentModelId.replace('nvidia_nim/', '');
+    const model = modelId.replace('nvidia_nim/', '');
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     if (imagePaths?.length) {
@@ -8410,7 +8464,7 @@ let isMultimodal = !!(imagePaths?.length);
   }
 
   // --- CUSTOM PROVIDER STREAMING ---
-  private async * streamWithCustom(message: string, context?: string, imagePaths?: string[], systemPrompt: string = UNIVERSAL_SYSTEM_PROMPT, abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithCustom(message: string, context?: string, imagePaths?: string[], systemPrompt: string = UNIVERSAL_SYSTEM_PROMPT, abortSignal?: AbortSignal, requireImage = false): AsyncGenerator<string, void, unknown> {
     if (!this.customProvider) return;
     // We reuse the executeCustomProvider logic but we need it to stream.
     // If the user provided a curl command, it might support streaming (SSE) or not.
@@ -8473,6 +8527,10 @@ let isMultimodal = !!(imagePaths?.length);
       body = injectImageIntoMessages(body, base64Image, imagePaths[0]);
     }
 
+    if (requireImage && (!base64Image || !JSON.stringify(body).includes(base64Image))) {
+      throw new Error('The selected custom provider template did not include the image.');
+    }
+
     const streamAbort = new AbortController();
     const streamTimeout = setTimeout(() => streamAbort.abort(), 30_000);
     // Forward the caller's user-cancel signal into the same controller so
@@ -8497,6 +8555,7 @@ let isMultimodal = !!(imagePaths?.length);
 
       if (!response.ok) {
         console.error('[LLMHelper] Custom Provider stream HTTP error', { status: response.status });
+        if (requireImage) throw new Error(`Custom provider returned HTTP ${response.status}.`);
         yield `Error: Custom Provider returned HTTP ${response.status}`;
         return;
       }
@@ -8544,6 +8603,7 @@ let isMultimodal = !!(imagePaths?.length);
     } catch (e) {
       clearTimeout(streamTimeout);
       console.error("Custom streaming failed", e);
+      if (requireImage) throw e;
       yield "Error streaming from custom provider.";
     } finally {
       // Always drop the listener so we don't leak a subscription on a
@@ -8917,18 +8977,26 @@ let isMultimodal = !!(imagePaths?.length);
   public getSneakPeekGenerationRouteOptions(
     dataScopes: ProviderDataScope[] = [],
     multimodal = false,
+    options: { verifiedFallbacks?: boolean } = {},
   ): ProviderRouteOptions | null {
     const modelId = this.getCurrentModelId();
     let preferredProvider: LLMProviderId | undefined;
 
-    if (this.useOllama) preferredProvider = 'ollama';
+    const custom = this.customProvider ?? this.activeCurlProvider;
+    const customIsLocal = Boolean(this.customProvider && customProviderIsLocal(this.customProvider));
+    if (custom) {
+      if (multimodal && !customProviderSupportsVision(custom)) return null;
+      preferredProvider = 'custom';
+    } else if (this.useOllama) preferredProvider = 'ollama';
     else if (this.isCodexCliModel(modelId)) preferredProvider = 'codex';
     else if (this.isOpenAiModel(modelId)) preferredProvider = 'openai';
     else if (this.isClaudeModel(modelId)) preferredProvider = 'claude';
     else if (this.isDeepseekModel(modelId)) preferredProvider = 'deepseek';
     else if (this.isGroqModel(modelId)) preferredProvider = 'groq';
     else if (this.isGeminiModel(modelId)) preferredProvider = /pro/i.test(modelId) ? 'gemini_pro' : 'gemini_flash';
-    else return null; // custom/NIM/LiteLLM remain on compatibility paths for now
+    else if (!multimodal && this.isNvidiaNimModel(modelId)) preferredProvider = 'nvidia_nim';
+    else if (!multimodal && this.isLiteLLMModel(modelId)) preferredProvider = 'litellm';
+    else return null;
 
     let scopePolicy: ProviderDataScopePolicy | undefined;
     try {
@@ -8936,7 +9004,7 @@ let isMultimodal = !!(imagePaths?.length);
       scopePolicy = readProviderScopePolicy();
     } catch { scopePolicy = undefined; }
 
-    return {
+    const route: ProviderRouteOptions = {
       capability: multimodal ? 'vision' : 'stream_chat',
       multimodal,
       availability: {
@@ -8948,16 +9016,23 @@ let isMultimodal = !!(imagePaths?.length);
         hasClaude: Boolean(this.claudeClient),
         hasDeepseek: Boolean(this.deepseekClient),
         hasOllama: Boolean(this.ollamaModel),
+        hasNvidiaNim: Boolean(this.nvidiaNimClient),
+        hasLiteLLM: Boolean(this.litellmClient),
+        hasCustom: Boolean(custom),
+        customSupportsVision: customProviderSupportsVision(custom),
       },
       models: {
         groq: this.isGroqModel(modelId) ? modelId : GROQ_MODEL,
-        codex: this.codexCliConfig.model,
+        codex: this.getSelectedCodexCliModel(false),
         geminiFlash: this.isGeminiModel(modelId) && !/pro/i.test(modelId) ? modelId : GEMINI_FLASH_MODEL,
         geminiPro: this.isGeminiModel(modelId) && /pro/i.test(modelId) ? modelId : GEMINI_PRO_MODEL,
         openai: this.isOpenAiModel(modelId) ? modelId : OPENAI_MODEL,
         claude: this.isClaudeModel(modelId) ? modelId : CLAUDE_MODEL,
         deepseek: this.isDeepseekModel(modelId) ? modelId : DEEPSEEK_MODEL,
         ollama: this.ollamaModel,
+        nvidia_nim: preferredProvider === 'nvidia_nim' ? modelId : undefined,
+        litellm: preferredProvider === 'litellm' ? modelId : undefined,
+        custom: custom?.id,
       },
       dataScopes,
       scopePolicy,
@@ -8965,6 +9040,49 @@ let isMultimodal = !!(imagePaths?.length);
       maxAttempts: 3,
       disabledProviders: this.getDisabledProviderFamilies(),
     };
+    if (multimodal) {
+      // Keep an explicit selected vision model. Legacy image routing is used
+      // for image requests outside the supported selected-provider contract.
+      const selectedVisionModel = preferredProvider === 'ollama' ? this.ollamaVisionModel : modelId;
+      const allowed = preferredProvider === 'openai' || preferredProvider === 'claude'
+        || preferredProvider === 'gemini_flash' || preferredProvider === 'gemini_pro'
+        || preferredProvider === 'codex' || preferredProvider === 'ollama' || preferredProvider === 'custom';
+      if (!allowed || !selectedVisionModel) return null;
+      if (preferredProvider === 'ollama') route.models!.ollama = selectedVisionModel;
+      const localVisionRequired = this.isLocalOnlyMode || readScreenUnderstandingMode() === 'private_vision';
+      if (localVisionRequired && preferredProvider !== 'ollama') return null;
+      route.allowedProviders = [preferredProvider];
+    } else if (preferredProvider === 'custom') {
+      route.allowedProviders = this.isLocalOnlyMode && !customIsLocal ? [] : ['custom'];
+    } else if (this.isLocalOnlyMode) {
+      route.allowedProviders = ['ollama'];
+    } else if (preferredProvider === 'nvidia_nim' || preferredProvider === 'litellm') {
+      route.allowedProviders = [preferredProvider];
+    } else if (options.verifiedFallbacks) {
+      // Preserve the live surface's verified fallback requirement.
+      const selectedFamily = this.resolveActiveProviderFamily();
+      const allowed: LLMProviderId[] = [preferredProvider];
+      const models = route.models!;
+      for (const { family, modelId } of this.buildVerifiedFallbackCandidates(new Set([selectedFamily]))) {
+        switch (family) {
+          case 'gemini': {
+            const isPro = /pro/i.test(modelId);
+            allowed.push(isPro ? 'gemini_pro' : 'gemini_flash');
+            models[isPro ? 'geminiPro' : 'geminiFlash'] = modelId;
+            break;
+          }
+          case 'groq':
+          case 'openai':
+          case 'claude':
+          case 'deepseek':
+            allowed.push(family);
+            models[family] = modelId;
+            break;
+        }
+      }
+      route.allowedProviders = allowed;
+    }
+    return route;
   }
 
   public getCurrentModel(): string {
@@ -9038,7 +9156,9 @@ let isMultimodal = !!(imagePaths?.length);
   }
 
   public getCapabilities(): ModelCapabilities {
-    return getModelCapabilities(this.getCurrentModel(), this.useOllama);
+    const model = getModelCapabilities(this.getCurrentModel(), this.useOllama);
+    const custom = this.customProvider ?? this.activeCurlProvider;
+    return custom ? { ...model, supportsImages: customProviderSupportsVision(custom) } : model;
   }
 
   /**

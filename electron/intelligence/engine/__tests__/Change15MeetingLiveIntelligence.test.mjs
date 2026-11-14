@@ -155,7 +155,7 @@ test('meeting IPC query keys retain sender and meeting identity for STOP and sup
   assert.equal(ragQueryPrefix(42, { meetingId: 'meeting-a' }), '42:meeting-meeting-a:');
   assert.equal(ragQueryPrefix(42, { live: true }), '42:live:');
   assert.notEqual(ragQueryPrefix(42, { meetingId: 'meeting-a' }), ragQueryPrefix(43, { meetingId: 'meeting-a' }));
-  assert.match(helper, /if \(!llmHelper\) return \{ success: false, fallback: true \}/);
+  assert.match(helper, /if \(!llmHelper\) return streamMeta\.live \|\| streamMeta\.global[\s\S]*?fallback: true[\s\S]*?Meeting chat is unavailable/);
 });
 
 test('manual and V3 meeting identity use the public IntelligenceManager metadata API', () => {

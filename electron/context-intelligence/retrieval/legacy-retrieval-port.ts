@@ -90,11 +90,15 @@ const positionalDirection = (question: string): PositionalDirection | undefined 
   return w === 'first' || w === 'start' || w === 'starting' || w === 'opening' ? 'first' : 'last';
 };
 
-export function createLegacyRetrievalPort(deps: LegacyPortDeps): RetrievalPort {
+export type ScopedRetrievalDecision = Readonly<Pick<TurnDecision, 'scope' | 'claimRequirements' | 'resolvedQuestion' | 'retrievalPlan'>>;
+
+export function createLegacyRetrievalPort(deps: LegacyPortDeps): {
+  retrieve(input: { decision: ScopedRetrievalDecision }): ReturnType<RetrievalPort['retrieve']>;
+} {
   const now = deps.now ?? (() => 0);
 
   return {
-    async retrieve({ decision }: { decision: Readonly<TurnDecision> }) {
+    async retrieve({ decision }: { decision: ScopedRetrievalDecision }) {
       const attempts: RetrievalAttemptTrace[] = [];
       if (!decision.retrievalPlan.shouldRetrieve) {
         return { evidence: [], attempts };

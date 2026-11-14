@@ -12,7 +12,7 @@
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import type { ProfileDocLike, ProfileCardLike } from '../../context-intelligence/retrieval/profile-retrieval-port';
+import type { ProfileDocLike, ProfileCardLike, ProfileDocKind } from '../../context-intelligence/retrieval/profile-retrieval-port';
 
 /**
  * Raw text for a profile doc (deep-test D1). Prefer the persisted raw_text
@@ -95,7 +95,10 @@ const EMPTY: CollectedProfileSources = {
  * Never throws: profile hydration is additive, and a defect here must degrade
  * to "mode attachments only", never break a live answer.
  */
-export function collectV3ProfileSources(orchestrator: unknown): CollectedProfileSources {
+export function collectV3ProfileSources(
+  orchestrator: unknown,
+  permittedKinds: readonly ProfileDocKind[] = ['resume', 'jd', 'fact'],
+): CollectedProfileSources {
   try {
     if (!orchestrator) return EMPTY;
     const { buildActiveProfileContext } = require('../../llm/ActiveProfileContext') as
@@ -117,14 +120,14 @@ export function collectV3ProfileSources(orchestrator: unknown): CollectedProfile
           body: String(c.body ?? ''),
           approvalStatus: typeof c.approvalStatus === 'string' ? c.approvalStatus : undefined,
         }));
-      resumeCards = toCards(builder.getProfilePack('resume'));
-      jdCards = toCards(builder.getProfilePack('jd'));
+      if (permittedKinds.includes('resume')) resumeCards = toCards(builder.getProfilePack('resume'));
+      if (permittedKinds.includes('jd')) jdCards = toCards(builder.getProfilePack('jd'));
     } catch { /* cards are additive; sections alone still answer */ }
 
     const docs: ProfileDocLike[] = [];
     const resolved: Array<{ role: string; id: string }> = [];
 
-    if (ctx.activeResume?.structured) {
+    if (permittedKinds.includes('resume') && ctx.activeResume?.structured) {
       const id = canonicalProfileSourceId('resume');
       docs.push({
         kind: 'resume',
@@ -137,7 +140,7 @@ export function collectV3ProfileSources(orchestrator: unknown): CollectedProfile
       });
       resolved.push({ role: 'profile_resume', id });
     }
-    if (ctx.activeJD?.structured) {
+    if (permittedKinds.includes('jd') && ctx.activeJD?.structured) {
       const id = canonicalProfileSourceId('jd');
       docs.push({
         kind: 'jd',
@@ -153,7 +156,7 @@ export function collectV3ProfileSources(orchestrator: unknown): CollectedProfile
 
     // DERIVED facts last: they are the lowest-precedence pool, and a document
     // that actually STATES a fact must always outrank a computed one.
-    const facts = collectDerivedFacts(orchestrator);
+    const facts = permittedKinds.includes('fact') ? collectDerivedFacts(orchestrator) : null;
     if (facts) {
       const id = canonicalProfileSourceId('fact');
       docs.push({
@@ -171,8 +174,8 @@ export function collectV3ProfileSources(orchestrator: unknown): CollectedProfile
     return {
       docs,
       counts: {
-        profileResume: ctx.activeResume ? 1 : 0,
-        profileJd: ctx.activeJD ? 1 : 0,
+        profileResume: docs.some(doc => doc.kind === 'resume') ? 1 : 0,
+        profileJd: docs.some(doc => doc.kind === 'jd') ? 1 : 0,
         // DERIVED facts only (2026-08-02). profile_custom_notes still has no
         // production accessor (orphaned v13→14 table), so USER_MOTIVATION —
         // where RESUME is PROHIBITED — remains structurally unsupported and is

@@ -27,6 +27,7 @@ const sessionSrc = read('../../SessionTracker.ts');
 const phoneSrc = read('../../services/PhoneMirrorService.ts');
 const flagsSrc = read('../../intelligence/intelligenceFlags.ts');
 const meetingSrc = read('../../MeetingPersistence.ts');
+const responsePlannerSrc = read('../../intelligence/engine/ResponsePlanner.ts');
 
 describe('action LLMs consult the v2 resolver with the correct action', () => {
   const cases = [
@@ -93,10 +94,14 @@ describe('LLMHelper compatibility hooks', () => {
 });
 
 describe('manual chat (ipcHandlers) — sentinel can never paint or persist', () => {
-  test('manual chat + phone chat resolve their base prompt through resolveManualChatBasePrompt', () => {
+  test('desktop compatibility retains its shared prompt resolver; phone uses canonical assembly', () => {
     assert.match(ipcSrc, /function resolveManualChatBasePrompt/);
-    assert.ok((ipcSrc.match(/resolveManualChatBasePrompt\(llmHelper/g) || []).length >= 3,
-      'expected the handler, regen, and phone-chat sites to use the shared resolver');
+    assert.ok((ipcSrc.match(/resolveManualChatBasePrompt\(llmHelper/g) || []).length >= 2,
+      'desktop handler and regeneration must retain the shared legacy resolver');
+    const phone = ipcSrc.slice(ipcSrc.indexOf('onPhoneCommand(async (cmd)'), ipcSrc.indexOf("} else if (cmd.type === 'screenshot')", ipcSrc.indexOf('onPhoneCommand(async (cmd)')));
+    assert.match(phone, /buildPhoneMirrorCanonicalRequest\(/, 'phone must build a typed canonical request');
+    assert.match(phone, /createPrimaryManualSneakPeekEngine\(/, 'phone must use canonical prompt/provider planning');
+    assert.doesNotMatch(phone, /llmHelper\.streamChat\(/, 'phone must not silently bypass canonical assembly');
   });
 
   test('sendChunkGated holds the first chars until the buffer cannot be the sentinel', () => {
@@ -193,7 +198,7 @@ describe('universal coding contract — every surface resolves its signals throu
   // producer; these pins fail when a surface is added or reverted to a hand-rolled
   // boolean. See .audit/coding-template-audit-2026-08-18.md.
   const SURFACES = [
-    ['../../ipcHandlers.ts', 3],       // V3 personaBase, manual chat base prompt, phone chat
+    ['../../ipcHandlers.ts', 2],       // V3 personaBase and desktop manual chat; phone uses canonical coding response planning
     ['../../LLMHelper.ts', 2],         // _streamChatInner + chatWithGemini
     ['../../IntelligenceEngine.ts', 3],// V3 personaBase + both validator stand-downs
     ['../WhatToAnswerLLM.ts', 1],
@@ -243,8 +248,13 @@ describe('flag + meeting surfaces', () => {
     assert.ok(meetingSrc.includes('"keyPoints": ['), 'summary JSON schema prompt must be preserved');
   });
 
-  test('follow-up email uses the v2 contract with the legacy pair as fallback', () => {
-    assert.match(ipcSrc, /v2EmailPrompt \?\? FOLLOWUP_EMAIL_PROMPT/);
-    assert.match(ipcSrc, /v2EmailPrompt \?\? GROQ_FOLLOWUP_EMAIL_PROMPT/);
+  test('follow-up email keeps v2 prompt policy through canonical document planning', () => {
+    assert.match(ipcSrc, /safeHandle\('generate-followup-email'/, 'the email IPC entrypoint remains wired');
+    assert.match(ipcSrc, /generateDocumentDraft\(event, appState, \{[\s\S]*?kind: 'follow-up-email'/,
+      'the email route must enter canonical document-draft generation');
+    assert.match(responsePlannerSrc, /resolveV2SystemPrompt\(\{ action: 'followup_email'/,
+      'the canonical response planner must preserve the v2 email action');
+    assert.match(responsePlannerSrc, /\?\? FOLLOWUP_EMAIL_PROMPT/,
+      'the canonical response planner must retain the established fallback prompt');
   });
 });

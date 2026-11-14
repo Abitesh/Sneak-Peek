@@ -86,8 +86,9 @@ describe('the router, not a keyword list, decides codingTask', () => {
   test('WTA passes its routed answerType decision into the bridge', () => {
     const ENGINE = path.resolve(__dirname, '../../IntelligenceEngine.ts');
     const engineSrc = fs.readFileSync(ENGINE, 'utf8');
-    const start = engineSrc.indexOf('const wtaV3Prompt = await');
+    const start = engineSrc.indexOf('const wtaV3Prompt = canonicalLiveRoute ? undefined : await');
     const end = engineSrc.indexOf('const requestSnapshot', start);
+    assert.ok(start >= 0 && end > start, 'find the WTA compatibility bridge branch');
     const call = engineSrc.slice(start, end);
     assert.match(
       call,

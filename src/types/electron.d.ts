@@ -386,7 +386,7 @@ imageCount?: number;
 usedImageInput?: boolean;
 }>
 generateClarify: () => Promise<{ clarification: string | null }>
-generateCodeHint: (imagePaths?: string[], problemStatement?: string) => Promise<{ hint: string | null }>
+generateCodeHint: (imagePaths?: string[], problemStatement?: string, codeHintRequestId?: string) => Promise<{ hint: string | null }>
 generateBrainstorm: (imagePaths?: string[], problemStatement?: string) => Promise<{ script: string | null }>
 generateFollowUp: (intent: string, userRequest?: string) => Promise<{ refined: string | null; intent: string }>
 generateFollowUpQuestions: () => Promise<{ questions: string | null }>
@@ -482,7 +482,7 @@ listDynamicActions: () => Promise<{ success: boolean; actions: DynamicActionPayl
 // Intelligence Mode Events
 onIntelligenceAssistUpdate: (callback: (data: { insight: string }) => void) => () => void
 onIntelligenceSuggestedAnswerToken: (callback: (data: { token: string; question: string; confidence: number }) => void) => () => void
-onIntelligenceSuggestedAnswer: (callback: (data: { answer: string; question: string; confidence: number; generationId?: number; sourceLabel?: string; emittedAt?: number }) => void) => () => void
+onIntelligenceSuggestedAnswer: (callback: (data: { answer: string; question: string; confidence: number; generationId?: number; sourceLabel?: string; emittedAt?: number; codeHintRequestId?: string }) => void) => () => void
 onIntelligenceSuggestedAnswerDiscard: (callback: (data: { reason: string }) => void) => () => void
 // Verified code execution (background): ✓ badge + corrected message.
 onIntelligenceCodeVerified: (callback: (data: { question: string; passed: number; total: number; language: string }) => void) => () => void

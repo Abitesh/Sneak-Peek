@@ -23,6 +23,7 @@ export interface ProviderGenerationTransport {
     options?: {
       abortSignal?: AbortSignal;
       thinkingBudget?: number;
+      imagePaths?: readonly string[];
     },
   ): AsyncGenerator<string, void, unknown>;
 }
@@ -128,6 +129,7 @@ export interface GenerationRequest {
   route: ProviderRouteOptions;
   abortSignal?: AbortSignal;
   thinkingBudget?: number;
+  imagePaths?: readonly string[];
   lifecycle?: GenerationLifecycle;
 }
 
@@ -237,6 +239,7 @@ export class GenerationController {
           {
             abortSignal: request.abortSignal,
             thinkingBudget: request.thinkingBudget,
+            imagePaths: request.imagePaths,
           },
         );
 
@@ -334,4 +337,13 @@ export class GenerationController {
       ?? 'All selected providers failed before first token.';
     outcome.endedAt = Date.now();
   }
+}
+
+
+/** Bind the production transport to the shared controller without adding prompt logic. */
+export function streamCanonicalProvider(
+  transport: ProviderGenerationTransport,
+  request: Parameters<GenerationController['stream']>[0],
+): AsyncGenerator<string, void, unknown> {
+  return new GenerationController(transport).stream(request).stream;
 }

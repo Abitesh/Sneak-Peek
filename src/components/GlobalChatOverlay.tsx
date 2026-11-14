@@ -339,99 +339,10 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 return;
             }
 
-            // If electronAPI is unavailable or IPC failed, result will be undefined.
-            // Treat this as a fallback case to ensure the user gets SOME response.
             if (!result || result.fallback) {
-                console.log("[GlobalChat] RAG unavailable, falling back to standard chat");
-                // Cleanup RAG listeners
-                tokenCleanup?.();
-                doneCleanup?.();
-                errorCleanup?.();
-                activeCleanups = [];
-
-                // Setup fallback listeners (Standard Gemini)
-                streamBuffer.reset();
-                // Stream-id guard (2026-07-31): these fallback listeners used to
-                // ignore the streamId meta entirely, so tokens from an ABANDONED
-                // earlier stream (client timeout below leaves main streaming)
-                // landed in the next request's bubble. Adopt the first tagged id
-                // seen after registration; drop anything older.
-                let adoptedStreamId: number | null = null;
-                const acceptsMeta = (meta?: { streamId?: number }) => {
-                    const id = meta?.streamId;
-                    if (typeof id !== 'number') return true;      // legacy untagged
-                    if (adoptedStreamId === null || id > adoptedStreamId) { adoptedStreamId = id; return true; }
-                    return id === adoptedStreamId;
-                };
-                const oldTokenCleanup = window.electronAPI?.onGeminiStreamToken((token: string, meta?: { streamId?: number }) => {
-                    if (!acceptsMeta(meta)) return;
-                    setChatState('streaming_response');
-                    streamBuffer.appendToken(token, (content) => {
-                        setMessages(prev => prev.map(msg =>
-                            msg.id === assistantMessageId
-                                ? { ...msg, content }
-                                : msg
-                        ));
-                    });
-                });
-
-                const oldDoneCleanup = window.electronAPI?.onGeminiStreamDone((payload?: { streamId?: number }) => {
-                    if (!acceptsMeta(payload)) return;
-                    // Same empty-completion guard as the RAG path above.
-                    const finalContent = streamBuffer.getBufferedContent().trim()
-                        || "I'm not sure how to answer that — try rephrasing your question.";
-                    setMessages(prev => prev.map(msg =>
-                        msg.id === assistantMessageId
-                            ? { ...msg, content: finalContent, isStreaming: false }
-                            : msg
-                    ));
-                    setChatState('idle');
-                    streamBuffer.reset();
-                    oldTokenCleanup?.();
-                    oldDoneCleanup?.();
-                    oldErrorCleanup?.();
-                });
-
-                const oldErrorCleanup = window.electronAPI?.onGeminiStreamError((error: string, meta?: { streamId?: number | null; source?: string }) => {
-                    if (meta?.source === 'phone-mirror') return;
-                    if (typeof meta?.streamId === 'number' && adoptedStreamId !== null && meta.streamId !== adoptedStreamId) return;
-                    console.error('[GlobalChat] Gemini stream error:', error);
-                    setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-                    setErrorMessage("Couldn't get a response. Please check your settings.");
-                    setChatState('error');
-                    streamBuffer.reset();
-                    oldTokenCleanup?.();
-                    oldDoneCleanup?.();
-                    oldErrorCleanup?.();
-                });
-
-                if (oldTokenCleanup) activeCleanups.push(oldTokenCleanup);
-                if (oldDoneCleanup) activeCleanups.push(oldDoneCleanup);
-                if (oldErrorCleanup) activeCleanups.push(oldErrorCleanup);
-
-                // Call standard chat — same client-side ceiling as ragQueryGlobal above.
-                const fallbackCall = window.electronAPI?.streamGeminiChat(question, undefined, undefined, { skipSystemPrompt: false });
-                if (fallbackCall) {
-                    try {
-                        await withTimeout(fallbackCall, RAG_QUERY_CLIENT_TIMEOUT_MS, 'streamGeminiChat');
-                    } catch (timeoutErr) {
-                        console.error('[GlobalChat] streamGeminiChat client-side timeout:', timeoutErr);
-                        // Abandoning without cancelling left main streaming into
-                        // listeners the NEXT submit registers.
-                        try { (window.electronAPI as any)?.cancelChatStream?.(); } catch { /* best-effort */ }
-                        oldTokenCleanup?.();
-                        oldDoneCleanup?.();
-                        oldErrorCleanup?.();
-                        activeCleanups = [];
-                        setMessages(prev => prev.map(msg =>
-                            msg.id === assistantMessageId
-                                ? { ...msg, content: "This is taking longer than expected. Please try again.", isStreaming: false }
-                                : msg
-                        ));
-                        setChatState('error');
-                        setErrorMessage("The request took too long to respond. Please try again.");
-                    }
-                }
+                setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+                setErrorMessage("Meeting search is unavailable. Check your AI provider settings and try again.");
+                setChatState('error');
             }
 
         } catch (error) {

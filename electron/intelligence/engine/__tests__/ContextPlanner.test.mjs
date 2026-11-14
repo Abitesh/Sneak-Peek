@@ -115,3 +115,40 @@ test('plan is exhaustive and does not treat optional context as required retriev
   assert.deepEqual(plan.optionalSources, []);
   assert.ok(plan.sources.length >= 11);
 });
+
+test('canonical profile read grants role evidence only for the pinned mode and a relevant claim', () => {
+  const question = 'What technologies does the target job description require?';
+  const profileRequest = request(question, {
+    activeContext: { modeId: 'mode-instance', modeTemplateType: 'looking-for-work', profileId: 'local-profile' },
+  });
+  const jobPlan = planContext({
+    request: profileRequest,
+    understanding: { ...understanding(question), intent: 'personal-question', requiresPersonalContext: true },
+  });
+  assert.ok(jobPlan.profileRead?.retrievalPlan.sourceTypes.includes('JOB_DESCRIPTION'));
+  assert.ok(!jobPlan.profileRead.retrievalPlan.sourceTypes.includes('RESUME'));
+  const denied = planContext({
+    request: { ...profileRequest, contextPermissions: { ...permissions, profile: false } },
+    understanding: { ...understanding(question), intent: 'personal-question', requiresPersonalContext: true },
+  });
+  assert.equal(denied.profileRead, undefined);
+  const strict = planContext({
+    request: {
+      ...profileRequest,
+      activeContext: {
+        ...profileRequest.activeContext,
+        modeSourceContract: { defaultOwner: 'reference_files', sourceAuthority: 'reference_files_only', allowedExplicitSwitches: [] },
+        hasReferenceFiles: true,
+        hasJobDescription: true,
+      },
+    },
+    understanding: { ...understanding(question), intent: 'personal-question', requiresPersonalContext: true },
+  });
+  assert.deepEqual(strict.profileRead.retrievalPlan.sourceTypes, []);
+  assert.equal(strict.profileRead.retrievalPlan.shouldRetrieve, false);
+  const scopedMeeting = planContext({
+    request: { ...profileRequest, retrievalScope: { kind: 'meeting', meetingId: 'selected' } },
+    understanding: { ...understanding(question), intent: 'personal-question', requiresPersonalContext: true },
+  });
+  assert.equal(scopedMeeting.profileRead, undefined);
+});

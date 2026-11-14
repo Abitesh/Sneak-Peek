@@ -678,3 +678,32 @@ Harness-only unsuccessful attempts are retained: qMpBB0 (nonexistent read probe 
 ### WORK-0052 original patch application mismatch — not a product defect
 
 The owner's `git apply --check` failed before mutation because the patch expected the newer WORK-0047 tracking snapshots, whereas the actual committed documents ended earlier. The revised patch uses the actual uploaded CHG19 Final Review ZIP with Git blob hashes matching current GitHub `d90bc8a3`. Do not force the superseded records patch.
+
+## ERR-065 — Global meeting search can widen its source scope
+
+WORK-0055 / TASK-0003. Source-confirmed at 96cfd2c: an unavailable global RAG result makes GlobalChatOverlay invoke ordinary gemini-chat-stream. That path can authorize personal, project and mode sources based on the question. This establishes a reachable scope mismatch. No owner data disclosure was observed. Preserve global meeting-only retrieval and end the request with a visible unavailable message when the scoped backend cannot serve it.
+
+**State: Verified in WORK-0055 patch; owner application pending.** The actual sandboxed global overlay displayed the unavailable notice for a project-like synthetic question and called the ordinary chat IPC handler zero times. Scoped meeting and global Escape/X, sender isolation, late-event rejection and same-profile relaunch passed in the same run. Evidence: `/tmp/sneak-chg20.xszQTf/desktop-evidence/result.json` and `initial-global-unavailable.png` in that directory. The first run's DOM assertion passed before the notice animation had painted. The final harness waits for painted bounds and opacity, and the final screenshot was visually inspected.
+
+## ERR-066 — Superseded passive assist can clear its replacement's cancellation controller
+
+WORK-0056 / TASK-0003. Source-confirmed. The old passive assist run unconditionally cleared the shared controller in its finally block and reset the shared mode after noticing its own abort. An older provider returning after its replacement started could leave STOP unable to cancel the new assist. The new dispatch checks controller identity before delivery or cleanup. Behavioral verification follows in WORK-0056.
+
+**State: Locally verified.** A deterministic test parks two passive assist providers, supersedes the first and then calls STOP. Both request-owned signals abort, both requests settle, and neither emits a final observation. See `CanonicalConversationActions.test.mjs` and WORK-0056. ERR-065 also passed again on the real global overlay with zero ordinary chat invocations.
+
+## ERR-067 — Canonical generation drops provider-routing failure reason before IPC error delivery (2026-11-14)
+
+**Related:** CHG-20 / TASK-0003 / WORK-0058 → WORK-0059. **State:** RESOLVED — owner-verified on macOS and independently reviewed by Copilot. Owner's WORK-0058 focused run reported 40 pass/1 fail; full Electron run 9,020 pass/1 fail/67 skipped. The only failure was `CanonicalConversationActions.test.mjs`'s denied screenshot-derived text scope check: cloud transport was not called, no history or usage was recorded, but the error event said `Answer generation ended without completion.` instead of exposing provider unavailability.
+
+**Confirmed mechanism:** `GenerationController` transitions the shared lifecycle to `FAILED` with reason `no available provider` when routing excludes every provider. `SneakPeekIntelligenceEngine.prepareAndStream()` creates a failed `providerAttempt` without copying that lifecycle reason into `providerAttempt.error`; `RagIpcStream` consequently substitutes its generic failure message. This is an error-propagation defect, **not** evidence of screenshot data exfiltration or an incorrect scope permission.
+
+**Proposed correction:** copy the terminal `FAILED` lifecycle reason into `providerAttempt.error` only for a failed result, preserving successful/cancelled object shapes, provider routing, cancellation, and the existing privacy gate. Add a focused engine-level regression test that simulates a denied cloud scope and asserts no provider dispatch, a failed result, and a meaningful failure reason. Retain the WORK-0058 privacy test unchanged. Re-run Electron typecheck/build and focused tests on macOS before treating the fix as verified; full Electron regression follows if focused tests pass.
+
+
+**ERR-067 verification update (2026-11-14):** Owner applied WORK-0059 and executed Electron typecheck and build successfully. Focused 57/57 passed; full Electron 9,021 passed, 0 failed, 67 skipped (`npm test -- --test-concurrency=4`). The previously failing denied-screenshot-scope test and the new engine failure-reason test both passed, with zero provider dispatch in the scoped denial fixture. The owner supplied `WORK0059-Focused.log` and `WORK0059-Electron.log`. Read-only Copilot subsequently accepted WORK-0058/0059 and independently reran 42 targeted tests with 0 failures. This resolves ERR-067 in tested scope; CHG-20 architecture acceptance remains separate.
+
+## ERR-068 — Default General mode kept image chat outside canonical dispatch
+
+WORK-0061 / TASK-0003. The new manual image branch initially required no active mode. The disposable desktop had the built-in General mode, so production preload reached the legacy vision path and returned its unavailable response. The fake canonical vision transport was never called. Evidence: `/tmp/sneak-work0061.s756pZ/desktop-manual-image-first.log` and its initial JSON. Preserve the selected model, attachment validation, mixed-history authorization, and custom-mode gate when admitting the built-in General mode.
+
+**Resolution verified.** Database-seeded General mode migrates to `migrated_from_prompt / ask_if_ambiguous`. The image-chat route now accepts that default contract and a fresh General default when no files, custom instructions, or explicit strict grounding exist. It uses supplied history as referent-only material with conservative provider scopes. The production preload stream in the final desktop run observed one canonical vision dispatch, one token and one matching completion. Intermediate failed desktop runs are retained under the same evidence directory. Final runner log: `/tmp/sneak-work0061.s756pZ/desktop-final.log`.

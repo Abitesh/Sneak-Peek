@@ -253,6 +253,7 @@ const DEADLINE = Symbol('deadline');
 export async function raceStreamWithDeadline(opts: {
   stream: AsyncGenerator<string> | AsyncIterable<string>;
   firstUsefulDeadlineMs: number;
+  signal?: AbortSignal;
   interTokenStallMs?: number;
   isSpeculative?: boolean;
   onToken: (value: string) => void | Promise<void>;
@@ -275,7 +276,7 @@ export async function raceStreamWithDeadline(opts: {
 }): Promise<'done' | 'first_useful_timeout' | 'stall_timeout' | 'aborted'> {
   const {
     stream, firstUsefulDeadlineMs: fuMs, interTokenStallMs = LIVE_INTER_TOKEN_STALL_MS,
-    isSpeculative = false, onToken, isUsefulYet, onFirstUsefulTimeout, onStallTimeout, shouldAbort, onCleanup,
+    isSpeculative = false, signal, onToken, isUsefulYet, onFirstUsefulTimeout, onStallTimeout, shouldAbort, onCleanup,
   } = opts;
   const iterator = (stream as AsyncIterable<string>)[Symbol.asyncIterator]();
   const start = Date.now();
@@ -290,11 +291,16 @@ export async function raceStreamWithDeadline(opts: {
     try { onCleanup?.(reason); } catch { /* abort callback must not break cleanup */ }
     try { const p = iterator.return?.(undefined); if (p && typeof (p as any).then === 'function') (p as Promise<unknown>).catch(() => {}); } catch { /* already closed */ }
   };
+  const aborted = Symbol('aborted');
+  let resolveAbort: () => void = () => {};
+  const abort = new Promise<typeof aborted>(resolve => { resolveAbort = () => resolve(aborted); });
+  signal?.addEventListener('abort', resolveAbort, { once: true });
   try {
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      if (shouldAbort?.()) { cleanup('aborted'); return 'aborted'; }
-      let res: IteratorResult<string> | typeof DEADLINE;
+      if (signal?.aborted || shouldAbort?.()) { cleanup('aborted'); return 'aborted'; }
+      const next = signal ? Promise.race([iterator.next(), abort]) : iterator.next();
+      let res: IteratorResult<string> | typeof DEADLINE | typeof aborted;
       if (!isSpeculative) {
         if (!useful) useful = isUsefulYet();
         const remaining = !useful
@@ -302,15 +308,13 @@ export async function raceStreamWithDeadline(opts: {
           : Math.max(50, interTokenStallMs - (Date.now() - lastTokenAt));
         let timer: ReturnType<typeof setTimeout> | undefined;
         const deadline = new Promise<typeof DEADLINE>((r) => { timer = setTimeout(() => r(DEADLINE), remaining); });
-        // DEFUSE the racing next() promise: if the deadline wins, this promise is
-        // still pending and unobserved — when the hung provider's request later
-        // rejects (timeout / 429 / socket reset) it would surface as an
-        // unhandledRejection (fatal in Electron main). Attach a no-op catch so the
-        // loser can never be an unhandled rejection (code-review 2026-06-05, HIGH).
-        const nextP = iterator.next();
-        nextP.catch(() => { /* loser of the race — defused */ });
-        res = await Promise.race([nextP, deadline]);
-        if (timer) clearTimeout(timer);
+        // Promise.race observes a late rejection after cancellation or timeout.
+        // Clear the timer on both normal and exceptional settlement.
+        try {
+          res = await Promise.race([next, deadline]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
         if (res === DEADLINE) {
           if (!useful) {
             cleanup('first_useful_timeout');
@@ -322,7 +326,11 @@ export async function raceStreamWithDeadline(opts: {
           return 'stall_timeout';
         }
       } else {
-        res = await iterator.next();
+        res = await next;
+      }
+      if (res === aborted || signal?.aborted || shouldAbort?.()) {
+        cleanup('aborted');
+        return 'aborted';
       }
       if (res.done) { cleanup('done'); return 'done'; }
       lastTokenAt = Date.now();
@@ -332,5 +340,7 @@ export async function raceStreamWithDeadline(opts: {
   } catch (e) {
     cleanup('error');
     throw e;
+  } finally {
+    signal?.removeEventListener('abort', resolveAbort);
   }
 }

@@ -10,6 +10,9 @@ const { SneakPeekIntelligenceEngine } = await import(
 const { RetrievalCoordinator, createRetrievalCapability } = await import(
   pathToFileURL(path.join(base, 'RetrievalCoordinator.js')).href,
 );
+const { GenerationController } = await import(
+  pathToFileURL(path.join(base, 'GenerationController.js')).href,
+);
 const { advanceConversationState, clearConversationState } = await import(
   pathToFileURL(path.resolve(process.cwd(), 'dist-electron/electron/context-intelligence/question/conversation-state-store.js')).href,
 );
@@ -151,6 +154,52 @@ describe('SneakPeekIntelligenceEngine contract', () => {
     assert.ok(result.diagnostics.stages.includes('retrieve'));
   });
 
+});
+
+
+test('provider scope denial propagates a meaningful failure reason without cloud dispatch', async () => {
+  const calls = [];
+  const engine = new SneakPeekIntelligenceEngine({
+    generationPort: {
+      stream: ({ request, prompt, lifecycle }) => new GenerationController({
+        async *streamFinalPrompt() {
+          calls.push('unexpected outbound provider call');
+          yield 'private content';
+        },
+      }).stream({
+        requestId: request.requestId,
+        finalPrompt: prompt.finalPrompt,
+        lifecycle,
+        route: {
+          capability: 'stream_chat',
+          preferredProvider: 'groq',
+          allowedProviders: ['groq'],
+          availability: { hasGroq: true },
+          dataScopes: ['screenshots'],
+          scopePolicy: { screenshots: false },
+        },
+      }).stream,
+    },
+  });
+  const request = {
+    requestId: 'scope-denied-error',
+    sessionId: 'scope-denied-error-session',
+    surface: 'screenshot',
+    userMessage: 'Explain the screenshot-derived code',
+    currentTurn: { id: 'scope-denied-turn', role: 'user', content: 'Explain the screenshot-derived code' },
+    recentConversation: [],
+    contextPermissions: { ...permissions, screen: false },
+  };
+  const { stream, result, lifecycle } = engine.prepareAndStream(request);
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const final = await result;
+  assert.deepEqual(calls, [], 'The denied screenshot scope must prevent provider dispatch');
+  assert.deepEqual(chunks, []);
+  assert.equal(lifecycle.state, 'FAILED');
+  assert.equal(final.providerAttempt.status, 'failed');
+  assert.match(final.providerAttempt.error, /no available provider/i);
+  assert.equal(final.finalAnswer, null);
 });
 
 // CHG-19: cancellation returns diagnostics without opening another retrieval or

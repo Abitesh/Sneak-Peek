@@ -1,4 +1,4 @@
-export type LLMProviderId = 'groq' | 'codex' | 'gemini_flash' | 'gemini_pro' | 'openai' | 'claude' | 'deepseek' | 'ollama';
+export type LLMProviderId = 'groq' | 'codex' | 'gemini_flash' | 'gemini_pro' | 'openai' | 'claude' | 'deepseek' | 'ollama' | 'nvidia_nim' | 'litellm' | 'custom';
 export type ProviderCapability = 'chat' | 'stream_chat' | 'structured' | 'vision';
 export type ProviderAttemptStatus = 'available' | 'unavailable';
 export type ProviderUnavailableReason = 'missing_api_key' | 'missing_config' | 'unsupported_capability' | 'disabled';
@@ -102,6 +102,10 @@ export interface ProviderAvailabilityState {
     hasClaude?: boolean;
     hasDeepseek?: boolean;
     hasOllama?: boolean;
+    hasNvidiaNim?: boolean;
+    hasLiteLLM?: boolean;
+    hasCustom?: boolean;
+    customSupportsVision?: boolean;
 }
 
 export interface ProviderModelState {
@@ -113,6 +117,9 @@ export interface ProviderModelState {
     claude?: string;
     deepseek?: string;
     ollama?: string;
+    nvidia_nim?: string;
+    litellm?: string;
+    custom?: string;
 }
 
 export interface ProviderRouteOptions {
@@ -159,6 +166,9 @@ export const DISABLED_PROVIDER_FAMILY_MAP: Readonly<Record<string, readonly LLMP
     claude: ['claude'],
     deepseek: ['deepseek'],
     ollama: ['ollama'],
+    nvidia_nim: ['nvidia_nim'],
+    litellm: ['litellm'],
+    custom: ['custom'],
 });
 
 export function disabledRouterProviders(disabled?: readonly string[]): Set<LLMProviderId> {
@@ -315,6 +325,23 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
         ? [codex, openai, geminiFlash, claude, geminiPro, groq]
         : [groq, codex, geminiFlash, geminiPro, openai, claude, deepseek];
 
+    // Gateway models are admitted only as the explicit selection. They are not
+    // interchangeable with another provider's model or automatic fallbacks.
+    if (!options.multimodal && options.preferredProvider === 'nvidia_nim') {
+        orderedSpecs.unshift({ provider: 'nvidia_nim', name: 'NVIDIA NIM', model: models.nvidia_nim,
+            available: Boolean(availability.hasNvidiaNim), supports: ['chat', 'stream_chat'] });
+    }
+    if (!options.multimodal && options.preferredProvider === 'litellm') {
+        orderedSpecs.unshift({ provider: 'litellm', name: 'LiteLLM', model: models.litellm,
+            available: Boolean(availability.hasLiteLLM), supports: ['chat', 'stream_chat'] });
+    }
+
+    if (options.preferredProvider === 'custom') {
+        orderedSpecs.unshift({ provider: 'custom', name: 'Custom', model: models.custom,
+            available: Boolean(availability.hasCustom),
+            supports: availability.customSupportsVision ? ['chat', 'stream_chat', 'vision'] : ['chat', 'stream_chat'] });
+    }
+
     if (availability.hasOllama) {
         orderedSpecs.push(ollama);
     }
@@ -335,7 +362,7 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
             spec,
             capability,
             spec.provider === 'ollama' && spec.available ? [] : deniedScopes,
-            userDisabled.has(spec.provider),
+            userDisabled.has(spec.provider) || (spec.provider === 'custom' && Boolean(spec.model && isProviderFamilyDisabled(spec.model, options.disabledProviders))),
         ),
     }));
 }
@@ -355,7 +382,7 @@ export function routeWithScopeFallback(options: ProviderRouteOptions): ProviderA
 export function routeGenerationProviders(options: ProviderRouteOptions): ProviderAttempt[] {
     const routed = routeLLMProviders(options);
     const allowed = options.allowedProviders;
-    const filtered = allowed?.length
+    const filtered = allowed
         ? routed.filter((attempt) => allowed.includes(attempt.provider))
         : routed;
 

@@ -40,7 +40,9 @@ assert.ok(['initial', 'relaunch'].includes(phase));
 const scope = new AsyncLocalStorage();
 const records = [], events = [], reads = [], scenarios = [], windows = [];
 const originalHandle = ipcMain.handle.bind(ipcMain);
+let ordinaryChatInvocations = 0;
 ipcMain.handle = (channel, handler) => originalHandle(channel, (event, ...args) => {
+  if (channel === 'gemini-chat-stream') ordinaryChatInvocations++;
   if (!/^rag:(query-meeting|query-global|cancel-query)$/.test(channel)) return handler(event, ...args);
   const row = { channel, senderId: event.sender.id, args, at: performance.now() };
   records.push(row);
@@ -93,10 +95,38 @@ app.whenReady().then(async () => {
   // Only model transports are deterministic. Actual source adapters, lexical
   // retrieval, planner, prompt, provider router and stream controller run.
   rag.embeddingPipeline.getEmbeddingForQuery = async () => null;
-  helper.getSneakPeekGenerationRouteOptions = () => ({ capability: 'stream_chat', preferredProvider: 'groq', allowedProviders: ['groq'], availability: { hasGroq: true }, models: { groq: 'synthetic-offline' }, maxAttempts: 1 });
+  helper.getSneakPeekGenerationRouteOptions = (_scopes, multimodal) => multimodal
+    ? { capability: 'vision', multimodal, preferredProvider: 'openai', allowedProviders: ['openai'],
+        availability: { hasOpenAI: true }, models: { openai: 'synthetic-offline-vision' }, maxAttempts: 1 }
+    : { capability: 'stream_chat', preferredProvider: 'groq', allowedProviders: ['groq'],
+        availability: { hasGroq: true }, models: { groq: 'synthetic-offline' }, maxAttempts: 1 };
+  const canonicalCalls = [];
+  const concept = 'What is the difference between a mutex and a semaphore?';
+  const conceptAnswer = 'A mutex grants one holder exclusive access. A semaphore controls access with permits.';
+  const codeHint = 'Check the midpoint before moving the left boundary.';
   helper.streamFinalPrompt = async function* (_provider, _model, prompt, options) {
     const row = scope.getStore();
-    assert.ok(row?.requestId, 'provider must belong to genuine query IPC');
+    if (!row?.requestId) {
+      assert.match(prompt, /<response_policy>/);
+      const imageAnalysis = prompt.includes('<image_policy>');
+      const emailDraft = prompt.includes('<meeting_details_for_draft>');
+      assert.ok(prompt.includes(concept) || prompt.includes('Review the partial code') || imageAnalysis || emailDraft);
+      if (prompt.includes('Describe the synthetic image')) {
+        assert.match(prompt, /<session_snapshot source="mixed_session_history" citation_authority="none">/);
+        assert.match(prompt, /synthetic attachment continuity/);
+      }
+      if (emailDraft) {
+        assert.match(prompt, /Synthetic agenda.*violet leases/s);
+        assert.ok(!prompt.includes('source="profile"'));
+      }
+      assert.ok(!prompt.includes('FORBIDDEN_PERSONAL_CANARY'));
+      canonicalCalls.push({ model: _model, hasSpeech: prompt.includes('source="meeting_transcript"'),
+        attachmentCount: options.imagePaths?.length ?? 0 });
+      yield imageAnalysis ? 'Synthetic image analysis.'
+        : emailDraft ? 'Thank you for discussing violet leases.'
+        : options.imagePaths?.length ? codeHint : conceptAnswer;
+      return;
+    }
     row.providerStartedAt = performance.now(); row.prompt = prompt;
     row.first = `CHG19_FIRST_${records.indexOf(row)} violet leases. `;
     row.late = `CHG19_LATE_${records.indexOf(row)}.`;
@@ -207,10 +237,140 @@ app.whenReady().then(async () => {
     scenarios.push({ id: type === 'meeting' ? 'G19-01' : 'G19-02', type, action, status: 'PASS', requestId: row.requestId, senderId: row.senderId, meetingId: type === 'meeting' ? 'chg19-a' : null, cancelledAt, chunks: 1, completes: 0, errors: 0, postCancelEvents: 0, cancelCalls: cancel.length, rendererCounts: { chunks: rendererAfter.length, completes: 0, errors: 0 }, screenshots: [beforeScreenshot, await screenshot(`${type}-${action}-${records.indexOf(row)}-closed`)] }); save();
   }
   if (phase === 'initial') {
+    const intelligence = state.getIntelligenceManager();
+    const engine = intelligence.engine;
+    const previousModeLookup = engine.getActiveModeInfo;
+    const previousCapabilities = helper.getCapabilities;
+    const previousRagRead = engine.retrieveUniversalChatContext;
+    engine.getActiveModeInfo = () => null;
+    engine.retrieveUniversalChatContext = async () => assert.fail('Legacy retrieval invoked during canonical WTA');
+    helper.getCapabilities = () => ({ ...previousCapabilities.call(helper), supportsImages: true });
+    try {
+      intelligence.addTranscript({ speaker: 'interviewer', text: concept, timestamp: Date.now(),
+        final: true, origin: 'test' }, true);
+      const result = await js(`window.electronAPI.generateWhatToSay(${JSON.stringify(concept)})`);
+      assert.equal(result.answer, conceptAnswer);
+      assert.deepEqual(canonicalCalls, [{ model: 'synthetic-offline', hasSpeech: true, attachmentCount: 0 }]);
+      const dir = path.join(app.getPath('userData'), 'screenshots');
+      fs.mkdirSync(dir, { recursive: true });
+      const testImage = path.join(dir, 'synthetic-code.png');
+      // Use an in-memory synthetic image, with no native capture or screen data.
+      const { nativeImage } = require('electron');
+      const pixels = Buffer.alloc(32 * 32 * 4, 255);
+      fs.writeFileSync(testImage, nativeImage.createFromBitmap(pixels, { width: 32, height: 32 }).toPNG());
+      const hint = await js(`window.electronAPI.generateCodeHint([${JSON.stringify(testImage)}], "Find the first matching value.")`);
+      assert.equal(hint.hint, codeHint);
+      assert.deepEqual(canonicalCalls[1], { model: 'synthetic-offline-vision', hasSpeech: false, attachmentCount: 1 });
+      assert.equal(canonicalCalls.length, 2);
+      scenarios.push({ id: 'WORK-0056-IPC', status: 'PASS', canonicalCalls: canonicalCalls.slice() });
+      const analysis = await js(`window.electronAPI.analyzeImageFile(${JSON.stringify(testImage)})`);
+      assert.equal(analysis.text, 'Synthetic image analysis.');
+      const escapedImage = path.join(dir, 'outside-profile.png');
+      // The target is a synthetic file outside userData. It must never be read
+      // or forwarded through the app's image-analysis entrypoint.
+      const outsideProfile = path.join(temp, 'outside-profile.png');
+      fs.copyFileSync(testImage, outsideProfile);
+      fs.symlinkSync(outsideProfile, escapedImage);
+      assert.match(await js(`window.electronAPI.analyzeImageFile(${JSON.stringify(escapedImage)})
+        .then(() => 'unexpected success', error => String(error))`), /Path not allowed/);
+      const draft = await js(`window.electronAPI.generateFollowupEmail({
+        meeting_type: 'meeting', title: 'Synthetic agenda', summary: 'The team discussed violet leases.'
+      })`);
+      assert.equal(draft, 'Thank you for discussing violet leases.');
+      assert.deepEqual(canonicalCalls.slice(2), [
+        { model: 'synthetic-offline-vision', hasSpeech: false, attachmentCount: 1 },
+        { model: 'synthetic-offline', hasSpeech: false, attachmentCount: 0 },
+      ]);
+      scenarios.push({ id: 'WORK-0061-IPC', status: 'PASS', canonicalCalls: canonicalCalls.slice(2) });
+      // Use the streaming chat API from real preload and assert the model sees
+      // both its authorized image and explicit conversation continuity.
+      const events = await js(`(async () => {
+        const events = [];
+        const off = [
+          window.electronAPI.onGeminiStreamToken((token, meta) => events.push({ kind:'token', token, meta })),
+          window.electronAPI.onGeminiStreamDone(meta => events.push({ kind:'done', meta })),
+        ];
+        try {
+          await window.electronAPI.streamGeminiChat('Describe the synthetic image',
+            [${JSON.stringify(testImage)}], 'User: synthetic attachment continuity');
+          for (let i = 0; i < 20 && !events.some(event => event.kind === 'done'); i++) {
+            await new Promise(resolve => setTimeout(resolve, 25));
+          }
+          return events;
+        } finally { off.forEach(stop => stop()); }
+      })()`);
+      assert.deepEqual(events.map(event => event.kind), ['token', 'done']);
+      assert.equal(events[0].meta.streamId, events[1].meta.streamId);
+      assert.equal(events[1].meta.finalText, 'Synthetic image analysis.');
+      assert.deepEqual(canonicalCalls.at(-1), {
+        model: 'synthetic-offline-vision', hasSpeech: false, attachmentCount: 1,
+      });
+      scenarios.push({ id: 'WORK-0061-MANUAL-IMAGE', status: 'PASS', providerCalls: 1, events: 2 });
+    } finally {
+      engine.getActiveModeInfo = previousModeLookup;
+      engine.retrieveUniversalChatContext = previousRagRead;
+      helper.getCapabilities = previousCapabilities;
+    }
     await closeScenario('meeting', 'Escape'); await closeScenario('meeting', 'X');
+    // A saved meeting can still answer when the index is unavailable. Exercise
+    // the same overlay with only the real local meeting record available.
+    const getIndexedRag = state.getRAGManager;
+    const ordinaryBeforeSavedMeeting = ordinaryChatInvocations;
+    state.getRAGManager = () => null;
+    try {
+      const row = await open('meeting', 'saved fallback');
+      assert.match(row.prompt, /saved-meeting-summary|saved-meeting-transcript/);
+      assert.match(row.prompt, /The team selected violet leases for crash recovery/);
+      assert.doesNotMatch(row.prompt, /FORBIDDEN_PERSONAL_CANARY|amber counters/);
+      assert.equal(row.providerCalls, 1);
+      assert.equal(ordinaryChatInvocations, ordinaryBeforeSavedMeeting);
+      row.release();
+      await waitFor(() => row.settledAt, 'saved meeting completes');
+      await waitFor(() => js(`document.body.innerText.includes(${JSON.stringify(row.late)})`), 'saved meeting answer painted');
+      const own = events.filter(event => event.requestId === row.requestId);
+      assert.deepEqual(own.map(event => event.channel), ['rag:stream-chunk', 'rag:stream-chunk', 'rag:stream-complete']);
+      scenarios.push({ id: 'WORK-0061-MEETING-FALLBACK', status: 'PASS', providerCalls: 1,
+        ordinaryChatInvocations: 0, screenshot: await screenshot('saved-meeting-fallback') });
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+      await waitFor(async () => !(await visible('meeting')), 'close saved meeting overlay');
+    } finally {
+      state.getRAGManager = getIndexedRag;
+    }
     // Return through the actual launcher back button to open global search.
     await js(`document.querySelector('button svg.lucide-arrow-left').closest('button').click()`);
     await closeScenario('global', 'Escape'); await closeScenario('global', 'X');
+    // Exercise the real renderer's unavailable path with an unavailable RAG
+    // manager. A project-like question must never enter ordinary chat.
+    const originalGetRAGManager = state.getRAGManager;
+    const beforeUnavailable = records.length;
+    const beforeOrdinaryChat = ordinaryChatInvocations;
+    state.getRAGManager = () => null;
+    try {
+      await input('input[placeholder="Search or ask anything..."]', 'What does my project say about violet leases?');
+      await waitFor(() => js(`(() => {
+        const notice = [...document.querySelectorAll('div')].find(el =>
+          el.children.length === 0 && el.textContent.startsWith('Meeting search is unavailable.'));
+        if (!notice) return false;
+        for (let el = notice; el; el = el.parentElement) {
+          if (Number(getComputedStyle(el).opacity) < 0.98) return false;
+        }
+        const bounds = notice.getBoundingClientRect();
+        return bounds.height > 0 && document.elementFromPoint(
+          bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
+        ) === notice;
+      })()`), 'scoped unavailable notice is painted inside the open overlay');
+      const query = records.slice(beforeUnavailable).find(row => row.channel === 'rag:query-global');
+      assert.equal(query?.result?.fallback, true);
+      assert.equal(ordinaryChatInvocations, beforeOrdinaryChat, 'global overlay must not invoke ordinary chat');
+      scenarios.push({ id: 'ERR-065', status: 'PASS', senderId: query.senderId, ordinaryChatInvocations: 0, screenshot: await screenshot('global-unavailable') });
+    } finally {
+      state.getRAGManager = originalGetRAGManager;
+    }
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+    await waitFor(async () => !(await visible('global')), 'close unavailable overlay');
+
     // A second real launcher/overlay uses another WebContents but the same
     // disposable DB. Closing the first window's query must leave it alive.
     const second = new BrowserWindow({ width: 1000, height: 800, show: false, webPreferences: { preload: path.join(root, 'dist-electron/electron/preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true } });

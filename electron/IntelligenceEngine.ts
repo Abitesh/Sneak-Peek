@@ -33,6 +33,7 @@ import {
     type DocumentQuestionShape,
 } from './llm/documentGroundedPrompt';
 import { HARD_SYSTEM_PROMPT } from './llm/prompts';
+import { shouldSuppressModelOutput, stripLeadingNoActionSentinel } from './llm/promptSystemV2';
 import type { ActiveModeInfo } from './llm/modeProfiles';
 import type { WhatToAnswerRequestSnapshot } from './llm/whatToAnswerRequestSnapshot';
 import { resolveCanonicalTurn } from './llm/resolveCanonicalTurn';
@@ -57,7 +58,12 @@ import { isIntelligenceFlagEnabled } from './intelligence/intelligenceFlags';
 import { applyAnswerContract } from './intelligence/OutputShapeNormalizer';
 import { LiveTranscriptBrain } from './intelligence/LiveTranscriptBrain';
 import { recordAttribution } from './intelligence/IntelligenceAttribution';
+import { streamConversationAction, conversationActionDataScopes } from './intelligence/engine/ConversationAction';
+import type { SneakPeekConversationAction } from './intelligence/engine/types';
+import { assertProviderDataScopes } from './llm/ProviderRouter';
+import { readProviderScopePolicy } from './context-intelligence/policies/provider-scope-policy';
 import { GenerationLifecycle } from './intelligence/engine/GenerationController';
+import { streamLiveAnswer } from './intelligence/engine/LiveAnswer';
 // Type-only (fully erased at runtime, adds no require()). `getKnowledgeOrchestrator()`
 // is declared `: any`, so the orchestrator's real result type is invisible here and
 // tsc collapsed the grounding result to `{}`. Naming it restores genuine checking on
@@ -123,11 +129,11 @@ function detectRefinementIntent(userText: string): { isRefinement: boolean; inte
 // Events emitted by IntelligenceEngine
 export interface IntelligenceModeEvents {
     'assist_update': (insight: string) => void;
-    'suggested_answer': (answer: string, question: string, confidence: number, generationId?: number) => void;
+    'suggested_answer': (answer: string, question: string, confidence: number, generationId?: number, sourceLabel?: string, codeHintRequestId?: string) => void;
     // generationId (audit finding #3): stamped on every live token so the renderer
     // can drop a batch from an answer that was already superseded. Optional →
     // id-less emits still accepted downstream (backward-compatible).
-    'suggested_answer_token': (token: string, question: string, confidence: number, generationId?: number) => void;
+    'suggested_answer_token': (token: string, question: string, confidence: number, generationId?: number, codeHintRequestId?: string) => void;
     // Emitted when an in-flight what-to-answer stream that ALREADY showed a
     // deterministic scaffold ends WITHOUT a final answer (superseded by a newer
     // generation, declined as a non-answer sentinel, or errored). The renderer
@@ -202,6 +208,7 @@ export class IntelligenceEngine extends EventEmitter {
      * still cancel after the foreground controller has been released. */
     private readonly whatToAnswerBackgroundCancellationTokens = new Set<AbortController>();
     private currentGenerationId: number = 0;
+    private conversationActionController: AbortController | null = null;
 
     // Keep reference to LLMHelper for client access
     private llmHelper: LLMHelper;
@@ -843,7 +850,7 @@ export class IntelligenceEngine extends EventEmitter {
             }
             // IMPORTANT: no await between this increment and runWhatShouldISay below —
             // the increment must be synchronous with the new stream launch to preserve generation-id ordering.
-            ++this.currentGenerationId;
+            this.nextGeneration();
         }
 
         // runWhatShouldISay's own default (0.8) applies when the trigger carried none.
@@ -1055,7 +1062,9 @@ export class IntelligenceEngine extends EventEmitter {
             this.assistCancellationToken.abort();
         }
 
-        this.assistCancellationToken = new AbortController();
+        const controller = new AbortController();
+        this.assistCancellationToken = controller;
+        const isCurrent = () => this.assistCancellationToken === controller && !controller.signal.aborted;
         this.setMode('assist');
 
         try {
@@ -1070,33 +1079,49 @@ export class IntelligenceEngine extends EventEmitter {
                 return null;
             }
 
-            const controller = this.assistCancellationToken;
             // V3 (Phase 6): a confidently-resolved transcript question hands the
             // turn to the decision layer; no resolvable question keeps legacy
             // proactive behaviour byte-for-byte.
             const assistV3 = await this.buildV3ForTranscriptSurface();
-            const insight = await this.assistLLM.generate(context, controller.signal, assistV3 ?? undefined);
+            if (!isCurrent()) return null;
+            const mode = this.getActiveModeInfo();
+            const scopes = conversationActionDataScopes({ context });
+            const route = !assistV3 && !mode?.isCustom && !mode?.hasCustomPrompt
+                && !mode?.hasReferenceFiles && !mode?.strictDocumentGroundedActive
+                ? this.llmHelper.getSneakPeekGenerationRouteOptions?.(scopes, false, { verifiedFallbacks: true })
+                : null;
+            const insight = route ? await streamConversationAction({
+                id: mintTurnId(),
+                action: {
+                    kind: 'observe',
+                    promptTier: this.llmHelper.getPromptTier(),
+                    languageInstruction: this.llmHelper.buildLanguageInstructionSuffix?.(),
+                },
+                question: 'Briefly summarize what is happening right now in 1-2 sentences. Do not give advice, just observation.',
+                context: this.llmHelper.fitContextForCurrentModel(context),
+                controller,
+                route,
+                transport: this.llmHelper,
+                isCurrent,
+                onToken() { /* Passive observations are only delivered on completion. */ },
+            }) : await this.assistLLM.generate(context, controller.signal, assistV3 ?? undefined);
 
-            if (controller.signal.aborted) {
-                this.setMode('idle');
-                return null;
-            }
+            if (!isCurrent()) return null;
 
-            if (insight) {
-                this.emit('assist_update', insight);
-            }
-            this.setMode('idle');
-            return insight;
+            const visibleInsight = insight && !shouldSuppressModelOutput(insight)
+                ? stripLeadingNoActionSentinel(insight) : null;
+            if (visibleInsight) this.emit('assist_update', visibleInsight);
+            if (isCurrent()) this.setMode('idle');
+            return visibleInsight;
 
         } catch (error) {
-            if ((error as Error).name === 'AbortError') {
-                return null;
+            if (isCurrent() && (error as Error).name !== 'AbortError') {
+                this.emit('error', error as Error, 'assist');
+                this.setMode('idle');
             }
-            this.emit('error', error as Error, 'assist');
-            this.setMode('idle');
             return null;
         } finally {
-            this.assistCancellationToken = null;
+            if (this.assistCancellationToken === controller) this.assistCancellationToken = null;
         }
     }
 
@@ -1166,7 +1191,7 @@ export class IntelligenceEngine extends EventEmitter {
         // Allocate the generation id before the first await. If an older request
         // resumes after this point, it can only observe itself as superseded; it
         // must never mint a newer id and overtake this request.
-        const generationId = ++this.currentGenerationId;
+        const generationId = this.nextGeneration();
         // Stamp the run's identity before any await: a manual press racing in
         // mints a newer id and the automatic/speculative one is no longer live.
         this.automaticGenerationId = this.nextRunIsAutomatic ? generationId : null;
@@ -1425,6 +1450,7 @@ export class IntelligenceEngine extends EventEmitter {
                         role: 'interviewer',
                         text: verdict.text,
                         timestamp: lastInterim.timestamp,
+                        origin: 'stt',
                         // F9: the interim carries provider punctuation provenance
                         // from the STT seam (provider_interim / unavailable).
                         ...(lastInterim.punctuationSource ? { punctuationSource: lastInterim.punctuationSource } : {}),
@@ -1823,7 +1849,19 @@ export class IntelligenceEngine extends EventEmitter {
             // Stage 2: WTA/interview prefetch is planner-led chat retrieval
             // (allowedSources only — personal-files eligible). Mode-document-
             // grounded turns keep retrieveUniversalModeContext below.
-            const modeContextPromise: Promise<string> = options?.activeSkill || docGroundedEnforcementActive || !wtaPrefetchDecision.allowed
+            const liveAnswerCandidate = !_wtaHasVisualContext
+                && !options?.activeSkill && !options?.promptInstruction
+                && !extractedQuestion.isFollowUp
+                && !snapshotModeInfo?.isCustom && !snapshotModeInfo?.hasCustomPrompt
+                && !snapshotModeInfo?.hasReferenceFiles && !strictDocumentGroundedActive
+                && (!snapshotModeInfo || (
+                    snapshotModeInfo.sourceContract?.origin === 'default_new_mode'
+                    && (snapshotModeInfo.templateType === 'general' || snapshotModeInfo.templateType === 'technical-interview')
+                ))
+                && !snapshotSourceAvailability.hasProfileFacts && !snapshotSourceAvailability.hasJobDescription
+                && (wtaPrefetchAnswerType === 'technical_concept_answer' || wtaPrefetchAnswerType === 'definitional_answer')
+                && this.llmHelper.getGroqFastTextMode?.() !== true;
+            const loadModeContext = (): Promise<string> => options?.activeSkill || docGroundedEnforcementActive || !wtaPrefetchDecision.allowed
                 ? Promise.resolve('')
                 : this.retrieveUniversalChatContext(wtaPrefetchQuery, snapshotModeInfo?.id, {
                     tokenBudget: 1800,
@@ -1836,6 +1874,7 @@ export class IntelligenceEngine extends EventEmitter {
                     answerType: wtaPrefetchAnswerType,
                     forceDocumentGrounding: docGroundedEnforcementActive,
                 });
+            const prefetchedModeContext = liveAnswerCandidate ? undefined : loadModeContext();
 
             // ── Candidate-profile grounding for interviewer questions ─────────
             // The "What to answer?" path streams with ignoreKnowledgeMode=true, so
@@ -3000,7 +3039,28 @@ export class IntelligenceEngine extends EventEmitter {
             // PORT, so grounded turns carry real evidence instead of composing a
             // no-evidence disclosure. The port is the shared fail-closed factory
             // — the same one the manual-chat handler uses.
-            const wtaV3Prompt = await (async () => {
+            // This route uses speech-only evidence. Keep follow-ups, selected
+            // private evidence, mode contracts and screen/skill requests on their
+            // existing paths until they can supply equivalent typed inputs.
+            const canonicalLiveEligible = liveAnswerCandidate
+                && !candidateProfile && !wtaContextOsGeneration
+                && (answerPlan.answerType === 'technical_concept_answer' || answerPlan.answerType === 'definitional_answer')
+                && answerPlan.profileContextPolicy === 'forbidden'
+                && Boolean(answerPlan.question.trim());
+            const liveSpeech = canonicalLiveEligible
+                ? prepareTranscriptForWhatToAnswer(contextItems.filter(turn =>
+                    turn.role !== 'assistant' && (turn.origin === 'stt' || turn.origin === 'test' || Boolean(turn.sttProvider)),
+                ), 12)
+                : '';
+            const canonicalLiveRoute = canonicalLiveEligible
+                ? this.llmHelper.getSneakPeekGenerationRouteOptions?.(
+                    ['transcript'],
+                    false,
+                    { verifiedFallbacks: true },
+                )
+                : null;
+            const modeContextPromise = canonicalLiveRoute ? undefined : prefetchedModeContext ?? loadModeContext();
+            const wtaV3Prompt = canonicalLiveRoute ? undefined : await (async () => {
                 try {
                     const { buildV3Prompt } = require('./context-intelligence/orchestration/engine-bridge');
                     const _ctx = this.v3ModeRetrievalContext();
@@ -3216,7 +3276,21 @@ export class IntelligenceEngine extends EventEmitter {
             // session transcript and usage, and fed to the NEXT turn as
             // prior_assistant_responses evidence.
             const wtaTruncation = { truncated: false };
-            const stream = this.whatToAnswerLLM.generateStream(preparedTranscript, temporalContext, intentResult, imagePaths, screenContext, options?.promptInstruction, options?.activeSkill, options?.domContext, candidateProfile || undefined, answerPlan, modeContextPromise, requestSnapshot, whatToAnswerCancellationToken.signal, wtaTruncation);
+            const stream = canonicalLiveRoute ? streamLiveAnswer({
+                requestId: trace.requestId,
+                question: answerPlan.question,
+                transcript: liveSpeech,
+                liveAnswer: {
+                    plan: answerPlan,
+                    mode: snapshotModeInfo ? { templateType: snapshotModeInfo.templateType } : null,
+                    promptTier: this.llmHelper.getPromptTier(),
+                    languageInstruction: this.llmHelper.buildLanguageInstructionSuffix?.(),
+                },
+                abortSignal: whatToAnswerCancellationToken.signal,
+                route: canonicalLiveRoute,
+                transport: this.llmHelper,
+                truncation: wtaTruncation,
+            }) : this.whatToAnswerLLM.generateStream(preparedTranscript, temporalContext, intentResult, imagePaths, screenContext, options?.promptInstruction, options?.activeSkill, options?.domContext, candidateProfile || undefined, answerPlan, modeContextPromise, requestSnapshot, whatToAnswerCancellationToken.signal, wtaTruncation);
             let streamAborted = false;
             let emittedStreamingToken = false;
             let streamingTokenBuffer = '';
@@ -3268,6 +3342,7 @@ export class IntelligenceEngine extends EventEmitter {
             // guarantee (Issue 1, P0).
             const raceOutcome = await raceStreamWithDeadline({
                 stream: stream as AsyncGenerator<string>,
+                signal: whatToAnswerCancellationToken.signal,
                 firstUsefulDeadlineMs: firstUsefulDeadline,
                 interTokenStallMs: LIVE_INTER_TOKEN_STALL_MS,
                 isSpeculative,
@@ -3333,11 +3408,8 @@ export class IntelligenceEngine extends EventEmitter {
                 },
             });
             // Deadline cleanup aborts the provider transport too, but a deadline
-            // still needs the established visible fallback below. Keep the owned
-            // controller's aborted state out of this decision: cleanup aborts that
-            // same signal for a genuine deadline, while isWtaSuperseded() identifies
-            // only a replaced/reset turn. The race driver returns `aborted` only for
-            // its own supersession predicate, so either case is safe to suppress.
+            // still needs the established visible fallback below. The race
+            // distinguishes external cancellation from its own timeout cleanup.
             if (raceOutcome === 'aborted' || isWtaSuperseded()) {
                 streamAborted = true;
             }
@@ -5474,6 +5546,106 @@ export class IntelligenceEngine extends EventEmitter {
         } catch { return null; }
     }
 
+    private nextGeneration(): number {
+        // Invalidate the previous generation before its abort callbacks run.
+        const generationId = ++this.currentGenerationId;
+        this.conversationActionController?.abort('superseded');
+        this.conversationActionController = null;
+        return generationId;
+    }
+
+    private canonicalConversationAction(
+        generationId: number,
+        action: Omit<SneakPeekConversationAction, 'promptTier' | 'languageInstruction'>,
+        question: string,
+        context: string,
+        onToken: (token: string) => void,
+        imagePaths?: readonly string[],
+        screenText?: string,
+    ): Promise<string | null> | null {
+        // Keep mode-specific sources and prompts on the compatibility path
+        // until their policy can be carried into the canonical action contract.
+        const mode = this.getActiveModeInfo();
+        if (mode?.isCustom || mode?.hasCustomPrompt || mode?.hasReferenceFiles
+            || mode?.documentGroundedCustomModeActive || mode?.strictDocumentGroundedActive) return null;
+        const scopes = conversationActionDataScopes({ context, previousAnswer: action.previousAnswer, imagePaths });
+        if (screenText?.trim() && !scopes.includes('screenshots')) scopes.push('screenshots');
+        const route = this.llmHelper.getSneakPeekGenerationRouteOptions?.(scopes, Boolean(imagePaths?.length));
+        if (!route) return null;
+
+        const controller = new AbortController();
+        this.conversationActionController = controller;
+        const fitted = context ? this.llmHelper.fitContextForCurrentModel(context) : '';
+        return streamConversationAction({
+            id: `session-action-${generationId}`,
+            action: {
+                ...action,
+                promptTier: this.llmHelper.getPromptTier(),
+                languageInstruction: this.llmHelper.buildLanguageInstructionSuffix?.(),
+            },
+            question,
+            context: fitted,
+            imagePaths,
+            screenText: screenText ? this.llmHelper.fitContextForCurrentModel(screenText) : undefined,
+            controller,
+            route,
+            transport: this.llmHelper,
+            isCurrent: () => this.currentGenerationId === generationId,
+            onToken,
+        }).finally(() => {
+            if (this.conversationActionController === controller) this.conversationActionController = null;
+        });
+    }
+
+    private async consumeConversationAction(
+        generationId: number,
+        canonical: Promise<string | null> | null,
+        compatibility: () => AsyncIterable<string> | Promise<AsyncIterable<string>>,
+        publishToken: (token: string) => void,
+        privacy: { context?: string; previousAnswer?: string; imagePaths?: readonly string[]; unknownLineage?: boolean },
+    ): Promise<string | null> {
+        if (canonical) {
+            const answer = await canonical;
+            return this.currentGenerationId === generationId ? answer : null;
+        }
+        // Compatibility generators do not carry typed source provenance through
+        // their provider calls. In particular, prior assistant answers can
+        // contain profile/file/screen facts without any recognizable markup.
+        // Check their possible CLOUD scopes *before* starting generation.
+        // The only exemption is explicit Ollama-only mode, which cannot fall
+        // through to a remote provider. Unknown V3/mode lineage is conservative.
+        const guaranteedLocalOllama = this.llmHelper.isLocalOnly?.() === true
+            && this.llmHelper.getCurrentProvider?.() === 'ollama';
+        if (!guaranteedLocalOllama) {
+            const mode = this.getActiveModeInfo();
+            const modeMayAddPrivateSources = Boolean(mode?.isCustom || mode?.hasCustomPrompt
+                || mode?.hasReferenceFiles || mode?.documentGroundedCustomModeActive
+                || mode?.strictDocumentGroundedActive);
+            const scopes = conversationActionDataScopes({
+                ...privacy,
+                unknownLineage: privacy.unknownLineage || modeMayAddPrivateSources,
+            });
+            if (scopes.length) {
+                assertProviderDataScopes('conversation_action_compatibility', scopes, readProviderScopePolicy());
+            }
+        }
+        if (this.currentGenerationId !== generationId) return null;
+        const stream = await compatibility();
+        if (this.currentGenerationId !== generationId) return null;
+        let answer = '';
+        for await (const token of stream) {
+            if (this.currentGenerationId !== generationId) return null;
+            publishToken(token);
+            answer += token;
+        }
+        return this.currentGenerationId === generationId ? answer : null;
+    }
+
+    private mayUseTranscriptV3(): boolean {
+        const { isContextIntelligenceV3Enabled } = require('./context-intelligence/contracts/flag');
+        return isContextIntelligenceV3Enabled() && (this.session.getContext?.(120)?.length ?? 0) > 0;
+    }
+
     async runFollowUp(intent: string, userRequest?: string): Promise<string | null> {
         console.log(`[IntelligenceEngine] runFollowUp called with intent: ${intent}`);
         const lastMsg = this.session.getLastAssistantMessage();
@@ -5523,28 +5695,24 @@ export class IntelligenceEngine extends EventEmitter {
                 }
             } catch { /* Context OS is additive — never break follow-up */ }
 
-            const generationId = ++this.currentGenerationId;
-            let fullRefined = "";
-            const stream = this.followUpLLM.generateStream(
-                lastMsg,
-                refinementRequest,
-                context,
-                followUpContractRule ? { contractRule: followUpContractRule } : undefined
+            const generationId = this.nextGeneration();
+            const publishToken = (token: string) => this.emit('refined_answer_token', token, intent);
+            const canonical = this.canonicalConversationAction(
+                generationId, { kind: 'refine', previousAnswer: lastMsg, sourceRule: followUpContractRule },
+                refinementRequest, context, publishToken,
             );
-            let streamAborted = false;
+            const fullRefined = await this.consumeConversationAction(
+                generationId, canonical,
+                () => this.followUpLLM!.generateStream(
+                    lastMsg, refinementRequest, context,
+                    followUpContractRule ? { contractRule: followUpContractRule } : undefined,
+                ),
+                publishToken,
+                { context, previousAnswer: lastMsg },
+            );
+            if (fullRefined === null) return null;
 
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] _follow_up stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
-                }
-                this.emit('refined_answer_token', token, intent);
-                fullRefined += token;
-            }
-
-            if (!streamAborted && fullRefined) {
+            if (fullRefined) {
                 this.session.addAssistantMessage(fullRefined, undefined, 'what_to_answer');
                 this.emit('refined_answer', fullRefined, intent);
 
@@ -5568,7 +5736,7 @@ export class IntelligenceEngine extends EventEmitter {
                 });
             }
 
-            this.setMode('idle');
+            if (this.currentGenerationId === generationId) this.setMode('idle');
             return fullRefined;
 
         } catch (error) {
@@ -5668,24 +5836,22 @@ export class IntelligenceEngine extends EventEmitter {
                 if (recapContract) recapContractRule = contextOs.buildRecapContractRule(recapContract);
             } catch { /* Context OS is additive — never break recap */ }
 
-            const generationId = ++this.currentGenerationId;
-            let fullSummary = "";
-            const stream = this.recapLLM.generateStream(context, recapContractRule ? { contractRule: recapContractRule } : undefined);
-            let streamAborted = false;
-
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] _recap stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
-                }
-                this.emit('recap_token', token);
-                fullSummary += token;
-            }
+            const generationId = this.nextGeneration();
+            const publishToken = (token: string) => this.emit('recap_token', token);
+            const canonical = this.canonicalConversationAction(
+                generationId, { kind: 'recap', sourceRule: recapContractRule },
+                'Recap the conversation so far.', context, publishToken,
+            );
+            const fullSummary = await this.consumeConversationAction(
+                generationId, canonical,
+                () => this.recapLLM!.generateStream(context, recapContractRule ? { contractRule: recapContractRule } : undefined),
+                publishToken,
+                { context },
+            );
+            if (fullSummary === null) return null;
 
             // Only emit final if not aborted
-            if (!streamAborted && fullSummary && this.currentGenerationId === generationId) {
+            if (fullSummary && this.currentGenerationId === generationId) {
                 this.emit('recap', fullSummary);
 
                 // Track recap as an assistant message so "make it shorter" / other
@@ -5733,27 +5899,23 @@ export class IntelligenceEngine extends EventEmitter {
             // If no transcript/manual turn yet, use a generic prompt — the LLM will ask a scoping question
             const context = rawContext || '[No transcript or recent manual answer available yet. Generate an opening clarifying question to understand the scope and constraints of the upcoming problem.]';
 
-            const generationId = ++this.currentGenerationId;
-            let fullClarification = "";
-            const clarifyV3 = await this.buildV3ForTranscriptSurface('clarify');
-            const stream = this.clarifyLLM.generateStream(context, clarifyV3 ?? undefined);
-            let streamAborted = false;
-
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] _clarify stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
-                }
-                this.emit('clarify_token', token);
-                fullClarification += token;
-            }
-
-            if (streamAborted) {
-                this.setMode('idle');
-                return null;
-            }
+            const generationId = this.nextGeneration();
+            const publishToken = (token: string) => this.emit('clarify_token', token);
+            // V3 can supply scoped mode/profile/meeting evidence for a live
+            // question. The snapshot-only action is safe when that path is absent.
+            const canonical = this.mayUseTranscriptV3() ? null : this.canonicalConversationAction(
+                generationId, { kind: 'clarify' }, 'Suggest one clarifying question.', rawContext || '', publishToken,
+            );
+            const fullClarification = await this.consumeConversationAction(
+                generationId, canonical,
+                async () => {
+                    const clarifyV3 = await this.buildV3ForTranscriptSurface('clarify');
+                    return this.clarifyLLM!.generateStream(context, clarifyV3 ?? undefined);
+                },
+                publishToken,
+                { context: rawContext || '', unknownLineage: this.mayUseTranscriptV3() },
+            );
+            if (fullClarification === null) return null;
 
             // Only update history and emit final if not aborted
             if (fullClarification && this.currentGenerationId === generationId) {
@@ -5808,26 +5970,19 @@ export class IntelligenceEngine extends EventEmitter {
                 return null;
             }
 
-            const generationId = ++this.currentGenerationId;
-            let fullQuestions = "";
-            const stream = this.followUpQuestionsLLM.generateStream(context);
-            let streamAborted = false;
-
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] _follow_up_questions stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
-                }
-                this.emit('follow_up_questions_token', token);
-                fullQuestions += token;
-            }
-
-            if (streamAborted) {
-                this.setMode('idle');
-                return null;
-            }
+            const generationId = this.nextGeneration();
+            const publishToken = (token: string) => this.emit('follow_up_questions_token', token);
+            const canonical = this.canonicalConversationAction(
+                generationId, { kind: 'follow-up-questions' },
+                'Suggest useful follow-up questions for this conversation.', context, publishToken,
+            );
+            const fullQuestions = await this.consumeConversationAction(
+                generationId, canonical,
+                () => this.followUpQuestionsLLM!.generateStream(context),
+                publishToken,
+                { context },
+            );
+            if (fullQuestions === null) return null;
 
             if (fullQuestions && this.currentGenerationId === generationId) {
                 this.emit('follow_up_questions_update', fullQuestions);
@@ -6009,7 +6164,7 @@ export class IntelligenceEngine extends EventEmitter {
      *   2. session.detectedCodingQuestion (detected from interviewer transcript)
      *   3. transcriptContext (last N seconds of conversation — fallback for inference)
      */
-    async runCodeHint(imagePaths?: string[], problemStatement?: string): Promise<string | null> {
+    async runCodeHint(imagePaths?: string[], problemStatement?: string, codeHintRequestId?: string): Promise<string | null> {
         if (this.assistCancellationToken) {
             this.assistCancellationToken.abort();
             this.assistCancellationToken = null;
@@ -6037,31 +6192,49 @@ export class IntelligenceEngine extends EventEmitter {
 
             console.log(`[IntelligenceEngine] Code hint — question source: ${questionContext ? (questionSource ?? 'passed') : 'none'}, transcript lines: ${transcriptContext ? transcriptContext.split('\n').length : 0}, images: ${imagePaths?.length ?? 0}`);
 
-            const generationId = ++this.currentGenerationId;
-            let fullHint = "";
-            const stream = this.codeHintLLM.generateStream(
-                imagePaths,
-                questionContext ?? undefined,
-                questionSource,
-                transcriptContext ?? undefined
-            );
-
-            let streamAborted = false;
-
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] code_hint stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
+            const generationId = this.nextGeneration();
+            // A provider may yield after STOP/supersession. Guard the renderer
+            // event at the final emission boundary, even if an upstream stream
+            // adapter accidentally forwards a late chunk.
+            const publishToken = (token: string) => {
+                if (this.currentGenerationId === generationId) {
+                    // The renderer may already have a batched token pending when STOP
+                    // is clicked. Correlate UI-initiated Code Hints with the exact
+                    // request so a delayed batch cannot reopen a stopped answer.
+                    if (codeHintRequestId) {
+                        this.emit('suggested_answer_token', token, 'Code Hint', 1.0, generationId, codeHintRequestId);
+                    } else {
+                        this.emit('suggested_answer_token', token, 'Code Hint', 1.0);
+                    }
                 }
-                this.emit('suggested_answer_token', token, 'Code Hint', 1.0);
-                fullHint += token;
-            }
-
-            if (streamAborted) {
-                this.setMode('idle');
-                return null;
+            };
+            // Text-only hints need no vision capability. Image-bearing hints still
+            // require the selected model to support every forwarded attachment.
+            const canonical = !imagePaths?.length || this.llmHelper.getCapabilities?.().supportsImages
+                ? this.canonicalConversationAction(
+                    generationId, { kind: 'code-hint' },
+                    'Review the partial code and give a short hint, including the next step.',
+                    questionContext ?? transcriptContext ?? '', publishToken, imagePaths,
+                )
+                : null;
+            let fullHint = '';
+            if (canonical) {
+                const answer = await canonical;
+                if (answer === null || this.currentGenerationId !== generationId) return null;
+                fullHint = answer;
+            } else {
+                const stream = this.codeHintLLM.generateStream(
+                    imagePaths, questionContext ?? undefined, questionSource, transcriptContext ?? undefined,
+                );
+                for await (const token of stream) {
+                    if (this.currentGenerationId !== generationId) {
+                        await stream.return(undefined);
+                        return null;
+                    }
+                    publishToken(token);
+                    fullHint += token;
+                }
+                if (this.currentGenerationId !== generationId) return null;
             }
 
             if (!fullHint || fullHint.trim().length < 5) {
@@ -6076,7 +6249,11 @@ export class IntelligenceEngine extends EventEmitter {
                 answer: fullHint
             });
 
-            this.emit('suggested_answer', fullHint, 'Code Hint', 1.0);
+            if (codeHintRequestId) {
+                this.emit('suggested_answer', fullHint, 'Code Hint', 1.0, generationId, undefined, codeHintRequestId);
+            } else {
+                this.emit('suggested_answer', fullHint, 'Code Hint', 1.0);
+            }
             this.setMode('idle');
             return fullHint;
 
@@ -6098,6 +6275,7 @@ export class IntelligenceEngine extends EventEmitter {
         }
 
         this.setMode('brainstorm');
+        let generationId: number | undefined;
 
         try {
             if (!this.brainstormLLM) {
@@ -6118,30 +6296,34 @@ export class IntelligenceEngine extends EventEmitter {
                 return msg;
             }
 
+            const actionGenerationId = this.nextGeneration();
+            generationId = actionGenerationId;
+            const publishToken = (token: string) => this.emit('suggested_answer_token', token, 'Brainstorming Approaches', 1.0);
+            const transcriptV3 = this.mayUseTranscriptV3();
+            const suppliedProblem = problemStatement?.trim();
+            // Explicit screen text carries screenshot privacy even without image pixels.
+            const canonical = !transcriptV3 && (!imagePaths?.length || this.llmHelper.getCapabilities?.().supportsImages)
+                ? this.canonicalConversationAction(
+                    actionGenerationId, { kind: 'brainstorm' }, 'Brainstorm approaches and their trade-offs.',
+                    resolvedProblem && !suppliedProblem
+                        ? `<problem_statement>\n${resolvedProblem}\n</problem_statement>\n\n${context}`
+                        : context,
+                    publishToken, imagePaths, suppliedProblem,
+                )
+                : null;
             if (resolvedProblem) {
                 context = `<problem_statement>\n${resolvedProblem}\n</problem_statement>\n\n${context}`;
             }
-            const generationId = ++this.currentGenerationId;
-            let fullResult = "";
-            const brainstormV3 = await this.buildV3ForTranscriptSurface('brainstorm');
-            const stream = this.brainstormLLM.generateStream(context, imagePaths, brainstormV3 ?? undefined);
-            let streamAborted = false;
-
-            for await (const token of stream) {
-                if (this.currentGenerationId !== generationId) {
-                    console.log('[IntelligenceEngine] brainstorm stream aborted by new generation');
-                    await stream.return(undefined);
-                    streamAborted = true;
-                    break;
-                }
-                this.emit('suggested_answer_token', token, 'Brainstorming Approaches', 1.0);
-                fullResult += token;
-            }
-
-            if (streamAborted) {
-                this.setMode('idle');
-                return null;
-            }
+            let fullResult = await this.consumeConversationAction(
+                actionGenerationId, canonical,
+                async () => {
+                    const brainstormV3 = await this.buildV3ForTranscriptSurface('brainstorm');
+                    return this.brainstormLLM!.generateStream(context, imagePaths, brainstormV3 ?? undefined);
+                },
+                publishToken,
+                { context, imagePaths, unknownLineage: this.mayUseTranscriptV3() },
+            );
+            if (fullResult === null) return null;
 
             if (!fullResult || fullResult.trim().length < 5) {
                 fullResult = "I couldn't generate brainstorm approaches. Make sure your question is visible and try again.";
@@ -6160,8 +6342,10 @@ export class IntelligenceEngine extends EventEmitter {
             return fullResult;
 
         } catch (error) {
-            this.emit('error', error as Error, 'brainstorm');
-            this.setMode('idle');
+            if (generationId === undefined || generationId === this.currentGenerationId) {
+                this.emit('error', error as Error, 'brainstorm');
+                this.setMode('idle');
+            }
             return null;
         }
     }
@@ -6211,7 +6395,7 @@ export class IntelligenceEngine extends EventEmitter {
      */
     reset(): void {
         this.activeMode = 'idle';
-        this.currentGenerationId++; // Increment to break all active LLM streams
+        this.nextGeneration(); // Invalidate active output and cancel the action transport.
         if (this.whatToAnswerCancellationToken) {
             this.whatToAnswerCancellationToken.abort('engine_reset');
             this.whatToAnswerCancellationToken = null;

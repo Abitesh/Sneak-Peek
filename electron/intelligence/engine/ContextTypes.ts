@@ -1,3 +1,5 @@
+import type { TurnDecision } from '../../context-intelligence/contracts/types';
+
 /**
  * Canonical context-planning contracts for Sneak-Peek Intelligence.
  *
@@ -48,6 +50,8 @@ export interface ContextPlan {
   retrievalSources: ContextSource[];
   /** Human-readable planning rationale, safe for diagnostics; contains no source content. */
   rationale: string[];
+  /** Fixed claim/source restrictions consumed by the profile retrieval port. */
+  profileRead?: Readonly<Pick<TurnDecision, 'scope' | 'claimRequirements' | 'resolvedQuestion' | 'retrievalPlan'>>;
 }
 
 export interface ContextAvailability {

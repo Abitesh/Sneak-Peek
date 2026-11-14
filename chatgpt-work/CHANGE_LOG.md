@@ -582,3 +582,132 @@ Repo protection: no changes to active V3/legacy compatibility, canonical RAG, au
 **GitHub evidence:** The same run failed Windows `test:intelligence` with 11 source-reading ENOENT cases in Change13/15/16 tests; Windows installer/build, `src/lib` and build-script suites passed. The three source files still use `new URL(import.meta.url).pathname` as a native Windows path, producing a malformed drive prefix. WORK-0054 proposes **three test-file-only** changes to `fileURLToPath(import.meta.url)`, preserving existing assertions and production code. JavaScript syntax and Windows path semantics were checked in an isolated fixture; actual Windows CI remains pending. Patch prepared, **not applied/committed**.
 
 **Records:** WORK-0052 original tracking patch failed strict application because its WORK-0047 source snapshot was newer than the actual tracked CHG-19 files. This revised records patch is rebased against byte-matching owner-uploaded `Sneak-Peek-CHG19-Final-Review.zip`, whose four blob hashes equal the tracked `d90bc8a3` document files. No files in the owner checkout have been changed by this preparation.
+
+## WORK-0055 — CHG-20 partial architecture unification (2026-11-12)
+
+**Scope:** TASK-0003, CHG-20, ERR-065. Patch only against `96cfd2cacc1dbae4f2e97c3318b8ffa9554ccbc9`. Standard text refinement, recap, follow-up questions, eligible clarification and text brainstorming use a bounded canonical action adapter. The same provider dispatch binder serves manual/RAG and actions. Global unavailable search no longer enters ordinary chat. Scoped compatibility remains for authorized source/mode, transport and multimodal cases.
+
+**Implementation paths:** `electron/IntelligenceEngine.ts`, `electron/LLMHelper.ts`, `electron/ipcHandlers.ts`, `electron/intelligence/engine/{ContextPlanner,ConversationAction,GenerationController,PromptAssembler,ResponsePlanner,SneakPeekIntelligenceEngine,types}.ts`, `src/components/GlobalChatOverlay.tsx`. Tests/evidence: `electron/services/__tests__/CanonicalConversationActions.test.mjs`, `electron/rag/__tests__/LocalPrivateRagMode.test.mjs`, `scripts/audit/chg19-desktop-acceptance.cjs`, `scripts/audit/chg20-surface-map.md`. Records: `ROADMAP.md`, `chatgpt-work/{TASK_TRACKER,ERROR_LOG,HANDOFF,PROJECT_OVERVIEW}.md`, `chatgpt-work/PROJECT_TREE.txt`.
+
+**Executed on macOS arm64 26.4.1:** `npm run typecheck:electron`, `npm run typecheck:premium`, `npm run typecheck:ts5:electron`, `npm run build`, `npm run build:electron` all exit 0. The focused command in the surface map passed 49/49. `npm test` final 9,003 passed/0 failed/67 skipped; `npm run test:intelligence` 2,142 passed/0 failed/9 TODO (explicit engine glob included); `npm run test:lib` 382 passed/0 failed/1 skipped; `npm run test:scripts` 97 passed/0 failed. Model verification (`node scripts/download-models.js --verify`), native architecture (`node scripts/verify-native-arch.js`), sqlite-vec under Electron and `npm run verify:packaged-local-assets` pass. Existing dependencies and model/native fixtures were copied locally for this isolated verification. No generated output or hydrated assets are in the patch.
+
+**Verification history:** Initial Electron suite measured 9,002 passed, 1 failed, 67 skipped. The existing RAG provider-neutral source test expected a direct IPC call to `streamFinalPrompt`. It now checks delegation to the shared binder and rejects direct Gemini/legacy dispatch. New behavioral cases exercised the same binder with the selected provider/model, precommit recovery and postcommit failure. The final full suite passed. Both real desktop launches passed with the same disposable profile and Seatbelt sandbox. Meeting/global Escape/X each showed one chunk before cancellation and zero completions/errors/late events. Repeated Enter invoked one query. Supersession, independent sender and relaunch each completed the surviving request once. ERR-065 observed zero ordinary-chat calls and a painted unavailable message. Final logs and screenshot evidence are under `/tmp/sneak-chg20.xszQTf`. The initial screenshot was captured during the overlay animation and was superseded by the fully painted capture.
+
+**Status:** C20-AC1 FAIL and C20-AC2 PENDING. See the surface map for remaining active branches and parity requirements. Windows, hosted CI, live providers, physical audio/capture, and end-to-end desktop testing of all migrated live actions were not run. CHG-20 remains In progress. No primary worktree edits, commit or push.
+
+## WORK-0056 — Canonical live concept answers, passive assist, code hints and selected transports (2026-11-13)
+
+TASK-0003 / CHG-20 / ERR-066. Applied directly to the existing primary checkout at `96cfd2cacc1dbae4f2e97c3318b8ffa9554ccbc9`. The staged WORK-0055/R2 diff has the same SHA-256 before and after work. The active WTA caller selects the bounded canonical speech route for eligible concept and definition questions and preserves its event, usage and session lifecycle. Tagged speech enters its evidence window. Typed chat, prior AI output and restated long-term memory do not enter that window. Passive assist reuses the bounded session action and guards cancellation by controller identity. Supported code-hint models receive validated image attachments. Selected custom/cURL/NIM/LiteLLM text dispatch uses the canonical transport, provider rules and captured identity. Retained compatibility is listed in the surface map.
+
+Production paths are `electron/{IntelligenceEngine,LLMHelper,SessionTracker,ipcHandlers}.ts`, `electron/intelligence/engine/{ContextPlanner,ConversationAction,GenerationController,LiveAnswer,ResponsePlanner,RetrievalCoordinator,SneakPeekIntelligenceEngine,types}.ts`, and `electron/llm/{ProviderRouter,liveDeadlines}.ts`. Tests are `electron/services/__tests__/{CanonicalConversationActions,WtaV3CodingContractWiring2026_08_11}.test.mjs`, `electron/llm/__tests__/{StreamFinalPromptBudget2026_11_08,WtaParallelPrestream,WtaPrestreamOrdering2026_08_18}.test.mjs`, `electron/context-intelligence/__tests__/CodingTaskFromRouter2026_08_11.test.mjs` and `electron/intelligence/engine/__tests__/ProviderGenerationRouting.test.mjs`. Acceptance uses `scripts/audit/chg19-desktop-acceptance.cjs`. Records are `ROADMAP.md`, `scripts/audit/chg20-surface-map.md`, and `chatgpt-work/{TASK_TRACKER,ERROR_LOG,HANDOFF}.md`.
+
+**Executed on macOS arm64 26.4.1.** Logs and exact commands are saved in `/tmp/sneak-work0056.Uc0fqS` (`verify.sh` and `status.txt`). All three typechecks, both builds, model verification, native architecture, SQLite vector loading and source-mode packaged assets passed. Focused 71 passed, 0 failed. Full Electron with concurrency 4 had 9,017 passed, 0 failed, 67 skipped. Intelligence had 2,144 passed, 0 failed, 9 TODO. Library had 382 passed, 0 failed, 1 skipped. Scripts had 97 passed and 0 failed. Initial runs exposed two source-text tests locating a previous assignment expression. The assertions now locate the gated V3 branch and still check its coding contract. Final full reruns passed.
+
+**Desktop.** The disposable Seatbelt run passed two launches, genuine WTA and code-hint preload/IPC calls with one selected fake provider dispatch apiece, scoped meeting/global overlay cancellation and sender isolation, IPC supersession, repeated Enter and relaunch. ERR-065 observed zero ordinary-chat calls. Evidence is `/tmp/sneak-work0056.Uc0fqS/desktop-evidence/result.json`. The temporary launcher used the original sandbox and compared pre/post Git status and paths because the CHG-19 path allowlist predates this work.
+
+CHG-20 remains In progress. C20-AC1 FAIL because independent routes remain active. C20-AC2 PENDING for cross-surface desktop parity and Windows/native and live-provider verification. The next implementation boundary is WTA's authorized mode/profile/file evidence and its recovery calls.
+
+## WORK-0057 — Text-only canonical code hints (2026-11-14)
+
+TASK-0003 / CHG-20. Owner authorized completing all remaining routes directly in the dirty primary checkout. This execution implemented only the text-only code-hint dispatch; the overall request remains incomplete. `electron/IntelligenceEngine.ts` now admits text-only hints to the existing canonical action without requiring vision capability. Image capability gates and custom/mode compatibility remain. `electron/services/__tests__/CanonicalConversationActions.test.mjs` adds behavior tests for canonical dispatch, token/final/history/usage parity and STOP with delayed output.
+
+Executed: `npm run build:electron` and `npm run typecheck:electron` exit 0. `node scripts/run-with-env.mjs --default-tmpdir NATIVELY_TEST_USERDATA=sneak-chg20-work0057 --set ELECTRON_RUN_AS_NODE=1 -- electron --test electron/services/__tests__/CanonicalConversationActions.test.mjs` passed 24, failed 0, skipped 0, TODO 0. Logs: `/tmp/chg20-work0057-build.log`, `/tmp/chg20-work0057-typecheck.log`, `/tmp/chg20-work0057-tests.log`. `git diff HEAD --check` and `git diff --cached --check` passed. Full suites, renderer acceptance, Windows and live providers were not run. Existing staged changes preserved; no staging/commit/push. Tracking writes: TASK_TRACKER, HANDOFF, surface map and this entry. C20-AC1 FAIL; C20-AC2 PENDING. No next-roadmap clearance.
+
+
+## WORK-0058 — WORK-0057 Code Hint token and screenshot-scope regression hardening (2026-11-14)
+
+**Task:** TASK-0003 / CHG-20. **Status:** Patch prepared for owner, not applied locally to the owner's Mac; macOS behavioral verification pending.
+
+**Input:** Owner-supplied WORK-0057 six-file ZIP layered over the prior full WORK-0056 source snapshot, plus both read-only Copilot reports. Copilot found no confirmed production regression in WORK-0057 but recommended checking exact renderer event shape, rejection of late post-STOP tokens, and screenshot-derived text scope authorization. The separate C20 completion report confirms independent generation routes still exist; this scoped patch does not claim architectural completion.
+
+**Production change:** `electron/IntelligenceEngine.ts` — guard Code Hint `suggested_answer_token` emission by the active generation ID. This is an additional final-boundary defense against a late callback after STOP or supersession; it preserves the existing event shape, selected model, and legacy compatibility.
+
+**Regression tests:** `electron/services/__tests__/CanonicalConversationActions.test.mjs` — exact token and final event arguments, explicit lack of late tokens after releasing a cancelled fake provider, and screenshot-derived text carrying the `screenshots` scope under allow/deny policies even with no image attachment. No test assertions or production privacy restrictions were weakened.
+
+**Tracking files:** `chatgpt-work/TASK_TRACKER.md`, `chatgpt-work/HANDOFF.md`, `chatgpt-work/CHANGE_LOG.md`.
+
+**Validation to run on owner Mac:** `npm run build:electron`, `npm run typecheck:electron`, focused `CanonicalConversationActions.test.mjs`, then full regression suites and desktop acceptance as appropriate. Offline snapshot patch-application, JS syntax and TS parse checks are reported with the delivery; no macOS app launch or test result is implied. The existing `private_vision` setting protects image pixels, and the `screenshots` data scope protects screenshot-derived textual context; a broader on-device OCR-text requirement needs an explicit product decision. **C20-AC1 FAIL, C20-AC2 PENDING; CHG-21 gated.**
+
+## WORK-0059 — Preserve canonical provider-scope denial error (2026-11-14)
+
+**Task/error:** CHG-20 / TASK-0003 / ERR-067. **State:** Patch prepared; owner macOS verification pending.
+
+**Input evidence:** WORK-0058 owner runs: Electron typecheck and build passed; focused 40 pass/1 fail; full Electron 9,020 pass/1 fail/67 skipped. Both failed only on the same screenshot-derived text denial error-message assertion. No cloud provider dispatch, history, or usage occurred in the failed case.
+
+**Changed production source:** `electron/intelligence/engine/SneakPeekIntelligenceEngine.ts` now carries the terminal `FAILED` lifecycle reason to `providerAttempt.error`. This fixes the loss of `no available provider` before the existing RagIpcStream error handler without changing provider ordering, scopes, data access, token flow or cancellation.
+
+**Added regression:** `electron/intelligence/engine/__tests__/SneakPeekIntelligenceEngine.test.mjs` now exercises a data-scope-denied canonical generation route and checks no provider call, no tokens, failed lifecycle, meaningful provider error and no final answer. The original failing test in `CanonicalConversationActions.test.mjs` remains unchanged.
+
+**Tracking:** `chatgpt-work/{ERROR_LOG,TASK_TRACKER,CHANGE_LOG,HANDOFF}.md`. **Verification:** patch source-snapshot checks, syntax/parsing and clean apply/reverse-apply to be performed offline; macOS Electron typecheck/build, focused test and full Electron suites are not yet rerun for this correction. **C20-AC1 FAIL / C20-AC2 PENDING.**
+
+
+**Post-WORK-0059 acceptance update (owner + independent reviewer, 2026-11-14):** After applying WORK-0059, the owner confirmed focused 57/57, full Electron 9,021 passed/0 failed/67 skipped, Electron typecheck and build all pass. The previously failing screenshot-scope-denial assertion passed with no cloud dispatch. Read-only Copilot additionally passed 42 targeted tests and reported WORK-0058 PASS / WORK-0059 PASS with no confirmed regressions. This evidence resolves ERR-067 within the tested scope. The known queued Code Hint renderer delivery risk is addressed as separate WORK-0060; full CHG-20 remains in progress.
+
+## WORK-0060 — Renderer Code Hint queued-token ownership after STOP/supersession (2026-11-14)
+
+**Task:** TASK-0003 / CHG-20. **Status:** Patch prepared against the owner-provided WORK-0059 source state; Mac typechecks, full Electron tests, and desktop acceptance pending.
+
+**Input / review:** The owner confirmed WORK-0059's focused tests 57/57 and full Electron 9,021 pass/0 fail/67 skipped, plus Electron typecheck/build success. A follow-up read-only Copilot review accepted WORK-0058 and WORK-0059, with no confirmed new regressions, and independently passed 42 targeted tests. It identified an unverified delivery race: Code Hint tokens already queued for main-to-renderer IPC could be delivered after STOP, because the renderer accepts generation-ID-less batches. This is a proactive cancellation-parity hardening change, not an observed privacy leak.
+
+**Production changes:** `electron/{IntelligenceEngine,IntelligenceManager,ipcHandlers,main,preload}.ts`, `src/{components/SneakPeekInterface.tsx,lib/chatStreamGuard.mjs,lib/chatStreamGuard.d.mts,types/electron.d.ts}`. UI-initiated Code Hints receive a bounded opaque `codeHintRequestId` at invocation. The handler validates it; the engine includes it and its existing generation ID in tokens/final events without adding it to model prompts. The main IPC bridge forwards the ID unchanged. Renderer STOP immediately releases ownership; an old pending batch or final cannot enter a stopped/superseded UI action or corrupt the next Code Hint row. Id-less legacy callers and other answer surfaces retain their previous contracts.
+
+**Tests:** `electron/services/__tests__/{CanonicalConversationActions,ChatStreamGuard}.test.mjs` adds direct engine dispatch/metadata checks, a queued-batch/STOP/new-request reducer scenario and structural checks for the complete preload→IPC→manager→engine→main→renderer chain. Local container ran `node --test electron/services/__tests__/ChatStreamGuard.test.mjs` with 19 passed/0 failed, JS syntax checks and TypeScript parse/transpile checks for modified TS/TSX files. Full Mac typechecks/builds, compiled engine integration and renderer-to-IPC desktop acceptance have not run on this patch. Do not claim C20-AC1/AC2 passed; remaining active independent generator routes are unchanged. No commit, push, or owner Git index change was performed.
+
+**Tracking files:** `chatgpt-work/{CHANGE_LOG,HANDOFF,TASK_TRACKER}.md`. No ERR ID created because Copilot described this as an unverified delivery risk rather than an observed defect.
+
+## WORK-0061 — Canonical profile reads, scoped meeting fallback, vision and document drafts (2026-11-14)
+
+TASK-0003 / CHG-20 / ERR-068. Implemented in the primary checkout on main at 96cfd2c. The request covered all 15 tasks. This work completed the meeting/global overlay migration and advanced Tasks 1, 2, 4–7, 10–12. Task 3 and Task 9 still have independent production calls. Task 13 is incomplete.
+
+Production changes moved the profile sub-source decision ahead of retrieval, admitted bounded technical-interview concept turns, moved saved-meeting fallback out of the renderer, migrated the callable image-file analysis and eligible manual image/brainstorm turns, and replaced the three specific draft generators. Canonical custom/cURL transport supports one image with existing outbound policy. The desktop regression initially failed because the seed's legacy-migrated General contract did not qualify for canonical manual image generation. After correcting that gate, the real preload and main IPC produced one selected-provider call and matching token/completion IDs. No failed desktop record was removed.
+
+Files changed in the working directory:
+
+- `chatgpt-work/ERROR_LOG.md`
+- `electron/IntelligenceEngine.ts`
+- `electron/LLMHelper.ts`
+- `electron/context-intelligence/orchestration/orchestrator.ts`
+- `electron/context-intelligence/retrieval/legacy-retrieval-port.ts`
+- `electron/context-intelligence/retrieval/profile-retrieval-port.ts`
+- `electron/intelligence/context-os/evidencePack.ts`
+- `electron/intelligence/engine/CanonicalRagRetrievalAdapter.ts`
+- `electron/intelligence/engine/ContextPlanner.ts`
+- `electron/intelligence/engine/ContextTypes.ts`
+- `electron/intelligence/engine/ConversationAction.ts`
+- `electron/intelligence/engine/PromptAssembler.ts`
+- `electron/intelligence/engine/ResponsePlanner.ts`
+- `electron/intelligence/engine/RetrievalCoordinator.ts`
+- `electron/intelligence/engine/SneakPeekIntelligenceEngine.ts`
+- `electron/intelligence/engine/__tests__/Change13PrimaryManualPath.test.mjs`
+- `electron/intelligence/engine/__tests__/Change15MeetingLiveIntelligence.test.mjs`
+- `electron/intelligence/engine/__tests__/Change18RagIpcIntegration.test.mjs`
+- `electron/intelligence/engine/__tests__/ContextPlanner.test.mjs`
+- `electron/intelligence/engine/__tests__/ProviderGenerationRouting.test.mjs`
+- `electron/intelligence/engine/types.ts`
+- `electron/ipcHandlers.ts`
+- `electron/llm/ProviderRouter.ts`
+- `electron/llm/__tests__/StreamFinalPromptBudget2026_11_08.test.mjs`
+- `electron/services/__tests__/CanonicalConversationActions.test.mjs`
+- `electron/services/knowledge/v3ProfileSources.ts`
+- `scripts/audit/chg19-desktop-acceptance.cjs`
+- `scripts/audit/chg20-surface-map.md`
+- `src/components/MeetingChatOverlay.tsx`
+- `chatgpt-work/TASK_TRACKER.md`
+- `chatgpt-work/HANDOFF.md`
+
+**Verified on macOS arm64 26.4.1.** Three typechecks, renderer and Electron builds, 136 focused tests (0 failed/skipped/TODO), both whitespace commands, and two isolated desktop launches exited 0. Initial profile test used an invalid fixture template identifier and was corrected to the production identifier. Logs and exact commands: `/tmp/sneak-work0061.s756pZ`. Desktop report and screenshots: `/var/folders/ps/v67bmvpx4zv06tvclcd18rw40000gn/T/sneak-chg19-desktop-NBcLs7`. Confirmed one provider call and zero ordinary-chat calls for the real meeting overlay's saved-record fallback. Verified standalone image analysis, rejection of an out-of-profile image symlink, manual image streaming and follow-up email over actual preload. Cover-letter and negotiation tests use the real factory with synthetic profile records and denied-cloud cases. No paid/provider network access, owner profile, Windows run, or latency claim.
+
+**Open.** C20-AC1 FAIL, C20-AC2 PENDING. The known WORK-0060 assertion and full suites were deferred at the owner's required Task 14 gate. Critical remaining contracts are grounded WTA and its repair source/provider pinning, V3 assist and action variants, manual compatibility, and Phone Mirror sender binding. No CHG-21 advance. Staged diff hash retained `70f979b59cc5dc7e0d1adc8710ef1a88be3e15e2a1d3fd6fb4f47ae8a831453e`.
+
+
+## WORK-0062 — Phone Mirror canonical request/dispatch and WORK-0060 assertion repair (2026-11-14)
+
+TASK-0003 / CHG-20. Prepared as a patch against the owner's exact WORK-0061 changed-file snapshot, with earlier WORK-0055/R2 through WORK-0060 overlays retained. This is not a claim of application to the Mac or of full CHG-20 completion.
+
+**Production:** the active Phone Mirror chat callback no longer invokes an independent `LLMHelper.streamChat` answer generator. It uses `buildPhoneMirrorCanonicalRequest` with pinned mode/source contract, actual meeting transcript separated from uncitable mixed session history, exact project-file IDs, a separate phone session and canonical retrieval/provider generation via the existing `createPrimaryManualSneakPeekEngine` and `streamRagEngineAnswer`. Per-phone request ownership, cancellation, phone and desktop token/final/error delivery, history and usage remain explicit. The existing deterministic source-switch clarification is retained. Mixed prior history receives conservative provider scope checks before outbound dispatch.
+
+**Regression repair:** `WhatToAnswerSnapshotWiring.test.mjs` now recognizes the optional WORK-0060 `codeHintRequestId` added after WTA `generationId`, while preserving its assertions for WTA generation ID propagation and per-token batch identity. This was the sole owner-reported WORK-0060 test failure.
+
+**Files:** `electron/ipcHandlers.ts`, `electron/intelligence/engine/{PhoneMirrorRequest,types,ContextPlanner,PromptAssembler}.ts`, `electron/intelligence/engine/__tests__/PhoneMirrorCanonicalRequest.test.mjs`, `electron/services/__tests__/{WhatToAnswerSnapshotWiring,ManualChatPinsMode2026_08_18,AuditFixesSourceGuards}.test.mjs`, `electron/llm/__tests__/PromptSystemV2Wiring2026_08_01.test.mjs`, `chatgpt-work/{CHANGE_LOG,TASK_TRACKER,HANDOFF}.md`, `scripts/audit/chg20-surface-map.md`.
+
+**Checks here:** static TypeScript transpilation of changed TS files, semantic diagnostics for new phone adapter/source planner, `node --check` of new test, two pure request-adapter runtime fixtures, 87 passing source-level compatibility tests (including updated v2 prompt/coding wiring, t0 mode pinning, and WORK-0060 WTA token-ID checks), and Git diff whitespace. Phone-to-desktop sends now check renderer liveness; phone-facing provider errors are generic rather than leaking raw details. macOS Electron builds, full and targeted tests, selected-provider and phone desktop acceptance **not run in this container**; owner must run them after patch application. C20-AC1 remains FAIL for grounded WTA/repair, V3 assist/actions, manual compatibility and mode-specific screen/skills; C20-AC2 pending.

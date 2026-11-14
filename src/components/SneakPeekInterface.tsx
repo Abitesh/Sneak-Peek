@@ -273,7 +273,7 @@ import {
   splitStreamingCodeLines,
 } from '../lib/overlayStreamingCodeUi.mjs';
 import { widthDerivedScrollMax, verticalScrollCap } from '../lib/overlayScrollBudget.mjs';
-import { resolveChatStreamToken, resolveChatStreamDone, resolveLiveAnswerBatch, resolveChatStreamSurfaceError } from '../lib/chatStreamGuard.mjs';
+import { resolveChatStreamToken, resolveChatStreamDone, resolveLiveAnswerBatch, resolveChatStreamSurfaceError, acceptsCodeHintDelivery } from '../lib/chatStreamGuard.mjs';
 import {
   applyFirstStreamingToken,
   commitStreamingFlush,
@@ -3915,9 +3915,12 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   // and a superseded answer's already-queued batch could merge into the new
   // answer's bubble. Each item now carries a generationId; resolveLiveAnswerBatch
   // (same "newest wins" policy as chatStreamGuard) drops items from an older
-  // generation. null = no id adopted yet (id-less items are always accepted →
-  // backward compatible with the code-hint / brainstorm streams that omit it).
+  // generation. null = no id adopted yet (id-less items are still accepted
+  // for compatibility). Code Hint uses its own renderer-owned correlation ID.
   const liveAnswerGenIdRef = useRef<number | null>(null);
+  // WORK-0060: Code Hint's ID is minted on the renderer before the IPC call.
+  // Clearing it at STOP rejects batches that were queued in main beforehand.
+  const activeCodeHintRequestIdRef = useRef<string | null>(null);
   // Deferred-finalize bookkeeping. THE ONE mechanism for "commit this row's
   // final isStreaming:false only once the reveal ticker has actually caught
   // up to the full text" — used by BOTH:
@@ -4730,6 +4733,9 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
     ) {
       return false;
     }
+    // Starting a different action supersedes this overlay's Code Hint row.
+    // The old provider may already have queued chunks for IPC delivery.
+    if (actionKey !== 'code_hint') activeCodeHintRequestIdRef.current = null;
     overlayActionInFlightRef.current.add(actionKey);
     lastOverlayActionRef.current = { key: actionKey, atMs: nowMs };
     return true;
@@ -5123,11 +5129,12 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
 
     cleanups.push(
       window.electronAPI.onIntelligenceSuggestedAnswer((data) => {
+        if (!acceptsCodeHintDelivery(activeCodeHintRequestIdRef.current, data.codeHintRequestId)) return;
         // Phase 4 defense-in-depth (forensic-report §6b): drop a final answer
         // belonging to a generation that's already been superseded by a newer
         // one — same supersession guard the streaming token path applies via
-        // resolveLiveAnswerBatch. Id-less final answers (legacy answerLLM,
-        // code-hint, brainstorm) are always accepted.
+        // resolveLiveAnswerBatch. Renderer Code Hints additionally require a
+        // matching codeHintRequestId; id-less older callers remain compatible.
         const decision = resolveLiveAnswerBatch(
           liveAnswerGenIdRef.current,
           (data as { generationId?: number }).generationId,
@@ -5149,6 +5156,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
         setIsProcessing(false);
         pinAnswerPanel();
         finalizeStreamingByIntent('what_to_answer', answerText);
+        if (data.codeHintRequestId) activeCodeHintRequestIdRef.current = null;
       }),
     );
 
@@ -5238,18 +5246,21 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
         const { kind, items } = data;
         if (!items || items.length === 0) return;
         if (kind === 'suggested_answer') {
-          pinAnswerPanel();
           for (const it of items) {
+            // The batch may have been queued before STOP or before a newer
+            // Code Hint request. Do not remount a cancelled Code Hint row.
+            if (!acceptsCodeHintDelivery(activeCodeHintRequestIdRef.current, (it as any).codeHintRequestId)) continue;
             // #3 (full): drop tokens belonging to a superseded live answer so a
             // stale batch (already queued in main when a newer answer started)
             // can't merge into the new same-intent ('what_to_answer') bubble.
-            // id-less items (code-hint/brainstorm/older builds) are always kept.
+            // id-less items from legacy/brainstorm callers remain compatible.
             const decision = resolveLiveAnswerBatch(
               liveAnswerGenIdRef.current,
               (it as any).generationId,
             );
             liveAnswerGenIdRef.current = decision.activeId;
             if (!decision.accept) continue;
+            pinAnswerPanel();
             queueToken('what_to_answer', (it as any).token);
           }
         } else if (kind === 'refined_answer') {
@@ -5802,6 +5813,8 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
       ]);
       return;
     }
+    const codeHintRequestId = genMessageId();
+    activeCodeHintRequestIdRef.current = codeHintRequestId;
     setIsExpanded(true);
     setIsProcessing(true);
     pinAnswerPanel();
@@ -5835,10 +5848,18 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
     }
 
     try {
-      await window.electronAPI.generateCodeHint(
+      const result = await window.electronAPI.generateCodeHint(
         currentAttachments.length > 0 ? currentAttachments.map((s) => s.path) : undefined,
+        undefined,
+        codeHintRequestId,
       );
+      if (result?.hint == null && activeCodeHintRequestIdRef.current === codeHintRequestId) {
+        activeCodeHintRequestIdRef.current = null;
+      }
     } catch (err) {
+      if (activeCodeHintRequestIdRef.current === codeHintRequestId) {
+        activeCodeHintRequestIdRef.current = null;
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -8504,6 +8525,9 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                 onAnalyze={() => void handleAnalyzeNow()}
                 onAnswer={() => void handleWhatToSay()}
                 onStop={() => {
+                  // Invalidate this renderer's Code Hint BEFORE the stop IPC
+                  // travels to main. Already-sent batches are now rejected.
+                  activeCodeHintRequestIdRef.current = null;
                   cancelActiveChatStream();
                   window.electronAPI?.stopActiveAnswer?.();
                 }}

@@ -60,7 +60,7 @@ test('Primary route does not let ordinary context or STOP fall through into a se
 test('Primary route keeps proven compatibility-only turns out of the migration', () => {
   const ipc = read('ipcHandlers.ts');
   const primaryStart = ipc.indexOf('// CHANGE 13: the canonical Sneak-Peek Intelligence Engine is now the PRIMARY');
-  const primary = ipc.slice(primaryStart, ipc.indexOf('const modeInfo =', primaryStart));
+  const primary = ipc.slice(primaryStart, ipc.indexOf('let validatedManualImages:', primaryStart));
   assert.match(primary, /isAssistantIdentityQuestion/);
   assert.match(primary, /isStealthEvasionQuestion/);
   assert.match(primary, /nativeSkillPrefix/);

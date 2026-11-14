@@ -146,6 +146,7 @@ test('RAG answers use provider-neutral dispatch, not a hard-wired Gemini stream'
   const generation = ipc.slice(ipc.indexOf('function createPrimaryManualSneakPeekEngine('), ipc.indexOf('function buildSneakPeekMeetingTranscriptContext('));
   assert.match(generation, /getSneakPeekGenerationRouteOptions/);
   assert.match(generation, /GenerationController/);
-  assert.match(generation, /streamFinalPrompt/);
+  assert.match(generation, /streamCanonicalProvider\(llmHelper,/);
+  assert.doesNotMatch(generation, /streamChatWithGemini\(|streamChatWithOutcome\(/);
   assert.match(generation, /abortSignal: request\.cancellationSignal/);
 });

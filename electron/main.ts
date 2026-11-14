@@ -6963,11 +6963,11 @@ export class AppState {
  } catch { /* non-fatal */ }
  })
 
- this.intelligenceManager.on('suggested_answer', (answer: string, question: string, confidence: number, generationId?: number, sourceLabel?: string) => {
+ this.intelligenceManager.on('suggested_answer', (answer: string, question: string, confidence: number, generationId?: number, sourceLabel?: string, codeHintRequestId?: string) => {
  // Phase 4 defense-in-depth (forensic-report §6b): forward the optional
  // generationId the engine emits. Id-less emits (legacy answerLLM path,
- // code-hint, brainstorm) continue to ship without it — the renderer
- // treats them as always-accepted, same as id-less token batches today.
+ // brainstorm and older callers) continue to ship without it. Renderer-
+ // initiated Code Hints now carry both generationId and codeHintRequestId.
  // Campaign-3 (fix/answer-policy-engine, 2026-07-19, founder §2.6):
  // forward the optional sourceLabel the engine computes from the
  // TurnPlan. Falls back to 'General knowledge' for legacy emitters
@@ -6979,16 +6979,17 @@ export class AppState {
  // and mode switches, so a minutes-old answer appeared with no marker of
  // what it answered (the live "late CGPA answer" report). The renderer
  // uses this stamp to drop or visibly label stale finals.
- this.sendToWindow(win, 'intelligence-suggested-answer', { answer, question, confidence, generationId, sourceLabel: sourceLabel ?? 'General knowledge', emittedAt: Date.now() })
+ this.sendToWindow(win, 'intelligence-suggested-answer', { answer, question, confidence, generationId, sourceLabel: sourceLabel ?? 'General knowledge', emittedAt: Date.now(), codeHintRequestId })
 
  })
 
- this.intelligenceManager.on('suggested_answer_token', (token: string, question: string, confidence: number, generationId?: number) => {
+ this.intelligenceManager.on('suggested_answer_token', (token: string, question: string, confidence: number, generationId?: number, codeHintRequestId?: string) => {
  // Sprint 9: batch instead of per-token webContents.send.
- // generationId (audit finding #3): carried per-item so the renderer can
- // drop a batch belonging to a superseded live answer. Undefined for the
- // other live streams (code hint / brainstorm) — id-less items are accepted.
- queueBatch('suggested_answer', { token, question, confidence, generationId });
+ // generationId: carried for WTA and renderer-initiated Code Hints.
+ // Code Hint also carries a renderer-owned request ID so STOP/supersession
+ // can reject an already-queued batch before the next UI action starts.
+ // Older untagged streams remain compatible.
+ queueBatch('suggested_answer', { token, question, confidence, generationId, codeHintRequestId });
  })
 
  // Orphaned-scaffold fix: a what-to-answer stream that already showed a

@@ -520,7 +520,7 @@ onMeetingsUpdated: (callback: () => void) => () => void;
 // Intelligence Mode Events
 onIntelligenceAssistUpdate: (callback: (data: { insight: string }) => void) => () => void;
 onIntelligenceSuggestedAnswer: (
-callback: (data: { answer: string; question: string; confidence: number; sourceLabel?: string; generationId?: number }) => void,
+callback: (data: { answer: string; question: string; confidence: number; sourceLabel?: string; generationId?: number; codeHintRequestId?: string }) => void,
 ) => () => void;
 onIntelligenceSuggestedAnswerDiscard: (
 callback: (data: { reason: string }) => void,
@@ -1804,8 +1804,8 @@ imagePaths?: string[],
 options?: { promptInstruction?: string; domContext?: string; domContextEnvelope?: unknown },
 ) => ipcRenderer.invoke('generate-what-to-say', question, imagePaths, options),
 generateClarify: () => ipcRenderer.invoke('generate-clarify'),
-generateCodeHint: (imagePaths?: string[], problemStatement?: string) =>
-ipcRenderer.invoke('generate-code-hint', imagePaths, problemStatement),
+generateCodeHint: (imagePaths?: string[], problemStatement?: string, codeHintRequestId?: string) =>
+ipcRenderer.invoke('generate-code-hint', imagePaths, problemStatement, codeHintRequestId),
 generateBrainstorm: (imagePaths?: string[], problemStatement?: string) =>
 ipcRenderer.invoke('generate-brainstorm', imagePaths, problemStatement),
 generateFollowUp: (intent: string, userRequest?: string) =>
@@ -1928,7 +1928,7 @@ ipcRenderer.removeListener('intelligence-suggested-answer-token', subscription);
 };
 },
 onIntelligenceSuggestedAnswer: (
-callback: (data: { answer: string; question: string; confidence: number; sourceLabel?: string; generationId?: number }) => void,
+callback: (data: { answer: string; question: string; confidence: number; sourceLabel?: string; generationId?: number; codeHintRequestId?: string }) => void,
 ) => {
 const subscription = (_: any, data: any) => callback(data);
 ipcRenderer.on('intelligence-suggested-answer', subscription);

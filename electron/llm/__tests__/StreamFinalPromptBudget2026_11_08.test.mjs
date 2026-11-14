@@ -34,3 +34,71 @@ test('streamFinalPrompt completes normally when the provider stays below the cap
   for await (const chunk of fake.streamFinalPrompt('groq', 'fake-model', 'synthetic prompt')) answer += chunk;
   assert.equal(answer, 'Hello world.');
 });
+
+test('canonical vision forwards the selected model, validated attachment and cancellation signal', async () => {
+  const fake = Object.create(LLMHelper.prototype);
+  const controller = new AbortController();
+  const images = ['synthetic-screenshot.png'];
+  fake.assertOutboundImagesAllowed = (provider, hasImages) => assert.deepEqual([provider, hasImages], ['openai', true]);
+  fake.streamWithOpenaiMultimodal = async function* (prompt, paths, system, model, signal) {
+    assert.deepEqual([prompt, paths, system, model, signal],
+      ['canonical hint prompt', images, '', 'fixture-vision', controller.signal]);
+    yield 'A hint.';
+  };
+  const chunks = [];
+  for await (const chunk of fake.streamFinalPrompt('openai', 'fixture-vision', 'canonical hint prompt',
+    { imagePaths: images, abortSignal: controller.signal })) chunks.push(chunk);
+  assert.deepEqual(chunks, ['A hint.']);
+  fake.isLocalOnlyMode = true;
+  await assert.rejects(fake.streamFinalPrompt('openai', 'fixture-vision', 'canonical hint prompt',
+    { imagePaths: images }).next(), /Cloud providers disabled/);
+});
+
+test('canonical gateway transport uses the selected model snapshot after a setting changes', async () => {
+  for (const [provider, method] of [['litellm', 'streamWithLiteLLM'], ['nvidia_nim', 'streamWithNvidiaNim']]) {
+    const fake = Object.create(LLMHelper.prototype);
+    fake.currentModelId = 'unrelated-new-selection';
+    fake[method] = async function* (prompt, system, images, signal, model) {
+      assert.equal(model, `${provider}/selected-model`);
+      assert.equal(prompt, 'canonical prompt');
+      assert.equal(images, undefined);
+      yield 'Selected result.';
+    };
+    assert.deepEqual(await fake.streamFinalPrompt(provider, `${provider}/selected-model`, 'canonical prompt').next(),
+      { value: 'Selected result.', done: false });
+  }
+});
+
+test('canonical custom selection fails if the active provider changes', async () => {
+  const fake = Object.create(LLMHelper.prototype);
+  fake.customProvider = { id: 'different-provider' };
+  fake.streamWithCustom = async function* () { assert.fail('custom dispatch after selection changed'); };
+  await assert.rejects(fake.streamFinalPrompt('custom', 'original-provider', 'canonical prompt').next(),
+    /selected custom provider is no longer available/);
+});
+
+test('canonical custom and cURL vision dispatch forward one image without permitting silent image loss', async () => {
+  const template = `curl https://example.invalid -d '{"image":"{{IMAGE_BASE64}}"}'`;
+  const controller = new AbortController();
+  for (const streaming of [true, false]) {
+    const fake = Object.create(LLMHelper.prototype);
+    fake[streaming ? 'customProvider' : 'activeCurlProvider'] = { id: 'fixture', curlCommand: template };
+    fake.assertOutboundImagesAllowed = () => {};
+    fake.isProviderDisabled = () => false;
+    fake.streamWithCustom = async function* (...args) {
+      assert.ok(streaming);
+      assert.deepEqual(args, ['canonical prompt', undefined, ['fixture.png'], '', controller.signal, true]);
+      yield 'Result';
+    };
+    fake.executeCustomProvider = async (...args) => {
+      assert.ok(!streaming);
+      assert.deepEqual(args, [template, 'canonical prompt', '', 'canonical prompt', '', 'fixture.png', controller.signal, true]);
+      return 'Result';
+    };
+    const invoke = imagePaths => fake.streamFinalPrompt('custom', 'fixture', 'canonical prompt', { imagePaths, abortSignal: controller.signal }).next();
+    assert.deepEqual(await invoke(['fixture.png']), { value: 'Result', done: false });
+    await assert.rejects(invoke(['fixture.png', 'second.png']), /exactly one image/);
+    fake.isLocalOnlyMode = true;
+    await assert.rejects(invoke(['fixture.png']), /Cloud providers disabled/);
+  }
+});

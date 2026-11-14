@@ -8,8 +8,23 @@
  * ranks, or selects evidence.
  */
 
-import type { AnswerPlan, AnswerType } from '../../llm/AnswerPlanner';
+import { formatAnswerPlanForPrompt, type AnswerPlan, type AnswerType } from '../../llm/AnswerPlanner';
 import type { TurnUnderstanding } from '../../context-intelligence/question/question-resolver';
+
+import type { SneakPeekConversationAction, SneakPeekIntelligenceRequest } from './types';
+import { CODE_HINT_PROMPT, UNIVERSAL_ASSIST_PROMPT, UNIVERSAL_FOLLOWUP_PROMPT, UNIVERSAL_RECAP_PROMPT, CLARIFY_MODE_PROMPT, UNIVERSAL_FOLLOW_UP_QUESTIONS_PROMPT, BRAINSTORM_MODE_PROMPT, FOLLOWUP_EMAIL_PROMPT } from '../../llm/prompts';
+import { TINY_CODE_HINT_PROMPT, TINY_ASSIST_PROMPT, TINY_FOLLOWUP_PROMPT, TINY_RECAP_PROMPT, TINY_CLARIFY_PROMPT, TINY_FOLLOW_UP_QUESTIONS_PROMPT, TINY_BRAINSTORM_PROMPT } from '../../llm/tinyPrompts';
+import { resolveV2SystemPrompt, v2TierForPromptTier } from '../../llm/promptSystemV2';
+
+const ACTION_POLICIES = {
+  'code-hint': { id: 'code_hint', full: CODE_HINT_PROMPT, tiny: TINY_CODE_HINT_PROMPT, format: 'prose' },
+  observe: { id: 'assist', full: UNIVERSAL_ASSIST_PROMPT, tiny: TINY_ASSIST_PROMPT, format: 'prose' },
+  refine: { id: 'followup', full: UNIVERSAL_FOLLOWUP_PROMPT, tiny: TINY_FOLLOWUP_PROMPT, format: 'prose' },
+  recap: { id: 'recap', full: UNIVERSAL_RECAP_PROMPT, tiny: TINY_RECAP_PROMPT, format: 'structured' },
+  clarify: { id: 'clarify', full: CLARIFY_MODE_PROMPT, tiny: TINY_CLARIFY_PROMPT, format: 'prose' },
+  brainstorm: { id: 'brainstorm', full: BRAINSTORM_MODE_PROMPT, tiny: TINY_BRAINSTORM_PROMPT, format: 'spoken' },
+  'follow-up-questions': { id: 'follow_up_questions', full: UNIVERSAL_FOLLOW_UP_QUESTIONS_PROMPT, tiny: TINY_FOLLOW_UP_QUESTIONS_PROMPT, format: 'bullets' },
+} as const;
 
 export type ResponseKind =
   | 'direct-answer'
@@ -44,11 +59,15 @@ export interface ResponsePlan {
   maxTokens?: number;
   maxSentences?: number;
   rationale: string[];
+  actionInstructions?: string;
 }
 
 export interface ResponsePlannerInput {
+  documentDraft?: SneakPeekIntelligenceRequest['documentDraft'];
   question: string;
   answerPlan?: AnswerPlan | null;
+  action?: SneakPeekConversationAction;
+  liveAnswer?: SneakPeekIntelligenceRequest['liveAnswer'];
   turnUnderstanding?: TurnUnderstanding | null;
 }
 
@@ -121,6 +140,55 @@ function maxTokensFor(detail: ResponseDetailLevel, kind: ResponseKind, duration?
  */
 export function planResponse(input: ResponsePlannerInput): ResponsePlan {
   const question = (input.question || '').trim();
+  if (input.documentDraft) {
+    const { kind } = input.documentDraft;
+    const instructions = kind === 'follow-up-email'
+      ? resolveV2SystemPrompt({ action: 'followup_email', tier: 'cloud', activeMode: null }) ?? FOLLOWUP_EMAIL_PROMPT
+      : kind === 'cover-letter'
+        ? 'Write a professional cover letter based only on the authorized resume and job description. Return only the letter. Do not invent qualifications, experience or metrics.'
+        : 'Draft a conversational negotiation script based only on the authorized resume and job description. Return only the script. Do not invent facts, offers or salary figures.';
+    return {
+      question,
+      kind: 'direct-answer',
+      detailLevel: 'normal',
+      format: 'prose',
+      spoken: kind === 'negotiation-script',
+      firstPerson: true,
+      projectGrounded: false,
+      rationale: ['Explicit document draft'],
+      actionInstructions: instructions,
+    };
+  }
+  if (input.action) {
+    const action = input.action;
+    const policy = ACTION_POLICIES[action.kind];
+    const instructions = resolveV2SystemPrompt({ action: policy.id, tier: v2TierForPromptTier(action.promptTier) })
+      ?? policy[action.promptTier];
+    return {
+      question,
+      kind: action.kind === 'recap' ? 'summary' : 'direct-answer',
+      detailLevel: 'normal',
+      format: policy.format,
+      spoken: action.kind === 'brainstorm',
+      firstPerson: false,
+      projectGrounded: false,
+      rationale: ['Explicit conversation action'],
+      actionInstructions: [instructions, action.sourceRule].filter(Boolean).join('\n\n'),
+    };
+  }
+  if (input.liveAnswer) {
+    const { plan, promptTier } = input.liveAnswer;
+    const presentation = planResponse({ question, answerPlan: plan });
+    const persona = resolveV2SystemPrompt({ action: 'answer', tier: v2TierForPromptTier(promptTier), activeMode: input.liveAnswer.mode ?? null });
+    return {
+      ...presentation,
+      actionInstructions: [
+        persona,
+        'Give a direct answer suitable for speaking aloud. Use the speech window to understand the current question.',
+        formatAnswerPlanForPrompt(plan),
+      ].filter(Boolean).join('\n\n'),
+    };
+  }
   const plan = input.answerPlan ?? null;
   const understanding = input.turnUnderstanding ?? null;
   const duration = understanding?.requestedDuration ?? explicitDurationSeconds(question);

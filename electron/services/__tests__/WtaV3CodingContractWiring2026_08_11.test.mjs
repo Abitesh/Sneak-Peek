@@ -79,7 +79,7 @@ describe('the WTA path supplies the coding contract to V3', () => {
   // Bound the slice by the NEXT statement rather than a fixed character count —
   // the call is long (evidence wiring, retrieval port, conversation window) and
   // a fixed window silently truncated it before `personaBase`.
-  const callStart = engineSrc.indexOf('const wtaV3Prompt = await');
+  const callStart = engineSrc.indexOf('const wtaV3Prompt = canonicalLiveRoute ? undefined : await');
   const callEnd = engineSrc.indexOf('const requestSnapshot', callStart);
   assert.ok(callStart > 0 && callEnd > callStart, 'could not locate the WTA buildV3Prompt call site');
   const wtaCall = engineSrc.slice(callStart, callEnd);

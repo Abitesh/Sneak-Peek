@@ -34,21 +34,26 @@ test('desktop manual chat pins the t0 mode id', () => {
   );
 });
 
-test('phone-mirror chat captures a mode id at t0 and passes it', () => {
+test('phone-mirror chat captures a mode id at t0 and passes it to the canonical request', () => {
   assert.ok(/phonePinnedModeId\s*=\s*phoneModeInfo\?\.id\s*\?\?\s*null/.test(src),
     'the phone path must capture the active mode id at t0 (F-502)');
-  const i = src.indexOf('phoneRouteOptions = {');
+  const i = src.indexOf('const phoneRequest = buildPhoneMirrorCanonicalRequest(');
   assert.notEqual(i, -1);
-  assert.ok(/pinnedModeId:\s*phonePinnedModeId/.test(src.slice(i, i + 500)),
-    'the phone StreamRouteOptions must carry the pin (F-502)');
+  assert.ok(/modeId:\s*phonePinnedModeId\s*\?\?\s*undefined/.test(src.slice(i, i + 2000)),
+    'the canonical phone request must carry the pinned mode ID (F-502)');
 });
 
-test('the phone pin is captured before the provider stream starts', () => {
+test('the phone pin is frozen into the canonical request before provider dispatch', () => {
   const capture = src.indexOf('phonePinnedModeId: string | null = null');
-  const stream = src.indexOf('llmHelper.streamChat(message, undefined, context');
-  assert.notEqual(capture, -1);
-  assert.notEqual(stream, -1);
-  assert.ok(capture < stream, 'the pin must be taken before the awaits it protects');
+  const snapshot = src.indexOf('const phoneMode = phonePinnedModeInfo;');
+  const request = src.indexOf('const phoneRequest = buildPhoneMirrorCanonicalRequest(');
+  const stream = src.indexOf('const streamResult = await streamRagEngineAnswer(');
+  assert.ok(capture >= 0 && snapshot > capture && request > snapshot && stream > request,
+    'the t0 mode must be captured and passed to the canonical request before provider dispatch');
+  assert.match(src.slice(request, stream), /modeSourceContract: phoneMode\?\.sourceContract/,
+    'canonical phone planning must receive the persisted source contract pinned at t0');
+  assert.doesNotMatch(src.slice(request, stream + 100), /llmHelper\.streamChat\(/,
+    'phone answers must not use a second unpinned legacy generation path');
 });
 
 test('LLMHelper still honours the pin (pinning must not be theatre)', () => {

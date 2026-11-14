@@ -48,6 +48,7 @@ citation?: RagCitation;
 /** Canonical RAG provenance retained through EvidencePack and rendering. */
 sourceType?: 'meeting' | 'mode' | 'personal';
 documentId?: string;
+revisionId?: string;
 documentName?: string;
 chunkId?: string;
 sourceKind: SourceKind;
@@ -274,7 +275,8 @@ export function buildEvidencePackFromSneakPeekEvidence(input: {
       provenance: typeof metadata.provenance === 'object' && metadata.provenance !== null
         ? metadata.provenance as Record<string, unknown>
         : metadata,
-      sourceKind: sourceKindFor(source),
+      sourceKind: source === 'profile' && metadata.sourceType === 'JOB_DESCRIPTION'
+        ? 'profile_jd' : sourceKindFor(source),
       sourceId,
       sourceOwner: ownerForSource(source),
       authority,
@@ -284,6 +286,7 @@ export function buildEvidencePackFromSneakPeekEvidence(input: {
         ? metadata.pointer as EvidencePointer
         : undefined,
       documentId: typeof metadata.documentId === 'string' ? metadata.documentId : undefined,
+      ...(typeof metadata.revisionId === 'string' ? { revisionId: metadata.revisionId } : {}),
       documentName: typeof metadata.documentName === 'string' ? metadata.documentName : undefined,
       chunkId: typeof metadata.chunkId === 'string' ? metadata.chunkId : undefined,
       pageStart: typeof metadata.pageStart === 'number' ? metadata.pageStart : undefined,

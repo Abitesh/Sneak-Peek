@@ -1,3 +1,7 @@
+import { resolveExplicitSourceRequests } from '../context-os/explicitSourceSwitch';
+import { resolveTurnSourceDecision } from '../../llm/turnSourceDecision';
+import { planResolvedTurn } from '../../context-intelligence/orchestration/orchestrator';
+import { resolveModeIdOrWarn, resolveModePolicy } from '../../context-intelligence/policies/mode-policy-registry';
 import type { SneakPeekIntelligenceRequest } from './types';
 import type { TurnUnderstanding } from '../../context-intelligence/question/question-resolver';
 import { isBroadCandidateProjectsQuestion } from '../../context-intelligence/question/ProjectOverviewIntent';
@@ -160,7 +164,35 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   // a resume. Neither inventory alone authorizes unrelated My Files.
   const authorizedPortfolioResume = request.contextPermissions.files
     && (request.activeContext?.resumeSourceIds?.length ?? 0) > 0;
-  if (isBroadCandidateProjectsQuestion(understanding.question)
+  if (request.imageAnalysis) {
+    if (request.contextPermissions.screen && request.screenContext?.imagePaths?.length) require('screen');
+    if (request.contextPermissions.conversation && request.imageConversationSnapshot?.trim()) require('recent_conversation');
+    rationale.push('Explicit image analysis uses the attached pixels and supplied conversation continuity.');
+  } else if (request.documentDraft) {
+    if (request.documentDraft.kind === 'follow-up-email') {
+      if (request.contextPermissions.transcript) require('meeting_transcript');
+    } else if (request.contextPermissions.profile) {
+      require('profile');
+    }
+    rationale.push('Drafting uses only the inputs selected for the requested document.');
+  } else if (request.action) {
+    // An action can read only the supplied, authorized conversation material.
+    // Words in a refinement request must not expand its source permissions.
+    if (request.contextPermissions.conversation
+      && (request.action.sessionSnapshot?.trim() || request.action.previousAnswer?.trim())) {
+      require('recent_conversation');
+    }
+    if ((request.action.kind === 'code-hint' || request.action.kind === 'brainstorm')
+      && request.contextPermissions.screen && (request.screenContext?.imagePaths?.length || request.screenContext?.text?.trim())) {
+      require('screen');
+    }
+    rationale.push('Conversation action uses only its authorized inputs.');
+  } else if (request.liveAnswer) {
+    if (request.contextPermissions.transcript && request.transcriptContext?.text.trim()) {
+      require('meeting_transcript');
+    }
+    rationale.push('Live answer uses only the authorized speech window.');
+  } else if (isBroadCandidateProjectsQuestion(understanding.question)
     && (request.contextPermissions.project || authorizedPortfolioResume)) {
     require('recent_conversation');
     if (request.contextPermissions.project) require('project_knowledge');
@@ -248,32 +280,46 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       break;
   }
 
-  // Explicit screen/document/meeting signals can override a coarse intent only
-  // when the corresponding source is actually present and permitted.
-  if (understanding.requiresScreenContext && request.screenContext) require('screen');
-  if (understanding.requiresMeetingContext && request.transcriptContext) require('meeting_transcript');
-  if (understanding.requiresDocumentContext) require('my_files');
-  if (understanding.requiresProjectContext && !projectFallbackSelected) {
-    require('project_knowledge');
-    require('rag');
-  }
-  if (understanding.requiresPersonalContext) {
-    require('personal_knowledge');
-    require('profile');
-  }
-
-  // Project-specific facts are authoritative for a project turn. Profile and
-  // general personal-memory sources must not compete with project evidence,
-  // even if a broad classifier also marks the turn as personal. This keeps
-  // résumé facts such as "I have used Redis" from overriding the actual
-  // Linkship implementation evidence.
-  if (required.has('project_knowledge')
-    || (isBroadCandidateProjectsQuestion(understanding.question) && authorizedPortfolioResume && required.has('my_files'))) {
-    for (const source of ['personal_knowledge', 'profile', 'structured_knowledge'] as ContextSource[]) {
-      required.delete(source);
-      optional.delete(source);
-      forbidden.add(source);
+  if (!request.action && !request.liveAnswer && !request.documentDraft && !request.imageAnalysis) {
+    // A phone history snapshot may include prior assistant answers with private
+    // source lineage. Only include it as conversation (never cited evidence),
+    // and do not let old project/profile claims override this turn's exact sources.
+    if (request.surface === 'phone-mirror'
+      && request.contextPermissions.conversation
+      && request.sessionSnapshot?.trim()
+      && !required.has('project_knowledge')
+      && !required.has('personal_knowledge')
+      && !required.has('profile')
+      && !required.has('my_files')
+      && !required.has('mode_documents')) require('recent_conversation');
+    // Explicit screen/document/meeting signals can override a coarse intent only
+    // when the corresponding source is actually present and permitted.
+    if (understanding.requiresScreenContext && request.screenContext) require('screen');
+    if (understanding.requiresMeetingContext && request.transcriptContext) require('meeting_transcript');
+    if (understanding.requiresDocumentContext) require('my_files');
+    if (understanding.requiresProjectContext && !projectFallbackSelected) {
+      require('project_knowledge');
+      require('rag');
     }
+    if (understanding.requiresPersonalContext) {
+      require('personal_knowledge');
+      require('profile');
+    }
+
+    // Project-specific facts are authoritative for a project turn. Profile and
+    // general personal-memory sources must not compete with project evidence,
+    // even if a broad classifier also marks the turn as personal. This keeps
+    // résumé facts such as "I have used Redis" from overriding the actual
+    // Linkship implementation evidence.
+    if (required.has('project_knowledge')
+      || (isBroadCandidateProjectsQuestion(understanding.question) && authorizedPortfolioResume && required.has('my_files'))) {
+      for (const source of ['personal_knowledge', 'profile', 'structured_knowledge'] as ContextSource[]) {
+        required.delete(source);
+        optional.delete(source);
+        forbidden.add(source);
+      }
+    }
+
   }
 
   // Availability/permissions never turn a forbidden source into an allowed
@@ -323,14 +369,62 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     }
   }
 
+  let profileRead: ContextPlan['profileRead'];
+  if (required.has('profile') && request.contextPermissions.profile && !request.documentDraft) {
+    const modeId = resolveModeIdOrWarn(request.activeContext?.modeTemplateType ?? null, 'canonical/profile', { quietWhenAbsent: true });
+    const profileTypes = resolveModePolicy(modeId).profileSources;
+    const decision = planResolvedTurn({
+      requestId: request.requestId,
+      requestSequence: 0,
+      sessionId: request.sessionId,
+      surface: request.surface === 'what-to-answer' ? 'what-to-answer' : 'manual-chat',
+      modeId,
+      scope: { userId: 'local', sessionId: request.sessionId },
+      manualQuestion: understanding.question,
+      hasScreenContext: false,
+      hasAttachedDocuments: true,
+    }, understanding.question);
+    const active = request.activeContext;
+    const sourceDecision = active?.modeSourceContract ? resolveTurnSourceDecision({
+      sourceContract: active.modeSourceContract,
+      explicitRequests: resolveExplicitSourceRequests(understanding.question),
+      availability: {
+        hasReferenceFiles: request.contextPermissions.mode && active.hasReferenceFiles === true,
+        hasProfileFacts: active.hasResume === true,
+        hasJobDescription: active.hasJobDescription === true,
+        hasLiveTranscript: request.contextPermissions.transcript,
+        hasMeetingRag: false,
+      },
+    }) : undefined;
+    const sourceTypes = decision.retrievalPlan.sourceTypes.filter(source => {
+      if (!profileTypes.includes(source)) return false;
+      if (!sourceDecision) return true;
+      if (sourceDecision.outcome === 'explicit_denied' || sourceDecision.outcome === 'source_unavailable') return false;
+      return source === 'JOB_DESCRIPTION'
+        ? sourceDecision.allowedEvidenceKinds.includes('profile_jd')
+        : sourceDecision.allowedEvidenceKinds.includes('profile_resume');
+    });
+    profileRead = {
+      scope: decision.scope,
+      claimRequirements: decision.claimRequirements,
+      resolvedQuestion: decision.resolvedQuestion,
+      retrievalPlan: {
+        ...decision.retrievalPlan,
+        shouldRetrieve: sourceTypes.length > 0,
+        sourceTypes,
+      },
+    };
+  }
+
   return {
+    ...(profileRead ? { profileRead } : {}),
     sources: decisions,
     requiredSources,
     optionalSources,
     forbiddenSources,
     notRequiredSources,
     needsContext: requiredSources.length > 0 || optionalSources.length > 0,
-    generalKnowledgeAllowed: !request.retrievalScope && (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question'),
+    generalKnowledgeAllowed: !request.retrievalScope && ((request.action || request.liveAnswer || request.documentDraft) ? request.contextPermissions.generalKnowledge : (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question')),
     retrievalRequired,
     retrievalSources,
     rationale,

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
@@ -237,4 +238,121 @@ test('actual cancel IPC aborts and clears only the sending window session', asyn
     assert.equal(conversationStore.getRecentConversationTurns(`rag:${prefix1}`, 12).length, 0);
     assert.equal(conversationStore.getRecentConversationTurns(`rag:${prefix2}`, 12).length, 1);
   } finally { conversationStore.clearConversationState(`rag:${prefix1}`); conversationStore.clearConversationState(`rag:${prefix2}`); }
+});
+
+function evaluateProductionIpcEngine(overrides = {}) {
+  const ipc = fs.readFileSync('electron/ipcHandlers.ts', 'utf8');
+  const start = ipc.indexOf('function createPrimaryManualSneakPeekEngine(');
+  const end = ipc.indexOf('function buildSneakPeekMeetingTranscriptContext(', start);
+  const context = {
+    console: { log() {}, warn() {} },
+    SneakPeekIntelligenceEngine, RetrievalCoordinator, createRetrievalCapability, createCanonicalRagRetrievalCapability,
+    streamCanonicalProvider: (helper, input) => new GenerationController(helper).stream(input).stream,
+    ...overrides,
+  };
+  vm.createContext(context);
+  vm.runInContext(ts.transpileModule(ipc.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  return context.createPrimaryManualSneakPeekEngine;
+}
+
+test('meeting IPC engine uses only the saved meeting when its scoped index has no hits', async () => {
+  const savedIds = [], indexedIds = [], prompts = [];
+  const createEngine = evaluateProductionIpcEngine({
+    DatabaseManager: { getInstance: () => ({ getMeetingDetails: id => {
+      savedIds.push(id);
+      return id === 'meeting-a' ? {
+        id, title: 'Synthetic meeting A', detailedSummary: { overview: 'The team chose violet leases.' },
+        transcript: [
+          { speaker: 'interviewer', text: 'We chose violet leases.', timestamp: 100 },
+          { speaker: 'assistant', text: 'FORBIDDEN_PRIOR_ASSISTANT', timestamp: 200 },
+        ],
+      } : null;
+    } }) },
+  });
+  const helper = {
+    getSneakPeekGenerationRouteOptions: scopes => ({ ...route, dataScopes: scopes }),
+    async *streamFinalPrompt(_provider, _model, prompt) { prompts.push(prompt); yield 'Violet leases.'; },
+  };
+  const engine = createEngine(helper, {
+    getRAGManager: () => ({ readPlannedCanonicalSource: async ({ sourceId }) => {
+      indexedIds.push(sourceId);
+      return { results: [], usedCanonical: true, fallbackReason: 'empty' };
+    } }),
+  }, 'scoped-fallback-test');
+  const controller = new AbortController();
+  const request = {
+    ...buildGlobalRagRequest({ requestId: 'scoped-fallback-test', sessionId: 'fallback-session', query: 'What did we choose?', signal: controller.signal, recentConversation: [] }),
+    surface: 'meeting-overlay',
+    retrievalScope: { kind: 'meeting', meetingId: 'meeting-a' },
+    activeContext: { meetingId: 'decoy' },
+  };
+  const events = [];
+  const result = await streamRagEngineAnswer({
+    engine, request, meta: { meetingId: 'meeting-a' }, isCurrent: () => true,
+    send: (channel, payload) => events.push({ channel, payload }), settle() {},
+  });
+  assert.deepEqual(result, { success: true });
+  assert.deepEqual(indexedIds, ['meeting-a']);
+  assert.deepEqual(savedIds, ['meeting-a']);
+  assert.equal(prompts.length, 1);
+  assert.match(prompts[0], /The team chose violet leases/);
+  assert.doesNotMatch(prompts[0], /FORBIDDEN_PRIOR_ASSISTANT|decoy/);
+  assert.deepEqual(events.map(event => event.channel), ['rag:stream-chunk', 'rag:stream-complete']);
+  assert.ok(events.every(event => event.payload.meetingId === 'meeting-a'));
+});
+
+test('canonical profile drafts use only active revisioned profile sources and respect cloud scope denial', async () => {
+  const require = createRequire(import.meta.url);
+  const createEngine = evaluateProductionIpcEngine({
+    require: name => {
+      assert.equal(name, './llm/ActiveProfileContext');
+      return require('../../../../dist-electron/electron/llm/ActiveProfileContext.js');
+    },
+  });
+  const prompts = [];
+  const orchestrator = {
+    activeResume: { id: 1, structured_data: { name: 'Synthetic Author', skills: ['violet leases'] } },
+    activeJD: { id: 2, structured_data: { title: 'Synthetic Target Role' } },
+    activeCompany: { structured_data: { summary: 'FORBIDDEN_COMPANY_CANARY' } },
+  };
+  const helper = {
+    getSneakPeekGenerationRouteOptions: (_scopes) => ({
+      ...route, dataScopes: _scopes, scopePolicy: { profile_history: !denyCloud },
+    }),
+    async *streamFinalPrompt(provider, model, prompt) {
+      prompts.push({ provider, model, prompt });
+      yield 'Completed synthetic draft.';
+    },
+  };
+  let denyCloud = false;
+  for (const kind of ['cover-letter', 'negotiation-script']) {
+    const id = `fixture-${kind}`;
+    const engine = createEngine(helper, { getKnowledgeOrchestrator: () => orchestrator }, id);
+    const controller = new AbortController();
+    const request = {
+      requestId: id, sessionId: id, surface: 'document-draft',
+      documentDraft: { kind }, userMessage: 'Draft the requested document.',
+      currentTurn: { id, role: 'user', content: 'Draft the requested document.' },
+      cancellationSignal: controller.signal, recentConversation: [],
+      contextPermissions: {
+        conversation: false, transcript: false, screen: false, mode: false,
+        project: false, profile: true, files: false, memory: false, generalKnowledge: false,
+      },
+    };
+    const run = engine.prepareAndStream(request);
+    let text = '';
+    for await (const token of run.stream) text += token;
+    assert.equal(text, 'Completed synthetic draft.');
+    assert.deepEqual((await run.result).evidencePack.items.map(item => item.sourceKind), ['profile_resume', 'profile_jd']);
+    assert.equal(prompts.at(-1).model, 'synthetic-offline');
+    assert.match(prompts.at(-1).prompt, /Synthetic Author[\s\S]*Synthetic Target Role/);
+    assert.match(prompts.at(-1).prompt, /<source_revision>[0-9a-f]+<\/source_revision>/);
+    assert.doesNotMatch(prompts.at(-1).prompt, /FORBIDDEN_COMPANY_CANARY/);
+    denyCloud = true;
+    const denied = engine.prepareAndStream(request);
+    for await (const _ of denied.stream) assert.fail('Denied draft produced an answer');
+    assert.match((await denied.result).providerAttempt.error, /no available provider/);
+    denyCloud = false;
+  }
+  assert.equal(prompts.length, 2);
 });
