@@ -327,13 +327,13 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
 
     // Gateway models are admitted only as the explicit selection. They are not
     // interchangeable with another provider's model or automatic fallbacks.
-    if (!options.multimodal && options.preferredProvider === 'nvidia_nim') {
+    if (options.preferredProvider === 'nvidia_nim') {
         orderedSpecs.unshift({ provider: 'nvidia_nim', name: 'NVIDIA NIM', model: models.nvidia_nim,
-            available: Boolean(availability.hasNvidiaNim), supports: ['chat', 'stream_chat'] });
+            available: Boolean(availability.hasNvidiaNim), supports: ['chat', 'stream_chat', 'vision'] });
     }
-    if (!options.multimodal && options.preferredProvider === 'litellm') {
+    if (options.preferredProvider === 'litellm') {
         orderedSpecs.unshift({ provider: 'litellm', name: 'LiteLLM', model: models.litellm,
-            available: Boolean(availability.hasLiteLLM), supports: ['chat', 'stream_chat'] });
+            available: Boolean(availability.hasLiteLLM), supports: ['chat', 'stream_chat', 'vision'] });
     }
 
     if (options.preferredProvider === 'custom') {

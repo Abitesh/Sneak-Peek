@@ -1,3 +1,4 @@
+import { freezeAnswerRequest } from './AnswerRequest';
 import type {
   IntelligenceIntent,
   IntelligenceResponseType,
@@ -66,6 +67,7 @@ export class SneakPeekIntelligenceEngine {
     result: Promise<SneakPeekIntelligenceResult>;
     lifecycle: GenerationLifecycle;
   } {
+    request = freezeAnswerRequest(request);
     if (!this.generationPort) throw new Error('SneakPeekIntelligenceEngine generation port is not configured.');
     const lifecycle = new GenerationLifecycle(request.requestId);
     lifecycle.transition('PLANNING', 'manual chat request accepted by Sneak-Peek Intelligence Engine');
@@ -124,6 +126,7 @@ export class SneakPeekIntelligenceEngine {
 
         const providerStream = engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, lifecycle });
         for await (const chunk of providerStream) {
+          if (request.cancellationSignal?.aborted) break;
           text += chunk;
           yield chunk;
         }
@@ -143,6 +146,8 @@ export class SneakPeekIntelligenceEngine {
         const finalResult: SneakPeekIntelligenceResult = {
           ...result,
           providerAttempt: {
+            provider: lifecycle.committedProvider,
+            model: lifecycle.committedModel,
             status: lifecycle.state === 'CANCELLED' ? 'cancelled' : completed ? 'succeeded' : lifecycle.state === 'FAILED' ? 'failed' : 'started',
             ...(failureReason ? { error: failureReason } : {}),
           },
@@ -215,11 +220,19 @@ export class SneakPeekIntelligenceEngine {
 
     stages.push('plan-context');
     pipelineStages.push('ContextPlan');
-    const conversationContext = getRecentConversationContext({
+    let conversationContext = getRecentConversationContext({
       sessionId: request.sessionId,
       currentTurn: this.toConversationTurn(request.currentTurn),
       currentQuestion: request.userMessage,
     });
+    if (request.answerContext) {
+      const turns = request.recentConversation.slice(-12).map(turn => this.toConversationTurn(turn));
+      const currentTurn = this.toConversationTurn(request.currentTurn);
+      conversationContext = { currentTurn, immediatePreviousTurns: turns.filter(turn => turn.id !== currentTurn.id).slice(-2).reverse(),
+        recentTranscriptWindow: [...turns.filter(turn => turn.id !== currentTurn.id), currentTurn].slice(-12),
+        olderConversationTurnsAvailable: Math.max(0, request.recentConversation.length - 12),
+        currentTurnIncluded: true, longTermKnowledgeIncluded: false };
+    }
     const contextPlan = planContext({
       request,
       understanding: turnUnderstanding,
@@ -265,12 +278,13 @@ export class SneakPeekIntelligenceEngine {
       contextPlan,
       evidence: retrievalResult.evidence,
     });
-    const responsePlan = planResponse({
+    const responsePlan = request.repair?.responsePlan ?? planResponse({
       question: turnUnderstanding.question || resolvedQuestion,
       turnUnderstanding,
       action: request.action,
       documentDraft: request.documentDraft,
       liveAnswer: request.liveAnswer,
+      answerContext: request.answerContext,
     });
     const intent = this.mapIntent(turnUnderstanding.intent);
     const responseType = responsePlan.kind === 'coding' ? 'coding-answer' : this.resolveResponseType(request, intent);

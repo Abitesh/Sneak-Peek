@@ -1,5 +1,73 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0074 / TASK-0003 / CHG-20 (2026-11-15)
+
+**Implemented, unverified for final acceptance.** Current-tree diagnosis confirms WORK-0073 implementation and saved green suites; a fresh isolated two-launch desktop run also passed. ERR-086: permanent CHG-20 runner prepared as a verified ZIP patch, **not installed**. Detailed report/application/evidence: `/Users/abitesh/Downloads/Sneak-Peek-CHG20-WORK0074.zip` and matching directory. Owner index preserved (81 staged paths). Four tracking files updated only.
+
+**Next:** apply the one-file runner after checksum/apply check, collect independent read-only source/caller/diff findings, and reconcile explicit CHG-20 manual and skipped-test requirements. Do not prescribe another production rewrite without a reproduced finding, or silently impose every CHG-21 quality benchmark on C20-AC2. C20-AC1 locally supported/review pending; C20-AC2 pending; CHG-21 remains gated. See WORK-0074 in CHANGE_LOG for exact commands/results and evidence limits.
+
+
+## WORK-0073 / TASK-0003 / CHG-20 (2026-11-15)
+
+**Implemented, unverified for final acceptance.** WTA correctness, provider/action scopes, screen attachments and cancellation regressions were repaired in the owner checkout. The production ownership map and test evidence support the canonical routes. See WORK-0073 in CHANGE_LOG and the [surface map](../scripts/audit/chg20-surface-map.md#work-0073--production-dispatch-and-macos-evidence-2026-11-15). C20-AC1 locally supported, independent review pending. C20-AC2 pending. CHG-21 stays gated.
+
+The next action is to collect the read-only Copilot Ask findings and reconcile them with the current source and macOS evidence. The CLI handed off the request to VS Code. The response could not be inspected before the UI step was interrupted. Prompt: `/tmp/sneak-work0073.pzgQMY/copilot-ask.md`. No stage, commit or push. The index remains byte-identical to the baseline.
+
+## Current continuation — WORK-0072 / CHG-20 / TASK-0003 (2026-11-15)
+
+WORK-0071 **owner applied**. Three TS checks, both builds PASSED. Full Electron suite **9,097 total / 8,987 pass / 28 fail / 1 cancelled / 81 skipped**, an actual reduction from 98 failures. WORK-0072 ZIP prepared against the exact WORK-0071 snapshot: fix speculative WTA error-visible retry, screen-code promotion stream+validator, and 10 stale action/manual and WTA screen fixtures that target legacy helpers. Source/transpile/syntax checks only in disposable local copy; Mac Electron tests not run. See ERR-079/080, CHANGE_LOG WORK-0072 and scripts/audit/chg20-work0072-evidence.md. Owner wants **small tests printed to terminal, logs only for broad intelligence/Electron/lib/scripts**; commands independently set LOGDIR. Preserve owner staged/unstaged/untracked tree. Pre-existing staged CanonicalRuntime.ts EOF blank-line warning not touched. C20-AC1 FAIL/unproven, C20-AC2 PENDING, CHG-21 BLOCKED. No commit/push/reset/stash.
+
+## Current continuation — WORK-0071 / CHG-20 / TASK-0003 (2026-11-15)
+
+Owner WORK-0070 successfully applied. Mac three TS checks/build:electron exit 0; focused RAG/IPC 48/48; intelligence 2166/2175 pass, 0 failures, 9 TODO. Latest separate npm test log: 9095 total, **8915 pass / 98 fail / 1 cancelled / 81 skipped**, so CHG-20 still unaccepted. Previous WORK-0070 security boundary change did not address the WTA fake-provider failures.
+
+WORK-0071 ZIP prepared from the source ZIP plus the previous applied WORK patches. It fixes canonical WTA raw-answer/no-silent-final parity (ERR-077) and migrates 10 single-answer fixture factories plus five specialized WTA fixture files, and one source-located cancellation test, to actual `streamFinalPrompt` with pinned local test routes (ERR-078). The migrated tests' original behaviors remain asserted; **no Mac runtime verification yet**. Isolated pure WTA output tests 5/5, fixture 2/2, source WTA wiring 30/30 pass. `AGENTS.md` approved guidance remains present.
+
+Next: run ZIP README's self-contained Downloads logs for typechecks, build, affected Electron tests, then controlled full suite. Classify new output-behavior failures and eight missing-fitContext helper failures plus nine action/vision/provider cases separately. Keep ERR-076 WTA transcript longevity/scopes open. No staging, reset/stash, commit or push. C20-AC1 FAIL, C20-AC2 PENDING, CHG-21 blocked.
+
+
+## Current continuation — WORK-0070 / CHG-20 / TASK-0003 (2026-11-15)
+
+**Owner WORK-0069 evidence:** Patch applied. Three TS checks and both builds passed. Intelligence suite 2,173 total / 2,164 pass / 0 fail / 9 TODO. Separate controlled `npm test`: 9,095 total / 8,929 pass / 98 fail / 1 cancelled / 67 skipped; not clean acceptance. Two focused command attempts did not run because `$LOGDIR` was unset, causing shell redirection to `/focused-electron.log` on a read-only filesystem; future test command blocks must define the log path independently in `~/Downloads`.
+
+**WORK-0070 patch:** ERR-075 project RAG adapter authorized-ID intersection moved to **before** storage read; missing/empty scope cannot read, result filter/cancellation preserved. Local isolated actual adapter tests 10/10 passed; Mac verification pending. ERR-076 remains open: WTA speech follow-up longevity, empty-context guard and outbound lineage/scopes. `AGENTS.md` re-read; no rule duplication. Read WORK-0070 and its evidence audit before next patch. Owner checkout has mixed staged/unstaged edits: do not stage/reset/stash/commit/push; check patch before applying.
+
+**Next:** Apply ZIP patch only if checksum/`git apply --check` passes; run focused adapter/safety tests with self-contained Downloads LOGDIR block, then typecheck/build and intelligence. If all green, triage remaining 98 Electron failures by actual canonical transport fixture/behavior without fake fallback. C20-AC1 FAIL, C20-AC2 PENDING, CHG-21 BLOCKED.
+
+## Latest handoff — WORK-0069 / CHG-20 / TASK-0003 (2026-11-15)
+
+**Owner checkout:** main `5efac5d2d8d35722b83d7de0d6bc41df93858006` per latest read-only Copilot report; 43 staged paths then, no unstaged at that snapshot. Source baseline for patch reconstructed by applying WORK-0064/65/66/67 onto owner-uploaded ZIP; any owner edits after that require rebase rather than forced patch. Do not stage, reset, stash, commit or push. Existing `CanonicalRuntime.ts` staged EOF blank-line warning remains separate; a working-tree patch cannot automatically repair the index, and we must not alter the index.
+
+**Current state:** Owner WORK-0067 intelligence run: 2,158/2,170 pass, 3 fail, 9 TODO. Two are stale source assertions; V3 explicit-entity debug recorder failure is not reproducible in isolated TS bridge. Production WTA source-provenance flaw confirmed and a pure selection fix prepared, with tests. See `ERR-072`–`ERR-074`, `WORK-0069`, and `scripts/audit/chg20-work0069-evidence.md`. Local selector 2/2, adapter 8/8, CHG-17 safety gate 10/10; real Electron full-suite pending.
+
+**Delivery:** Verified ZIP with unified patch, README, log parser and Copilot prompt; use commands that extract from ZIP and save all build/test logs to `~/Downloads/Sneak-Peek-WORK0069-logs`. After owner runs targeted suite and intelligence, inspect exact failures and settle remaining fixtures/committed-error/provider/privacy/lifecycle before full-suite acceptance. C20-AC1 FAIL, C20-AC2 PENDING, CHG-21 blocked. Do not mark zero failures or acceptance from isolated checks.
+
+## WORK-0067 CURRENT (2026-11-14) — full regressions reopened; do not claim CHG-20 complete
+
+Owner applied WORK-0066 and obtained 25/25 focused tests, all three typechecks and builds passing, then full intelligence 2,142 pass / 19 fail / 9 todo and Electron 8,919 pass / 107 fail / 67 skipped / 3 cancelled (owner Ctrl+C; lib/scripts not run). Details and each reported failing test/suite heading are in `scripts/audit/chg20-regression-inventory-work0067.md`, linked to ERR-072. WORK-0067 proposes a **bounded ZIP patch**, not blanket test resolution: canonical WTA deterministic output guard/cleanup/trace; stale source-owner assertions updated to follow CanonicalRuntime and AnswerExecution; real temporary PNG vision fixtures; AGENTS rule strengthening and complete tracking. Current source copy has no installed node_modules/dist-electron. Only source-level local tests and patch checks were possible. Mac TypeScript, compiled tests, broader suites and desktop/provider/cancellation are **pending**. C20-AC1 FAIL, C20-AC2 PENDING, CHG-21 BLOCKED. Avoid re-running earlier disproven source-location assumptions, pretending old test provider fakes are real transport, or overwriting staged/unstaged files. No commits/pushes/resets.
+
+
+
+## Latest continuation — WORK-0066 / ERR-071 (2026-11-14; patch prepared)
+
+Owner applied WORK-0065. Mac checks subsequently passed: source wiring **2/2**, Electron/premium/TS5 typechecks, `build`, and `build:electron`. The four-file focused Electron batch reported **24 pass / 1 fail**. The sole failure is a static Phone Mirror source assertion searching for `conversationActionDataScopes` inside `ipcHandlers.ts`, whereas the current canonical provider generation/runtime performs lineage-scope policy in `CanonicalRuntime.ts`. WORK-0066 corrects the test without changing generation behavior, records ERR-071, and updates `AGENTS.md` with the owner's stated product, collaboration and logging rules. Source assertion and JS syntax passed here; actual Mac re-run pending. Patch must be applied against the working tree with WORK-0064 and WORK-0065 already applied; preserve staged/unstaged/untracked files.
+
+**Immediate next action:** owner applies WORK-0066 (hash/check/reverse-check), runs four-file focused Electron test using built `dist-electron`. If passing, run `npm run test:intelligence` and a controlled complete Electron suite; manually validate phone/desktop isolation and provider scope restrictions with synthetic fixtures. Use the latest actual checkout for CHG-20 caller audit; older surface-map rows remain historical. **CHG-20 C20-AC1 FAIL; C20-AC2 PENDING; CHG-21 BLOCKED.** Do not commit, push, reset, stash, or drop older code. Read WORK-0066 in CHANGE_LOG and ERR-071 before additional modifications.
+
+## WORK-0065 — compilation repair follow-up (patch prepared, 2026-11-14)
+
+Owner applied WORK-0064; the reported next check failed with 138 TS errors and `build:electron` missing export, causing `dist-electron` module-load errors in two focused tests. WORK-0065 prepares a small `AnswerValidation.ts` import correction and a compiler-flow fix in `ipcHandlers.ts`, with regression tests. Existing CHG-20 canonical modules and Phone Mirror permissions remain unchanged. Await owner macOS compile/build/focused verification before acceptance; C20-AC1 FAIL, C20-AC2 PENDING, CHG-21 BLOCKED. See ERR-070 / WORK-0065.
+
+## November 14 continuation — WORK-0064 prepared (not applied)
+
+The owner uploaded a current source ZIP containing four untracked canonical files (`AnswerRequest`, `AnswerExecution`, `AnswerValidation`, `CanonicalRuntime`) and reported 14 modified tracked files. Read-only Copilot inspection reported `main` at `5efac5d2d8d35722b83d7de0d6bc41df93858006`; the ZIP itself has no Git metadata and cannot attest that commit. Earlier WORK-0062 records are historical. WORK-0064 prepares a small Phone Mirror permission/planner correction (ERR-069) and negative/positive tests, plus a truthful current surface note. This is **not** proof that the whole CHG-20 architecture or runtime acceptance has passed.
+
+Next: apply WORK-0064 only after `git apply --check` against current unstaged sources; run the focused compiled Phone Mirror and ContextPlanner tests, Electron typecheck/build, then protected cross-surface suites and actual desktop acceptance. Review the complete current production-route map and source policy before upgrading C20-AC1. Keep C20-AC1 FAIL and C20-AC2 PENDING; CHG-21 blocked. Do not stage/commit/push automatically.
+
+---
+
+# Sneak-Peek — current session handoff
+
 ## Current CHG-20 handoff — WORK-0062 patch pending Mac validation (2026-11-14)
 
 WORK-0062 contains a current-snapshot patch for Phone Mirror's independent `LLMHelper.streamChat` generation path, replacing it with `buildPhoneMirrorCanonicalRequest` and the existing canonical engine transport. It also updates WORK-0060's outdated token-listener test assertion and the v2 source tests for the earlier WORK-0061 email and new phone canonical dispatch; 87 source tests passed in the patch workspace. The patch has not yet been applied by the owner or run through macOS Electron/desktop tests. Keep source and provider scopes, STOP/supersession, mixed-history provenance, selected mode/model and sender ownership under focused regression. If anything fails, reconcile against the latest modified local files rather than forcing the patch. CHG-20 C20-AC1 still FAIL / C20-AC2 PENDING: grounded WTA/repair, V3 assist/actions, manual compatibility and other active routes remain. Do not start CHG-21.

@@ -37,8 +37,8 @@ test('project capability passes the coordinator-authorized file IDs to its plann
 });
 
 test('production project capability does not invoke a second global source planner', () => {
-  const source = readFileSync(path.join(root, 'electron/ipcHandlers.ts'), 'utf8');
-  const start = source.indexOf("source: 'project_knowledge',", source.indexOf('function createPrimaryManualSneakPeekEngine('));
+  const source = readFileSync(path.join(root, 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  const start = source.indexOf("source: 'project_knowledge',", source.indexOf('export function createPrimaryManualSneakPeekEngine('));
   const end = source.indexOf("source: 'my_files',", start);
   assert.ok(start >= 0 && end > start);
   const project = source.slice(start, end);
@@ -49,8 +49,8 @@ test('production project capability does not invoke a second global source plann
 });
 
 test('structured knowledge reads only the engine-selected OKF source', () => {
-  const source = readFileSync(path.join(root, 'electron/ipcHandlers.ts'), 'utf8');
-  const engineStart = source.indexOf('function createPrimaryManualSneakPeekEngine(');
+  const source = readFileSync(path.join(root, 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  const engineStart = source.indexOf('export function createPrimaryManualSneakPeekEngine(');
   const start = source.indexOf("createRetrievalCapability('structured_knowledge'", engineStart);
   const end = source.indexOf("createRetrievalCapability('profile'", start);
   assert.ok(start >= 0 && end > start);

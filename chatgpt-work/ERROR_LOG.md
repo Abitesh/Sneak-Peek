@@ -707,3 +707,163 @@ WORK-0056 / TASK-0003. Source-confirmed. The old passive assist run unconditiona
 WORK-0061 / TASK-0003. The new manual image branch initially required no active mode. The disposable desktop had the built-in General mode, so production preload reached the legacy vision path and returned its unavailable response. The fake canonical vision transport was never called. Evidence: `/tmp/sneak-work0061.s756pZ/desktop-manual-image-first.log` and its initial JSON. Preserve the selected model, attachment validation, mixed-history authorization, and custom-mode gate when admitting the built-in General mode.
 
 **Resolution verified.** Database-seeded General mode migrates to `migrated_from_prompt / ask_if_ambiguous`. The image-chat route now accepts that default contract and a fresh General default when no files, custom instructions, or explicit strict grounding exist. It uses supplied history as referent-only material with conservative provider scopes. The production preload stream in the final desktop run observed one canonical vision dispatch, one token and one matching completion. Intermediate failed desktop runs are retained under the same evidence directory. Final runner log: `/tmp/sneak-work0061.s756pZ/desktop-final.log`.
+
+
+## ERR-069 — Phone Mirror meeting evidence granted from untyped or incomplete transcript (2026-11-14)
+
+**Task:** TASK-0003 / CHG-20. **State:** Correction prepared in WORK-0064; macOS runtime verification pending.
+
+**Evidence:** At the supplied November 14 source snapshot, `PhoneMirrorRequest.ts` set `contextPermissions.transcript` from `actualMeetingTranscript.turns.length` without validating `source === 'meeting'` or nonblank content. `ContextPlanner.ts` could classify an unpermitted Phone Mirror meeting source as merely `not_required` instead of explicitly `forbidden`. The existing `PhoneMirrorCanonicalRequest.test.mjs` expected the explicit denial. This is an authorization-contract inconsistency; no actual data disclosure has been demonstrated.
+
+**Prepared correction:** Require independently supplied, nonempty typed meeting evidence in the Phone Mirror request adapter. In `ContextPlanner`, explicitly deny meeting evidence and unrelated general-knowledge fallback for a meeting question when those conditions are absent, including a crafted request with a forged transcript permission; enforce the resulting meeting-evidence-unavailable policy in `PromptAssembler`; preserve valid authorized meeting input. Regression tests cover absent, imported, live, empty and authorized meeting cases.
+
+**Checks completed on isolated uploaded source copy:** TypeScript syntax parsing and isolated transpilation of all three modified production files; nine isolated request/planner/prompt scenarios using mocked external dependencies; Node syntax checks of the edited `.mjs` tests. A full Electron build, test suite, actual Phone Mirror desktop/phone behavior, and macOS/Windows runtime have **not** been executed. Do not claim an installed fix or resolved error until the owner applies the patch and supplies matching verification.
+
+## ERR-070 — CHG-20 canonical import and unreachable legacy type narrowing break Electron builds (2026-11-14)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0065. **State:** Corrective patch prepared; owner macOS verification pending.
+
+**Owner evidence:** After successfully applying WORK-0064, the owner reported 138 Electron TypeScript errors (one `AnswerValidation.ts` missing export and 137 in `ipcHandlers.ts`), repeated under TypeScript 5, and a failed `build:electron` with 12 reports of the same missing export. Focused tests reported 6 pass / 2 module-loading failures: `ContextPlanner.js` and `PhoneMirrorRequest.js` were missing from `dist-electron` following the failed build. These are dependency-load failures, not failed planner assertions. `build` clears dist and dist-electron before compiling; a failed `build:electron` leaves tests without expected compiled modules.
+
+**Confirmed source causes:** `AnswerValidation.ts` imported `validateAnswerStructure` from `AnswerPlanner.ts`, while it is exported by `AnswerValidator.ts`. In `ipcHandlers.ts`, the canonical manual-chat block has terminal returns on all paths, leaving the retained CHG-22 legacy code statically unreachable. TypeScript's control-flow analysis then narrowed many historical nullable variables to null/undefined. Do not suppress TS checks or add ~137 unjustified non-null assertions. These failures originated in the broader unverified CHG-20 working tree; WORK-0064 modified neither file.
+
+**WORK-0065 proposed correction:** Import the validator from its actual owner. Use an always-true runtime condition typed as `boolean` around the canonical block so TypeScript can analyze the preserved historical block without treating it as following an unconditional return. The generated JavaScript still executes only the canonical branch. Add compile-wiring and validation-load regression tests. No provider, audio, source, renderer, or legacy dispatch behavior is intentionally changed.
+
+**Checks:** Source-grounded export inspection and a minimal isolated TypeScript 5.8 flow-control reproduction completed; additional local test/patch checks recorded in WORK-0065. Full TypeScript 7/5 project compilation, Electron build, owner macOS tests, and desktop/Windows validation remain pending.
+
+**Owner follow-up (2026-11-14):** WORK-0065 patch forward and reverse checks succeeded. `node --test scripts/__tests__/chg20-build-wiring.test.mjs` passed 2/2. All three typechecks (`typecheck:electron`, `typecheck:premium`, `typecheck:ts5:electron`) and both builds (`build`, `build:electron`) passed on macOS. The later focused batch passed 24/25 and failed only the separate stale Phone Mirror source assertion (ERR-071), not the former compilation issue. **ERR-070 state:** Verified resolved for the reported compiler/build blocker using owner-run macOS checks; full CHG-20 behavioral/desktop acceptance remains pending. Browserslist age and Vite chunk-size notices were non-fatal warnings, not failed checks.
+
+## ERR-071 — Phone Mirror production lineage assertion targets the retired IPC location (2026-11-14)
+
+**Task:** TASK-0003 / CHG-20 / WORK-0066. **Initial state:** Reproduced from owner-provided focused Electron output; investigation and patch verification pending at registration.
+
+**Owner evidence:** After applying WORK-0065, all three TypeScript checks and both production builds passed on macOS. The focused four-file Electron batch reported 24 passing tests and one failing source-level test, `PhoneMirrorCanonicalRequest.test.mjs` ("Phone Mirror actual production chat uses canonical engine and guards source lineage"). Its final `assert.match` expected `conversationActionDataScopes({ context: request.sessionSnapshot ?? request.imageConversationSnapshot })` inside `electron/ipcHandlers.ts`. The failure printed source text rather than reporting a Phone Mirror provider response.
+
+**Investigative boundary:** Check the current canonical runtime and the phone IPC caller before changing either. A stale test-location assumption is not proof that provider scope enforcement was removed. Preserve the test's security purpose: phone dispatch and runtime generation must retain conservative mixed-session lineage scopes for provider policy. No production privacy relaxation is authorized.
+
+**WORK-0066 source confirmation and correction:** In the current source, `electron/ipcHandlers.ts` routes Phone Mirror through `buildPhoneMirrorCanonicalRequest` and `streamRagEngineAnswer` using `createPrimaryManualSneakPeekEngine`; `electron/intelligence/engine/CanonicalRuntime.ts` builds conservative data scopes using `conversationActionDataScopes` and passes the resulting scopes to both pinned and selected-provider routes before `streamCanonicalProvider`. The test was still asserting the pre-migration location, and should inspect the actual runtime's scope handoff rather than eliminate its privacy assertion. Updated only the test (no production behavior change). Locally checked the exact replacement expressions against current source and `node --check` passed; full focused Electron re-run remains pending on the owner's Mac. **State:** Fix implemented, unverified in actual Electron test execution.
+
+## ERR-072 — CHG-20 full regression suites fail after focused 25/25 (2026-11-14)
+
+**Task:** TASK-0003 / CHG-20 / WORK-0067. **State:** OPEN / partially mitigated in prepared patch; no Mac verification of patched tree. Do not close before current tree suites pass.
+
+**Owner evidence:** WORK-0066 25/25 engine-focused tests, three Electron typechecks and two builds passed on macOS. Subsequent full `npm run test:intelligence`: 2,170 tests, 2,142 passed, 19 failed, 9 todo. `npm test -- --test-concurrency=4`: 9,096 tests, 8,919 passed, 107 failed, 67 skipped, 3 cancelled; owner interrupted after a long run. `test:lib` / `test:scripts` were not completed. A single `git diff --check` whitespace warning named `CanonicalRuntime.ts` blank line at EOF, an existing staged/new-file condition that this patch does not manipulate.
+
+**Failure families found, not all proven equivalent:** stale source-level owner checks still looking in IPC instead of `CanonicalRuntime.ts`/`AnswerExecution.ts`; WTA test fakes missing `isUsingOllama` and current canonical provider route/transport; source-path validity check requiring actual file-backed images; potentially real regressions in WTA always-on answer cleaning, schema-stub suppression, repetition tracing, provider denial, image policy, STOP/supersession, no-history-on-error and renderer event consistency. The same missing fake methods affect many test names; do **not** count each as a separately verified production defect. See `scripts/audit/chg20-regression-inventory-work0067.md` for the complete input failure-name list.
+
+**Repair hypothesis / bounded implementation:** Restore noncoding deterministic cleanup and diversity observability within the active canonical WTA route, fail closed on leaked schema stubs, make model-deadline probe optional for simplified test transports, relocate only demonstrably stale static assertions, replace nonexistent vision fixture paths with disposable real PNG files. Preserve first-token/provider commitment, source authority, STOP, prompt ownership, event/history rules, existing staged changes and audio. This does NOT fix or verify all failed runtime cases.
+
+**Attempt/verification history:** A first Change13 static assertion assumed one closing brace between the primary return and historical comment; the actual branch has two, so the assertion failed locally. Corrected it and reran: 4/4 Change13 source-only tests passed. The WTA source-only three-test block and four Change10 assertions passed on the isolated copy. Attempts to run compiled-dependent integration suites in the isolated upload failed at import before assertions (`dist-electron` absent): this is *not* a Mac regression and must not be counted as a behavior failure. The owner Mac is required for TypeScript 7/5 compilation, Electron service and full regression execution. No third-party provider/network/user-data calls executed locally. Initial hypothesis that all 107 failures were one fixture issue was rejected: privacy/cancellation/response correctness failures need real tests, not fake success.
+
+**Next:** Apply/check the verified ZIP patch on top of WORK-0066. Run focused source and runtime tests, three typechecks and both builds in order; if green rerun the broader suites with controlled concurrency and save the failure summary to a local log. Reconcile any remaining incidents with real engine request/provider capability stubs. CHG-20 remains unaccepted.
+
+## ERR-073 — Canonical WTA elevated typed history to speech evidence (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0069. **State: correction implemented in a prepared ZIP; macOS behavioral verification pending.**
+
+**Evidence and risk:** The WORK-0067 `IntelligenceEngine.ts` canonical What-to-Answer request built its `source: 'live'` transcript from every non-assistant `contextItems` turn. SessionTracker also stores manual_chat, system_instruction and test-origin data, and the request forwarded all mixed history plus potentially mixed `preparedTranscript` for follow-ups. `CanonicalRuntime.ts` promotes a `source: 'live'` request's turns to `meeting_transcript` evidence. Three prior `CanonicalConversationActions.test.mjs` speech-only WTA tests reported private-decoy/citation failures. Independently inspected the production caller and typed provenance fields; this is a confirmed source-level boundary error, although a provider disclosure is not independently demonstrated.
+
+**Correction:** Add pure `selectWtaSpeechTurns` with positive STT/test and legacy provider evidence and explicit negative precedence for manual/assistant/system origins. In the canonical WTA request use the selected turns for `transcript` and `history`; use a speech-only bounded follow-up snapshot rather than mixed history. Do not elevate typed turns or prior assistant output into meeting authority. Preserve the current manual WTA question, other canonical source gates, provider pinning and cancellation. Add two direct selector regressions and tighten the existing speech-only rendered-prompt assertion.
+
+**Attempts/evidence:** Initial inline filtering matched the older predicate but could admit `origin: manual_chat` when an obsolete `sttProvider` field was present; replaced with an explicitly fail-closed selector before packaging. Local isolated Node tests pass 2/2; compiled Electron service tests, prompt/provider privacy, mode-specific WTA and macOS/Windows desktop verification pending. Any long-range lexical follow-up requiring older speech not in the selected bounded window needs separate behavioral review; do not reinstate mixed text as transcript evidence.
+
+## ERR-074 — V3 explicit-entity context-debug record intermittently lacks conversation state (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0069. **State: investigation open; one bounded robustness change prepared, Mac verification pending.**
+
+**Reported evidence:** WORK-0067 `test:intelligence` owner run reported 3 failures/2,170 tests. Copilot's read-only follow-up identified `ContextDebugLogging2026_08_01.test.mjs` `explicit entity: referent NOT applied` as the third case, where `conversationState` was absent. The test requires `referentApplied: false` and reason `CURRENT_QUESTION_CONTAINS_EXPLICIT_ENTITY`; do not weaken it. The other two failures were stale source anchors.
+
+**Investigation:** Orchestrator built `referentResolution` inside a broad `try` with a dynamic `require('../question/conversation-state-store')`; any module-resolution exception was silently swallowed, leaving no trace field. That is a credible but **not proven** source of the observed Mac failure. The current uploaded source run through an isolated TypeScript loader did NOT reproduce the defect: `orchestrate` and the full V3 `buildV3Prompt` debug writer both produced the expected explicit-entity reason and `referentApplied: false`. Do not represent this as a confirmed explanation of the Mac failure.
+
+**Proposed robustness change:** Replace the dynamic store require with direct typed imports to avoid module-load errors being hidden by the best-effort resolver catch; leave the resolver's decision, privacy and debug contract unchanged. Local TypeScript transpilation and isolated V3 debug reproduction passed. Current Mac `ContextDebugLogging` and full intelligence suite remain required to establish whether the reported failure is fixed. If it persists, capture full test details in Downloads before another code edit.
+
+
+## ERR-075 — Canonical project RAG can read unauthorized planned file IDs (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0070. **State: source correction prepared and isolated adapter tests pass; Mac verification pending.**
+
+**Evidence:** Owner's WORK-0069 read-only Copilot report identified that `CanonicalRagRetrievalAdapter` passed `input.contextPlan.sourceIds` directly to the RAG reader. Its result filter checked `scope.projectFileIds` only *after* retrieval. Independently confirmed the call and read in the uploaded WORK-0069 source. A planner-chosen project ID is not an authorization grant; a filtered result cannot undo an unauthorized storage read. The WORK-0069 behavioral fixture even expected the reader to receive the wider planned list, so that earlier test had the wrong privacy invariant.
+
+**Fix:** Intersect planned IDs with the authorized scope at the **pre-read** boundary. For `project_knowledge` require an explicit nonempty project-file authorization and project-only scope; deny missing and empty intersections without calling `read`. Preserve the final evidence filter, canonical provenance and cancellation propagation. Change the behavioral expectation to the authorized list and add missing/empty/disjoint scope and in-flight cancellation regressions. Do not add a legacy provider or widen scope to satisfy old test mocks.
+
+**Evidence:** Local disposable TS5.8 transpilation plus actual Node runtime of the canonical adapter test: 10/10 pass, including pre-read rejection and a late-resolution cancellation check. Mac Electron typecheck/build, full intelligence suite, 9k Electron suite, screenshot/privacy and live desktop tests pending. Owner's prior WORK-0069 typechecks/builds and intelligence 2164/2173 passed *before this patch*; they are not verification of WORK-0070.
+
+## ERR-076 — WTA speech-only follow-up/context and source-scope gaps after WORK-0069 (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0070. **State: investigated; NOT fixed in this bounded patch.**
+
+**Evidence:** Copilot read-only review of the owner tree reports: mixed `preparedTranscript` can still influence an empty-context guard before speech filtering; genuine older speech recall may be dropped by the recent-only canonical snapshot; the resulting speech-only snapshot is classified as `mixed_session_history` with unrelated outbound scopes. These are credible source-level findings; this work did not independently reproduce a provider request. Do not restore unlabelled durable context or silently widen a cloud provider's scopes. Investigate source typing and recency/follow-up requirements as a distinct correction with prompt/provider-scope tests.
+
+**Next:** After WORK-0070 read boundary is verified, trace the WTA empty-context guard, durable STT provenance, live snapshot lineage and outbound data scopes. Add negative typed-decoy and positive older STT follow-up fixtures before modifying the active route. Keep C20-AC1 open.
+
+
+## ERR-077 — Canonical WTA lost legacy raw-output and manual error-render safeguards (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0071. **State: source correction prepared; Mac runtime verification pending.**
+
+**Confirmed source defect:** The active `IntelligenceEngine.runWhatShouldISay` passed raw leaked schema/tag artifacts, provider-transport error strings, false no-content claims, and candidate voice stock refusals toward validation/persistence rather than handling them as the historical WTA path did. Manual catch returned a non-null `buildGracefulRetry()` without its matching `suggested_answer` event, leaving the renderer's placeholder unresolved. The tiny steering-tail strip for small-talk remained historical-only. These are distinct from tests that injected through a retired provider seam.
+
+**Correction:** Add `WtaRawOutputPolicy` to classify raw content before canonical repair/persistence; recover substantive JSON, preserve genuine technical JSON, refuse leaked artifacts, display but never persist provider errors, and show honest manual sentinels while discarding speculative ones. Reuse current candidate sanitizer and narrow small-talk steering strip; emit a matching generation-ID final on non-superseded manual exceptions and never emit speculative final. Existing `AnswerExecution` provider commitment and STOP remain untouched.
+
+**Checks and limits:** Pure Node policy tests 5/5; standalone TS strict check; source syntax checks. Owner Mac compile/behavior tests, streaming row ordering, private-scope delivery and comprehensive regression pending. The old 98 failures are not declared resolved.
+
+## ERR-078 — Legacy WTA tests still call retired whatToAnswerLLM instead of canonical provider contract (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0071. **State: partial test fixture migration prepared; behavioral verification pending.**
+
+**Evidence:** Owner's latest controlled `npm test` log: 9,095 total / 8,915 pass / 98 fail / 1 cancelled / 81 skipped. A group of 81 error entries throws `Active provider transport is not yet supported...` because the mocks supplied only `whatToAnswerLLM.generateStream`, which active code no longer calls, and no selected provider snapshot or final-prompt transport. Previous WORK-0067–0070 fixes did not reduce this group.
+
+**Correction:** Use a shared test-only pinned `ollama` `getSneakPeekGenerationRouteOptions` + `streamFinalPrompt` fixture for legacy live-WTA behavioral tests. It is **not** a production fallback, does not override provider privacy, and must not be reused to fake scope-denial cases. Migrate test factories and move the background-verification source assertion to the active canonical same-provider `execution.repair(..., abortSignal)`. Preserve outcome, cancellation, history and UI assertions, adapting only tests that explicitly require a retired generator.
+
+**Evidence/next:** Local fixture direct tests 2/2; WTA source assertions 30/30; JS syntax passed. The other eight `fitContextForCurrentModel` failures and action/vision/privacy cases remain open. Owner Mac focused suite is required to discover whether formerly blocked cases now expose true output behavioral regressions. Record each observed failure; no acceptance until green.
+
+## ERR-079 — Remaining CHG-20 canonical WTA migration and action-fixture regressions (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0072. **State: partial source/test correction prepared; Mac regression pending.**
+
+**Owner evidence:** WORK-0071 applied with three Electron TS checks, frontend build and Electron build all passing. Its `npm test -- --test-concurrency=4` report: **9,097 total / 8,987 passed / 28 failed / 1 cancelled / 81 skipped**. Thus the previous 98 failures fell to 28, but CHG-20 cannot be accepted. The 28 include seven `ManualContextFallback` tests throwing `fitContextForCurrentModel is not a function`, three screen-context WTA tests using the removed `whatToAnswerLLM.generateStream` injection, and separate provider scope/vision, cancellation, action completion and relevance/response repair issues. The failure log and full original were uploaded; do not infer these distinct failures are all test-only problems.
+
+**Corrections:** Update the seven action/manual-context tests to provide the production helper's `fitContextForCurrentModel` method and the canonical pinned test route, assert on the actual final provider prompt (including escaped, uncitable historical context), never through the retired action generator. Update three WTA screen-context tests to use `streamFinalPrompt`, checking real image options, screen text, caller instruction and no-screen omission. Preserve no-call tests for stale and synthetic history. No production fallback for null provider routes, denied privacy scopes or old generators.
+
+**Unresolved:** The broad Electron suite has other active-path errors, including `CanonicalConversationActions`, screen-source classification, stale assist, worker/coding and detached relevance checks. These require their own source-grounded corrections. Do not claim the total failure count after this patch before owner verification.
+
+## ERR-080 — Speculative WTA exceptions leak retry output; promoted screen coding re-enters spoken scaffold repair (2026-11-15)
+
+**Related:** TASK-0003 / CHG-20 / WORK-0072. **State: source corrections prepared; Mac regression pending.**
+
+**Evidence:** WORK-0071 Electron `IntelligenceEngineSentinel.test.mjs` expected null on empty speculative provider generation but received a visible retry string; the canonical `catch` returned retry unconditionally. `ScaffoldStreamHold2026_08_21.test.mjs` found that an on-screen `class Solution/def twoSum` turn triggered a second regeneration. The active WTA path keyed its coding stream gate only from `answerType`, whereas the archived pre-migration implementation also used shared `isPromotedScreenCodingTurn`. The canonical validator independently considered canonical coding headings to be contamination for non-coding routed types.
+
+**Correction:** Explicitly suppress error fallback/terminal event for speculative requests. Reuse the shared screen-coding promotion predicate at the active WTA stream gate; the canonical validator must not interpret legitimate promoted coding headings as spoken contamination, but non-promoted noncoding scaffold remains rejected. Add a validator regression covering both cases. Do not disable ordinary coding validation, provenance, provider pinning, or STOP. Source/transpile checks only locally; Electron runtime outcome pending.
+
+## ERR-081 — Canonical WTA output and relevance parity (2026-11-15)
+
+WORK-0073 / TASK-0003. Reproduced on local main 5efac5d2 with the owner's working changes. The 90-test focused baseline yielded 72 pass, 17 fail and one cancellation across WTA and action/lifecycle groups. WTA deficiencies reproduced include discarded visible deadline output, technical JSON rejected on the second validation pass, missing scaffold extraction and relevance/repair behavior, and redundant regeneration of promoted screen coding. Speculative-empty behavior already passes this baseline. Logs: /tmp/sneak-work0073.pzgQMY/baseline-focused.log.
+
+## ERR-082 — Canonical action error delivery, scope fixtures and cancellation (2026-11-15)
+
+WORK-0073 / TASK-0003. Same baseline reproduces committed and denied actions losing their error event, stale assist not settling while its provider is parked, and Code Hint/brainstorm provider-scope and supersession fixtures failing. Investigate original ownership and final route checks separately from mocks using obsolete transport interfaces. No legacy dispatch is authorized.
+
+## ERR-083 — Manual image policy missing from canonical desktop prompt (2026-11-15)
+
+WORK-0073 / TASK-0003. First isolated desktop run reached real preload and selected vision transport after passing WTA, Code Hint and image analysis. The transport rejected the streaming manual image prompt because the typed screen attachment path no longer emitted the explicit image data boundary. No token or completion reached the renderer for this turn. Evidence: /tmp/sneak-work0073.pzgQMY/desktop-first.log and its linked initial.log. Restore the same image policy for authorized pixels on all canonical surfaces.
+
+## ERR-084 — Broad suites revealed a speculative expectation and four stale test boundaries (2026-11-15)
+
+WORK-0073 / TASK-0003. First broad Electron run passed 9,029 of 9,097 with one outdated speculative no-provider expectation and 67 skips. First intelligence run passed 2,168 of 2,181 with four failures and nine TODOs: two factory VM fixtures omitted the new current-scope-policy dependency, and two exact source assertions expected the previous route/prompt call shapes. Preserve provider routing, meeting scope and response assembly assertions while reconciling those test boundaries. Also reject incomplete speculative provider output even when it looks like a complete sentence.
+
+## ERR-085 — Desktop manual generation could retain a stale pending/completed turn after STOP (2026-11-15)
+
+WORK-0073 / TASK-0003. Source audit of the active streaming handler found that sender cancellation could leave the turn pending when ownership had already been removed, or mark it completed before a repair finished. A transport waiting on its next chunk could delay cancellation settlement. Move completion status after owned repair, close stale turns as cancelled, and race provider iteration against the original signal. Verify parked transport behavior without waiting for late output.
+
+**WORK-0073 resolution evidence:** ERR-076 now preserves origin and STT provider attribution in durable context, excludes typed/system-instruction/assistant turns before WTA inference, and supplies bounded recalled speech through the typed transcript evidence route. A durable recall regression distinguishes old STT from typed and assistant decoys, and an action test verifies typed-only history cannot cause dispatch. Unattributed interviewer history can still inform question inference for legacy input, but does not become speech evidence.
+
+ERR-081/082 passed the 95-case WTA/action rerun and final broad suites. ERR-083 passed actual streaming manual image IPC and standalone analysis, including the profile-path escape negative test. ERR-084 passed both final broad suites (Electron 9,031 pass, 67 skips and intelligence 2,173 pass, 9 TODO, with zero failures or cancellations in both). ERR-085 passed actual preload STOP with a parked provider and both model-commit recovery scenarios. Local evidence is in WORK-0073 and the surface map. Broader acceptance limitations remain recorded separately.
+
+
+## ERR-086 — CHG-20 desktop acceptance depends on an unsaved temporary runner (2026-11-15)
+
+WORK-0074 / TASK-0003. Verification-delivery defect, not a newly reproduced answer failure. WORK-0073 executed `/tmp/sneak-work0073.pzgQMY/desktop.mjs`; the repository runner `scripts/audit/run-chg19-desktop-acceptance.mjs` retains a CHG-19-only path allowlist. Current CHG-20 source paths necessarily violate that historical allowlist. The temporary runner also compared names/status/index without hashing unstaged tracked content. Current owner checkout has 81 staged paths and no unstaged/untracked paths; index must remain unchanged.
+
+Prepare a separate CHG-20 runner in a downloadable patch, reusing the unchanged OS restrictions and genuine rendered harness. Record tracked diff and build hashes before/after, retain same-profile relaunch and event evidence, and report preexisting whitespace separately. Do not reinterpret unchanged checkout as proof that the entire staged migration has received independent review. No production defect or new completion claim is inferred.
+
+**WORK-0074 result:** Separate runner implemented in the downloadable patch, syntax/apply/reverse/byte checks passed, and both actual desktop phases passed. Evidence copied to `/Users/abitesh/Downloads/Sneak-Peek-CHG20-WORK0074/evidence`. Repository installation pending; do not mark ERR-086 installed/resolved yet. Existing production behavior untouched; no new answer failure reproduced.

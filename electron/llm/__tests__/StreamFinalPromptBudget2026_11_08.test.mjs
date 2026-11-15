@@ -1,9 +1,22 @@
 // WORK-0033: the canonical Intelligence Engine provider transport is also bounded.
 // Uses a fake streaming provider, so no API keys or paid model calls are needed.
-import { test } from 'node:test';
+import { test, after } from 'node:test';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { LLMHelper } from '../../../dist-electron/electron/LLMHelper.js';
 import { MAX_STREAM_OUTPUT_CHARS } from '../../../dist-electron/electron/llm/liveDeadlines.js';
+
+// The canonical transport rejects missing image attachments before provider dispatch.
+// Use tiny disposable real files; never depend on a developer's desktop path.
+const fixtureDir = mkdtempSync(path.join(tmpdir(), 'sneak-canonical-vision-'));
+const fixtureImage = path.join(fixtureDir, 'fixture.png');
+const secondFixtureImage = path.join(fixtureDir, 'second.png');
+for (const image of [fixtureImage, secondFixtureImage]) {
+  writeFileSync(image, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO++kxsAAAAASUVORK5CYII=', 'base64'));
+}
+after(() => rmSync(fixtureDir, { recursive: true, force: true }));
 
 test('streamFinalPrompt caps a runaway provider and reports incomplete instead of success', async () => {
   let produced = 0;
@@ -38,7 +51,7 @@ test('streamFinalPrompt completes normally when the provider stays below the cap
 test('canonical vision forwards the selected model, validated attachment and cancellation signal', async () => {
   const fake = Object.create(LLMHelper.prototype);
   const controller = new AbortController();
-  const images = ['synthetic-screenshot.png'];
+  const images = [fixtureImage];
   fake.assertOutboundImagesAllowed = (provider, hasImages) => assert.deepEqual([provider, hasImages], ['openai', true]);
   fake.streamWithOpenaiMultimodal = async function* (prompt, paths, system, model, signal) {
     assert.deepEqual([prompt, paths, system, model, signal],
@@ -87,17 +100,17 @@ test('canonical custom and cURL vision dispatch forward one image without permit
     fake.isProviderDisabled = () => false;
     fake.streamWithCustom = async function* (...args) {
       assert.ok(streaming);
-      assert.deepEqual(args, ['canonical prompt', undefined, ['fixture.png'], '', controller.signal, true]);
+      assert.deepEqual(args, ['canonical prompt', undefined, [fixtureImage], '', controller.signal, true]);
       yield 'Result';
     };
     fake.executeCustomProvider = async (...args) => {
       assert.ok(!streaming);
-      assert.deepEqual(args, [template, 'canonical prompt', '', 'canonical prompt', '', 'fixture.png', controller.signal, true]);
+      assert.deepEqual(args, [template, 'canonical prompt', '', 'canonical prompt', '', fixtureImage, controller.signal, true]);
       return 'Result';
     };
     const invoke = imagePaths => fake.streamFinalPrompt('custom', 'fixture', 'canonical prompt', { imagePaths, abortSignal: controller.signal }).next();
-    assert.deepEqual(await invoke(['fixture.png']), { value: 'Result', done: false });
-    await assert.rejects(invoke(['fixture.png', 'second.png']), /exactly one image/);
+    assert.deepEqual(await invoke([fixtureImage]), { value: 'Result', done: false });
+    await assert.rejects(invoke([fixtureImage, secondFixtureImage]), /exactly one image/);
     fake.isLocalOnlyMode = true;
     await assert.rejects(invoke(['fixture.png']), /Cloud providers disabled/);
   }

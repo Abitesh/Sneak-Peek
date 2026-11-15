@@ -35,6 +35,9 @@ export interface ContextSourceDecision {
 }
 
 export interface ContextPlan {
+  sourceDecision?: import('../../llm/turnSourceDecision').TurnSourceDecision;
+  /** Exact-ID constraints applied again after retrieval, including on repairs. */
+  sourceIds?: Partial<Record<ContextSource, readonly string[]>>;
   /** Exhaustive source-by-source decision. */
   sources: ContextSourceDecision[];
   requiredSources: ContextSource[];

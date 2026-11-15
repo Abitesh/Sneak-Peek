@@ -18,6 +18,7 @@
 // engine + real classifier, stubbed whatToAnswerLLM stream.
 import { test, describe, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -53,12 +54,11 @@ async function makeEngineWithAnswer(chunks) {
     timestamp: Date.now(),
     final: true,
   });
-  const engine = new IntelligenceEngine(makeHelper(), session);
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      for (const chunk of chunks) yield chunk;
-    },
-  };
+  const helper = makeHelper();
+  installCanonicalWtaTestTransport(helper, chunks);
+  const engine = new IntelligenceEngine(helper, session);
+  // Generation is injected at the active canonical provider transport,
+  // not at the retired whatToAnswerLLM generator.
   return { engine, session };
 }
 

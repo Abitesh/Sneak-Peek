@@ -583,7 +583,11 @@ export class SessionTracker {
             if (seg.timestamp < cutoff) continue;
             const text = (seg.text || '').trim();
             if (!text) continue;
-            out.push({ role: this.mapSpeakerToRole(seg.speaker), text, timestamp: seg.timestamp });
+            out.push({
+                role: this.mapSpeakerToRole(seg.speaker), text, timestamp: seg.timestamp,
+                ...(seg.origin ? { origin: seg.origin } : {}),
+                ...(seg.sttProvider ? { sttProvider: seg.sttProvider } : {}),
+            });
         }
         return out;
     }

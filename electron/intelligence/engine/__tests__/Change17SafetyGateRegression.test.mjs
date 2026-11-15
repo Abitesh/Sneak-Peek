@@ -46,10 +46,14 @@ test('CHG-17 gate: unknown named project fails closed, general questions remain 
 });
 
 test('CHG-17 gate: production project IDs reach the scoped adapter with cancellation', () => {
-  const source = ipc();
-  assert.match(source, /source:\s*['"]project_knowledge['"][\s\S]*?projectFileIds:\s*request\.activeContext\?\.projectSourceIds/);
+  const runtime = fs.readFileSync(path.join(root, 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  assert.match(runtime, /source:\s*['"]project_knowledge['"][\s\S]*?projectFileIds:\s*request\.activeContext\?\.projectSourceIds/);
   const canonicalAdapter = fs.readFileSync(path.join(root, 'electron/intelligence/engine/CanonicalRagRetrievalAdapter.ts'), 'utf8');
-  assert.match(canonicalAdapter, /projectFileIds:\s*scope\.projectFileIds/);
+  assert.match(canonicalAdapter, /plannedIds\.filter\(\(id\) => authorizedIds\.includes\(id\)\)/);
+  assert.match(canonicalAdapter, /projectFileIds:\s*scopedIds/);
+  assert.match(canonicalAdapter, /!scope\.projectFilesOnly \|\| !authorizedIds\?\.length/);
+  assert.match(canonicalAdapter, /scope\.projectFileIds === undefined \|\| scope\.projectFileIds\.includes/);
+  assert.match(canonicalAdapter, /input\.signal\?\.aborted/);
   const rag = fs.readFileSync(path.join(root, 'electron/rag/RAGManager.ts'), 'utf8');
   const adapter = fs.readFileSync(path.join(root, 'electron/rag/adapters/PersonalRagAdapter.ts'), 'utf8');
   assert.match(rag, /signal:\s*options\.signal/);
@@ -83,13 +87,16 @@ test('CHG-17 gate: clear-chat and manual state share sender key even during meet
 
 test('CHG-17 gate: production observer and prompt outcomes never print private evidence IDs', () => {
   const source = ipc();
-  assert.match(source, /onDecision: \(trace\) => \{/);
-  assert.match(source, /trace\.sourceOutcomes\.map/);
+  const runtime = fs.readFileSync(path.join(root, 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  assert.match(runtime, /onDecision: \(trace\) => \{/);
+  assert.match(runtime, /trace\.sourceOutcomes\.map/);
   assert.match(source, /includedEvidenceCount/);
   assert.match(source, /retrieval: sneakPeekResult\.diagnostics\.retrieval/);
-  assert.match(source, /profile retrieval capability failed'\);\s*throw error;/);
+  assert.match(runtime, /profile retrieval capability failed'\);\s*throw error;/);
   const primary = source.slice(source.indexOf("console.log('[Sneak-Peek Intelligence] manual-chat PRIMARY trace'"), source.indexOf("console.log('[Sneak-Peek Intelligence] manual-chat PRIMARY trace'") + 700);
   assert.doesNotMatch(primary, /includedEvidenceIds:/);
+  const retrievalObserver = runtime.slice(runtime.indexOf('onDecision: (trace) => {'), runtime.indexOf('generationPort: {'));
+  assert.doesNotMatch(retrievalObserver, /console\.(?:log|warn)\([^)]*(?:evidenceId|documentId|question)/);
 });
 
 test('CHG-17 gate: embedding timeout returns before a hanging provider, without using late output', async () => {

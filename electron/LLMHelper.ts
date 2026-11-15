@@ -5574,7 +5574,9 @@ let isMultimodal = !!(imagePaths?.length);
     const images = options.imagePaths?.length ? [...options.imagePaths] : undefined;
     if (images) {
       if (provider !== 'ollama') this.assertOutboundImagesAllowed(provider, true);
-      const visionProviders: LLMProviderId[] = ['ollama', 'openai', 'claude', 'gemini_flash', 'gemini_pro', 'codex'];
+      const visionProviders: LLMProviderId[] = ['ollama', 'openai', 'claude', 'gemini_flash', 'gemini_pro', 'codex', 'groq', 'nvidia_nim', 'litellm'];
+      if (images.some(image => !fs.existsSync(image))) throw new Error('An attached image is no longer available.');
+      if (provider === 'groq' && images.length > GROQ_VISION_MAX_IMAGES) throw new Error('Too many images for the selected Groq model.');
       if (provider === 'custom') {
         if (images.length !== 1 || !customProviderSupportsVision(this.customProvider ?? this.activeCurlProvider)) {
           throw new Error('The selected custom provider requires a vision template and exactly one image.');
@@ -5587,12 +5589,9 @@ let isMultimodal = !!(imagePaths?.length);
     let providerStream: AsyncGenerator<string, void, unknown>;
     switch (provider) {
       case 'groq':
-        providerStream = this.streamWithGroq(
-          finalPrompt,
-          model || GROQ_MODEL,
-          '',
-          abortSignal,
-        );
+        providerStream = images
+          ? this.streamWithGroqMultimodal(finalPrompt, images, '', abortSignal, model || GROQ_VISION_MODEL)
+          : this.streamWithGroq(finalPrompt, model || GROQ_MODEL, '', abortSignal);
         break;
       case 'gemini_flash':
         providerStream = this.streamWithGeminiModel(
@@ -5631,10 +5630,10 @@ let isMultimodal = !!(imagePaths?.length);
         providerStream = this.streamWithCodexCli(finalPrompt, '', false, images, abortSignal, model);
         break;
       case 'nvidia_nim':
-        providerStream = this.streamWithNvidiaNim(finalPrompt, undefined, undefined, abortSignal, model);
+        providerStream = this.streamWithNvidiaNim(finalPrompt, undefined, images, abortSignal, model);
         break;
       case 'litellm':
-        providerStream = this.streamWithLiteLLM(finalPrompt, undefined, undefined, abortSignal, model);
+        providerStream = this.streamWithLiteLLM(finalPrompt, undefined, images, abortSignal, model);
         break;
       case 'custom': {
         const custom = this.customProvider;
@@ -7720,7 +7719,7 @@ let isMultimodal = !!(imagePaths?.length);
   /**
    * Stream multimodal (image + text) response from Groq using Llama 4 Scout as a last resort
    */
-  private async * streamWithGroqMultimodal(userMessage: string, imagePaths: string[], systemPrompt?: string, abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithGroqMultimodal(userMessage: string, imagePaths: string[], systemPrompt?: string, abortSignal?: AbortSignal, modelId = GROQ_VISION_MODEL): AsyncGenerator<string, void, unknown> {
     if (this.isLocalOnlyMode) throw new Error("Cloud providers disabled in local-only mode");
     if (!this.groqClient) throw new Error("Groq client not initialized");
     this.assertOutboundScopes('groq', userMessage, imagePaths);
@@ -7733,7 +7732,8 @@ let isMultimodal = !!(imagePaths?.length);
     }
 
     const contentParts: any[] = [{ type: "text", text: userMessage }];
-    for (const p of imagePaths.slice(0, GROQ_VISION_MAX_IMAGES)) {
+    if (imagePaths.length > GROQ_VISION_MAX_IMAGES) throw new Error('Too many images for the selected Groq model.');
+    for (const p of imagePaths) {
       if (fs.existsSync(p)) {
         // Process image: resize to max 1536px + JPEG 80% to stay within Groq's request size limit
         const { mimeType, data } = await this.processImage(p);
@@ -7744,10 +7744,10 @@ let isMultimodal = !!(imagePaths?.length);
 
     if (abortSignal?.aborted) return;
     const stream = await this.groqClient.chat.completions.create({
-      model: GROQ_VISION_MODEL,
+      model: modelId,
       messages,
       stream: true,
-      max_tokens: Math.min(resolveMaxOutputTokens({ id: GROQ_VISION_MODEL, provider: 'groq' }, { fallback: 8192 }) ?? 2048, 2048),
+      max_tokens: Math.min(resolveMaxOutputTokens({ id: modelId, provider: 'groq' }, { fallback: 8192 }) ?? 2048, 2048),
       temperature: 1,
       top_p: 1,
       stop: null
@@ -8994,8 +8994,8 @@ let isMultimodal = !!(imagePaths?.length);
     else if (this.isDeepseekModel(modelId)) preferredProvider = 'deepseek';
     else if (this.isGroqModel(modelId)) preferredProvider = 'groq';
     else if (this.isGeminiModel(modelId)) preferredProvider = /pro/i.test(modelId) ? 'gemini_pro' : 'gemini_flash';
-    else if (!multimodal && this.isNvidiaNimModel(modelId)) preferredProvider = 'nvidia_nim';
-    else if (!multimodal && this.isLiteLLMModel(modelId)) preferredProvider = 'litellm';
+    else if (this.isNvidiaNimModel(modelId)) preferredProvider = 'nvidia_nim';
+    else if (this.isLiteLLMModel(modelId)) preferredProvider = 'litellm';
     else return null;
 
     let scopePolicy: ProviderDataScopePolicy | undefined;
@@ -9046,7 +9046,8 @@ let isMultimodal = !!(imagePaths?.length);
       const selectedVisionModel = preferredProvider === 'ollama' ? this.ollamaVisionModel : modelId;
       const allowed = preferredProvider === 'openai' || preferredProvider === 'claude'
         || preferredProvider === 'gemini_flash' || preferredProvider === 'gemini_pro'
-        || preferredProvider === 'codex' || preferredProvider === 'ollama' || preferredProvider === 'custom';
+        || preferredProvider === 'codex' || preferredProvider === 'ollama' || preferredProvider === 'custom'
+        || preferredProvider === 'groq' || preferredProvider === 'nvidia_nim' || preferredProvider === 'litellm';
       if (!allowed || !selectedVisionModel) return null;
       if (preferredProvider === 'ollama') route.models!.ollama = selectedVisionModel;
       const localVisionRequired = this.isLocalOnlyMode || readScreenUnderstandingMode() === 'private_vision';

@@ -155,7 +155,42 @@ export type SneakPeekDocumentDraft =
   | { kind: 'follow-up-email'; meetingDetails: string }
   | { kind: 'cover-letter' | 'negotiation-script' };
 
+/** Frozen at the main-process request boundary, never accepted from retrieved text. */
+export interface CanonicalAnswerContext {
+  modeInstructions?: string;
+  mode?: { templateType?: string } | null;
+  sourceVersions?: Record<string, string>;
+  screenText?: string;
+  realtimeInstruction?: string;
+  skill?: { id: string; name: string; instruction: string };
+  callerInstruction?: string;
+  promptTier: 'full' | 'tiny';
+  languageInstruction?: string;
+  answerPlan?: AnswerPlan;
+  /** Exact original source identities authorized when the turn was accepted. */
+  referenceSourceIds: readonly string[];
+  personalSourceIds: readonly string[];
+  profileDocuments?: readonly {
+    sourceId: string;
+    revisionId?: string;
+    sourceType: 'RESUME' | 'JOB_DESCRIPTION' | 'PROFILE_FACT';
+    content: string;
+  }[];
+  providerRoute: import('../../llm/ProviderRouter').ProviderRouteOptions | null;
+}
+
 export interface SneakPeekIntelligenceRequest {
+  answerContext?: CanonicalAnswerContext;
+  /** A repair reuses the original authorized evidence, not a new source lookup. */
+  repair?: {
+    reason: 'spoken-format' | 'document-grounding' | 'coding' | 'relevance' | 'concise' | 'code-verification';
+    previousAnswer: string;
+    diagnostic?: string;
+    originalRequestId: string;
+    evidence: SneakPeekEvidence;
+    contextPlan: ContextPlan;
+    responsePlan: ResponsePlan;
+  };
   documentDraft?: SneakPeekDocumentDraft;
   /** Explicit screenshot analysis action with main-process validated pixels. */
   imageAnalysis?: true;

@@ -13,7 +13,7 @@ const wta = await fs.readFile(path.resolve(here, '../../../llm/WhatToAnswerLLM.t
 
 test('engine produces and returns the canonical ResponsePlan', () => {
   assert.match(engine, /import \{ planResponse \} from ['"]\.\/ResponsePlanner['"]/);
-  assert.match(engine, /const responsePlan = planResponse\(/);
+  assert.match(engine, /const responsePlan = request\.repair\?\.responsePlan \?\? planResponse\(/);
   assert.match(engine, /responsePlan,/);
   assert.match(types, /responsePlan: ResponsePlan/);
 });

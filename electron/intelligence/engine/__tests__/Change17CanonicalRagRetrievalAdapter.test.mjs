@@ -7,7 +7,7 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adapterPath = path.resolve(here, '../CanonicalRagRetrievalAdapter.ts');
 const source = (await readFile(adapterPath, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '');
-const ipcPath = path.resolve(here, '../../../ipcHandlers.ts');
+const ipcPath = path.resolve(here, '../CanonicalRuntime.ts');
 const ipcSource = (await readFile(ipcPath, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '');
 const compiledAdapterPath = new URL('../../../../dist-electron/electron/intelligence/engine/CanonicalRagRetrievalAdapter.js', import.meta.url).href;
 const { createCanonicalRagRetrievalCapability } = await import(compiledAdapterPath);
@@ -100,4 +100,91 @@ test('production engine uses canonical capability and planned-source reads only 
   const myFilesStart = ipcSource.indexOf("source: 'my_files',", projectStart);
   assert.ok(projectStart >= 0 && myFilesStart > projectStart);
   assert.doesNotMatch(ipcSource.slice(projectStart, myFilesStart), /ragManager\.search\(|queryPlanner\.plan\(/);
+});
+
+
+test('planned project IDs are intersected with the authorized scope and cancellation is forwarded', async () => {
+  const approvedId = 'project-approved';
+  const unauthorizedId = 'other-project';
+  const scopeIds = [approvedId];
+  const plannedIds = [approvedId, unauthorizedId];
+  let captured;
+  const controller = new AbortController();
+  const capability = createCanonicalRagRetrievalCapability({
+    source: 'project_knowledge', sourceType: 'personal',
+    resolveScope: () => ({ projectFilesOnly: true, projectFileIds: scopeIds }),
+    read: async (input) => {
+      captured = input;
+      return { usedCanonical: true, fallbackReason: null, results: plannedIds.map((id) => ({
+        chunk: { id: `chunk-${id}`, documentId: id, text: `evidence for ${id}` },
+        source: { id, sourceType: 'personal', name: `${id}.md`, metadata: { fileType: 'project' } },
+        score: 0.9,
+      })) };
+    },
+  });
+  const request = { sessionId: 'scope-check' };
+  const contextPlan = { sourceIds: { project_knowledge: plannedIds } };
+  const first = await capability.retrieve({ query: 'project', source: 'project_knowledge',
+    request, contextPlan, signal: controller.signal });
+  assert.deepEqual(captured.projectFileIds, scopeIds, 'the reader receives only the authorized intersection, never the wider plan');
+  assert.equal(captured.signal, controller.signal, 'the active cancellation signal is passed through');
+  assert.deepEqual(first.items.map(item => item.metadata.sourceId), [approvedId],
+    'an overbroad or stale planned ID cannot escape the final authorized scope');
+  controller.abort('superseded');
+  const cancelled = await capability.retrieve({ query: 'project', source: 'project_knowledge',
+    request, contextPlan, signal: controller.signal });
+  assert.deepEqual(cancelled.items, [], 'already-aborted retrieval emits no evidence');
+});
+
+
+test('empty or missing authorized project scope performs no underlying read', async () => {
+  let calls = 0;
+  for (const authorization of [undefined, [], ['another-project']]) {
+    const capability = createCanonicalRagRetrievalCapability({
+      source: 'project_knowledge', sourceType: 'personal',
+      resolveScope: () => ({ projectFilesOnly: true, projectFileIds: authorization }),
+      read: async () => { calls++; return { usedCanonical: true, results: [] }; },
+    });
+    const result = await capability.retrieve({
+      query: 'why this project', source: 'project_knowledge',
+      request: { sessionId: 'no-scope' }, contextPlan: { sourceIds: { project_knowledge: ['approved'] } },
+    });
+    assert.deepEqual(result.items, []);
+    assert.equal(result.metadata.scopeDenied, true);
+  }
+  assert.equal(calls, 0, 'the source read is never entered with unapproved project IDs');
+});
+
+test('late cancellation suppresses results even after an authorized read started', async () => {
+  const controller = new AbortController();
+  let release;
+  let capturedSignal;
+  let reads = 0;
+  const capability = createCanonicalRagRetrievalCapability({
+    source: 'project_knowledge', sourceType: 'personal',
+    resolveScope: () => ({ projectFilesOnly: true, projectFileIds: ['approved'] }),
+    read: async ({ signal, projectFileIds }) => {
+      reads++;
+      capturedSignal = signal;
+      assert.deepEqual(projectFileIds, ['approved']);
+      return new Promise(resolve => {
+        release = () => resolve({ usedCanonical: true, results: [{
+          chunk: { id: 'chunk-approved', documentId: 'approved', text: 'should be suppressed' },
+          source: { id: 'approved', sourceType: 'personal', metadata: { fileType: 'project' } },
+          score: 0.9,
+        }] });
+      });
+    },
+  });
+  const pending = capability.retrieve({
+    query: 'project', source: 'project_knowledge', signal: controller.signal,
+    request: { sessionId: 'abort-during-read' }, contextPlan: { sourceIds: { project_knowledge: ['approved'] } },
+  });
+  assert.equal(reads, 1, 'the read starts before cancellation');
+  controller.abort('superseded');
+  release();
+  const result = await pending;
+  assert.equal(capturedSignal, controller.signal);
+  assert.deepEqual(result.items, [], 'late completed data must never enter evidence');
+  assert.equal(result.metadata.cancelled, true);
 });

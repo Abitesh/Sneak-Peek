@@ -38,7 +38,10 @@ test('explicit gateway preserves its model and forbids cross-provider fallbacks'
       [[provider, model, 'available']]);
     assert.equal(routeGenerationProviders({ ...options, dataScopes: ['transcript'], scopePolicy: { transcript: false } })[0].status, 'unavailable');
     assert.deepEqual(routeGenerationProviders({ ...options, allowedProviders: [] }), []);
-    assert.deepEqual(routeGenerationProviders({ ...options, multimodal: true, capability: 'vision' }), []);
+    // WORK-0061 added explicit vision transport for NIM/LiteLLM. An explicit
+    // selection may now use that SAME provider/model, never an unrelated fallback.
+    assert.deepEqual(routeGenerationProviders({ ...options, multimodal: true, capability: 'vision' })
+      .map(a => [a.provider, a.model, a.status]), [[provider, model, 'available']]);
   }
 });
 

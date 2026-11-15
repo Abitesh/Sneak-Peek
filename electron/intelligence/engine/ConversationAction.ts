@@ -56,14 +56,16 @@ export async function streamConversationAction(input: {
   controller: AbortController;
   imagePaths?: readonly string[];
   screenText?: string;
-  route: ProviderRouteOptions;
+  route: ProviderRouteOptions | null;
+  request?: SneakPeekIntelligenceRequest;
+  engine?: SneakPeekIntelligenceEngine;
   transport: ProviderGenerationTransport;
   isCurrent: () => boolean;
   onToken: (token: string) => void;
 }): Promise<string | null> {
   const { id, action, question, context, controller } = input;
   const hasScreen = Boolean(input.imagePaths?.length || input.screenText?.trim());
-  const request: SneakPeekIntelligenceRequest = {
+  const request: SneakPeekIntelligenceRequest = input.request ?? {
     requestId: id,
     // Each action explicitly owns its snapshot, with no implicit history lookup.
     sessionId: id,
@@ -86,7 +88,7 @@ export async function streamConversationAction(input: {
     cancellationSignal: controller.signal,
   };
 
-  const engine = new SneakPeekIntelligenceEngine({
+  const engine = input.engine ?? new SneakPeekIntelligenceEngine({
     // No external retrieval is authorized for a mixed session snapshot.
     // The selected conversation context is rendered by PromptAssembler.
     retrievalCoordinator: new RetrievalCoordinator(),
@@ -94,7 +96,7 @@ export async function streamConversationAction(input: {
       stream: ({ request, prompt, contextPlan, lifecycle }) => streamCanonicalProvider(input.transport, {
         requestId: request.requestId,
         finalPrompt: prompt.finalPrompt,
-        route: input.route,
+        route: input.route ?? (() => { throw new Error('Selected provider cannot handle this action.'); })(),
         abortSignal: request.cancellationSignal,
         imagePaths: contextPlan.requiredSources.includes('screen') ? request.screenContext?.imagePaths : undefined,
         lifecycle,
@@ -103,6 +105,7 @@ export async function streamConversationAction(input: {
   });
 
   let answer: string | null = null;
+  let ownedFailure = false;
   const result = await streamRagEngineAnswer({
     engine,
     request,
@@ -113,9 +116,10 @@ export async function streamConversationAction(input: {
       if (channel === 'rag:stream-chunk' && payload.chunk) input.onToken(payload.chunk);
     },
     settle: (status, text) => {
+      if (status === 'failed') ownedFailure = input.isCurrent();
       if (status === 'completed') answer = text ?? null;
     },
   });
-  if (!result.success && input.isCurrent()) throw new Error(result.error ?? 'Conversation action failed.');
+  if (!result.success && ownedFailure) throw new Error(result.error ?? 'Conversation action failed.');
   return input.isCurrent() && !controller.signal.aborted ? answer : null;
 }

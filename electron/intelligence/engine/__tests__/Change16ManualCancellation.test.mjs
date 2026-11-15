@@ -26,7 +26,8 @@ test('primary manual conversation turns persist generation outcomes', () => {
   assert.match(ipc, /generationStatus: 'pending'/);
   assert.match(ipc, /generationStatus: 'cancelled'/);
   assert.match(ipc, /generationStatus: 'completed'/);
-  assert.match(ipc, /generationStatus: 'failed'/);
+  assert.match(ipc, /settlePrimaryTurn\?\.\('failed'\)/);
+  assert.match(ipc, /settlePrimaryTurn = \(generationStatus\) => \{/);
 });
 
 test('superseded manual generations never fall through to legacy generation', () => {

@@ -23,6 +23,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -52,6 +53,7 @@ async function makeEngine() {
   const { IntelligenceEngine } = await import(pathToFileURL(enginePath).href);
   const { SessionTracker } = cjsRequire(sessionPath);
   const helper = { setNegotiationCoachingHandler() {} };
+  installCanonicalWtaTestTransport(helper, []);
   const session = new SessionTracker();
   const engine = new IntelligenceEngine(helper, session);
   // Seed a real, well-formed interviewer question into the session so
@@ -72,14 +74,7 @@ function installStubWta(engine, finalAnswer) {
   // and ultimately returns the full answer (mirrors the real WTA shape).
   // Each turn installs a fresh stub so consecutive turns emit distinct
   // content — proves the engine mints a distinct generationId per turn.
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      // Yield character-by-character so the streaming-token emit path is
-      // exercised on every turn, mirroring how a real model provider
-      // would stream.
-      for (const c of finalAnswer) yield c;
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, [...finalAnswer]);
 }
 
 test('a single WTA turn emits exactly one final with a positive generationId', async () => {
@@ -153,18 +148,16 @@ test('a newer WTA request aborts the prior provider signal and suppresses its fi
   const finals = [];
   engine.on('suggested_answer', (answer) => finals.push(answer));
 
-  engine.whatToAnswerLLM = {
-    async *generateStream(...args) {
-      const signal = signalFrom(args);
-      receivedSignals.push(signal);
-      if (receivedSignals.length === 1) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        if (!signal.aborted) yield 'stale answer that must not be delivered';
-        return;
-      }
-      yield 'fresh answer from the second request';
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* (call) {
+    const signal = call.options.abortSignal;
+    receivedSignals.push(signal);
+    if (receivedSignals.length === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (!signal.aborted) yield 'stale answer that must not be delivered';
+      return;
+    }
+    yield 'fresh answer from the second request';
+  });
 
   const first = engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
   await new Promise((resolve) => setTimeout(resolve, 5));
@@ -184,14 +177,12 @@ test('reset aborts an in-flight WTA request without delivering a final answer', 
   const finals = [];
   engine.on('suggested_answer', (answer) => finals.push(answer));
 
-  engine.whatToAnswerLLM = {
-    async *generateStream(...args) {
-      const signal = signalFrom(args);
-      receivedSignals.push(signal);
-      await new Promise((resolve) => setTimeout(resolve, 30));
-      if (!signal.aborted) yield 'answer that reset must suppress';
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* (call) {
+    const signal = call.options.abortSignal;
+    receivedSignals.push(signal);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    if (!signal.aborted) yield 'answer that reset must suppress';
+  });
 
   const pending = engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
   await new Promise((resolve) => setTimeout(resolve, 5));

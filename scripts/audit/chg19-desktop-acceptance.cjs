@@ -108,7 +108,9 @@ app.whenReady().then(async () => {
     const row = scope.getStore();
     if (!row?.requestId) {
       assert.match(prompt, /<response_policy>/);
-      const imageAnalysis = prompt.includes('<image_policy>');
+      const imageAnalysis = prompt.includes('Describe the image concisely.')
+        || prompt.includes('Describe the synthetic image');
+      if (options.imagePaths?.length) assert.match(prompt, /<image_policy>/);
       const emailDraft = prompt.includes('<meeting_details_for_draft>');
       assert.ok(prompt.includes(concept) || prompt.includes('Review the partial code') || imageAnalysis || emailDraft);
       if (prompt.includes('Describe the synthetic image')) {
@@ -306,6 +308,78 @@ app.whenReady().then(async () => {
         model: 'synthetic-offline-vision', hasSpeech: false, attachmentCount: 1,
       });
       scenarios.push({ id: 'WORK-0061-MANUAL-IMAGE', status: 'PASS', providerCalls: 1, events: 2 });
+      // Exercise production manual IPC completion, fallback and STOP with an
+      // uncooperative transport. The second provider is allowed only before
+      // the first model emits visible text.
+      const priorTransport = helper.streamFinalPrompt;
+      const priorRoute = helper.getSneakPeekGenerationRouteOptions;
+      let releaseParked;
+      let observedStopSignal;
+      const parked = new Promise(resolve => { releaseParked = resolve; });
+      const attempts = [];
+      helper.getSneakPeekGenerationRouteOptions = () => ({
+        capability: 'stream_chat', preferredProvider: 'groq', allowedProviders: ['groq', 'openai'],
+        availability: { hasGroq: true, hasOpenAI: true },
+        models: { groq: 'selected-synthetic-model', openai: 'allowed-synthetic-fallback' },
+      });
+      helper.streamFinalPrompt = async function* (provider, model, prompt, options) {
+        const scenario = ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED'].find(marker => prompt.includes(marker));
+        assert.ok(scenario);
+        attempts.push({ scenario, provider, model });
+        if (scenario === 'EARLY_FAIL' && provider === 'groq') throw new Error('Synthetic pre-commit failure');
+        if (scenario === 'AFTER_COMMIT') { yield 'Visible partial.'; throw new Error('Synthetic post-commit failure'); }
+        if (scenario === 'STOP_PARKED') {
+          observedStopSignal = options.abortSignal;
+          yield 'Visible before STOP.';
+          await parked;
+          yield 'Late token should not arrive.';
+          return;
+        }
+        yield 'Synthetic recovery completed.';
+      };
+      try {
+        const manual = await js(`(async () => {
+          let current = [];
+          const off = [
+            window.electronAPI.onGeminiStreamToken((token, meta) => current.push({ kind:'token', token, meta })),
+            window.electronAPI.onGeminiStreamDone(meta => current.push({ kind:'done', meta })),
+            window.electronAPI.onGeminiStreamError((error, meta) => current.push({ kind:'error', error, meta })),
+          ];
+          try {
+            const results = {};
+            for (const kind of ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED']) {
+              current = [];
+              const submit = window.electronAPI.streamGeminiChat('Explain the synthetic test ' + kind);
+              if (kind === 'STOP_PARKED') {
+                for (let i = 0; i < 100 && !current.length; i++) await new Promise(resolve => setTimeout(resolve, 10));
+                window.electronAPI.cancelChatStream();
+                const settled = await Promise.race([submit.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 1000))]);
+                if (!settled) throw new Error('STOP did not settle while the provider remained parked');
+              } else {
+                await submit;
+              }
+              results[kind] = current.slice();
+            }
+            return results;
+          } finally { off.forEach(stop => stop()); }
+        })()`);
+        assert.deepEqual(manual.EARLY_FAIL.map(event => event.kind), ['token', 'done']);
+        assert.deepEqual(manual.AFTER_COMMIT.map(event => event.kind), ['token', 'error']);
+        assert.deepEqual(manual.STOP_PARKED.map(event => event.kind), ['token']);
+        assert.equal(observedStopSignal?.aborted, true);
+        assert.deepEqual(attempts.map(({ scenario, model }) => [scenario, model]), [
+          ['EARLY_FAIL', 'selected-synthetic-model'], ['EARLY_FAIL', 'allowed-synthetic-fallback'],
+          ['AFTER_COMMIT', 'selected-synthetic-model'], ['STOP_PARKED', 'selected-synthetic-model'],
+        ]);
+        scenarios.push({ id: 'WORK-0073-MANUAL-LIFECYCLE', status: 'PASS', attempts,
+          eventKinds: Object.fromEntries(Object.entries(manual).map(([key, value]) => [key, value.map(event => event.kind)])),
+          stopSettledBeforeProviderRelease: true });
+      } finally {
+        releaseParked();
+        helper.streamFinalPrompt = priorTransport;
+        helper.getSneakPeekGenerationRouteOptions = priorRoute;
+      }
+
     } finally {
       engine.getActiveModeInfo = previousModeLookup;
       engine.retrieveUniversalChatContext = previousRagRead;

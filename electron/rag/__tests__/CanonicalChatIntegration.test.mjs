@@ -25,9 +25,8 @@ test('manual chat routes authorized planned sources through the Intelligence Eng
   assert.ok(handlerStart >= 0, 'manual chat stream handler missing');
   assert.match(ipc.slice(handlerStart, handlerStart + 18000), /createPrimaryManualSneakPeekEngine\(/);
 
-  const primaryStart = ipc.indexOf('function createPrimaryManualSneakPeekEngine(');
-  assert.ok(primaryStart >= 0, 'primary Intelligence Engine wiring missing');
-  const primary = ipc.slice(primaryStart, handlerStart);
+  const primary = read('electron/intelligence/engine/CanonicalRuntime.ts');
+  assert.match(primary, /export function createPrimaryManualSneakPeekEngine\(/);
   assert.match(primary, /createCanonicalRagRetrievalCapability\(/);
   assert.match(primary, /ragManager\.readPlannedCanonicalSource\(input\)/);
   assert.match(primary, /source:\s*['"]meeting_transcript['"]/);

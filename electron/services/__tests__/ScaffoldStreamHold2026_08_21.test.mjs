@@ -15,6 +15,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -28,14 +29,13 @@ async function makeEngine(chunks) {
   const { IntelligenceEngine } = await import(pathToFileURL(enginePath).href);
   const { SessionTracker } = require(sessionPath);
   const session = new SessionTracker();
-  const engine = new IntelligenceEngine({ setNegotiationCoachingHandler() {} }, session);
+  const helper = { setNegotiationCoachingHandler() {} };
   const state = { streamDone: false };
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      for (const chunk of chunks) yield chunk;
-      state.streamDone = true;
-    },
-  };
+  installCanonicalWtaTestTransport(helper, async function* () {
+    for (const chunk of chunks) yield chunk;
+    state.streamDone = true;
+  });
+  const engine = new IntelligenceEngine(helper, session);
   return { engine, session, state };
 }
 
@@ -79,7 +79,11 @@ test('review 2026-08-22: a PROMOTED screen-coding turn streams via the coding ga
   // trigger the scaffold-regeneration second LLM call.
   const { engine, state } = await makeEngine(SCAFFOLD_ANSWER);
   const regenCalls = [];
-  engine.llmHelper.streamChat = (...args) => { regenCalls.push(args); return (async function* () { yield 'rewrite'; })(); };
+  const originalTransport = engine.llmHelper.streamFinalPrompt;
+  engine.llmHelper.streamFinalPrompt = async function* (...args) {
+    if (engine.llmHelper.__canonicalWtaTestState.calls.length >= 1) regenCalls.push(args);
+    yield* originalTransport(...args);
+  };
   const paintsDuringStream = [];
   engine.on('suggested_answer_token', (token) => {
     if (!state.streamDone) paintsDuringStream.push(token);
@@ -94,7 +98,7 @@ test('review 2026-08-22: a PROMOTED screen-coding turn streams via the coding ga
 
   assert.ok(paintsDuringStream.length > 0,
     'a promoted coding answer must stream (the hold treating it as a misfire was the confirmed finding)');
-  assert.equal(regenCalls.length, 0, 'the scaffold regeneration must not fire on a promoted turn');
+  assert.equal(regenCalls.length, 0, regenCalls[0]?.[2]?.match(/<validation_diagnostic[^>]*>[^<]*/)?.[0] ?? 'the scaffold regeneration must not fire on a promoted turn');
   assert.match(final ?? '', /## Approach/, 'the six-section answer is the CORRECT shape here and must survive');
 });
 

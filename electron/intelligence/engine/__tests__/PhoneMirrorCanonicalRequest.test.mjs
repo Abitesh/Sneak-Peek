@@ -42,6 +42,7 @@ test('Phone Mirror has its own canonical surface and does not grant private sour
   assert.equal(req.sessionSnapshot, 'Assistant: private-looking history');
   const plan = planFor(req);
   assert.ok(plan.requiredSources.includes('recent_conversation'));
+  assert.equal(plan.generalKnowledgeAllowed, true);
   assert.ok(plan.forbiddenSources.includes('profile'));
   assert.ok(plan.forbiddenSources.includes('my_files'));
   assert.ok(plan.forbiddenSources.includes('meeting_transcript'));
@@ -82,11 +83,89 @@ test('Phone Mirror only permits real typed meeting transcript and denies phantom
   assert.equal(current.transcriptContext.source, 'meeting');
 });
 
+
+test('Phone Mirror generic interview knowledge remains allowed without a meeting record', () => {
+  const request = makeRequest({ question: 'What is an interview?' });
+  const plan = planFor(request);
+  assert.equal(request.contextPermissions.transcript, false);
+  assert.ok(plan.forbiddenSources.includes('meeting_transcript'));
+  assert.equal(plan.generalKnowledgeAllowed, true);
+});
+
+test('Phone Mirror meeting questions fail closed without independently authorized meeting evidence', () => {
+  const request = makeRequest({
+    question: 'What did the interviewer say in the meeting?',
+    snapshot: '[Interviewer] synthetic text copied from a phone session',
+  });
+  const plan = planFor(request);
+  assert.equal(request.contextPermissions.transcript, false);
+  assert.equal(request.transcriptContext, undefined);
+  assert.ok(plan.forbiddenSources.includes('meeting_transcript'));
+  assert.ok(!plan.requiredSources.includes('meeting_transcript'));
+  assert.ok(!plan.optionalSources.includes('meeting_transcript'));
+  assert.equal(plan.generalKnowledgeAllowed, false);
+  const prompt = assembleSneakPeekPrompt({
+    request, question: request.userMessage, contextPlan: plan,
+    conversationContext: { currentTurnIncluded: true, immediatePreviousTurns: [], olderConversationTurnsAvailable: false },
+    evidencePack: { items: [] },
+  });
+  assert.ok(prompt.includedSections.includes('meeting_evidence_unavailable'));
+  assert.match(prompt.finalPrompt, /Do not infer meeting events, decisions, speakers or citations/);
+});
+
+test('Phone Mirror does not grant meeting authority to imported, live, or incomplete transcripts', () => {
+  const validTurn = { id: 'meeting-turn', role: 'user', content: 'The launch is Friday.' };
+  const invalid = [
+    { source: 'imported', text: 'Meeting notes', turns: [validTurn] },
+    { source: 'live', text: 'Meeting notes', turns: [validTurn] },
+    { source: 'meeting', text: '   ', turns: [validTurn] },
+    { source: 'meeting', text: 'Meeting notes', turns: [] },
+    { source: 'meeting', text: 'Meeting notes', turns: [{ ...validTurn, content: '   ' }] },
+  ];
+  for (const meeting of invalid) {
+    const request = makeRequest({ question: 'What happened in the meeting?', meeting });
+    assert.equal(request.contextPermissions.transcript, false);
+    assert.equal(request.transcriptContext, undefined);
+    const plan = planFor(request);
+    assert.ok(plan.forbiddenSources.includes('meeting_transcript'));
+    assert.ok(!plan.requiredSources.includes('meeting_transcript'));
+  }
+});
+
+test('Phone Mirror retains separately authorized typed meeting evidence', () => {
+  const meeting = {
+    source: 'meeting', text: 'The launch is Friday.',
+    turns: [{ id: 'meeting-turn', role: 'user', content: 'The launch is Friday.' }],
+  };
+  const request = makeRequest({ question: 'What was decided in the meeting?', meeting });
+  assert.equal(request.contextPermissions.transcript, true);
+  assert.deepEqual(request.transcriptContext, meeting);
+  const plan = planFor(request);
+  assert.ok(plan.requiredSources.includes('meeting_transcript'));
+  assert.ok(!plan.forbiddenSources.includes('meeting_transcript'));
+  const prompt = assembleSneakPeekPrompt({
+    request, question: request.userMessage, contextPlan: plan,
+    conversationContext: { currentTurnIncluded: true, immediatePreviousTurns: [], olderConversationTurnsAvailable: false },
+    evidencePack: { items: [] },
+  });
+  assert.ok(!prompt.includedSections.includes('meeting_evidence_unavailable'));
+});
+
 test('Phone Mirror actual production chat uses canonical engine and guards source lineage', () => {
   const ipc = readFileSync(path.resolve('electron/ipcHandlers.ts'), 'utf8');
   const phone = ipc.slice(ipc.indexOf("onPhoneCommand(async (cmd)"), ipc.indexOf("} else if (cmd.type === 'screenshot')", ipc.indexOf("onPhoneCommand(async (cmd)")));
   assert.match(phone, /createPrimaryManualSneakPeekEngine\(llmHelper, appState, phoneRequestId\)/);
   assert.match(phone, /streamRagEngineAnswer\(/);
   assert.doesNotMatch(phone, /llmHelper\.streamChat\(/);
-  assert.match(ipc, /conversationActionDataScopes\(\{ context: request\.sessionSnapshot \?\? request\.imageConversationSnapshot \}\)/);
+  // CHG-20 now sets outbound data scopes in the shared generation runtime,
+  // not inside the phone IPC adapter. Check the real provider boundary as
+  // well as the sender-specific IPC entrypoint; do not weaken this lineage gate.
+  const runtime = readFileSync(path.resolve('electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  const generation = runtime.slice(runtime.indexOf('generationPort: {'));
+  assert.ok(generation.length > 0 && generation.startsWith('generationPort: {'));
+  assert.match(generation, /required\.has\('recent_conversation'\)/);
+  assert.match(generation, /conversationActionDataScopes\(\{ context: request\.sessionSnapshot \?\? request\.imageConversationSnapshot \?\? request\.action\?\.sessionSnapshot, previousAnswer: request\.action\?\.previousAnswer, unknownLineage: request\.recentConversation\.some\(/);
+  assert.match(generation, /pinned \? \{ \.\.\.pinned, models: \{ \.\.\.pinned\.models \}, dataScopes: \[\.\.\.new Set\(\[\.\.\.scopes, \.\.\.\(pinned\.dataScopes \?\? \[\]\)\]\)\] \} : null/);
+  assert.match(generation, /getSneakPeekGenerationRouteOptions\(\[\.\.\.scopes\]/);
+  assert.match(generation, /streamCanonicalProvider\(llmHelper, \{/);
 });

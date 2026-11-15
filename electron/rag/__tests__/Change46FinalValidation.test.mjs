@@ -118,7 +118,7 @@ test('Change 46 — answer + citations share one IPC contract', () => {
 test('Change 18 — meeting/global overlays use engine-owned planned retrieval', () => {
   assert.doesNotMatch(meetingQuery, /async \*(?:queryMeeting|queryGlobal|streamRagAnswer)\(/);
   assert.match(ipc, /return await streamRagEngineAnswer/);
-  assert.match(ipc, /readPlannedCanonicalSource/);
+  assert.match(read('electron/intelligence/engine/CanonicalRuntime.ts'), /readPlannedCanonicalSource/);
   assert.doesNotMatch(ipc, /ragManager\.query(?:Meeting|Global)\(/);
 });
 

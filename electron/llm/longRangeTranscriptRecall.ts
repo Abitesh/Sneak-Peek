@@ -42,6 +42,8 @@ export interface LongRangeRecallResult {
   block: string;
   /** How many candidate turns scored above the match threshold (diagnostics only). */
   matchCount: number;
+  /** Matched source turns for typed evidence consumers. */
+  turns?: RecallTurn[];
   /** The best-matching turn's age in seconds relative to `nowMs`, or null if no match. */
   bestAgeSeconds: number | null;
 }
@@ -181,5 +183,5 @@ export function recallLongRangeContext(
   const block = `<earlier_context note="the interviewer's question refers back to something said earlier in this conversation; this is the most relevant earlier turn found, verbatim">\n${body}\n</earlier_context>`;
 
   const bestAgeSeconds = Math.max(0, Math.floor((nowMs - top[0].turn.timestamp) / 1000));
-  return { block, matchCount: scored.length, bestAgeSeconds };
+  return { block, matchCount: scored.length, bestAgeSeconds, turns: top.map(({ turn }) => turn) };
 }

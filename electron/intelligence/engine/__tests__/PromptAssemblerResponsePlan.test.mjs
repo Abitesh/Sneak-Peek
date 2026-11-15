@@ -10,7 +10,7 @@ const source = await fs.readFile(path.join(here, '..', 'PromptAssembler.ts'), 'u
 test('PromptAssembler consumes ResponsePlan without deciding context', () => {
   assert.match(source, /import type \{ ResponsePlan \} from ['"]\.\/ResponsePlanner['"]/);
   assert.match(source, /responsePlan\?: ResponsePlan/);
-  assert.match(source, /renderResponsePolicy\(input\.request, input\.responsePlan\)/);
+  assert.match(source, /renderResponsePolicy\(input\.request, input\.responsePlan,\s*input\.contextPlan\.requiredSources\.includes\(\x27screen\x27\)/);
   assert.match(source, /Follow this response shape after using the already-selected context/);
   assert.doesNotMatch(source, /new\s+ContextPlanner|new\s+RetrievalCoordinator/);
 });

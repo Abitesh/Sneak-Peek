@@ -6,6 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,8 +20,9 @@ async function makeEngine(chunks) {
   const { IntelligenceEngine } = await import(pathToFileURL(enginePath).href);
   const { SessionTracker } = require(sessionPath);
   const session = new SessionTracker();
-  const engine = new IntelligenceEngine({ setNegotiationCoachingHandler() {} }, session);
-  engine.whatToAnswerLLM = { async *generateStream() { for (const c of chunks) yield c; } };
+  const helper = { setNegotiationCoachingHandler() {} };
+  installCanonicalWtaTestTransport(helper, chunks);
+  const engine = new IntelligenceEngine(helper, session);
   return engine;
 }
 

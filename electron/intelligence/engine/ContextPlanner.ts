@@ -125,6 +125,7 @@ function sourceReason(source: ContextSource, requirement: ContextRequirement, un
  */
 export function planContext(input: ContextPlannerInput): ContextPlan {
   const { request, understanding } = input;
+  if (request.repair) return request.repair.contextPlan;
   const a = input.availability ?? {};
   const required = new Set<ContextSource>();
   const optional = new Set<ContextSource>();
@@ -187,7 +188,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       require('screen');
     }
     rationale.push('Conversation action uses only its authorized inputs.');
-  } else if (request.liveAnswer) {
+  } else if (request.liveAnswer && !request.answerContext) {
     if (request.contextPermissions.transcript && request.transcriptContext?.text.trim()) {
       require('meeting_transcript');
     }
@@ -280,7 +281,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       break;
   }
 
-  if (!request.action && !request.liveAnswer && !request.documentDraft && !request.imageAnalysis) {
+  if (!request.action && (!request.liveAnswer || request.answerContext) && !request.documentDraft && !request.imageAnalysis) {
     // A phone history snapshot may include prior assistant answers with private
     // source lineage. Only include it as conversation (never cited evidence),
     // and do not let old project/profile claims override this turn's exact sources.
@@ -335,6 +336,106 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     require('rag');
     require('recent_conversation');
     rationale.push('Explicit meeting search is restricted to meeting evidence.');
+  }
+
+  let sourceDecision: ContextPlan['sourceDecision'];
+  const sourceIds: NonNullable<ContextPlan['sourceIds']> = {};
+  if (request.answerContext && !request.retrievalScope && !request.documentDraft) {
+    const snapshot = request.answerContext;
+    const active = request.activeContext;
+    if (active?.modeSourceContract) {
+      sourceDecision = resolveTurnSourceDecision({
+        sourceContract: active.modeSourceContract,
+        explicitRequests: resolveExplicitSourceRequests(understanding.question),
+        availability: {
+          hasReferenceFiles: snapshot.referenceSourceIds.length > 0,
+          hasProfileFacts: active.hasResume === true,
+          hasJobDescription: active.hasJobDescription === true,
+          hasLiveTranscript: request.contextPermissions.transcript,
+          hasMeetingRag: false,
+        },
+      });
+      const kinds = new Set(sourceDecision.allowedEvidenceKinds);
+      const mixedOwner = sourceDecision.owner === 'unknown' && sourceDecision.outcome === 'default';
+      const permits: Partial<Record<ContextSource, boolean>> = {
+        mode_documents: mixedOwner || kinds.has('reference_files'),
+        profile: kinds.has('profile_resume') || kinds.has('profile_jd'),
+        project_knowledge: mixedOwner || kinds.has('projects'),
+        my_files: mixedOwner || kinds.has('projects'),
+        personal_knowledge: kinds.has('profile_resume') || kinds.has('projects'),
+        structured_knowledge: false,
+        meeting_transcript: mixedOwner || kinds.has('live_transcript') || kinds.has('meeting_rag'),
+      };
+      for (const [source, allowed] of Object.entries(permits) as [ContextSource, boolean][]) {
+        if (!allowed || !permissionAllows(request, source)) {
+          required.delete(source); optional.delete(source); forbidden.add(source);
+        }
+      }
+      const denied = sourceDecision.outcome === 'explicit_denied' || sourceDecision.outcome === 'source_unavailable';
+      const generalTurn = !request.action && !understanding.requiresPersonalContext && !understanding.requiresProjectContext
+        && ['general-question', 'coding-request', 'system-design'].includes(understanding.intent);
+      if (!denied) for (const kind of sourceDecision.requiredEvidenceKinds) {
+        const source: ContextSource = kind === 'reference_files' ? 'mode_documents'
+          : kind === 'profile_resume' || kind === 'profile_jd' ? 'profile'
+          : kind === 'projects' ? 'project_knowledge' : 'meeting_transcript';
+        if (generalTurn && sourceDecision.outcome === 'default' && (source === 'profile' || source === 'project_knowledge')) continue;
+        if (permissionAllows(request, source)) require(source);
+      }
+      if (denied) { required.clear(); optional.clear(); }
+      // Mixed history has no source lineage. A restricted owner may not read it
+      // as an indirect way around the explicit source decision.
+      if (denied || !['unknown', 'mixed', 'transcript'].includes(sourceDecision.owner)) {
+        required.delete('recent_conversation'); optional.delete('recent_conversation');
+        forbidden.add('recent_conversation');
+      }
+    }
+    sourceIds.mode_documents = snapshot.referenceSourceIds;
+    sourceIds.my_files = request.activeContext?.resumeSourceIds ?? snapshot.personalSourceIds;
+    sourceIds.personal_knowledge = snapshot.personalSourceIds;
+    sourceIds.project_knowledge = request.activeContext?.projectSourceIds ?? [];
+    sourceIds.profile = snapshot.profileDocuments?.map(doc => doc.sourceId) ?? [];
+    if (request.contextPermissions.screen && request.screenContext && sourceDecision?.owner !== 'clarify') require('screen');
+    if (request.liveAnswer && request.contextPermissions.transcript && !forbidden.has('meeting_transcript')) require('meeting_transcript');
+    if (request.sessionSnapshot && request.contextPermissions.conversation && !forbidden.has('recent_conversation')) require('recent_conversation');
+    // General CS/design requests must not retrieve project files by default.
+    if (understanding.intent === 'system-design' && !understanding.requiresProjectContext
+      && !request.activeContext?.projectName) {
+      required.delete('project_knowledge'); forbidden.add('project_knowledge');
+    }
+    // Personal knowledge and profile are alternative representations, not two searches.
+    if (required.has('profile')) { required.delete('personal_knowledge'); forbidden.add('personal_knowledge'); }
+  }
+
+  for (const source of SOURCES) {
+    if (!permissionAllows(request, source)) {
+      required.delete(source); optional.delete(source); forbidden.add(source);
+    }
+  }
+
+  let phoneMeetingEvidenceUnavailable = false;
+  // Defense in depth: the phone surface cannot turn an untyped, imported,
+  // empty, or history-derived transcript into meeting evidence. Preserve a
+  // separately authorized typed meeting record when one actually exists.
+  if (request.surface === 'phone-mirror') {
+    const transcript = request.transcriptContext;
+    const authorizedMeeting = request.contextPermissions.transcript
+      && transcript?.source === 'meeting'
+      && Boolean(transcript.text?.trim())
+      && Boolean(transcript.turns?.some(turn => turn.content?.trim()));
+    if (!authorizedMeeting) {
+      required.delete('meeting_transcript');
+      optional.delete('meeting_transcript');
+      forbidden.add('meeting_transcript');
+      rationale.push('Phone Mirror has no separately authorized typed meeting transcript.');
+      // A meeting-specific question must not be answered from model knowledge
+      // when the exact meeting source was unavailable or denied.
+      // The general turn classifier treats words like "interview" as a
+      // meeting cue even in "What is an interview?". Only explicit references
+      // to a particular meeting/interview should forbid general knowledge.
+      phoneMeetingEvidenceUnavailable = /\b(?:the|our|this|that)\s+(?:meeting|call)\b/i.test(understanding.question)
+        || /\b(?:in|during|from)\s+(?:my|our|the|this|that)\s+interview\b/i.test(understanding.question)
+        || /\b(?:what did|what was|who said|did [^?]{0,60} say)\b[^?]{0,100}\binterviewer\b/i.test(understanding.question);
+    }
   }
 
   const decisions: ContextSourceDecision[] = SOURCES.map((source) => {
@@ -418,13 +519,15 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
 
   return {
     ...(profileRead ? { profileRead } : {}),
+    ...(sourceDecision ? { sourceDecision } : {}),
+    sourceIds,
     sources: decisions,
     requiredSources,
     optionalSources,
     forbiddenSources,
     notRequiredSources,
     needsContext: requiredSources.length > 0 || optionalSources.length > 0,
-    generalKnowledgeAllowed: !request.retrievalScope && ((request.action || request.liveAnswer || request.documentDraft) ? request.contextPermissions.generalKnowledge : (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question')),
+    generalKnowledgeAllowed: !phoneMeetingEvidenceUnavailable && !request.retrievalScope && !(sourceDecision && (sourceDecision.owner === 'clarify' || sourceDecision.sourceAuthority === 'reference_files_only' || sourceDecision.sourceAuthority === 'transcript_only' || sourceDecision.sourceAuthority === 'reference_files_plus_transcript')) && ((request.action || request.liveAnswer || request.documentDraft) ? request.contextPermissions.generalKnowledge : (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question')),
     retrievalRequired,
     retrievalSources,
     rationale,

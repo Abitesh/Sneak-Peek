@@ -35,6 +35,7 @@
 // observe-only precedent (ModeRetrievalConfidence.test.mjs).
 import { test, describe, beforeEach, afterEach, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -78,12 +79,11 @@ async function makeEngineWithAnswer(chunks, { question, repairChunks = [] } = {}
     final: true,
   });
 
-  const engine = new IntelligenceEngine(makeHelper({ repairChunks }), session);
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      for (const chunk of chunks) yield chunk;
-    },
-  };
+  const helper = makeHelper({ repairChunks });
+  installCanonicalWtaTestTransport(helper, chunks, { repairChunks });
+  const engine = new IntelligenceEngine(helper, session);
+  // Generation is injected at the active canonical provider transport,
+  // not at the retired whatToAnswerLLM generator.
 
   return { engine, session };
 }
@@ -259,7 +259,8 @@ describe('answer-relevance guard — flag ON (opt-in): full regeneration behavio
     // Override streamChat AFTER construction so the repair call itself
     // simulates a newer generation superseding this one before it resolves —
     // exactly the race the generation-id guard exists to close.
-    engine.llmHelper.streamChat = async function* () {
+    engine.llmHelper.__canonicalWtaTestState.hasRepairSequence = true;
+    engine.llmHelper.__canonicalWtaTestState.repairChunks = async function* () {
       engine.currentGenerationId = (engine.currentGenerationId || 0) + 1;
       yield 'Tinroof is an open-source library I built for distributed rate limiting.';
     };

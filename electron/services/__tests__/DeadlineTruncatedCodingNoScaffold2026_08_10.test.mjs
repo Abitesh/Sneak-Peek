@@ -24,6 +24,7 @@
 // already reading. Keep the honest partial instead.
 
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import { test, describe, after } from 'node:test';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -62,14 +63,13 @@ async function runDeadlineTruncatedCodingTurn(partial) {
   const session = new SessionTracker();
   session.addTranscript({ speaker: 'system', text: question, timestamp: Date.now(), final: true });
 
-  const engine = new IntelligenceEngine(makeHelper(), session);
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      yield partial;
-      await sleep(LIVE_TOTAL_HARD_TIMEOUT_MS + 3000); // provider stalls
-      yield ' never arrives';
-    },
-  };
+  const helper = makeHelper();
+  installCanonicalWtaTestTransport(helper, async function* () {
+    yield partial;
+    await sleep(LIVE_TOTAL_HARD_TIMEOUT_MS + 3000); // provider stalls
+    yield ' never arrives';
+  });
+  const engine = new IntelligenceEngine(helper, session);
 
   const seen = [];
   let emitted = null;

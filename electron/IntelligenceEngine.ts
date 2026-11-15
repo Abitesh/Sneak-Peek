@@ -1,3 +1,6 @@
+import { createPrimaryManualSneakPeekEngine } from './intelligence/engine/CanonicalRuntime';
+import { captureAnswerContext, buildAnswerRequest } from './intelligence/engine/AnswerRequest';
+import { createAnswerExecution, type CanonicalAnswerExecution } from './intelligence/engine/AnswerExecution';
 // IntelligenceEngine.ts
 // LLM mode routing and orchestration.
 // Extracted from IntelligenceManager to decouple LLM logic from state management.
@@ -5,6 +8,8 @@
 import { EventEmitter } from 'events';
 import { LLMHelper } from './LLMHelper';
 import { SessionTracker, TranscriptSegment, SuggestionTrigger, ContextItem } from './SessionTracker';
+import { selectWtaSpeechTurns } from './intelligence/engine/WtaSpeechProvenance';
+import { decideWtaRawOutput } from './intelligence/engine/WtaRawOutputPolicy';
 import {
     AnswerLLM, AssistLLM, BrainstormLLM, ClarifyLLM, CodeHintLLM, FollowUpLLM, RecapLLM,
     FollowUpQuestionsLLM, WhatToAnswerLLM,
@@ -1079,32 +1084,19 @@ export class IntelligenceEngine extends EventEmitter {
                 return null;
             }
 
-            // V3 (Phase 6): a confidently-resolved transcript question hands the
-            // turn to the decision layer; no resolvable question keeps legacy
-            // proactive behaviour byte-for-byte.
-            const assistV3 = await this.buildV3ForTranscriptSurface();
-            if (!isCurrent()) return null;
             const mode = this.getActiveModeInfo();
-            const scopes = conversationActionDataScopes({ context });
-            const route = !assistV3 && !mode?.isCustom && !mode?.hasCustomPrompt
-                && !mode?.hasReferenceFiles && !mode?.strictDocumentGroundedActive
-                ? this.llmHelper.getSneakPeekGenerationRouteOptions?.(scopes, false, { verifiedFallbacks: true })
-                : null;
-            const insight = route ? await streamConversationAction({
-                id: mintTurnId(),
-                action: {
-                    kind: 'observe',
-                    promptTier: this.llmHelper.getPromptTier(),
-                    languageInstruction: this.llmHelper.buildLanguageInstructionSuffix?.(),
-                },
+            const id = mintTurnId();
+            const snapshot = captureAnswerContext(this.llmHelper, mode, 'Observe the current conversation.');
+            const request = buildAnswerRequest({ id, sessionId: this.currentSessionId ?? id, surface: 'assist',
                 question: 'Briefly summarize what is happening right now in 1-2 sentences. Do not give advice, just observation.',
-                context: this.llmHelper.fitContextForCurrentModel(context),
-                controller,
-                route,
-                transport: this.llmHelper,
-                isCurrent,
-                onToken() { /* Passive observations are only delivered on completion. */ },
-            }) : await this.assistLLM.generate(context, controller.signal, assistV3 ?? undefined);
+                mode, snapshot, signal: controller.signal, sessionSnapshot: this.llmHelper.fitContextForCurrentModel(context),
+                action: { kind: 'observe', promptTier: snapshot.promptTier, sessionSnapshot: context } });
+            const insight = await streamConversationAction({
+                id, action: request.action!, question: request.userMessage, context, controller,
+                route: snapshot.providerRoute, transport: this.llmHelper, request,
+                engine: createPrimaryManualSneakPeekEngine(this.llmHelper, { getRAGManager: () => this.ragManagerProvider?.() }, id),
+                isCurrent, onToken() { /* Passive observations are completion-only. */ },
+            });
 
             if (!isCurrent()) return null;
 
@@ -1115,7 +1107,7 @@ export class IntelligenceEngine extends EventEmitter {
             return visibleInsight;
 
         } catch (error) {
-            if (isCurrent() && (error as Error).name !== 'AbortError') {
+            if (this.assistCancellationToken === controller && (error as Error).name !== 'AbortError') {
                 this.emit('error', error as Error, 'assist');
                 this.setMode('idle');
             }
@@ -1131,6 +1123,826 @@ export class IntelligenceEngine extends EventEmitter {
      * NEVER returns null - always provides a usable response
      */
     async runWhatShouldISay(question?: string, confidence: number = 0.8, imagePaths?: string[], options?: { speculative?: boolean; skipCooldown?: boolean; screenContext?: ScreenContext; promptInstruction?: string; activeSkill?: { id: string; name: string; promptBlock: string }; domContext?: string; forceFresh?: boolean }): Promise<string | null> {
+        const now = Date.now();
+        // Intelligence OS observe-only trace (Phase 1). Zero-cost NO-OP unless
+        // intelligence_trace_enabled is on. Committed at the primary final-answer emit
+        // below; rare early-returns (provider-key error / clarification) are not traced
+        // yet (documented in the wiring status) — an uncommitted trace simply isn't
+        // recorded, no leak.
+        const wtaTrace = beginTrace(typeof question === 'string' ? question : '');
+        const isSpeculative = options?.speculative === true;
+        const skipCooldown = options?.skipCooldown === true;
+        const forceFresh = options?.forceFresh === true;
+
+        // Manual user action (button press / hotkey) MUST start from a clean
+        // speculativeText slate. The previous answer arriving on a manual press
+        // was traced to the Jaccard-gated reuse in handleSuggestionTrigger —
+        // but defense in depth here: if a fresh manual press races with a
+        // speculative stream landing, clear the cache so the new run's
+        // emit('suggested_answer', …) can't be elided by a later gate check.
+        if (forceFresh && !isSpeculative) {
+            this.speculativeText = null;
+            this.speculativeTextExpiry = Infinity;
+        }
+
+        // Cooldown bypass: explicit images (user intent), speculative pre-fetch, or
+        // explicit skip (manual hotkey/button press, tests). The cooldown only
+        // throttles the AUTOMATIC speculative pre-fetch — it must never silence an
+        // explicit user action, or the manual "What to answer" hotkey dies once the
+        // speculative system starts refreshing lastTriggerTime on every interviewer
+        // question. See triggerGate.ts.
+        const hasImages = Boolean(imagePaths && imagePaths.length > 0);
+        if (shouldThrottleTrigger({
+            hasImages,
+            isSpeculative,
+            skipCooldown,
+            now,
+            lastTriggerTime: this.lastTriggerTime,
+            triggerCooldown: this.triggerCooldown,
+        })) {
+            return null;
+        }
+
+        if (this.assistCancellationToken) {
+            this.assistCancellationToken.abort();
+            this.assistCancellationToken = null;
+        }
+
+        // A WTA request owns exactly one provider AbortSignal. Superseding it
+        // must cancel the upstream request immediately; generation IDs remain
+        // the delivery/persistence backstop for already queued work.
+        if (this.whatToAnswerCancellationToken) {
+            this.whatToAnswerCancellationToken.abort('superseded');
+        }
+        for (const controller of this.whatToAnswerBackgroundCancellationTokens) {
+            controller.abort('superseded');
+        }
+        this.whatToAnswerBackgroundCancellationTokens.clear();
+        const whatToAnswerCancellationToken = new AbortController();
+        this.whatToAnswerCancellationToken = whatToAnswerCancellationToken;
+        // Allocate the generation id before the first await. If an older request
+        // resumes after this point, it can only observe itself as superseded; it
+        // must never mint a newer id and overtake this request.
+        const generationId = this.nextGeneration();
+        // Stamp the run's identity before any await: a manual press racing in
+        // mints a newer id and the automatic/speculative one is no longer live.
+        this.automaticGenerationId = this.nextRunIsAutomatic ? generationId : null;
+        this.speculativeGenerationId = isSpeculative ? generationId : null;
+        this.nextRunIsAutomatic = false;
+        const isWtaSuperseded = () => (
+            this.whatToAnswerCancellationToken !== whatToAnswerCancellationToken
+            || this.currentGenerationId !== generationId
+        );
+
+        this.setMode('what_to_say');
+        // Speculative runs don't stamp lastTriggerTime at start — the cooldown slot
+        // is reserved for the real trigger. We stamp it only on successful completion.
+        if (!isSpeculative) {
+            this.lastTriggerTime = now;
+            this.lastTriggerQuestion = question ?? null;
+        }
+        // Record the question text so handleSuggestionTrigger can do Jaccard comparison.
+        // Bound expiry even while the stream is running so stale speculative
+        // answers cannot be accepted after the conversational moment has moved on.
+        if (isSpeculative) {
+            this.speculativeText = question ?? null;
+            this.speculativeTextExpiry = now + this.triggerCooldown + 5000;
+        }
+
+        // ── Live-path latency trace (click → first useful token → render) ──
+        // Records metadata-only milestones; never carries raw transcript/resume.
+        const trace = new PiLatencyTrace({
+            source: question ? 'manual' : 'what_to_answer',
+            sessionId: this.currentSessionId ?? undefined,
+        });
+        trace.mark(question ? 'question_submitted' : 'what_to_answer_clicked', {
+            hasImages: Boolean(imagePaths && imagePaths.length > 0),
+            speculative: isSpeculative,
+        });
+        this.lastTrace = trace;
+
+        // ── REQUEST SNAPSHOT (audit findings #6 + #3 + #9) ─────────────────
+        // Capture the active mode ONCE here, at t0, before any `await` boundary.
+        // Every downstream stage reads the snapshot instead of re-querying the live
+        // ModesManager singleton — so a `modes:set-active` IPC that lands while
+        // this request is parked at an await can no longer split one answer across
+        // two modes (mismatched contract vs. prompt). generationId is stamped onto
+        // every live token (#3) so the renderer can drop stale-generation batches.
+        const snapshotModeInfo = this.getActiveModeInfo();
+        const snapshotModeId = this.getActiveModeId();
+        const answerSnapshot = captureAnswerContext(this.llmHelper, snapshotModeInfo, question ?? '', Boolean(imagePaths?.length));
+        answerSnapshot.realtimeInstruction = options?.promptInstruction;
+        answerSnapshot.skill = options?.activeSkill ? { id: options.activeSkill.id, name: options.activeSkill.name, instruction: options.activeSkill.promptBlock } : undefined;
+        const meetingMarker = this.currentSessionId
+            ?? (this.session.getMeetingMetadata?.()?.calendarEventId)
+            ?? undefined;
+        wtaTrace.setCorrelation({
+            requestId: trace.requestId,
+            sessionId: this.currentSessionId ?? undefined,
+            meetingId: meetingMarker,
+            surface: 'what_to_answer',
+            modeId: snapshotModeId,
+        }).lifecycle('created', {
+            surface: 'what_to_answer',
+            modeId: snapshotModeId ?? 'none',
+        });
+        const recordWtaCancellation = () => {
+            try {
+                const reason = whatToAnswerCancellationToken.signal.reason === 'engine_reset'
+                    ? 'engine_reset'
+                    : 'superseded';
+                wtaTrace.setCorrelation({ aborted: true, errorCategory: reason })
+                    .lifecycle('cancelled', { reason, finalAction: 'discard' });
+                commitTrace(wtaTrace);
+            } catch { /* trace never affects cancellation */ }
+        };
+
+        // Foreground gate (manual regression 2026-06-12): pause background
+        // embedding/RAG drains while a live answer is in flight. Speculative
+        // prefetch doesn't gate (no user is waiting on it). Auto-expires in
+        // 60s even if a return path is missed.
+        let fgToken: string | null = null;
+        if (!isSpeculative) {
+            try {
+                const { ForegroundGate } = require('./services/ForegroundGate') as typeof import('./services/ForegroundGate');
+                fgToken = ForegroundGate.begin('wta');
+            } catch { /* advisory only */ }
+        }
+        const releaseFg = () => {
+            if (!fgToken) return;
+            try {
+                const { ForegroundGate } = require('./services/ForegroundGate') as typeof import('./services/ForegroundGate');
+                ForegroundGate.end(fgToken);
+            } catch { /* noop */ }
+            fgToken = null;
+        };
+
+        // Method-scope so the abort/sentinel/error paths below (and the catch)
+        // can tell whether a streaming row was opened that must be discarded /
+        // resolved (set true on the first coding/non-coding chunk emitted).
+        let openedStreamRow = false;
+
+        try {
+            if (isWtaSuperseded()) {
+                recordWtaCancellation();
+                return null;
+            }
+
+            const contextItems = this.session.getContext(180).filter(turn =>
+                turn.role !== 'assistant' && turn.origin !== 'manual_chat' && turn.origin !== 'system_instruction');
+            let recalledSpeech: import('./llm/longRangeTranscriptRecall').RecallTurn[] = [];
+            trace.mark('transcript_window_loaded', { turns: contextItems.length });
+
+            // Inject latest interim transcript if available.
+            // RC-1 (session C, 2026-08-21): guarded by resolveInterimInjection —
+            // the STT relay was observed sending CUMULATIVE interims (21 ->
+            // 10,126 chars over one session) and the old exact-equality/1s guard
+            // let the whole-session blob be appended as the newest turn, which
+            // extractLatestQuestion then returned verbatim as "the question"
+            // (86/86 injected presses). The resolver cuts the interim to its
+            // novel tail against recent finals, caps length, and skips stale ones.
+            const lastInterim = this.session.getLastInterimInterviewer();
+            if (lastInterim && lastInterim.text.trim().length > 0) {
+                const { resolveInterimInjection } = require('./llm/interimInjectionGuard') as typeof import('./llm/interimInjectionGuard');
+                const verdict = resolveInterimInjection({
+                    interim: { text: lastInterim.text, timestamp: lastInterim.timestamp },
+                    recentInterviewerFinals: contextItems.filter(item => item.role === 'interviewer'),
+                    lastContextItem: contextItems[contextItems.length - 1] ?? null,
+                    now: Date.now(),
+                });
+                if (verdict.action === 'inject') {
+                    console.log(`[IntelligenceEngine] Injecting interim transcript`, { length: verdict.text.length, rawLength: lastInterim.text.length, reason: verdict.reason });
+                    contextItems.push({
+                        role: 'interviewer',
+                        text: verdict.text,
+                        timestamp: lastInterim.timestamp,
+                        origin: 'stt',
+                        // F9: the interim carries provider punctuation provenance
+                        // from the STT seam (provider_interim / unavailable).
+                        ...(lastInterim.punctuationSource ? { punctuationSource: lastInterim.punctuationSource } : {}),
+                    });
+                } else {
+                    console.log(`[IntelligenceEngine] Interim injection skipped`, { rawLength: lastInterim.text.length, reason: verdict.reason });
+                }
+            }
+
+            const transcriptTurns = contextItems.map(item => ({
+                role: item.role,
+                text: item.text,
+                timestamp: item.timestamp,
+                // F9: provenance flows to the extractor's confidence scoring.
+                ...(item.punctuationSource ? { punctuationSource: item.punctuationSource } : {}),
+            }));
+
+            const preparedTranscript = prepareTranscriptForWhatToAnswer(transcriptTurns, 12);
+
+            const temporalContext = buildTemporalContext(
+                contextItems,
+                this.session.getAssistantResponseHistory(),
+                180
+            );
+
+            const lastInterviewerTurn = [...contextItems].reverse().find(turn => turn.role === 'interviewer')?.text;
+            const extractedQuestion = extractLatestQuestion(transcriptTurns);
+            // WTA mint point (Phase 6 Slice 1, "what changes" item 1): one
+            // TurnId for this What-to-Answer invocation, threaded into every
+            // buildTurnContractIfEnabled call this method makes below instead
+            // of letting the kernel mint its own randomUUID() per call.
+            // Independent of `canonicalTurn` (line ~1903 below) — that object
+            // has no turnId field yet (resolveCanonicalTurn.ts, confirmed);
+            // unifying the two is Slice 3's job, not invented here.
+            const _wtaTurnId = mintTurnId();
+
+            // [TRACE:LONGCTX] Campaign 2 forensics (temporary, R10: removed before
+            // production). Dumps transcript-window size + extraction result at every
+            // WTA press so the Golden Trace driver can diff minute-2 vs minute-24.
+            if (process.env.NATIVELY_TRACE_LONGCTX === '1') {
+                try {
+                    const rawCharLen = transcriptTurns.reduce((n, t) => n + (t.text?.length || 0), 0);
+                    console.log('[TRACE:LONGCTX] question_extracted', JSON.stringify({
+                        contextItemsCount: contextItems.length,
+                        transcriptTurnsCount: transcriptTurns.length,
+                        rawTranscriptChars: rawCharLen,
+                        preparedTranscriptChars: preparedTranscript.length,
+                        latestQuestion: extractedQuestion.latestQuestion,
+                        questionType: extractedQuestion.questionType,
+                        detectedSpeaker: extractedQuestion.detectedSpeaker,
+                        confidence: extractedQuestion.confidence,
+                        isFollowUp: extractedQuestion.isFollowUp,
+                        sessionStartTime: this.session.getSessionStartTime(),
+                        nowMs: Date.now(),
+                    }));
+                } catch (e) { console.warn('[TRACE:LONGCTX] question_extracted logging failed', e); }
+            }
+
+            // GOVERNED-INPUT CONTRACT (deep-run 2 / Pattern I, 2026-08-01): a
+            // What-to-Answer press with no transcript, no screen/DOM/image
+            // capture and no typed question used to proceed through planning,
+            // retrieval and a full provider round-trip with an EMPTY question —
+            // V3 refuses empty input and opts out, so the governed layer never
+            // saw the turn, and the user got a deadline-timeout message seconds
+            // later, a hallucinated answer to no question, or a raw internal
+            // error. The derivation chain is transcript → screen/DOM/image →
+            // last interviewer turn; when ALL of it is empty, answer instantly
+            // and deterministically (mirrors the runBrainstorm guard).
+            // Speculative runs return silently, per the speculative contract.
+            const _wtaHasVisualContext = (imagePaths?.length ?? 0) > 0
+                || Boolean(options?.screenContext) || Boolean(options?.domContext);
+            if (!question?.trim() && !extractedQuestion.latestQuestion && !lastInterviewerTurn
+                && !preparedTranscript.trim() && !_wtaHasVisualContext) {
+                if (isSpeculative) return null;
+                this.setMode('idle');
+                const noContextMsg = "I don't have anything to answer yet — no conversation, screen capture, or question has come in. Ask something or start the meeting audio, then press again.";
+                this.session.addAssistantMessage(noContextMsg, undefined, 'what_to_answer');
+                this.emit('suggested_answer', noContextMsg, 'inferred', 1.0, generationId);
+                return noContextMsg;
+            }
+
+            // LIVE TRANSCRIPT BRAIN (Phase 6 wiring, SHADOW/PARITY behind live_transcript_brain_enabled):
+            // the WTA path already builds the hot window inline (getContext(180) + interim
+            // injection above) and extracts the question — exactly what LiveTranscriptBrain
+            // encapsulates. Replacing the proven inline logic outright is a pure refactor =
+            // regression risk for zero gain. So we run the brain in SHADOW: enrich the trace
+            // with its current-question + entity view and record a PARITY marker when its
+            // extracted question diverges from the live one. This proves the brain is a safe
+            // drop-in for a future refactor, with ZERO behavior change. Flag OFF → not run.
+            try {
+                if (isIntelligenceFlagEnabled('liveTranscriptBrain')) {
+                    const brain = new LiveTranscriptBrain(this.session as any, extractLatestQuestion as any);
+                    const brainQ = brain.getCurrentQuestion(180);
+                    wtaTrace.noteContext({
+                        source: 'live_transcript_brain', trustLevel: 'low',
+                        requested: true, retrieved: Boolean(brainQ), included: false,
+                        reason: brainQ && extractedQuestion.latestQuestion && brainQ !== extractedQuestion.latestQuestion
+                            ? 'brain_question_divergence' : 'brain_parity',
+                    });
+                }
+            } catch { /* shadow brain is observe-only; never affects the answer */ }
+            // Bare follow-up resolution ("And SQL?", "What about complexity?",
+            // "Why?") — resolve into a concrete question + inherited answer type so
+            // it routes correctly instead of falling to general/unknown. Only
+            // overrides when confident; otherwise the extractor's result stands.
+            if (!question && extractedQuestion.latestQuestion) {
+                try {
+                    // The PRIOR interviewer turn = the latest interviewer turn whose
+                    // text differs from the fragment we just extracted (so a
+                    // follow-up never "riffs on itself").
+                    const latestQ = extractedQuestion.latestQuestion.trim().toLowerCase();
+                    const priorInterviewer = [...transcriptTurns].reverse()
+                        .find((t) => t.role === 'interviewer' && t.text.trim().toLowerCase() !== latestQ);
+
+                    // LIVE SESSION MEMORY (release 2026-06-07c, flag-gated): when
+                    // enabled, resolve the follow-up against the FULL session memory
+                    // (long-range entity recall, mode boundaries, corrections) instead
+                    // of just the single prior turn. Flag OFF → the proven
+                    // single-prior-turn path below runs unchanged.
+                    let fr: ReturnType<typeof resolveFollowUpOrClarify> & { recalledEntity?: string; recalledAgeSeconds?: number; resolvedVia?: string };
+                    // Resolve the rollout decision for THIS session (deterministic
+                    // per-session bucketing for the percentage gate; kill switch wins).
+                    const lsmConfig = resolveLiveSessionMemoryConfig(this.currentSessionId ?? undefined);
+                    piTelemetry.emit('wta_live_session_memory_enabled', {
+                        enabled: lsmConfig.enabled, reason: lsmConfig.reason,
+                        rolloutPercent: lsmConfig.rolloutPercent, bucket: lsmConfig.bucket,
+                        killSwitch: lsmConfig.killSwitch,
+                    });
+                    if (lsmConfig.enabled) {
+                        const modeId = snapshotModeId;
+                        // CRITICAL (code-review 2026-06-07c): SessionMemory's half-life
+                        // decay is defined in SECONDS, but SessionTracker timestamps are
+                        // wall-clock MILLISECONDS — feeding ms would collapse a 1-hour
+                        // half-life to a ~15-SECOND window (everything decays to 0). And
+                        // the 180s answer window (`transcriptTurns`) drops the very
+                        // long-range entities this feature targets. So build the memory
+                        // turns from a WIDE window (the whole session, capped) and
+                        // convert ms → SECONDS here.
+                        // Long-range memory must read the durable transcript, not the
+                        // short-lived contextItems ring. contextItems is hard-evicted to
+                        // ~120s, so using getContext(7200) silently collapses the intended
+                        // 2h recall window to the last couple of minutes. The rollout flag
+                        // now controls telemetry/attribution only; correctness always uses
+                        // the durable source for long windows.
+                        const memWindowSource = selectWtaSpeechTurns(this.session.getDurableContext(this.LIVE_MEMORY_WINDOW_SECONDS));
+                        const memWindowTurns = memWindowSource.map(item => ({
+                            role: item.role, text: item.text, t: Math.floor(item.timestamp / 1000),
+                        }));
+                        const latestTurnSec = Math.floor((transcriptTurns[transcriptTurns.length - 1]?.timestamp ?? Date.now()) / 1000);
+                        // The EFFECTIVE memory mode is derived from the QUESTION's intent,
+                        // not just the ambient ModesManager mode (code-review 2026-06-07c
+                        // HIGH): a coding/SQL/technical question inside a technical-
+                        // interview session must use the restrictive `coding` boundary so
+                        // the interview project is NOT recalled into a coding answer; a
+                        // comp question uses `negotiation`. ModeTemplateType can't express
+                        // these, so plan the question to get its answer type first.
+                        const intentType = planAnswer({
+                            question: extractedQuestion.latestQuestion,
+                            source: 'what_to_answer',
+                            speakerPerspective: 'interviewer',
+                            // Snapshot read (#6): same mode the main answer plan uses.
+                            activeMode: snapshotModeInfo,
+                        }).answerType;
+                        fr = resolveLiveFollowup({
+                            turns: memWindowTurns,
+                            latestQuestion: extractedQuestion.latestQuestion,
+                            now: latestTurnSec,
+                            mode: effectiveMemoryMode(modeId, intentType),
+                            surface: toSurface(modeId, true),
+                        }) as any;
+                    } else {
+                        fr = resolveFollowUpOrClarify({
+                            latestQuestion: extractedQuestion.latestQuestion,
+                            previousQuestion: priorInterviewer?.text,
+                            lastEntity: extractedQuestion.followUpTarget || undefined,
+                            surface: 'what_to_answer',
+                            hasPriorContext: Boolean(priorInterviewer?.text) || Boolean(extractedQuestion.followUpTarget),
+                        });
+                    }
+                    // Context-free bare follow-up ("why?" with no prior turn): emit a
+                    // safe clarification deterministically — NEVER fall through to the
+                    // LLM (which can self-identify as "an AI assistant" or dump the
+                    // profile). No prior context exists, so there's nothing to answer.
+                    if (isWtaSuperseded()) {
+                        recordWtaCancellation();
+                        return null;
+                    }
+                    if (fr.isClarification && fr.clarificationText && !isSpeculative) {
+                        piTelemetry.emit('wta_context_free_clarification', { surface: 'what_to_answer', via: (fr as any).resolvedVia ?? 'clarification' });
+                        this.session.addAssistantMessage(fr.clarificationText, undefined, 'what_to_answer');
+                        this.emit('suggested_answer', fr.clarificationText, extractedQuestion.latestQuestion || 'inferred', 0.9, generationId);
+                        this.setMode('idle');
+                        trace.mark('repair_used', { reason: 'context_free_clarification' });
+                        return fr.clarificationText;
+                    }
+                    if (fr && fr.confidence >= 0.7 && fr.resolvedQuestion && !fr.isClarification) {
+                        const via = (fr as any).resolvedVia;
+                        extractedQuestion.latestQuestion = fr.resolvedQuestion;
+                        if (fr.resolvedEntity) extractedQuestion.followUpTarget = fr.resolvedEntity;
+                        trace.mark('repair_used', { reason: via === 'session_memory' ? 'session_memory_followup' : 'followup_resolved', resolved: fr.reason });
+                        // MARKER-ONLY: recalled KIND/age bucket, never the entity value.
+                        piTelemetry.emit('wta_live_followup_resolved', {
+                            via: via ?? 'prior_turn', answerType: fr.resolvedAnswerType,
+                            recalledKind: (fr as any).recalledEntity ? 'entity' : 'none',
+                            ageBucket: ageBucket((fr as any).recalledAgeSeconds),
+                            reason: fr.reason,
+                        });
+                    }
+                    // LONG-RANGE LEXICAL RECALL FALLBACK (Campaign 2, H6 fix,
+                    // 2026-07-16): SessionMemory/resolveLiveFollowup above only
+                    // recall EXPLICITLY-NOTED proper-noun entities (projects,
+                    // companies, skills, a small fixed algorithm/CS topic list) —
+                    // a free-text incident/story mentioned once in prose ("a
+                    // memory leak in a long-running consumer process") is never
+                    // captured there, so a later paraphrased callback
+                    // ("the memory leak you mentioned earlier") finds nothing to
+                    // recall even though the extractor correctly flagged
+                    // isFollowUp=true (fix#2, H3). Live-proven on the real
+                    // backend (traces2/forensic-report.md H6): the model either
+                    // honestly said the transcript doesn't contain the story, or
+                    // (pre fix#1) emitted the "nothing actionable" sentinel.
+                    // Fire ONLY when: the extractor already thinks this is a
+                    // follow-up, AND entity-based recall did NOT already resolve
+                    // it (never runs redundantly, never overrides a real entity
+                    // match), AND we're not already just answering a typed
+                    // question. Bounded, deterministic, no LLM — real transcript
+                    // text only, so zero fabrication risk (R5): either the
+                    // model gets the ACTUAL earlier turn or nothing changes.
+                    const entityRecallSucceeded = Boolean(fr && !fr.isClarification && fr.confidence >= 0.7 && (fr as any).recalledEntity);
+                    if (!question && extractedQuestion.isFollowUp && !entityRecallSucceeded) {
+                        try {
+                            const { recallLongRangeContext } = require('./llm/longRangeTranscriptRecall') as typeof import('./llm/longRangeTranscriptRecall');
+                            const durableWindow = selectWtaSpeechTurns(this.session.getDurableContext(this.LIVE_MEMORY_WINDOW_SECONDS));
+                            const recentWindowCutoffMs = transcriptTurns.length > 0 ? transcriptTurns[0].timestamp : Date.now();
+                            // Mode-boundary gate (skeptic-pass finding, 2026-07-16): mirror
+                            // effectiveMemoryMode's own "is this turn's INTENT a comp
+                            // question" derivation (line ~1029 above) so a comp figure
+                            // discussed earlier can only ever be recalled back into another
+                            // comp/negotiation question — never leaked into an unrelated
+                            // technical/coding/general follow-up via this lexical fallback.
+                            let isNegotiationTurn = false;
+                            try {
+                                isNegotiationTurn = planAnswer({
+                                    question: extractedQuestion.latestQuestion,
+                                    source: 'what_to_answer',
+                                    speakerPerspective: 'interviewer',
+                                    activeMode: snapshotModeInfo,
+                                }).answerType === 'negotiation_answer';
+                            } catch { /* default: not negotiation → comp stays gated */ }
+                            const recall = recallLongRangeContext(
+                                extractedQuestion.latestQuestion,
+                                durableWindow,
+                                recentWindowCutoffMs,
+                                Date.now(),
+                                isNegotiationTurn,
+                            );
+                            if (recall.block) {
+                                recalledSpeech = recall.turns ?? [];
+                                trace.mark('repair_used', { reason: 'long_range_lexical_recall', matchCount: recall.matchCount });
+                                piTelemetry.emit('session_memory_recall_attempted', {
+                                    via: 'lexical_transcript_fallback',
+                                    matchCount: recall.matchCount,
+                                    ageBucket: ageBucket(recall.bestAgeSeconds ?? undefined),
+                                });
+                                if (process.env.NATIVELY_TRACE_LONGCTX === '1') {
+                                    console.log('[TRACE:LONGCTX] long_range_recall_fired', JSON.stringify({
+                                        question: extractedQuestion.latestQuestion,
+                                        matchCount: recall.matchCount,
+                                        bestAgeSeconds: recall.bestAgeSeconds,
+                                        blockChars: recall.block.length,
+                                    }));
+                                }
+                            }
+                        } catch { /* fallback is best-effort; never blocks the answer */ }
+                    }
+                } catch { /* keep extractor result */ }
+            }
+            trace.mark('latest_question_extracted', {
+                questionType: extractedQuestion.questionType,
+                detectedSpeaker: extractedQuestion.detectedSpeaker,
+                isFollowUp: extractedQuestion.isFollowUp,
+                confidence: extractedQuestion.confidence,
+            });
+
+            // QUESTION LEDGER SHADOW parity (WTA audit Phase 2): compare the
+            // ledger's top-ranked active ask against the RESOLVED question the
+            // live path selected. Observe-only (included: false) — this trace
+            // is the promotion evidence for Phase 5 (cluster ranking replacing
+            // latest-wins): divergence rate by category decides, never vibes.
+            try {
+                if (this.questionLedgerShadow && isIntelligenceFlagEnabled('questionLedgerShadow')) {
+                    const rankedAsks = this.questionLedgerShadow.rankActiveAsks(Date.now());
+                    const topAsk = rankedAsks[0];
+                    const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+                    const parityReason = topAsk && extractedQuestion.latestQuestion
+                        ? (norm(topAsk.standaloneText) === norm(extractedQuestion.latestQuestion)
+                            ? 'ledger_parity'
+                            : `ledger_divergence_open_${rankedAsks.length}`)
+                        : 'ledger_empty';
+                    wtaTrace.noteContext({
+                        source: 'question_ledger_shadow', trustLevel: 'low',
+                        requested: true, retrieved: Boolean(topAsk), included: false,
+                        reason: parityReason,
+                    });
+                    // Live session A (2026-08-20) produced ZERO ledger telemetry
+                    // across 28 presses: noteContext only fills an in-memory
+                    // IntelligenceTrace whose toRecord() has no production
+                    // consumer, and piTelemetry buffers to a ring that prints
+                    // only under NATIVELY_PI_TELEMETRY_DEBUG. The shadow ran
+                    // correctly and was simply invisible, so the session
+                    // collected no promotion evidence. Emit a console line on
+                    // the same [TRACE:*] convention the LONGCTX marker already
+                    // uses (that one DID reach the log), gated by the shadow
+                    // flag so it costs nothing when the shadow is off.
+                    console.log('[TRACE:LEDGER] ledger_parity_check', JSON.stringify({
+                        reason: parityReason,
+                        openAsks: rankedAsks.length,
+                        ledgerTop: topAsk?.standaloneText ?? '',
+                        liveQuestion: extractedQuestion.latestQuestion || '',
+                        liveConfidence: extractedQuestion.confidence,
+                        ledgerAct: topAsk?.dialogueAct ?? null,
+                        ledgerRelation: topAsk?.relationToPrevious ?? null,
+                        relationshipConfidence: topAsk?.confidence?.relationship ?? null,
+                    }));
+                }
+            } catch { /* shadow only — never affects the answer */ }
+
+            const resolvedQuestion = question || extractedQuestion.latestQuestion || lastInterviewerTurn || 'Answer the question on screen.';
+            const answerPlan = planAnswer({ question: resolvedQuestion, source: 'what_to_answer',
+                speakerPerspective: extractedQuestion.detectedSpeaker === 'interviewer' ? 'interviewer' : 'user',
+                extractedQuestion, activeMode: snapshotModeInfo,
+                hasCandidateProfile: answerSnapshot.profileDocuments?.some(doc => doc.sourceType === 'RESUME') });
+            answerSnapshot.answerPlan = answerPlan;
+            // CHG-20: only typed STT/test-origin turns may be elevated to
+            // meeting_transcript evidence. SessionTracker also holds manual
+            // chat and previous AI responses; neither is a speech source.
+            // The explicit WTA question remains the manualQuestion below.
+            const speechTurns = [
+                ...recalledSpeech.map(turn => ({ ...turn, text: turn.text.slice(0, 800) })),
+                ...selectWtaSpeechTurns(contextItems).slice(-12),
+            ];
+            const request = buildAnswerRequest({
+                id: trace.requestId, sessionId: this.currentSessionId ?? trace.requestId,
+                surface: 'what-to-answer', question: resolvedQuestion, mode: snapshotModeInfo,
+                snapshot: answerSnapshot, signal: whatToAnswerCancellationToken.signal,
+                ...(speechTurns.length ? { transcript: {
+                    source: 'live' as const,
+                    text: speechTurns.map(turn => turn.text).join('\n'),
+                    turns: speechTurns.map((turn, index) => ({ id: `${trace.requestId}:speech:${index}`, role: 'user' as const,
+                        content: turn.text, createdAt: turn.timestamp })),
+                } } : {}),
+                // WTA speech continuity is bounded to the same verified source.
+                // Do not pass mixed manual/assistant session history as another
+                // path back into the canonical prompt or project referent scope.
+                history: speechTurns.map((turn, index) => ({ id: `${trace.requestId}:history:${index}`,
+                    role: 'user' as const, content: turn.text, createdAt: turn.timestamp })),
+                imagePaths, screenText: [options?.screenContext?.ocrText, options?.domContext].filter(Boolean).join('\n\n'),
+            });
+            request.liveAnswer = { plan: answerPlan, mode: snapshotModeInfo, promptTier: answerSnapshot.promptTier,
+                languageInstruction: answerSnapshot.languageInstruction };
+            const execution = createAnswerExecution(this.llmHelper, { getRAGManager: () => this.ragManagerProvider?.() }, request);
+            let fullAnswer = '';
+            // CHG-20 / WORK-0072: a deictic question over visible code can be
+            // promoted to the six-section coding contract even when the answer
+            // classifier selected a non-coding type. The streaming/repair gate
+            // must agree with the same shared predicate used before migration.
+            const { isPromotedScreenCodingTurn } = await import('./llm/codingPromptSignals');
+            const promotedScreenCoding = isPromotedScreenCodingTurn({
+                alreadyCoding: isCodingAnswerType(answerPlan.answerType),
+                question: answerPlan.question,
+                hasImages: Boolean(imagePaths?.length),
+                screenText: [options?.domContext, options?.screenContext?.ocrText].filter(Boolean).join('\n\n'),
+            });
+            const isCoding = !isSpeculative && (isCodingAnswerType(answerPlan.answerType) || promotedScreenCoding);
+            const codingGate = isCoding ? new CodingStreamGate() : null;
+            const { StreamingSpecStripper, stripVerificationSpec } = await import('./llm/codingContract');
+            const specStripper = isCoding ? new StreamingSpecStripper() : null;
+            let buffer = '';
+            let holdScaffold: boolean | undefined;
+            const emitChunk = (chunk: string) => {
+                if (!chunk || isSpeculative || isWtaSuperseded() || whatToAnswerCancellationToken.signal.aborted) return;
+                openedStreamRow = true;
+                trace.markFirstUseful({ via: 'stream', answerType: answerPlan.answerType });
+                this.emit('suggested_answer_token', chunk, question || 'inferred', confidence, generationId);
+            };
+            const outcome = await raceStreamWithDeadline({
+                stream: execution.stream, signal: whatToAnswerCancellationToken.signal,
+                // Electron's real helper has isUsingOllama; lightweight offline transports
+                // need only the canonical route. Missing metadata defaults to the
+                // shorter cloud deadline, never to an unlimited wait.
+                firstUsefulDeadlineMs: this.llmHelper.isUsingOllama?.() ? LIVE_LOCAL_TOTAL_HARD_TIMEOUT_MS : LIVE_TOTAL_HARD_TIMEOUT_MS,
+                interTokenStallMs: LIVE_INTER_TOKEN_STALL_MS,
+                isUsefulYet: () => fullAnswer.trim().length >= 5,
+                shouldAbort: () => isWtaSuperseded(), isSpeculative,
+                onCleanup: reason => { if (reason !== 'done') whatToAnswerCancellationToken.abort(reason); },
+                onToken: token => {
+                    fullAnswer += token;
+                    if (isCoding && codingGate && specStripper) emitChunk(specStripper.push(codingGate.push(token)));
+                    else {
+                        buffer += token;
+                        if (holdScaffold === undefined && buffer.trimStart().length >= 4) holdScaffold = /^#{1,3}\s/.test(buffer.trimStart());
+                        if (!holdScaffold && buffer.length >= 160 && !IntelligenceEngine.isNonAnswerSentinel(buffer)) {
+                            emitChunk(stripLeadingNoActionSentinel(buffer)); buffer = '';
+                        }
+                    }
+                },
+            });
+            if (isWtaSuperseded()) { recordWtaCancellation(); return null; }
+            const timedOut = outcome === 'first_useful_timeout' || outcome === 'stall_timeout';
+            if (outcome === 'aborted') { recordWtaCancellation(); return null; }
+            const result = timedOut ? undefined : await execution.result;
+            const partial = timedOut || !result?.finalAnswer?.completed;
+            if (partial && isSpeculative) {
+                this.speculativeText = null;
+                this.speculativeTextExpiry = Infinity;
+                this.setMode('idle');
+                return null;
+            }
+            if (partial && !(openedStreamRow || isCompleteShortAnswer(fullAnswer))) {
+                throw new Error(result?.providerAttempt.error ?? 'Answer generation interrupted.');
+            }
+            // WORK-0071: retain the pre-CHG-20 WTA fail-closed output boundary
+            // BEFORE a structural repair can mask leaked text as a valid answer.
+            const raw = decideWtaRawOutput({
+                text: fullAnswer, answerType: answerPlan.answerType, coding: isCoding,
+                hasExtractedQuestion: Boolean(extractedQuestion.latestQuestion && extractedQuestion.confidence >= 0.6),
+                isFalseNoContentClaim: (text) => IntelligenceEngine.isFalseNoContentClaim(text),
+                isNonAnswerSentinel: (text) => IntelligenceEngine.isNonAnswerSentinel(text),
+            });
+            if (raw.kind !== 'answer') {
+                if (openedStreamRow) this.emit('suggested_answer_discard', raw.kind);
+                if (isSpeculative) { this.setMode('idle'); return null; }
+                // A non-answer on an explicit press resolves the UI placeholder.
+                // Transport errors and leaked artifacts never become source facts
+                // and never count as successful answer usage.
+                if (raw.kind === 'nonanswer') {
+                    this.session.addAssistantMessage(raw.text, undefined, 'what_to_answer');
+                }
+                trace.mark('fallback_answer_used', { reason: raw.kind, answerType: answerPlan.answerType });
+                this.emit('suggested_answer', raw.text, question || 'What to Answer', confidence, generationId);
+                this.setMode('idle');
+                return raw.text;
+            }
+            if (raw.recoveredJson) trace.mark('repair_used', { reason: 'json_envelope_answer_recovered', answerType: answerPlan.answerType });
+            fullAnswer = raw.text;
+            // The canonical request still needs the always-on candidate voice
+            // sanitizer that previously lived only in legacyWhatShouldISay.
+            // Run it before persistence and any structure-repair scaffold.
+            if (CANDIDATE_VOICE_ANSWER_TYPES.has(answerPlan.answerType)) {
+                try {
+                    const candidate = sanitizeCandidateAnswer(fullAnswer);
+                    if (candidate.needsFallback && !snapshotModeInfo?.documentGroundedCustomModeActive) {
+                    const fallback = "The model produced an invalid assistant-identity answer, so I won't guess from your profile. Please try again.";
+                    if (openedStreamRow) this.emit('suggested_answer_discard', 'candidate_identity');
+                    if (isSpeculative) { this.setMode('idle'); return null; }
+                    trace.mark('fallback_answer_used', { reason: 'candidate_identity', answerType: answerPlan.answerType });
+                    this.emit('suggested_answer', fallback, question || 'What to Answer', confidence, generationId);
+                    this.setMode('idle');
+                    return fallback;
+                }
+                    if (candidate.repaired && !candidate.needsFallback) fullAnswer = candidate.text;
+                } catch { /* output sanitation is best-effort; canonical validation still follows */ }
+            }
+            if (!isSpeculative && !partial) {
+                const spoken = !isCoding && !isDocGroundedAnswerType(answerPlan.answerType)
+                    && !['technical_concept_answer', 'system_design_answer', 'debugging_question_answer'].includes(answerPlan.answerType);
+                if (spoken) {
+                    const extracted = detectAndExtractScaffoldMisfire(answerPlan.answerType, fullAnswer);
+                    if (extracted) fullAnswer = extracted;
+                }
+                const assessRelevance = spoken && answerPlan.answerType !== 'ethical_usage_answer'
+                    && Boolean(extractedQuestion.latestQuestion && extractedQuestion.confidence >= 0.6);
+                let relevanceIssue: ((text: string) => Promise<import('./intelligence/engine/AnswerValidation').AnswerValidationIssue | null>) | undefined;
+                if (assessRelevance) {
+                    if (isIntelligenceFlagEnabled('answerRelevanceGuardLive')) {
+                        relevanceIssue = async text => {
+                            const verdict = await checkAnswerRelevance(resolvedQuestion, text).catch(() => null);
+                            return verdict && !verdict.relevant
+                                ? { reason: 'relevance', diagnostic: 'Answer the current question directly using the original authorized sources.' }
+                                : null;
+                        };
+                    } else {
+                        this.pendingObserveOnlyRelevanceCheck = checkAnswerRelevance(resolvedQuestion, fullAnswer)
+                            .then(verdict => {
+                                if (!isWtaSuperseded() && verdict && !verdict.relevant) {
+                                    trace.mark('validation_completed', { reason: 'answer_relevance_observe_only', confidence: verdict.confidence });
+                                }
+                            }).catch(() => undefined);
+                    }
+                }
+                const finalized = await execution.finalize(fullAnswer, () => !isWtaSuperseded(), relevanceIssue);
+                if (finalized === null) return null;
+                fullAnswer = finalized;
+            }
+            // Legacy WTA enforced the same fail-closed schema-stub guard before
+            // output polishing. Keep it active after canonical migration: leaked
+            // internal format is not an answer and must never enter meeting history.
+            if (isLeakedSchemaStub(fullAnswer)) {
+                throw new Error('Canonical WTA output leaked an internal schema stub.');
+            }
+            if (isWtaSuperseded() || (whatToAnswerCancellationToken.signal.aborted && !timedOut)) return null;
+            if (isSpeculative) {
+                this.lastTriggerTime = Date.now(); this.lastTriggerQuestion = question ?? null;
+                this.speculativeTextExpiry = this.lastTriggerTime + this.triggerCooldown + 500;
+                this.setMode('idle'); return fullAnswer;
+            }
+            // WORK-0071: narrow spoken small-talk cleanup previously ran only
+            // in legacyWhatShouldISay. Never strip legitimate questions from
+            // substantive interview/technical answers.
+            if (!isSpeculative && !isCoding && fullAnswer) {
+                try {
+                    const { isSmallTalkTurn, stripSteeringTail } = await import('./llm/steeringTail');
+                    if (isSmallTalkTurn(question || answerPlan.question || extractedQuestion.latestQuestion || '')) {
+                        const result = stripSteeringTail(fullAnswer);
+                        if (result.repaired) {
+                            fullAnswer = result.text;
+                            trace.mark('repair_used', { reason: 'steering_tail_stripped' });
+                        }
+                    }
+                } catch { /* narrow spoken cleanup never breaks the answer */ }
+            }
+            const rawAnswerForVerify = fullAnswer;
+            let finalWtaAnswer = isCoding ? stripVerificationSpec(fullAnswer) : cleanAnswerArtifacts(fullAnswer);
+            // ALWAYS-ON minimal cleanup: restore the spoken-answer protection
+            // from the pre-CHG-20 WTA path. No flag may disable removal of
+            // robotic scaffold labels; coding fences and coding labels are real.
+            if (!isCoding && finalWtaAnswer) {
+                try {
+                    const before = finalWtaAnswer;
+                    let cleaned = cleanAnswerArtifacts(before);
+                    SCAFFOLD_LABEL_RE.lastIndex = 0;
+                    BOLD_PSEUDO_HEADER_RE.lastIndex = 0;
+                    if (SCAFFOLD_LABEL_RE.test(cleaned) || BOLD_PSEUDO_HEADER_RE.test(cleaned)) {
+                        const speakable = compressToSpeakable(cleaned);
+                        if (speakable.trim().length >= 40) cleaned = speakable;
+                    }
+                    if (cleaned.trim().length >= 10) finalWtaAnswer = cleaned;
+                    if (finalWtaAnswer !== before) {
+                        trace.mark('repair_used', { reason: 'always_on_spoken_cleanup', answerType: answerPlan.answerType });
+                    }
+                } catch { /* formatting must not prevent a verified answer */ }
+            }
+            if (!isCoding && isIntelligenceFlagEnabled('answerDiversityGuard')) {
+                const shaped = applyAnswerContract({ answer: finalWtaAnswer, answerStyle: answerPlan.answerStyle,
+                    isCoding, answerType: answerPlan.answerType, question: resolvedQuestion, guard: this.wtaDiversityGuard });
+                if (shaped.changed && shaped.text.trim().length >= 10) finalWtaAnswer = shaped.text;
+                // Observe even a detected-but-unrepaired repetition; otherwise
+                // telemetry cannot distinguish an idle guard from a missed repair.
+                if (shaped.repetition) trace.mark('wta_diversity_guard_checked', {
+                    repeated: shaped.repetition.repeated, reason: shaped.repetition.reason,
+                    repaired: shaped.applied.includes('diversity_repair'),
+                });
+            }
+            fullAnswer = finalWtaAnswer;
+            if (codingGate && specStripper) emitChunk(specStripper.push(codingGate.finish()) + specStripper.finish());
+            else if (!holdScaffold) emitChunk(buffer);
+            if (!openedStreamRow) emitChunk(fullAnswer);
+            if (isWtaSuperseded()) return null;
+            if (!partial) {
+                this.session.addAssistantMessage(fullAnswer, undefined, 'what_to_answer');
+                this.session.pushUsage({ type: 'assist', timestamp: Date.now(), question: resolvedQuestion, answer: fullAnswer });
+            }
+            this.emit('suggested_answer', fullAnswer, question || 'What to Answer', confidence, generationId);
+            if (isCoding && !partial && isCodeVerificationEnabled()) {
+                const verification = new AbortController();
+                this.whatToAnswerBackgroundCancellationTokens.add(verification);
+                void this.maybeVerifyCoding(rawAnswerForVerify, resolvedQuestion, request.screenContext?.text,
+                    trace, generationId, verification.signal, execution).finally(() => this.whatToAnswerBackgroundCancellationTokens.delete(verification));
+            }
+            trace.finish({ answerType: answerPlan.answerType, chars: fullAnswer.length });
+            this.setMode('idle');
+            return fullAnswer;
+        } catch (error) {
+            // `raceStreamWithDeadline` self-aborts this request's controller when a
+            // first-token/stall deadline fires. That is transport cleanup, not a
+            // supersession: a later post-deadline exception must still reach the
+            // normal error fallback instead of being silently discarded as stale.
+            // Only controller ownership / generation identity prove that another
+            // request or reset replaced this turn.
+            if (isWtaSuperseded()) {
+                recordWtaCancellation();
+                if (isSpeculative) { this.speculativeText = null; this.speculativeTextExpiry = Infinity; }
+                if (openedStreamRow) this.emit('suggested_answer_discard', 'superseded');
+                return null;
+            }
+            try {
+                wtaTrace.setCorrelation({ errorCategory: (error as Error)?.name || 'handler_error' })
+                    .noteError((error as Error)?.name || 'handler_error')
+                    .lifecycle('failed', { errorCategory: (error as Error)?.name || 'handler_error', finalAction: 'retry' });
+                commitTrace(wtaTrace);
+            } catch { /* trace never affects the fallback */ }
+            if (isSpeculative) { this.speculativeText = null; this.speculativeTextExpiry = Infinity; }
+            // If we opened a partial streaming row, discard it (the catch returns a
+            // non-null fallback, so the manual path's null-cleanup never runs and
+            // no 'suggested_answer' would otherwise fire) so the error row below is
+            // the only artifact, not an orphaned half-streamed answer.
+            if (openedStreamRow) this.emit('suggested_answer_discard', 'error');
+            // EventEmitter throws from 'error' when no listener is attached.
+            // A manually requested answer must still resolve visibly even if a
+            // test/auxiliary consumer did not subscribe to engine diagnostics.
+            if (this.listenerCount('error') > 0) this.emit('error', error as Error, 'what_to_say');
+            this.setMode('idle');
+            // Speculative prefetch has no user-visible request. An unavailable
+            // provider or empty stream must stay silent, never surface a retry.
+            if (isSpeculative) return null;
+            const unavailableRoute = (error as Error)?.message === 'Active provider transport is not yet supported by the Sneak-Peek generation contract.';
+            const retry = unavailableRoute
+                ? 'The selected AI provider or model is unavailable. Check your model and API Keys in Settings, then retry.'
+                : buildGracefulRetry(question);
+            // A manual press returning non-null must emit a final event; a
+            // speculative generation has no visible UI placeholder to resolve.
+            if (!isSpeculative) this.emit('suggested_answer', retry, question || 'What to Answer', confidence, generationId);
+            return retry;
+        } finally {
+            // Only the request that still owns the slot may clear it. An older
+            // cancelled request must not sever the newer request's controller.
+            if (this.whatToAnswerCancellationToken === whatToAnswerCancellationToken) {
+                this.whatToAnswerCancellationToken = null;
+            }
+            // Resume background drains on EVERY exit path (answer, abort, error).
+            releaseFg();
+        }
+    }
+
+    /** Historical implementation retained for CHG-22 review. No production callers. */
+    private async legacyWhatShouldISay(question?: string, confidence: number = 0.8, imagePaths?: string[], options?: { speculative?: boolean; skipCooldown?: boolean; screenContext?: ScreenContext; promptInstruction?: string; activeSkill?: { id: string; name: string; promptBlock: string }; domContext?: string; forceFresh?: boolean }): Promise<string | null> {
         const now = Date.now();
         // Intelligence OS observe-only trace (Phase 1). Zero-cost NO-OP unless
         // intelligence_trace_enabled is on. Committed at the primary final-answer emit
@@ -5178,7 +5990,9 @@ export class IntelligenceEngine extends EventEmitter {
         trace: PiLatencyTrace,
         generationId: number,
         abortSignal?: AbortSignal,
+        execution?: CanonicalAnswerExecution,
     ): Promise<void> {
+        if (!execution) return;
         // Supersession guard: if the user fired a newer generation while this
         // background verification ran, its result belongs to a now-abandoned
         // answer. Bailing before each emit prevents badging/correcting the WRONG
@@ -5199,16 +6013,7 @@ export class IntelligenceEngine extends EventEmitter {
                     // 6s) clears MiniMax's 4-6s first-token when it's the fallback.
                     let fixed = '';
                     await raceStreamWithDeadline({
-                        stream: this.llmHelper.streamChat(
-                            repairPrompt,
-                            undefined,
-                            undefined,
-                            undefined,
-                            true,
-                            true,
-                            [],
-                            abortSignal,
-                        ) as AsyncGenerator<string>,
+                        stream: execution.repair('code-verification', shownAnswer, repairPrompt, abortSignal),
                         firstUsefulDeadlineMs: this.llmHelper.isUsingOllama() ? LIVE_LOCAL_FIRST_USEFUL_TIMEOUT_MS : 7000,
                         isUsefulYet: () => fixed.length >= 5,
                         shouldAbort: () => fixed.length > 1200 || superseded(),
@@ -5563,81 +6368,37 @@ export class IntelligenceEngine extends EventEmitter {
         imagePaths?: readonly string[],
         screenText?: string,
     ): Promise<string | null> | null {
-        // Keep mode-specific sources and prompts on the compatibility path
-        // until their policy can be carried into the canonical action contract.
         const mode = this.getActiveModeInfo();
-        if (mode?.isCustom || mode?.hasCustomPrompt || mode?.hasReferenceFiles
-            || mode?.documentGroundedCustomModeActive || mode?.strictDocumentGroundedActive) return null;
-        const scopes = conversationActionDataScopes({ context, previousAnswer: action.previousAnswer, imagePaths });
-        if (screenText?.trim() && !scopes.includes('screenshots')) scopes.push('screenshots');
-        const route = this.llmHelper.getSneakPeekGenerationRouteOptions?.(scopes, Boolean(imagePaths?.length));
-        if (!route) return null;
-
+        const dataScopes = conversationActionDataScopes({
+            context, previousAnswer: action.previousAnswer, imagePaths,
+            unknownLineage: Boolean(mode?.isCustom || mode?.hasCustomPrompt),
+        });
+        if (screenText?.trim() && !dataScopes.includes('screenshots')) dataScopes.push('screenshots');
+        const snapshot = captureAnswerContext(this.llmHelper, mode, question, Boolean(imagePaths?.length), dataScopes);
         const controller = new AbortController();
+        this.conversationActionController?.abort('superseded');
         this.conversationActionController = controller;
-        const fitted = context ? this.llmHelper.fitContextForCurrentModel(context) : '';
-        return streamConversationAction({
-            id: `session-action-${generationId}`,
-            action: {
-                ...action,
-                promptTier: this.llmHelper.getPromptTier(),
-                languageInstruction: this.llmHelper.buildLanguageInstructionSuffix?.(),
-            },
-            question,
-            context: fitted,
-            imagePaths,
-            screenText: screenText ? this.llmHelper.fitContextForCurrentModel(screenText) : undefined,
-            controller,
-            route,
-            transport: this.llmHelper,
-            isCurrent: () => this.currentGenerationId === generationId,
+        const id = `session-action-${generationId}`;
+        const request = buildAnswerRequest({ id, sessionId: this.currentSessionId ?? id, question, mode, snapshot,
+            signal: controller.signal, surface: action.kind === 'code-hint' ? 'screenshot' : 'follow-up',
+            sessionSnapshot: context ? this.llmHelper.fitContextForCurrentModel(context) : undefined,
+            imagePaths, screenText,
+            action: { ...action, promptTier: snapshot.promptTier,
+                sessionSnapshot: context ? this.llmHelper.fitContextForCurrentModel(context) : undefined } });
+        return streamConversationAction({ id, action: request.action!, question, context,
+            controller, imagePaths, screenText, route: snapshot.providerRoute,
+            transport: this.llmHelper, request,
+            engine: createPrimaryManualSneakPeekEngine(this.llmHelper, { getRAGManager: () => this.ragManagerProvider?.() }, id),
+            isCurrent: () => this.currentGenerationId === generationId && !controller.signal.aborted,
             onToken,
         }).finally(() => {
             if (this.conversationActionController === controller) this.conversationActionController = null;
         });
     }
 
-    private async consumeConversationAction(
-        generationId: number,
-        canonical: Promise<string | null> | null,
-        compatibility: () => AsyncIterable<string> | Promise<AsyncIterable<string>>,
-        publishToken: (token: string) => void,
-        privacy: { context?: string; previousAnswer?: string; imagePaths?: readonly string[]; unknownLineage?: boolean },
-    ): Promise<string | null> {
-        if (canonical) {
-            const answer = await canonical;
-            return this.currentGenerationId === generationId ? answer : null;
-        }
-        // Compatibility generators do not carry typed source provenance through
-        // their provider calls. In particular, prior assistant answers can
-        // contain profile/file/screen facts without any recognizable markup.
-        // Check their possible CLOUD scopes *before* starting generation.
-        // The only exemption is explicit Ollama-only mode, which cannot fall
-        // through to a remote provider. Unknown V3/mode lineage is conservative.
-        const guaranteedLocalOllama = this.llmHelper.isLocalOnly?.() === true
-            && this.llmHelper.getCurrentProvider?.() === 'ollama';
-        if (!guaranteedLocalOllama) {
-            const mode = this.getActiveModeInfo();
-            const modeMayAddPrivateSources = Boolean(mode?.isCustom || mode?.hasCustomPrompt
-                || mode?.hasReferenceFiles || mode?.documentGroundedCustomModeActive
-                || mode?.strictDocumentGroundedActive);
-            const scopes = conversationActionDataScopes({
-                ...privacy,
-                unknownLineage: privacy.unknownLineage || modeMayAddPrivateSources,
-            });
-            if (scopes.length) {
-                assertProviderDataScopes('conversation_action_compatibility', scopes, readProviderScopePolicy());
-            }
-        }
-        if (this.currentGenerationId !== generationId) return null;
-        const stream = await compatibility();
-        if (this.currentGenerationId !== generationId) return null;
-        let answer = '';
-        for await (const token of stream) {
-            if (this.currentGenerationId !== generationId) return null;
-            publishToken(token);
-            answer += token;
-        }
+    private async consumeConversationAction(generationId: number, canonical: Promise<string | null> | null): Promise<string | null> {
+        if (!canonical) throw new Error('Canonical conversation action is unavailable.');
+        const answer = await canonical;
         return this.currentGenerationId === generationId ? answer : null;
     }
 
@@ -5701,15 +6462,7 @@ export class IntelligenceEngine extends EventEmitter {
                 generationId, { kind: 'refine', previousAnswer: lastMsg, sourceRule: followUpContractRule },
                 refinementRequest, context, publishToken,
             );
-            const fullRefined = await this.consumeConversationAction(
-                generationId, canonical,
-                () => this.followUpLLM!.generateStream(
-                    lastMsg, refinementRequest, context,
-                    followUpContractRule ? { contractRule: followUpContractRule } : undefined,
-                ),
-                publishToken,
-                { context, previousAnswer: lastMsg },
-            );
+            const fullRefined = await this.consumeConversationAction(generationId, canonical);
             if (fullRefined === null) return null;
 
             if (fullRefined) {
@@ -5842,12 +6595,7 @@ export class IntelligenceEngine extends EventEmitter {
                 generationId, { kind: 'recap', sourceRule: recapContractRule },
                 'Recap the conversation so far.', context, publishToken,
             );
-            const fullSummary = await this.consumeConversationAction(
-                generationId, canonical,
-                () => this.recapLLM!.generateStream(context, recapContractRule ? { contractRule: recapContractRule } : undefined),
-                publishToken,
-                { context },
-            );
+            const fullSummary = await this.consumeConversationAction(generationId, canonical);
             if (fullSummary === null) return null;
 
             // Only emit final if not aborted
@@ -5903,18 +6651,10 @@ export class IntelligenceEngine extends EventEmitter {
             const publishToken = (token: string) => this.emit('clarify_token', token);
             // V3 can supply scoped mode/profile/meeting evidence for a live
             // question. The snapshot-only action is safe when that path is absent.
-            const canonical = this.mayUseTranscriptV3() ? null : this.canonicalConversationAction(
+            const canonical = this.canonicalConversationAction(
                 generationId, { kind: 'clarify' }, 'Suggest one clarifying question.', rawContext || '', publishToken,
             );
-            const fullClarification = await this.consumeConversationAction(
-                generationId, canonical,
-                async () => {
-                    const clarifyV3 = await this.buildV3ForTranscriptSurface('clarify');
-                    return this.clarifyLLM!.generateStream(context, clarifyV3 ?? undefined);
-                },
-                publishToken,
-                { context: rawContext || '', unknownLineage: this.mayUseTranscriptV3() },
-            );
+            const fullClarification = await this.consumeConversationAction(generationId, canonical);
             if (fullClarification === null) return null;
 
             // Only update history and emit final if not aborted
@@ -5976,12 +6716,7 @@ export class IntelligenceEngine extends EventEmitter {
                 generationId, { kind: 'follow-up-questions' },
                 'Suggest useful follow-up questions for this conversation.', context, publishToken,
             );
-            const fullQuestions = await this.consumeConversationAction(
-                generationId, canonical,
-                () => this.followUpQuestionsLLM!.generateStream(context),
-                publishToken,
-                { context },
-            );
+            const fullQuestions = await this.consumeConversationAction(generationId, canonical);
             if (fullQuestions === null) return null;
 
             if (fullQuestions && this.currentGenerationId === generationId) {
@@ -6012,103 +6747,34 @@ export class IntelligenceEngine extends EventEmitter {
     async runManualAnswer(question: string): Promise<string | null> {
         this.emit('manual_answer_started');
         this.setMode('manual');
-        const generationLifecycle = new GenerationLifecycle(`manual-answer-${this.currentGenerationId}`);
-        generationLifecycle.transition('PLANNING', 'manual answer request accepted');
-
+        const generationId = this.nextGeneration();
+        const controller = new AbortController();
+        this.conversationActionController?.abort('superseded');
+        this.conversationActionController = controller;
+        const id = `manual-answer-${generationId}`;
+        const generationLifecycle = new GenerationLifecycle(id);
+        generationLifecycle.transition('PLANNING', 'manual answer accepted');
         try {
-            if (!this.answerLLM) {
-                this.setMode('idle');
-                return null;
+            const mode = this.getActiveModeInfo();
+            const snapshot = captureAnswerContext(this.llmHelper, mode, question);
+            const answerPlan = snapshot.answerPlan!;
+            const request = buildAnswerRequest({ id, sessionId: this.currentSessionId ?? id, surface: 'manual-chat',
+                question, mode, snapshot, signal: controller.signal,
+                sessionSnapshot: this.session.getFormattedContext(120) });
+            const execution = createAnswerExecution(this.llmHelper, { getRAGManager: () => this.ragManagerProvider?.() }, request);
+            let answer = '';
+            for await (const token of execution.stream) {
+                if (controller.signal.aborted || this.currentGenerationId !== generationId) return null;
+                answer += token;
             }
-
-            const activeModeInfo = this.getActiveModeInfo();
-            const answerPlan = planAnswer({
-                question,
-                source: 'manual_input',
-                speakerPerspective: 'user',
-                activeMode: activeModeInfo,
-            });
-            generationLifecycle.transition('RETRIEVING', 'context planning/retrieval preparation');
-
-            // CONTEXT INTELLIGENCE V3 — legacy trace emission (Layer C).
-            //
-            // This path constructs NO source authority: no canonical turn, no
-            // turn contract, no evidence pack. It passes a raw formatted-context
-            // blob straight to the model. The trace therefore records
-            // groundingPolicy/modePolicyVersion as absent rather than
-            // substituting a plausible default — that absence IS the finding
-            // (investigation report F2), and a default would hide it.
-            try {
-                const { recordLegacyTurn } = require('./context-intelligence/observability/legacy-trace');
-                recordLegacyTurn({
-                    requestId: `manual-answer-${Date.now()}`,
-                    surface: 'manual-chat',
-                    scope: { userId: 'local', meetingId: (this.session as any)?.getMeetingMetadata?.()?.id ?? undefined },
-                    originalQuestion: question,
-                    resolvedQuestion: question,
-                    modeId: (activeModeInfo as any)?.templateType ?? undefined,
-                    // groundingPolicy deliberately omitted — there is none.
-                    authorizedSources: [],
-                    retrievalPath: 'GROUNDED',
-                    answerability: 'NONE',
-                    legacyPath: 'IntelligenceEngine.runManualAnswer (no source authority)',
-                });
-            } catch { /* observability must never break an answer */ }
-
-            // CONTEXT INTELLIGENCE V3 — adoption point for this surface.
-            //
-            // Returns null when the flag is off or anything fails, so the legacy
-            // line below runs unchanged. When it returns a prompt, the raw
-            // getFormattedContext(120) blob is NOT used at all — that blob is the
-            // §32.16 anti-pattern this surface exists to demonstrate.
-            let answer: string;
-            const _v3 = await (async () => {
-                try {
-                    const { buildV3Prompt } = require('./context-intelligence/orchestration/engine-bridge');
-                    // Phase 6: this adoption originally passed NO retrieval port —
-                    // the decision layer was live but BLIND. Shared plumbing now.
-                    const _ctx = this.v3ModeRetrievalContext();
-                    if (!_ctx) return null;
-                    return await buildV3Prompt({
-                        surface: 'manual-chat',
-                        // Shares 'manual-chat' with the IPC surface; the tag keeps
-                        // the two call sites' traces separable (they previously
-                        // both recorded legacyPath 'v3-manual-chat').
-                        pathTag: 'engine',
-                        question,
-                        modeTemplateType: _ctx.raw,
-                        modeUniqueId: _ctx.modeUniqueId,
-                        modeName: _ctx.modeName,
-                        attachedSourceCount: _ctx.attachedSourceCount,
-                        profileSourceCount: _ctx.profileSourceCount,
-                        resolvedProfileSources: _ctx.resolvedProfileSources,
-                        requestSequence: this.currentGenerationId,
-                        scope: { meetingId: _ctx.meetingId ?? undefined },
-                        retrieval: _ctx.port as any,
-                    });
-                } catch { return null; }
-            })();
-
-            generationLifecycle.transition('GENERATING', 'answer generation started');
-            if (_v3) {
-                // V3 owns the system prompt entirely; the legacy universal prompt
-                // and the raw context blob are both bypassed.
-                answer = await this.answerLLM.generate(_v3.user, undefined, answerPlan, _v3.system);
-            } else {
-                // R5 (2026-08-12, review finding): the broad flag stripped the
-                // live transcript from this fallback for template-seeded modes
-                // that get NO doc-grounding benefit in exchange (the plan is not
-                // doc-shaped, no doc retrieval or validation runs) — a visibly
-                // context-blind answer. Strip only under real doc enforcement:
-                // an explicit strict contract, or a doc mode with actual files.
-                const _docEnforced = (activeModeInfo as any)?.strictDocumentGroundedActive === true
-                    || (activeModeInfo?.documentGroundedCustomModeActive === true
-                        && Boolean((activeModeInfo as any)?.hasReferenceFiles));
-                const context = _docEnforced || isCodingAnswerType(answerPlan.answerType)
-                    ? undefined
-                    : this.session.getFormattedContext(120);
-                answer = await this.answerLLM.generate(question, context, answerPlan);
-            }
+            const result = await execution.result;
+            if (controller.signal.aborted || this.currentGenerationId !== generationId) return null;
+            if (!result.finalAnswer?.completed) throw new Error(result.providerAttempt.error ?? 'Manual answer interrupted.');
+            const finalized = await execution.finalize(answer, () => this.currentGenerationId === generationId && !controller.signal.aborted);
+            if (finalized === null) return null;
+            answer = finalized;
+            generationLifecycle.transition('GENERATING', 'canonical answer completed');
+            generationLifecycle.transition('COMMITTED', 'canonical provider committed');
             const structureValidation = validateAnswerStructure(
                 answerPlan.answerType, answer,
                 require('./llm/codingPromptSignals').resolveCodingPromptSignals({
@@ -6149,10 +6815,13 @@ export class IntelligenceEngine extends EventEmitter {
             return answer;
 
         } catch (error) {
+            if (controller.signal.aborted || this.currentGenerationId !== generationId) return null;
             generationLifecycle.fail('manual answer failed');
             this.emit('error', error as Error, 'manual');
             this.setMode('idle');
             return null;
+        } finally {
+            if (this.conversationActionController === controller) this.conversationActionController = null;
         }
     }
 
@@ -6210,32 +6879,15 @@ export class IntelligenceEngine extends EventEmitter {
             };
             // Text-only hints need no vision capability. Image-bearing hints still
             // require the selected model to support every forwarded attachment.
-            const canonical = !imagePaths?.length || this.llmHelper.getCapabilities?.().supportsImages
-                ? this.canonicalConversationAction(
-                    generationId, { kind: 'code-hint' },
-                    'Review the partial code and give a short hint, including the next step.',
-                    questionContext ?? transcriptContext ?? '', publishToken, imagePaths,
-                )
-                : null;
-            let fullHint = '';
-            if (canonical) {
-                const answer = await canonical;
-                if (answer === null || this.currentGenerationId !== generationId) return null;
-                fullHint = answer;
-            } else {
-                const stream = this.codeHintLLM.generateStream(
-                    imagePaths, questionContext ?? undefined, questionSource, transcriptContext ?? undefined,
-                );
-                for await (const token of stream) {
-                    if (this.currentGenerationId !== generationId) {
-                        await stream.return(undefined);
-                        return null;
-                    }
-                    publishToken(token);
-                    fullHint += token;
-                }
-                if (this.currentGenerationId !== generationId) return null;
-            }
+            const canonical = this.canonicalConversationAction(
+                generationId, { kind: 'code-hint' },
+                'Review the partial code and give a short hint, including the next step.',
+                questionContext ?? transcriptContext ?? '', publishToken, imagePaths,
+                problemStatement,
+            );
+            const answer = await canonical;
+            if (answer === null || this.currentGenerationId !== generationId) return null;
+            let fullHint = answer;
 
             if (!fullHint || fullHint.trim().length < 5) {
                 fullHint = "I couldn't detect any code in the screenshot. Try screenshotting your code editor directly.";
@@ -6302,27 +6954,17 @@ export class IntelligenceEngine extends EventEmitter {
             const transcriptV3 = this.mayUseTranscriptV3();
             const suppliedProblem = problemStatement?.trim();
             // Explicit screen text carries screenshot privacy even without image pixels.
-            const canonical = !transcriptV3 && (!imagePaths?.length || this.llmHelper.getCapabilities?.().supportsImages)
-                ? this.canonicalConversationAction(
+            const canonical = this.canonicalConversationAction(
                     actionGenerationId, { kind: 'brainstorm' }, 'Brainstorm approaches and their trade-offs.',
                     resolvedProblem && !suppliedProblem
                         ? `<problem_statement>\n${resolvedProblem}\n</problem_statement>\n\n${context}`
                         : context,
                     publishToken, imagePaths, suppliedProblem,
-                )
-                : null;
+                );
             if (resolvedProblem) {
                 context = `<problem_statement>\n${resolvedProblem}\n</problem_statement>\n\n${context}`;
             }
-            let fullResult = await this.consumeConversationAction(
-                actionGenerationId, canonical,
-                async () => {
-                    const brainstormV3 = await this.buildV3ForTranscriptSurface('brainstorm');
-                    return this.brainstormLLM!.generateStream(context, imagePaths, brainstormV3 ?? undefined);
-                },
-                publishToken,
-                { context, imagePaths, unknownLineage: this.mayUseTranscriptV3() },
-            );
+            let fullResult = await this.consumeConversationAction(actionGenerationId, canonical);
             if (fullResult === null) return null;
 
             if (!fullResult || fullResult.trim().length < 5) {

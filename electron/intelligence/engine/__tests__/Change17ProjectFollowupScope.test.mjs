@@ -137,5 +137,6 @@ test('CHG-17: both IPC routes consume current-session completed-turn scope and g
   assert.match(ipc, /resolveProjectFileScopeForTurn\(query, personalFiles, projectTurns, requestId\)/);
   assert.match(ipc, /resolveProjectFileScopeForTurn\(String\(message \|\| ''\), personalFiles, scopedConversationTurns, nativeCurrentTurn\.id\)/);
   assert.match(ipc, /profile: profileAvailable && !projectScope\.unresolvedReference/g);
-  assert.match(ipc, /projectFileIds: request\.activeContext\?\.projectSourceIds/);
+  const runtime = readFileSync(path.join(process.cwd(), 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
+  assert.match(runtime, /projectFileIds: request\.activeContext\?\.projectSourceIds/);
 });

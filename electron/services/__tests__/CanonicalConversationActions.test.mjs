@@ -180,12 +180,15 @@ test('a newer action supersedes a parked provider without persisting the old out
 });
 
 
-test('legacy custom-provider fallback refuses unlabeled private prior-answer data before generation', async () => {
+test('canonical custom provider refuses unlabeled private prior-answer data before generation', async () => {
     const previous = process.env.NATIVELY_DENY_PROVIDER_SCOPES;
     process.env.NATIVELY_DENY_PROVIDER_SCOPES = 'profile_history';
     try {
         const f = fixture();
-        f.helper.getSneakPeekGenerationRouteOptions = () => null;
+        f.helper.getSneakPeekGenerationRouteOptions = scopes => ({
+            capability: 'stream_chat', preferredProvider: 'custom', allowedProviders: ['custom'],
+            availability: { hasCustom: true }, models: { custom: 'fixture-custom' }, dataScopes: scopes,
+        });
         f.helper.getCurrentProvider = () => 'custom';
         f.helper.isLocalOnly = () => false;
         let legacyCalls = 0;
@@ -194,35 +197,40 @@ test('legacy custom-provider fallback refuses unlabeled private prior-answer dat
         assert.equal(legacyCalls, 0);
         assert.deepEqual(f.history, []);
         assert.equal(f.errors.length, 1);
-        assert.equal(f.errors[0].name, 'ProviderScopeError');
+        assert.match(f.errors[0].message, /scope|no available provider/i);
+        assert.deepEqual(f.calls, []);
     } finally {
         if (previous === undefined) delete process.env.NATIVELY_DENY_PROVIDER_SCOPES;
         else process.env.NATIVELY_DENY_PROVIDER_SCOPES = previous;
     }
 });
 
-test('explicit local-only Ollama compatibility remains usable without invoking canonical transport', async () => {
-    const f = fixture();
-    f.helper.getSneakPeekGenerationRouteOptions = () => null;
-    f.helper.getCurrentProvider = () => 'ollama';
+test('explicit local-only Ollama uses the canonical pinned model and keeps private history local', async () => {
+    const f = fixture({
+        options: { capability: 'stream_chat', preferredProvider: 'ollama', allowedProviders: ['ollama'],
+            availability: { hasOllama: true, hasOpenAI: true }, models: { ollama: 'fixture-ollama' },
+            scopePolicy: { profile_history: false, reference_files: false } },
+        async *produce() { yield 'Compatible answer.'; },
+    });
     f.helper.isLocalOnly = () => true;
-    let legacyCalls = 0;
-    f.helper.streamChat = async function* () { legacyCalls++; yield 'Compatible answer.'; };
     assert.equal(await f.engine.runFollowUp('simplify', 'Shorter.'), 'Compatible answer.');
-    assert.equal(legacyCalls, 1);
-    assert.equal(f.calls.length, 0);
-    assert.equal(f.history.length, 1);
+    assert.deepEqual(f.calls.map(call => [call.provider, call.model]), [['ollama', 'fixture-ollama']]);
+    assert.match(f.calls[0].prompt, /Violet leases expire/);
+    assert.deepEqual(f.history, ['Compatible answer.']);
 });
 
 
-test('legacy custom mode refuses unknown-lineage scope even without a session snapshot', async () => {
+test('canonical custom mode refuses unknown-lineage scope even without a session snapshot', async () => {
     const previous = process.env.NATIVELY_DENY_PROVIDER_SCOPES;
     process.env.NATIVELY_DENY_PROVIDER_SCOPES = 'reference_files';
     try {
         const f = fixture({ context: '' });
         f.engine.buildActionContextWithManualFallback = () => '';
         f.engine.getActiveModeInfo = () => ({ isCustom: true, hasReferenceFiles: true });
-        f.helper.getSneakPeekGenerationRouteOptions = () => null;
+        f.helper.getSneakPeekGenerationRouteOptions = scopes => ({
+            capability: 'stream_chat', preferredProvider: 'custom', allowedProviders: ['custom'],
+            availability: { hasCustom: true }, models: { custom: 'fixture-custom' }, dataScopes: scopes,
+        });
         f.helper.getCurrentProvider = () => 'custom';
         f.helper.isLocalOnly = () => false;
         let legacyCalls = 0;
@@ -230,7 +238,8 @@ test('legacy custom mode refuses unknown-lineage scope even without a session sn
         assert.equal(await f.engine.runClarify(), null);
         assert.equal(legacyCalls, 0);
         assert.equal(f.errors.length, 1);
-        assert.equal(f.errors[0].name, 'ProviderScopeError');
+        assert.match(f.errors[0].message, /scope|no available provider/i);
+        assert.deepEqual(f.calls, []);
     } finally {
         if (previous === undefined) delete process.env.NATIVELY_DENY_PROVIDER_SCOPES;
         else process.env.NATIVELY_DENY_PROVIDER_SCOPES = previous;
@@ -277,6 +286,7 @@ for (const trigger of ['manual', 'automatic', 'speculative']) {
         assert.match(f.calls[0].prompt, /<response_policy>[\s\S]*direct answer suitable for speaking aloud/);
         assert.match(f.calls[0].prompt, /source="meeting_transcript"/);
         assert.doesNotMatch(f.calls[0].prompt, /Private prior assistant decoy|Private typed decoy|<citation>/);
+        assert.doesNotMatch(f.calls[0].prompt, /source="mixed_session_history"/, 'speech WTA must not send mixed history as a snapshot');
         if (trigger !== 'speculative') assert.deepEqual(completed, [liveReply]);
         assert.deepEqual(f.errors, []);
     });
@@ -518,4 +528,19 @@ test('technical interview concept WTA uses its pinned mode without adding privat
     assert.equal(f.calls.length, 1);
     assert.match(f.calls[0].prompt, /source="meeting_transcript"/);
     assert.doesNotMatch(f.calls[0].prompt, /source="(?:profile|mode_documents|my_files)"|Private typed decoy/);
+});
+
+test('WTA without speech, screen, or a current question does not use typed or assistant history as the question', async () => {
+    const f = fixture();
+    f.engine.session.getContext = () => [
+        { role: 'interviewer', text: 'What is TYPED_PRIVATE_DECOY?', origin: 'manual_chat', timestamp: Date.now() },
+        { role: 'assistant', text: 'What is ASSISTANT_PRIVATE_DECOY?', origin: 'assistant', timestamp: Date.now() },
+    ];
+    const finals = [];
+    f.engine.on('suggested_answer', text => finals.push(text));
+    const answer = await f.engine.runWhatShouldISay(undefined, 0.9, undefined, { skipCooldown: true });
+    assert.match(answer, /don't have anything to answer/);
+    assert.deepEqual(finals, [answer]);
+    assert.deepEqual(f.calls, []);
+    assert.deepEqual(f.usage, []);
 });

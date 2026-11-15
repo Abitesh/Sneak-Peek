@@ -293,8 +293,8 @@ describe('WTA repairs inherit the owning request cancellation', () => {
     assert.ok(start >= 0 && end > start, 'maybeVerifyCoding must be isolatable');
     const body = src.slice(start, end);
 
-    assert.match(body, /stream: this\.llmHelper\.streamChat\([\s\S]*?abortSignal/s,
-      'the background correction must thread its child AbortSignal into streamChat');
+    assert.match(body, /stream: execution\.repair\('code-verification', shownAnswer, repairPrompt, abortSignal\)/,
+      'the background correction must thread its child AbortSignal into the canonical same-provider repair');
     assert.match(body, /shouldAbort: \(\) => fixed\.length > 1200 \|\| superseded\(\)/,
       'the background correction must stop consuming when its generation is superseded');
   });

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
@@ -10,6 +11,7 @@ import { SneakPeekIntelligenceEngine } from '../../../../dist-electron/electron/
 import { RetrievalCoordinator, createRetrievalCapability } from '../../../../dist-electron/electron/intelligence/engine/RetrievalCoordinator.js';
 import { createCanonicalRagRetrievalCapability } from '../../../../dist-electron/electron/intelligence/engine/CanonicalRagRetrievalAdapter.js';
 import { GenerationController } from '../../../../dist-electron/electron/intelligence/engine/GenerationController.js';
+import { conversationActionDataScopes } from '../../../../dist-electron/electron/intelligence/engine/ConversationAction.js';
 import { streamRagEngineAnswer, buildGlobalRagRequest, ragQueryPrefix } from '../../../../dist-electron/electron/intelligence/engine/RagIpcStream.js';
 import { CanonicalRagStorage } from '../../../../dist-electron/electron/rag/canonical/CanonicalRagStorage.js';
 import { CanonicalRagReadService } from '../../../../dist-electron/electron/rag/canonical/CanonicalRagReadService.js';
@@ -241,17 +243,19 @@ test('actual cancel IPC aborts and clears only the sending window session', asyn
 });
 
 function evaluateProductionIpcEngine(overrides = {}) {
-  const ipc = fs.readFileSync('electron/ipcHandlers.ts', 'utf8');
-  const start = ipc.indexOf('function createPrimaryManualSneakPeekEngine(');
-  const end = ipc.indexOf('function buildSneakPeekMeetingTranscriptContext(', start);
+  const runtime = fs.readFileSync('electron/intelligence/engine/CanonicalRuntime.ts', 'utf8');
+  const start = runtime.indexOf('export function createPrimaryManualSneakPeekEngine(');
+  assert.ok(start >= 0, 'canonical engine factory must be in CanonicalRuntime.ts');
+  const code = runtime.slice(start).replace('export function createPrimaryManualSneakPeekEngine(', 'function createPrimaryManualSneakPeekEngine(');
   const context = {
     console: { log() {}, warn() {} },
     SneakPeekIntelligenceEngine, RetrievalCoordinator, createRetrievalCapability, createCanonicalRagRetrievalCapability,
+    conversationActionDataScopes, createHash, readProviderScopePolicy: () => undefined,
     streamCanonicalProvider: (helper, input) => new GenerationController(helper).stream(input).stream,
     ...overrides,
   };
   vm.createContext(context);
-  vm.runInContext(ts.transpileModule(ipc.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  vm.runInContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
   return context.createPrimaryManualSneakPeekEngine;
 }
 
@@ -305,7 +309,7 @@ test('canonical profile drafts use only active revisioned profile sources and re
   const require = createRequire(import.meta.url);
   const createEngine = evaluateProductionIpcEngine({
     require: name => {
-      assert.equal(name, './llm/ActiveProfileContext');
+      assert.equal(name, '../../llm/ActiveProfileContext');
       return require('../../../../dist-electron/electron/llm/ActiveProfileContext.js');
     },
   });

@@ -23,6 +23,7 @@ import { resolveAnswerPolicy, type AnswerPolicy } from '../policies/answer-polic
 import { CLAIM_AUTHORITY, authoritativeSourcesForTurn } from '../policies/source-authority-policy';
 import { classifyTurn, isBareFollowUp } from '../question/turn-classifier';
 import type { AnswerTrace, RetrievalAttemptTrace } from '../observability/answer-trace';
+import { getConversationState, resolveAgainstSession } from '../question/conversation-state-store';
 
 export interface AnswerRequest {
   requestId: string;
@@ -695,7 +696,9 @@ export async function orchestrate(
   const originalQuestion = (req.manualQuestion ?? req.transcriptQuestion ?? '').trim();
   let priorDecision: import('../contracts/types').PriorTurnDecision | undefined;
   try {
-    const { resolveAgainstSession, getConversationState } = require('../question/conversation-state-store');
+    // Use the shared typed store directly. A module-loading failure inside this
+    // best-effort catch would otherwise silently erase the resolver decision
+    // from the debug trace while generation continues.
     const rawQ = originalQuestion;
     if (rawQ) {
       const priorState = getConversationState(req.sessionId);

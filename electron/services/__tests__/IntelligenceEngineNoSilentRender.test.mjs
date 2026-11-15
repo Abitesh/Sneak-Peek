@@ -11,6 +11,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -42,7 +43,7 @@ test('no LLM configured: manual WTA EMITS the config message (never a silent non
   const answer = await engine.runWhatShouldISay('hi', 0.9, undefined, { skipCooldown: true });
 
   // INVARIANT: a non-null answer must have been emitted so the renderer shows it.
-  assert.ok(answer && answer.includes('API Keys'), 'returns the config message');
+  assert.ok(answer && answer.includes('API Keys'), 'returns a useful provider setup message');
   assert.equal(emitted.length, 1, 'must emit exactly one suggested_answer so the placeholder resolves');
   assert.equal(emitted[0], answer, 'emitted text matches the returned answer');
 });
@@ -57,31 +58,30 @@ test('no LLM configured + speculative: does NOT emit (no placeholder exists for 
 
   // Speculative runs bypass the cooldown via isSpeculative and have no UI placeholder.
   const answer = await engine.runWhatShouldISay('hi', 0.9, undefined, { speculative: true });
-  assert.ok(answer && answer.includes('API Keys'));
+  assert.equal(answer, null, 'setup feedback must never be eligible for speculative promotion');
   assert.equal(emitted.length, 0, 'speculative path must not emit a user-facing answer');
 });
 
-test('legacy answerLLM returns empty: manual WTA returns null (renderer shows null-feedback, no silent dots)', async () => {
-  const { engine } = await makeEngine();
-  // whatToAnswerLLM absent but answerLLM present and yielding an empty answer.
-  engine.whatToAnswerLLM = null;
-  engine.answerLLM = { async generate() { return ''; } };
+test('canonical provider returns empty: manual WTA resolves its placeholder without persisting a fake answer', async () => {
+  const { engine, session } = await makeEngine();
+  // The retired answerLLM is not a generation route under CHG-20.
+  // Exercise the supported canonical provider boundary with zero tokens.
+  installCanonicalWtaTestTransport(engine.llmHelper, []);
 
   const emitted = [];
   engine.on('suggested_answer', (a) => emitted.push(a));
 
   const answer = await engine.runWhatShouldISay('hi', 0.9, undefined, { skipCooldown: true });
 
-  // INVARIANT: empty answer -> null return (renderer's null branch shows feedback),
-  // NOT a non-null fallback string that would render nowhere.
-  assert.equal(answer, null, 'empty legacy answer must return null, not a silent fallback string');
-  assert.equal(emitted.length, 0, 'nothing emitted; renderer handles null itself');
+  // INVARIANT: an explicit press is never a silent, blank result.
+  assert.ok(typeof answer === 'string' && answer.trim(), 'must show a nonempty retry');
+  assert.deepEqual(emitted, [answer], 'the renderer receives exactly the returned retry');
+  assert.deepEqual(session.getFullUsage(), [], 'an empty provider output is not a successful answer');
 });
 
-test('legacy answerLLM returns a real answer: emits it and returns it', async () => {
+test('canonical provider returns a real answer: emits it and returns it', async () => {
   const { engine } = await makeEngine();
-  engine.whatToAnswerLLM = null;
-  engine.answerLLM = { async generate() { return 'A real grounded answer.'; } };
+  installCanonicalWtaTestTransport(engine.llmHelper, ['A real grounded answer.']);
 
   const emitted = [];
   engine.on('suggested_answer', (a) => emitted.push(a));

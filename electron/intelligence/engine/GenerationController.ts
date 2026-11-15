@@ -63,6 +63,8 @@ const ALLOWED_LIFECYCLE_TRANSITIONS: Record<GenerationLifecycleState, readonly G
  * not select context, providers, or answer content.
  */
 export class GenerationLifecycle {
+  committedProvider?: ProviderAttempt['provider'];
+  committedModel?: string;
   private _state: GenerationLifecycleState = 'IDLE';
   private readonly _history: GenerationLifecycleSnapshot['history'];
 
@@ -146,6 +148,33 @@ export interface GenerationOutcome {
   attempts: GenerationAttemptRecord[];
   error?: string;
   lifecycle: GenerationLifecycleSnapshot;
+}
+
+/** Settle cancellation even if the selected transport is currently parked in next(). */
+async function* consumeUntilAborted(
+  stream: AsyncGenerator<string, void, unknown>,
+  signal?: AbortSignal,
+): AsyncGenerator<string, void, unknown> {
+  if (!signal) {
+    yield* stream;
+    return;
+  }
+  const stopped = Symbol('provider cancelled');
+  let onAbort!: () => void;
+  const abort = new Promise<typeof stopped>(resolve => { onAbort = () => resolve(stopped); });
+  signal.addEventListener('abort', onAbort, { once: true });
+  let done = false;
+  try {
+    while (!signal.aborted) {
+      const next = await Promise.race([stream.next(), abort]);
+      if (next === stopped || signal.aborted) return;
+      if (next.done) { done = true; return; }
+      yield next.value;
+    }
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+    if (!done) void stream.return(undefined).catch(() => undefined);
+  }
 }
 
 /**
@@ -243,7 +272,7 @@ export class GenerationController {
           },
         );
 
-        for await (const chunk of providerStream) {
+        for await (const chunk of consumeUntilAborted(providerStream, request.abortSignal)) {
           if (request.abortSignal?.aborted) {
             lifecycle.cancel('aborted while consuming provider stream');
             outcome.lifecycle = lifecycle.snapshot;
@@ -269,7 +298,9 @@ export class GenerationController {
           // a second answer after a mid-stream provider failure.
           if (!committed) {
             committed = true;
-            if (lifecycle.state === 'GENERATING') lifecycle.transition('COMMITTED', 'first visible token emitted');
+            if (lifecycle.state === 'GENERATING') lifecycle.committedProvider = attempt.provider;
+            lifecycle.committedModel = attempt.model;
+            lifecycle.transition('COMMITTED', 'first visible token emitted');
             record.status = 'committed';
             outcome.committedProvider = attempt.provider;
             outcome.committedModel = attempt.model;

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,13 +20,12 @@ async function makeEngineWithAnswer(chunks) {
   const { IntelligenceEngine } = await import(pathToFileURL(enginePath).href);
   const { SessionTracker } = require(sessionPath);
   const session = new SessionTracker();
-  const engine = new IntelligenceEngine(makeHelper(), session);
+  const helper = makeHelper();
+  installCanonicalWtaTestTransport(helper, chunks);
+  const engine = new IntelligenceEngine(helper, session);
 
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      for (const chunk of chunks) yield chunk;
-    },
-  };
+  // Generation is injected at the active canonical provider transport,
+  // not at the retired whatToAnswerLLM generator.
 
   return { engine, session };
 }
@@ -126,24 +126,17 @@ test('runWhatShouldISay hides speculative real answers from renderer and history
   assert.equal(session.getFullTranscript().some(segment => segment.text === realAnswer), false);
 });
 
-test('runWhatShouldISay hides speculative fallback answers from renderer and history', async () => {
-  const fallbackAnswer = 'I would start with the invariant and then walk through edge cases.';
+test('runWhatShouldISay suppresses an empty canonical speculative generation without legacy fallback', async () => {
   const { engine, session } = await makeEngineWithAnswer([]);
-  engine.whatToAnswerLLM = null;
-  engine.answerLLM = {
-    async generate() {
-      return fallbackAnswer;
-    },
-  };
   const finals = [];
   engine.on('suggested_answer', answer => finals.push(answer));
 
   const answer = await engine.runWhatShouldISay('speculative fallback', 0.9, undefined, { speculative: true, skipCooldown: true });
 
-  assert.equal(answer, fallbackAnswer);
+  assert.equal(answer, null, 'speculation must never surface a provider-empty fallback');
   assert.deepEqual(finals, []);
   assert.deepEqual(session.getFullUsage(), []);
-  assert.equal(session.getFullTranscript().some(segment => segment.text === fallbackAnswer), false);
+  assert.equal(session.getFullTranscript().some(segment => segment.speaker === 'assistant'), false);
 });
 
 test('runWhatShouldISay still emits and stores real answers', async () => {

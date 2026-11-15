@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## Current intelligence architecture — WORK-0073 (2026-11-15)
+
+Desktop chat, live WTA, meeting/global RAG, Phone Mirror, conversation actions, Code Hint and document drafts enter the same planning, retrieval, evidence, prompt and streaming lifecycle. Desktop checks in an isolated macOS profile exercised Electron preload and renderer delivery, including two launches, source isolation and cancellation. The [surface map](../scripts/audit/chg20-surface-map.md#work-0073--production-dispatch-and-macos-evidence-2026-11-15) distinguishes those observed routes from compiled checks and the still-open acceptance items.
+
 ## CHG-20 partial architecture patch — WORK-0055, 2026-11-12
 
 In the isolated WORK-0055 build, eligible text refinements, recaps, follow-up questions, clarification and brainstorming enter `SneakPeekIntelligenceEngine` through a bounded session-snapshot adapter. They reuse canonical planning, evidence assembly, provider selection/commitment and stream settlement while preserving existing events. Global meeting search reports scoped unavailability if its backend cannot serve a request. The [CHG-20 surface map](../scripts/audit/chg20-surface-map.md) identifies compatibility paths still in production. Owner application of this patch is pending.

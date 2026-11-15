@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -26,12 +27,10 @@ async function makeEngine() {
 test('handleSuggestionTrigger stays silent for low confidence without emitting or storing history', async () => {
   const { engine, session } = await makeEngine();
   let answerCalls = 0;
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      answerCalls++;
-      yield 'should not emit';
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    answerCalls++;
+    yield 'should not emit';
+  });
   const events = [];
   engine.on('suggested_answer', answer => events.push(answer));
   engine.on('suggested_answer_token', token => events.push(token));
@@ -56,12 +55,10 @@ test('handleSuggestionTrigger routes recap requests to recap executor', async ()
     recapCalls++;
     return 'recap result';
   };
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      answerCalls++;
-      yield 'wrong path';
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    answerCalls++;
+    yield 'wrong path';
+  });
 
   await engine.handleSuggestionTrigger({
     context: 'Can you recap the key points so far?',
@@ -84,12 +81,10 @@ test('handleSuggestionTrigger routes answerable questions to what-to-say executo
   });
   const answer = 'I would frame it around latency, maintainability, and rollout risk.';
   let answerCalls = 0;
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      answerCalls++;
-      yield answer;
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    answerCalls++;
+    yield answer;
+  });
   const finals = [];
   engine.on('suggested_answer', value => finals.push(value));
 
@@ -112,12 +107,10 @@ test('handleSuggestionTrigger routes incomplete technical restatements to clarif
     clarifyCalls++;
     return 'Could you clarify the exact input, output, and constraints?';
   };
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      answerCalls++;
-      yield 'wrong path';
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    answerCalls++;
+    yield 'wrong path';
+  });
 
   await engine.handleSuggestionTrigger({
     context: 'Sorry let me restate, given an array and the thing should return the output but constraints are unclear',
@@ -138,12 +131,10 @@ test('handleSuggestionTrigger still answers complete technical restatements', as
     clarifyCalls++;
     return 'wrong path';
   };
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      answerCalls++;
-      yield answer;
-    },
-  };
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    answerCalls++;
+    yield answer;
+  });
 
   await engine.handleSuggestionTrigger({
     context: 'Sorry let me restate, given an array of integers, return the indices of two numbers that add up to target.',

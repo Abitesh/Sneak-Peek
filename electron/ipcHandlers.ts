@@ -1,3 +1,6 @@
+import { captureAnswerContext, buildAnswerRequest } from './intelligence/engine/AnswerRequest';
+import { createAnswerExecution } from './intelligence/engine/AnswerExecution';
+import { createPrimaryManualSneakPeekEngine } from './intelligence/engine/CanonicalRuntime';
 // ipcHandlers.ts
 import * as crypto from 'crypto';
 import { app, BrowserWindow, dialog, desktopCapturer, ipcMain, shell, systemPreferences } from 'electron';
@@ -777,15 +780,25 @@ return { success: true };
 });
 // Generate suggestion from transcript - Sneak-Peek-style text-only reasoning
 safeHandle('generate-suggestion', async (event, context: string, lastQuestion: string) => {
-try {
-const suggestion = await appState.processingHelper
-.getLLMHelper()
-.generateSuggestion(context, lastQuestion);
-return { suggestion };
-} catch (error: any) {
-// console.error("Error generating suggestion:", error)
-throw error;
-}
+  const helper = appState.processingHelper.getLLMHelper();
+  const mode = require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.();
+  const question = String(lastQuestion || '').trim();
+  if (!question) throw new Error('A question is required.');
+  const id = `suggestion-${event.sender.id}-${crypto.randomUUID()}`;
+  const controller = new AbortController();
+  const destroy = () => controller.abort('sender-destroyed');
+  event.sender.once('destroyed', destroy);
+  try {
+    const snapshot = captureAnswerContext(helper, mode, question);
+    const request = buildAnswerRequest({ id, sessionId: id, surface: 'what-to-answer',
+      question, mode, snapshot, signal: controller.signal,
+      sessionSnapshot: helper.fitContextForCurrentModel(String(context || '')) });
+    request.liveAnswer = { plan: snapshot.answerPlan!, mode, promptTier: snapshot.promptTier };
+    request.responseShape = { type: 'spoken-answer', maxSentences: 3 };
+    return { suggestion: await collectCanonicalIpcAnswer(event, appState, request, controller) };
+  } finally {
+    event.sender.removeListener('destroyed', destroy);
+  }
 });
 safeHandle('finalize-mic-stt', async () => {
 appState.finalizeMicSTT();
@@ -871,9 +884,38 @@ try {
 // `message`. The renderer does NOT currently inject it on either path;
 // both strips are belt-and-suspenders.
 const strippedMessage = stripEmbeddedAnswerContract(message);
-const result = await appState.processingHelper
-.getLLMHelper()
-.chatWithGemini(strippedMessage, imagePaths, context, options?.skipSystemPrompt);
+const helper = appState.processingHelper.getLLMHelper();
+const controller = new AbortController();
+const id = `manual-once-${event.sender.id}-${crypto.randomUUID()}`;
+const prior = _chatStreamsBySender.get(event.sender.id);
+prior?.controller.abort('superseded');
+const streamId = ++_chatStreamId;
+_chatStreamsBySender.set(event.sender.id, { streamId, controller });
+const destroy = () => controller.abort('sender-destroyed');
+event.sender.once('destroyed', destroy);
+let result = '';
+try {
+  const mode = require('./services/ModesManager').ModesManager.getInstance().getActiveModeInfo?.();
+  const snapshot = captureAnswerContext(helper, mode, strippedMessage, Boolean(imagePaths?.length));
+  snapshot.callerInstruction = options?.skipSystemPrompt ? strippedMessage : undefined;
+  const request = buildAnswerRequest({ id, sessionId: String(event.sender.id), surface: 'manual-chat',
+    question: strippedMessage, mode, snapshot, signal: controller.signal, sessionSnapshot: context,
+    imagePaths: imagePaths?.length ? resolveAppImagePaths(imagePaths) : undefined });
+  const execution = createAnswerExecution(helper, appState, request);
+  for await (const token of execution.stream) {
+    if (controller.signal.aborted || _chatStreamsBySender.get(event.sender.id)?.streamId !== streamId) return '';
+    result += token;
+  }
+  const settled = await execution.result;
+  if (controller.signal.aborted || _chatStreamsBySender.get(event.sender.id)?.streamId !== streamId) return '';
+  if (!settled.finalAnswer?.completed) throw new Error(settled.providerAttempt.error ?? 'Answer generation interrupted.');
+  const finalized = await execution.finalize(result, () => !controller.signal.aborted && _chatStreamsBySender.get(event.sender.id)?.streamId === streamId);
+  if (finalized === null) return '';
+  result = finalized;
+} finally {
+  event.sender.removeListener('destroyed', destroy);
+  if (_chatStreamsBySender.get(event.sender.id)?.streamId === streamId) _chatStreamsBySender.delete(event.sender.id);
+}
 console.log(`[IPC] gemini - chat response received`, { length: result?.length ?? 0 });
 // Don't process empty responses
 if (!result || result.trim().length === 0) {
@@ -961,295 +1003,6 @@ const _convoCleanupRegistered = new Set<number>();
  * context decision. The ContextPlan has already selected the source; each
  * adapter below receives exactly that source through RetrievalCoordinator.
  */
-function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any, requestId: string) {
-  const ragManager = appState.getRAGManager?.();
-  const capabilities = ragManager ? [
-    // The engine selected project_knowledge; constrain this read to those
-    // authorized project files instead of asking the global planner again.
-    createCanonicalRagRetrievalCapability({
-      source: 'project_knowledge',
-      sourceType: 'personal',
-      limit: 8,
-      tokenBudget: 1800,
-      resolveScope: ({ request }) => ({
-        projectFilesOnly: true,
-        projectFileIds: request.activeContext?.projectSourceIds,
-      }),
-      read: (input) => ragManager.readPlannedCanonicalSource(input),
-    }),
-    createCanonicalRagRetrievalCapability({
-      source: 'my_files',
-      sourceType: 'personal',
-      limit: 8,
-      tokenBudget: 1800,
-      resolveScope: ({ request }) => ({ projectFileIds: request.activeContext?.resumeSourceIds }),
-      read: (input) => ragManager.readPlannedCanonicalSource(input),
-    }),
-    createCanonicalRagRetrievalCapability({
-      source: 'mode_documents',
-      sourceType: 'mode',
-      limit: 8,
-      tokenBudget: 1800,
-      resolveScope: ({ request }) => ({ scopeId: request.activeContext?.modeId }),
-      read: (input) => ragManager.readPlannedCanonicalSource(input),
-    }),
-    createCanonicalRagRetrievalCapability({
-      source: 'personal_knowledge',
-      sourceType: 'personal',
-      limit: 8,
-      tokenBudget: 1800,
-      read: (input) => ragManager.readPlannedCanonicalSource(input),
-    }),
-    // OKF cards are a specialized index; the engine already selected the source.
-    createRetrievalCapability('structured_knowledge', async ({ query, request, signal }) => {
-      if (signal?.aborted) return { items: [] };
-      const results = await ragManager.readPlannedKnowledgeSource({
-        query,
-        modeId: request.activeContext?.modeId,
-        limit: 8,
-        tokenBudget: 1800,
-        signal,
-      });
-      if (signal?.aborted) return { items: [] };
-      return {
-        items: results.map((r: any, index: number) => ({
-          id: String(r.chunk?.id ?? r.source?.id ?? `knowledge-${index}`),
-          source: 'structured_knowledge' as ContextSource,
-          content: String(r.chunk?.text ?? ''),
-          score: Number(r.rerankScore ?? r.score ?? 0),
-          metadata: { sourceId: String(r.source?.id ?? r.chunk?.documentId ?? ''), retrievalSource: 'knowledge' },
-        })).filter((item: any) => item.content.trim()),
-      };
-    }),
-  ] : [];
-
-  capabilities.push(createRetrievalCapability('profile', async ({ request, contextPlan, signal }) => {
-    const decision = contextPlan.profileRead;
-    if (signal?.aborted) return { items: [] };
-    if (request.documentDraft && request.documentDraft.kind !== 'follow-up-email') {
-      const { buildActiveProfileContext } = require('./llm/ActiveProfileContext') as typeof import('./llm/ActiveProfileContext');
-      const profile = buildActiveProfileContext(appState.getKnowledgeOrchestrator?.());
-      if (!profile.activeResume) throw new Error('No active resume is available for this draft.');
-      return {
-        items: [
-          { document: profile.activeResume, sourceType: 'RESUME', title: 'Active resume' },
-          { document: profile.activeJD, sourceType: 'JOB_DESCRIPTION', title: 'Active job description' },
-        ].flatMap(({ document, sourceType, title }) => document ? [{
-          id: `${sourceType}:${document.sourceId}`,
-          source: 'profile' as const,
-          content: JSON.stringify(document.structured),
-          metadata: {
-            documentName: title,
-            documentId: String(document.sourceId),
-            sourceId: String(document.sourceId),
-            sourceType,
-            revisionId: document.documentHash,
-          },
-        }] : []),
-      };
-    }
-    if (!decision?.retrievalPlan.shouldRetrieve) return { items: [] };
-    try {
-      const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources') as typeof import('./services/knowledge/v3ProfileSources');
-      const { createProfileRetrievalPort } = require('./context-intelligence/retrieval/profile-retrieval-port') as typeof import('./context-intelligence/retrieval/profile-retrieval-port');
-      const sourceTypes = decision.retrievalPlan.sourceTypes;
-      const permittedKinds = [
-        ...(sourceTypes.includes('RESUME') ? ['resume' as const] : []),
-        ...(sourceTypes.includes('JOB_DESCRIPTION') ? ['jd' as const] : []),
-        ...(sourceTypes.includes('PROFILE_FACT') ? ['fact' as const] : []),
-      ];
-      const collected = collectV3ProfileSources(llmHelper.getKnowledgeOrchestrator?.() ?? null, permittedKinds);
-      const profilePort = createProfileRetrievalPort({
-        docs: collected.docs,
-        allowedSourceTypes: sourceTypes,
-        profileSources: sourceTypes,
-        userId: 'local',
-      });
-      if (!profilePort || signal?.aborted) return { items: [] };
-      const result = await profilePort.retrieve({ decision });
-      if (signal?.aborted) return { items: [] };
-      return {
-        items: result.evidence.map((item) => ({
-          id: item.evidenceId,
-          source: 'profile' as ContextSource,
-          content: item.content,
-          score: item.finalScore,
-          metadata: {
-            sourceId: item.sourceId,
-            sourceType: item.sourceType,
-            documentName: item.documentTitle,
-            pageStart: item.page,
-            section: item.section,
-            chunkId: item.chunkIndex !== undefined ? `${item.sourceId}:${item.chunkIndex}` : undefined,
-            provenance: item.provenance,
-            revisionId: item.versionId,
-            relevance: item.finalScore,
-            confidence: item.finalScore,
-            trustLevel: item.trustLevel,
-            authority: 'evidence',
-          },
-        })),
-        metadata: { source: 'profile', attempts: result.attempts.length },
-      };
-    } catch (error) {
-      // Preserve the error for RetrievalCoordinator's `failed` outcome.
-      // Never log provider error text here: it may contain private profile data.
-      console.warn('[Sneak-Peek Change 13] profile retrieval capability failed');
-      throw error;
-    }
-  }));
-
-  const persistedMeeting = ragManager ? createCanonicalRagRetrievalCapability({
-    source: 'meeting_transcript',
-    sourceType: 'meeting',
-    limit: 8,
-    tokenBudget: 1800,
-    resolveScope: ({ request }) => ({
-      sourceId: request.retrievalScope?.kind === 'meeting'
-        ? request.retrievalScope.meetingId : request.activeContext?.meetingId,
-    }),
-    read: (input) => ragManager.readPlannedCanonicalSource(input),
-  }) : undefined;
-
-  capabilities.push(createRetrievalCapability('meeting_transcript', async (input) => {
-    if (input.signal?.aborted) return { items: [] };
-    try {
-      const persisted = await persistedMeeting?.retrieve(input);
-      if (input.signal?.aborted) return { items: [] };
-      if (persisted?.items.length) return persisted;
-    } catch {
-      console.warn('[Sneak-Peek Intelligence] indexed meeting evidence unavailable');
-    }
-    if (input.signal?.aborted) return { items: [] };
-    const scope = input.request.retrievalScope;
-    if (scope?.kind === 'global-meetings') return { items: [] };
-    if (scope?.kind === 'meeting') {
-      // Read the selected record from the local store. The renderer cannot
-      // supply replacement evidence and another meeting is never consulted.
-      const meeting = DatabaseManager.getInstance().getMeetingDetails(scope.meetingId);
-      if (!meeting || meeting.id !== scope.meetingId) return { items: [] };
-
-      const summary = meeting.detailedSummary;
-      const overview = summary?.overview || meeting.summary;
-      const notes = [
-        overview,
-        summary?.keyPoints?.join('\n'),
-        summary?.actionItems?.join('\n'),
-      ].filter(Boolean).join('\n').slice(0, 4000);
-      const items: import('./intelligence/engine/types').SneakPeekEvidenceItem[] =
-        (meeting.transcript ?? [])
-          .filter(turn => turn.speaker === 'user' || turn.speaker === 'interviewer')
-          .slice(-20)
-          .filter(turn => turn.text.trim())
-          .map((turn, index) => ({
-            id: `${meeting.id}:transcript:${turn.timestamp}:${index}`,
-            source: 'meeting_transcript',
-            content: turn.text.slice(0, 400),
-            metadata: {
-              sourceId: meeting.id,
-              documentName: meeting.title,
-              speaker: turn.speaker,
-              timestampStart: turn.timestamp,
-              retrievalSource: 'saved-meeting-transcript',
-            },
-          }));
-
-      if (notes) items.unshift({
-        id: `${meeting.id}:saved-summary`,
-        source: 'meeting_transcript',
-        content: notes,
-        metadata: {
-          sourceId: meeting.id,
-          documentName: meeting.title,
-          section: 'Saved meeting summary',
-          retrievalSource: 'saved-meeting-summary',
-        },
-      });
-      return { items };
-    }
-    return {
-      items: (input.request.transcriptContext?.turns ?? [])
-        .filter(turn => turn.role !== 'assistant' && turn.content.trim())
-        .map((turn, index) => ({
-          id: turn.id || `meeting-live-${index}`,
-          source: 'meeting_transcript',
-          content: turn.content,
-          metadata: {
-            sourceId: input.request.activeContext?.meetingId ?? 'live-transcript',
-            timestampStart: turn.createdAt,
-            timestampEnd: turn.createdAt,
-            retrievalSource: 'live-transcript-window',
-          },
-        })),
-    };
-  }));
-
-  const engine = new SneakPeekIntelligenceEngine({
-    retrievalCoordinator: new RetrievalCoordinator({
-      capabilities,
-      onDecision: (trace) => {
-        // Do not log trace.query, document IDs, profile text, or error strings.
-        // The prompt-inclusion counts are emitted separately at completion.
-        console.log('[CHG-17] retrieval source outcomes', {
-          sources: trace.sourceOutcomes.map(({ source, status, itemCount, retrievalBackend, fallbackReason }) => ({
-            source, status, itemCount, retrievalBackend, fallbackReason,
-          })),
-          callCount: trace.callCount,
-        });
-      },
-    }),
-    generationPort: {
-      stream: ({ request, prompt, contextPlan, lifecycle }) => {
-        const required = new Set(contextPlan.requiredSources);
-        const scopes = new Set<ProviderDataScope>();
-        if ((request.imageConversationSnapshot || request.sessionSnapshot) && required.has('recent_conversation')) {
-          // Mixed session history can contain prior private-derived answers.
-          // Never send it through a provider with denied source scopes.
-          for (const scope of conversationActionDataScopes({ context: request.sessionSnapshot ?? request.imageConversationSnapshot })) scopes.add(scope);
-        }
-        if (required.has('recent_conversation') || required.has('longer_conversation') || required.has('meeting_transcript')) scopes.add('transcript');
-        if (required.has('screen')) scopes.add('screenshots');
-        if (required.has('personal_knowledge') || required.has('profile') || required.has('structured_knowledge')) scopes.add('profile_history');
-        if (required.has('project_knowledge') || required.has('my_files') || required.has('mode_documents') || (required.has('rag') && !required.has('meeting_transcript'))) scopes.add('reference_files');
-        const imagePaths = required.has('screen') ? request.screenContext?.imagePaths : undefined;
-        if (request.imageAnalysis && (!imagePaths?.length || !llmHelper.getCapabilities().supportsImages)) {
-          throw new Error('Selected model does not support the requested images.');
-        }
-        const route: ProviderRouteOptions | null = llmHelper.getSneakPeekGenerationRouteOptions([...scopes], Boolean(imagePaths?.length));
-        if (!route) throw new Error('Active provider transport is not yet supported by the Sneak-Peek generation contract.');
-        if (request.providerPreferences?.preferredProvider) route.preferredProvider = request.providerPreferences.preferredProvider as ProviderRouteOptions['preferredProvider'];
-        if (request.providerPreferences?.allowedProviders) {
-          const allowed = request.providerPreferences.allowedProviders as NonNullable<ProviderRouteOptions['allowedProviders']>;
-          route.allowedProviders = route.allowedProviders
-            ? route.allowedProviders.filter(provider => allowed.includes(provider))
-            : allowed;
-        }
-        route.maxAttempts = request.providerPreferences?.maxAttempts ?? 3;
-        if ((request.documentDraft || request.providerPreferences?.allowFallback === false) && route.preferredProvider) {
-          route.allowedProviders = (route.allowedProviders ?? [route.preferredProvider])
-            .filter(provider => provider === route.preferredProvider);
-          route.maxAttempts = 1;
-        }
-        const stream = streamCanonicalProvider(llmHelper, {
-          requestId,
-          finalPrompt: prompt.finalPrompt,
-          route,
-          abortSignal: request.cancellationSignal,
-          imagePaths,
-          thinkingBudget: request.responseShape?.detailed ? 1024 : 0,
-          lifecycle,
-        });
-        console.log('[Sneak-Peek Intelligence] ProviderRouter → GenerationController', {
-          requestId,
-          preferredProvider: route.preferredProvider,
-          maxAttempts: route.maxAttempts,
-        });
-        return stream;
-      },
-    },
-  });
-  return engine;
-}
 
 
 function buildSneakPeekMeetingTranscriptContext(appState: any, meetingId: string) {
@@ -1493,6 +1246,7 @@ const { ModesManager } = require('./services/ModesManager');
 manualActiveMode = ModesManager.getInstance().getActiveModeInfo?.() ?? null;
 } catch { /* mode prior unavailable — remain mode-blind */ }
 let myController: AbortController | null = null;
+const cancelOnDestroy = () => myController?.abort('sender-destroyed');
 let generationLifecycle: GenerationLifecycle | null = null;
 let _manualFgToken: string | null = null;
 // Intelligence OS observe-only trace (Phase 1). Hoisted so the catch can record
@@ -1512,17 +1266,29 @@ myController = new AbortController();
 generationLifecycle = new GenerationLifecycle(String(myStreamId));
 generationLifecycle.transition('PLANNING', 'manual chat request accepted');
 _chatStreamsBySender.set(senderId, { streamId: myStreamId, controller: myController });
+event.sender.once?.('destroyed', cancelOnDestroy);
 
 // CHANGE 13: the canonical Sneak-Peek Intelligence Engine is now the PRIMARY
 // manual-chat route. The old handler below remains intact as compatibility
 // fallback. An explicit image-only turn can use canonical attachment handling.
 // Requests with caller-owned prompts, mode-specific image context, skills,
 // and identity probes still require their compatibility contracts.
-const nativeSkillPrefix = /^[\/$][A-Za-z0-9_-]+\s/.test(String(message || ''));
-const nativeCompatibilityOnlyTurn =
-  isAssistantIdentityQuestion(String(message || ''))
-  || isStealthEvasionQuestion(String(message || ''))
-  || nativeSkillPrefix;
+// Skill instructions are main-process selected presentation inputs, never source grants.
+let canonicalSkill: import('./intelligence/engine/types').CanonicalAnswerContext['skill'];
+const canonicalSkillMatch = String(message || '').match(/^[/$]([A-Za-z0-9_-]+)\s*(.*)$/s);
+if (canonicalSkillMatch) {
+  const skill = SkillsManager.getInstance().getSkill(canonicalSkillMatch[1]);
+  if (!skill || !skill.enabled) {
+    event.sender.send('gemini-stream-error', 'The requested skill is unavailable or disabled.', { streamId: myStreamId });
+    return null;
+  }
+  canonicalSkill = { id: skill.id, name: skill.name, instruction: skill.instructions };
+  message = canonicalSkillMatch[2].trim() || `Help me with ${skill.name}.`;
+}
+const canonicalSnapshot = captureAnswerContext(llmHelper, manualActiveMode, String(message || ''), Boolean(imagePaths?.length));
+canonicalSnapshot.skill = canonicalSkill;
+// Caller-owned prompts remain user instructions. They cannot replace grounding or privacy policy.
+canonicalSnapshot.callerInstruction = options?.skipSystemPrompt ? String(message || '') : undefined;
 let validatedManualImages: string[] | undefined;
 if (imagePaths?.length) {
   try {
@@ -1534,18 +1300,13 @@ if (imagePaths?.length) {
     return null;
   }
 }
-const supportsCanonicalImageMode = !manualActiveMode || (
-  manualActiveMode.templateType === 'general'
-  && !manualActiveMode.isCustom && !manualActiveMode.hasReferenceFiles && !manualActiveMode.hasCustomPrompt
-  && !manualActiveMode.strictDocumentGroundedActive
-  && (manualActiveMode.sourceContract?.origin === 'default_new_mode'
-    || (manualActiveMode.sourceContract?.origin === 'migrated_from_prompt'
-      && manualActiveMode.sourceContract.sourceAuthority === 'ask_if_ambiguous'))
-);
-const canonicalImageRequest = Boolean(validatedManualImages?.length
-  && supportsCanonicalImageMode && llmHelper.getCapabilities?.().supportsImages
-  && llmHelper.getSneakPeekGenerationRouteOptions?.(['screenshots'], true));
-if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt && !nativeCompatibilityOnlyTurn) {
+const canonicalImageRequest = Boolean(validatedManualImages?.length);
+// WORK-0065: This branch is ALWAYS true at runtime. Widen the literal for the
+// TypeScript control-flow checker so the retained CHG-22 legacy block below
+// remains type-checkable instead of being treated as code after an unconditional
+// return (which incorrectly narrows its historical nullable locals).
+// The emitted JavaScript uses `if (true)`; no compatibility generator is enabled.
+if (true as boolean) {
   let primaryHasVisibleOutput = false;
   let settlePrimaryTurn: ((generationStatus: 'completed' | 'cancelled' | 'failed') => void) | undefined;
   try {
@@ -1553,7 +1314,7 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
       ? await optimizeImagesForVision(validatedManualImages!, 'manual-chat')
       : undefined;
     if (myController.signal.aborted) return null;
-    const imageConversationSnapshot = canonicalImages && !options?.skipRollingContext
+    const imageConversationSnapshot = !options?.skipRollingContext
       ? llmHelper.fitContextForCurrentModel(typeof context === 'string' ? context.trim() : '')
       : undefined;
     const modeInfo = manualActiveMode;
@@ -1609,11 +1370,9 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
       requestId,
       sessionId,
       surface: 'manual-chat' as const,
-      ...(canonicalImages ? {
-        imageAnalysis: true as const,
-        screenContext: { imagePaths: canonicalImages },
-        imageConversationSnapshot,
-      } : {}),
+      answerContext: canonicalSnapshot,
+      sessionSnapshot: imageConversationSnapshot,
+      ...(canonicalImages ? { screenContext: { imagePaths: canonicalImages } } : {}),
       userMessage: String(message || ''),
       currentTurn: {
         id: nativeCurrentTurn.id,
@@ -1648,7 +1407,7 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
         maxAttempts: 3,
       },
       contextPermissions: {
-        conversation: !canonicalImages || Boolean(imageConversationSnapshot),
+        conversation: !options?.skipRollingContext,
         transcript: Boolean(meetingId),
         screen: Boolean(canonicalImages),
         mode: Boolean(modeInfo?.id),
@@ -1668,10 +1427,11 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
       surface: 'manual-chat',
     });
 
-    const run = sneakPeekEngine.prepareAndStream(sneakPeekRequest);
+    const run = createAnswerExecution(llmHelper, appState, sneakPeekRequest);
+    void run.result.catch(() => undefined);
     let finalText = '';
     for await (const chunk of run.stream) {
-      if (myController.signal.aborted) break;
+      if (myController.signal.aborted || event.sender.isDestroyed() || _chatStreamsBySender.get(senderId)?.streamId !== myStreamId) break;
       if (!chunk) continue;
       finalText += chunk;
       primaryHasVisibleOutput = true;
@@ -1679,6 +1439,10 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
       try { PhoneMirrorService.getInstance().publishToken(String(myStreamId), chunk); } catch { /* mirror only */ }
     }
     const sneakPeekResult = await run.result;
+    if (event.sender.isDestroyed() || _chatStreamsBySender.get(senderId)?.streamId !== myStreamId) {
+      settlePrimaryTurn?.('cancelled');
+      return null;
+    }
 
     if (run.lifecycle.state === 'CANCELLED' || myController.signal.aborted) {
       updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'cancelled' });
@@ -1690,8 +1454,13 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
     }
 
     if (run.lifecycle.state === 'COMPLETED') {
+      const answer = await run.finalize(sneakPeekResult.finalAnswer?.text ?? finalText,
+        () => !event.sender.isDestroyed() && _chatStreamsBySender.get(senderId)?.streamId === myStreamId && !myController!.signal.aborted);
+      if (answer === null) {
+        settlePrimaryTurn?.('cancelled');
+        return null;
+      }
       updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'completed' });
-      const answer = sneakPeekResult.finalAnswer?.text ?? finalText;
       event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
       try { PhoneMirrorService.getInstance().publishDone(String(myStreamId), answer); } catch { /* mirror only */ }
       if (answer) {
@@ -1726,31 +1495,18 @@ if ((!imagePaths?.length || canonicalImageRequest) && !options?.skipSystemPrompt
       return null;
     }
 
-    // A generation that emitted visible output is committed: never append a
-    // legacy answer after it. Only a pre-commit engine failure is eligible for
-    // compatibility fallback.
-    if (sneakPeekResult.finalAnswer?.text || run.lifecycle.state === 'COMMITTED' || run.lifecycle.state === 'FAILED') {
-      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'failed' });
-      const answer = sneakPeekResult.finalAnswer?.text ?? finalText;
-      if (answer) event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
-      else event.sender.send('gemini-stream-error', 'Sneak-Peek Intelligence generation failed.', { streamId: myStreamId });
-      return null;
-    }
-  } catch (sneakPeekErr: any) {
+    settlePrimaryTurn?.('failed');
+    event.sender.send('gemini-stream-error', sneakPeekResult.providerAttempt.error ?? 'Answer generation interrupted.', { streamId: myStreamId });
+    return null;
+  } catch (error) {
     settlePrimaryTurn?.(myController.signal.aborted ? 'cancelled' : 'failed');
-    if (canonicalImageRequest || primaryHasVisibleOutput || myController.signal.aborted) {
-      if (_chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
-        event.sender.send('gemini-stream-error', myController.signal.aborted ? 'Generation cancelled.' : 'Generation interrupted.', { streamId: myStreamId });
-      }
-      return null;
+    if (!event.sender.isDestroyed() && _chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
+      event.sender.send('gemini-stream-error', myController.signal.aborted ? 'Generation cancelled.' : 'The selected provider could not complete this request. Check its capabilities and privacy permissions.', { streamId: myStreamId });
     }
-    // PRIMARY-route failures before visible output are compatibility fallbacks,
-    // not a second answer. The old handler below is the temporary migration path.
-    // Sanitize: upstream exceptions may contain private document or profile text.
-    console.error('[Sneak-Peek Intelligence] primary manual-chat route failed before commit; using compatibility fallback');
-    try { console.warn('[Sneak-Peek Intelligence] legacy fallback trace', { requestId: `manual-chat-${myStreamId}` }); } catch { /* noop */ }
+    return null;
   }
 }
+// Historical compatibility implementation below is unreachable. Retained for CHG-22 review.
 
 // Vision capability gate (Problem 39): a screenshot attached to manual
 // chat is a screen ask too — the same rule as generate-what-to-say
@@ -6632,6 +6388,7 @@ commitTrace(iTrace);
 } catch { /* trace must never mask the real error */ }
 throw error;
 } finally {
+event.sender.removeListener?.('destroyed', cancelOnDestroy);
 if (myController?.signal.aborted) generationLifecycle?.cancel('controller aborted before completion');
 if (_manualFgToken) ForegroundGate.end(_manualFgToken);
 if (myController) {

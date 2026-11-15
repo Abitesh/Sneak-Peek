@@ -1,3 +1,4 @@
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -27,21 +28,17 @@ test('runCodeHint returns stream on supersession and does not emit stale final r
   const { engine, session } = await makeEngine();
   let returned = false;
 
-  engine.codeHintLLM = {
-    generateStream() {
-      return {
-        async *[Symbol.asyncIterator]() {
-          yield 'partial hint';
-          engine.currentGenerationId += 1;
-          yield 'stale hint';
-        },
-        async return() {
-          returned = true;
-          return { done: true };
-        },
-      };
-    },
-  };
+  engine.initializeLLMs();
+  engine.llmHelper.fitContextForCurrentModel = text => text;
+  installCanonicalWtaTestTransport(engine.llmHelper, async function* () {
+    try {
+      yield 'partial hint';
+      engine.nextGeneration();
+      yield 'stale hint';
+    } finally {
+      returned = true;
+    }
+  });
 
   const tokens = [];
   const finals = [];
@@ -51,6 +48,7 @@ test('runCodeHint returns stream on supersession and does not emit stale final r
   const result = await engine.runCodeHint(['screenshot.png'], 'fix this code');
 
   assert.equal(result, null);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(returned, true);
   assert.deepEqual(tokens, ['partial hint']);
   assert.deepEqual(finals, []);

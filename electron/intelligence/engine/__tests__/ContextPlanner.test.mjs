@@ -152,3 +152,20 @@ test('canonical profile read grants role evidence only for the pinned mode and a
   });
   assert.equal(scopedMeeting.profileRead, undefined);
 });
+
+
+test('Phone Mirror planner denies a forged transcript permission without typed meeting evidence', () => {
+  const message = 'What did the interviewer say in the meeting?';
+  const forged = request(message, {
+    surface: 'phone-mirror',
+    transcriptContext: {
+      source: 'imported', text: 'Old messages that look like a meeting',
+      turns: [{ id: 'untrusted', role: 'user', content: 'Old messages' }],
+    },
+    sessionSnapshot: 'Interviewer: synthetic old phone history',
+  });
+  const plan = planContext({ request: forged, understanding: understanding(message) });
+  assert.equal(requirement(plan, 'meeting_transcript'), 'forbidden');
+  assert.ok(!plan.requiredSources.includes('meeting_transcript'));
+  assert.equal(plan.generalKnowledgeAllowed, false);
+});

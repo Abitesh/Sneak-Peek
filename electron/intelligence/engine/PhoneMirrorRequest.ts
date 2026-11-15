@@ -26,6 +26,14 @@ export interface PhoneMirrorRequestInput {
 
 export function buildPhoneMirrorCanonicalRequest(input: PhoneMirrorRequestInput): SneakPeekIntelligenceRequest {
   const { requestId, question, sessionId, activeContext, available } = input;
+  // A mixed phone/chat history (or an imported/live transcript) is not a
+  // meeting source. Only an independently supplied, populated meeting record
+  // may grant the phone surface transcript permissions.
+  const transcript = input.actualMeetingTranscript;
+  const authorizedMeeting = transcript?.source === 'meeting'
+    && Boolean(transcript.text?.trim())
+    && Boolean(transcript.turns?.some(turn => turn.content?.trim()))
+    ? transcript : undefined;
   return {
     requestId,
     sessionId,
@@ -35,13 +43,13 @@ export function buildPhoneMirrorCanonicalRequest(input: PhoneMirrorRequestInput)
     currentTurn: { id: requestId, role: 'user', content: question, createdAt: Date.now() },
     recentConversation: input.recentConversation,
     sessionSnapshot: input.sessionSnapshot?.trim() || undefined,
-    transcriptContext: input.actualMeetingTranscript,
+    transcriptContext: authorizedMeeting,
     activeContext,
     cancellationSignal: input.signal,
     providerPreferences: { allowFallback: true, maxAttempts: 3 },
     contextPermissions: {
       conversation: Boolean(input.sessionSnapshot?.trim() || input.recentConversation.length),
-      transcript: Boolean(input.actualMeetingTranscript?.turns?.length),
+      transcript: Boolean(authorizedMeeting),
       screen: false,
       mode: Boolean(activeContext.modeId),
       project: available.projectFiles,

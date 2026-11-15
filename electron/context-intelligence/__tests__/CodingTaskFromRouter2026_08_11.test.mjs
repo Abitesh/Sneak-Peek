@@ -103,10 +103,12 @@ describe('manual chat uses the current engine path', () => {
     const IPC = path.resolve(__dirname, '../../ipcHandlers.ts');
     const ipcSrc = fs.readFileSync(IPC, 'utf8');
     const start = ipcSrc.indexOf('const sneakPeekRequest = {');
-    const end = ipcSrc.indexOf('const run = sneakPeekEngine.prepareAndStream(sneakPeekRequest);', start);
-    assert.ok(start > 0 && end > start, 'manual chat must reach the current engine');
+    const end = ipcSrc.indexOf('const run = createAnswerExecution(llmHelper, appState, sneakPeekRequest);', start);
+    assert.ok(start > 0 && end > start, 'manual chat must create a typed request and hand it to canonical execution');
     const route = ipcSrc.slice(start, end);
     assert.match(route, /surface:\s*'manual-chat'/);
     assert.match(route, /manualQuestion:\s*String\(message\s*\|\|\s*''\)/);
+    assert.match(route, /as import\('\.\/intelligence\/engine\/types'\)\.SneakPeekIntelligenceRequest/, 'the request must retain its canonical request type');
+    assert.match(ipcSrc, /createAnswerExecution\(llmHelper, appState, sneakPeekRequest\)/);
   });
 });

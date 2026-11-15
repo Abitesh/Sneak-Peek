@@ -217,12 +217,18 @@ export class RetrievalCoordinator {
 
       // The provider consumes these validated attachments directly. No text
       // retrieval or filename-derived evidence can substitute for the pixels.
-      if (source === 'screen' && (input.imageAnalysis || input.action?.kind === 'code-hint' || input.action?.kind === 'brainstorm')
+      if (source === 'screen' && (input.answerContext || input.imageAnalysis || input.action?.kind === 'code-hint' || input.action?.kind === 'brainstorm')
         && (input.screenContext?.imagePaths?.length || input.screenContext?.text?.trim())) continue;
 
       // Email drafting consumes its explicit meeting form, not a stored search.
       if (source === 'meeting_transcript' && input.documentDraft?.kind === 'follow-up-email') continue;
 
+      if (input.repair) {
+        const ids = contextPlan.sourceIds?.[source];
+        items.push(...input.repair.evidence.items.filter(item => item.source === source
+          && (!ids || ids.includes(String(item.metadata?.sourceId ?? '')))));
+        continue;
+      }
       const capability = this.capabilities.get(source);
       if (!capability) {
         // Missing capability is not permission to substitute another source.
@@ -255,6 +261,10 @@ export class RetrievalCoordinator {
         trace.sourceOutcomes.push({ source, status: 'cancelled', itemCount: 0 });
         break;
       }
+      // A capability cannot smuggle another category or source into this plan.
+      const ids = contextPlan.sourceIds?.[source];
+      result = { ...result, items: result.items.filter(item => item.source === source
+        && (!ids || ids.includes(String(item.metadata?.sourceId ?? '')))) };
       const metadata = result.metadata;
       const backend = metadata?.retrievalBackend;
       const reason = metadata?.fallbackReason;

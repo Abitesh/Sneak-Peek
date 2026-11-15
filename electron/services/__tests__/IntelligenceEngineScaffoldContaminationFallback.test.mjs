@@ -18,6 +18,7 @@
 // re-check before accepting, fall through unchanged on repair failure).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -50,12 +51,11 @@ async function makeEngineWithAnswer(chunks, { question, repairChunks = [] } = {}
     final: true,
   });
 
-  const engine = new IntelligenceEngine(makeHelper({ repairChunks }), session);
-  engine.whatToAnswerLLM = {
-    async *generateStream() {
-      for (const chunk of chunks) yield chunk;
-    },
-  };
+  const helper = makeHelper({ repairChunks });
+  installCanonicalWtaTestTransport(helper, chunks, { repairChunks });
+  const engine = new IntelligenceEngine(helper, session);
+  // Generation is injected at the active canonical provider transport,
+  // not at the retired whatToAnswerLLM generator.
 
   return { engine, session };
 }
@@ -315,7 +315,7 @@ Time O(n), Space O(1).`;
 
   test('a stale repair from a superseded generation never overwrites fullAnswer or reaches session history', async () => {
     const { engine, session } = await makeEngineWithAnswer([A4_UNRECOVERED_SCAFFOLD]);
-    engine.llmHelper.streamChat = async function* () {
+    engine.llmHelper.__canonicalWtaTestState.repairChunks = async function* () {
       engine.currentGenerationId = (engine.currentGenerationId || 0) + 1;
       yield 'At Datadog I owned tail-aggregation for high-cardinality metrics.';
     };

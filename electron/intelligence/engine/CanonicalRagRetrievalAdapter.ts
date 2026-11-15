@@ -119,6 +119,22 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
       if (input.signal?.aborted) return { items: [], metadata: { cancelled: true } };
 
       const scope = options.resolveScope?.({ request: input.request, contextPlan: input.contextPlan }) ?? {};
+      const plannedIds = input.contextPlan.sourceIds?.[options.source];
+      const authorizedIds = scope.projectFileIds;
+      // A source planner chooses candidates; it cannot expand the resolved
+      // authorization set. Restrict the reader itself, not just its results.
+      const scopedIds = plannedIds === undefined
+        ? authorizedIds
+        : authorizedIds === undefined
+          ? plannedIds
+          : plannedIds.filter((id) => authorizedIds.includes(id));
+      // project_knowledge is backed by personal-file storage. Never let a
+      // missing/empty authorized project list become an unrestricted read.
+      // Likewise, an empty planned/authorized intersection must make NO read.
+      if ((options.source === 'project_knowledge' && (!scope.projectFilesOnly || !authorizedIds?.length))
+        || (scopedIds !== undefined && scopedIds.length === 0)) {
+        return { items: [], metadata: { scopeDenied: true, resultCount: 0 } };
+      }
       const result = await options.read({
         query: input.query,
         sourceType: options.sourceType,
@@ -128,7 +144,7 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
         limit: Math.max(1, Math.min(50, Math.floor(options.limit ?? 8))),
         tokenBudget: Math.max(1, Math.floor(options.tokenBudget ?? 1800)),
         projectFilesOnly: scope.projectFilesOnly,
-        projectFileIds: scope.projectFileIds,
+        projectFileIds: scopedIds,
         ownerId: scope.ownerId,
         signal: input.signal,
       });
@@ -138,7 +154,8 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
       // An ID on its own does not authorize a personal/resume file as project
       // evidence, even if a buggy source reader returns it.
       const items = result.results
-        .filter((item) => (options.sourceType !== 'meeting' || scope.sourceId === undefined
+        .filter((item) => (!input.contextPlan.sourceIds?.[options.source] || input.contextPlan.sourceIds[options.source]!.includes(String(item.source?.id ?? '')))
+          && (options.sourceType !== 'meeting' || scope.sourceId === undefined
           || (item.source?.sourceType === 'meeting' && item.source?.id === scope.sourceId))
           && (scope.projectFileIds === undefined || scope.projectFileIds.includes(String(item.source?.id ?? '')))
           && (!scope.projectFilesOnly || (

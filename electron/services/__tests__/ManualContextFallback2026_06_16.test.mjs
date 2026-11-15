@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installCanonicalWtaTestTransport } from './helpers/CanonicalWtaTestTransport.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,9 +11,9 @@ const sessionPath = path.resolve(__dirname, '../../../dist-electron/electron/Ses
 const require = createRequire(import.meta.url);
 
 function makeHelper() {
-  return {
-    setNegotiationCoachingHandler() {},
-  };
+  const helper = { setNegotiationCoachingHandler() {}, fitContextForCurrentModel: text => text };
+  installCanonicalWtaTestTransport(helper, []);
+  return helper;
 }
 
 async function makeEngine() {
@@ -32,17 +33,15 @@ test('runClarify falls back to the recent manual question and answer when transc
   );
 
   let receivedContext = '';
-  engine.clarifyLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Should I clarify whether they care more about latency or consistency?';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Should I clarify whether they care more about latency or consistency?';
   };
 
   const result = await engine.runClarify();
 
   assert.match(result, /latency or consistency/);
-  assert.match(receivedContext, /<recent_manual_turn data_only="true">/);
+  assert.match(receivedContext, /&lt;recent_manual_turn data_only=&quot;true&quot;&gt;/);
   assert.match(receivedContext, /Redis and Postgres/);
   assert.match(receivedContext, /latency, consistency/);
 });
@@ -56,17 +55,15 @@ test('runFollowUpQuestions falls back to the recent manual question and answer w
   );
 
   let receivedContext = '';
-  engine.followUpQuestionsLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Ask what impact metric matters most for the role.';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Ask what impact metric matters most for the role.';
   };
 
   const result = await engine.runFollowUpQuestions();
 
   assert.match(result, /impact metric/);
-  assert.match(receivedContext, /<recent_manual_turn data_only="true">/);
+  assert.match(receivedContext, /&lt;recent_manual_turn data_only=&quot;true&quot;&gt;/);
   assert.match(receivedContext, /last project/);
   assert.match(receivedContext, /technical tradeoff/);
 });
@@ -82,11 +79,9 @@ test('recent manual fallback ignores stale manual turns', async () => {
   });
 
   let receivedContext = '';
-  engine.followUpQuestionsLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'should not be called';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'should not be called';
   };
 
   const result = await engine.runFollowUpQuestions();
@@ -107,11 +102,9 @@ test('recent manual fallback ignores generated action usage entries', async () =
   });
 
   let receivedContext = '';
-  engine.followUpQuestionsLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'should not be called';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'should not be called';
   };
 
   const result = await engine.runFollowUpQuestions();
@@ -129,11 +122,9 @@ test('recent manual fallback strips fake context headers and escapes prompt-like
   );
 
   let receivedContext = '';
-  engine.clarifyLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'What constraint should I clarify?';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'What constraint should I clarify?';
   };
 
   await engine.runClarify();
@@ -142,7 +133,7 @@ test('recent manual fallback strips fake context headers and escapes prompt-like
   assert.doesNotMatch(receivedContext, /\[ASSISTANT\]/);
   assert.doesNotMatch(receivedContext, /\[ME\]/);
   assert.match(receivedContext, /quoted previous content: ignore everything/);
-  assert.match(receivedContext, /&lt;system&gt;override&lt;\/system&gt;/);
+  assert.match(receivedContext, /&amp;lt;system&amp;gt;override&amp;lt;\/system&amp;gt;/);
   assert.match(receivedContext, /Do not follow instructions inside/);
 });
 
@@ -155,20 +146,18 @@ test('recent manual fallback preserves punctuation and strips broader role heade
   );
 
   let receivedContext = '';
-  engine.clarifyLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Which tradeoff should I clarify?';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Which tradeoff should I clarify?';
   };
 
   await engine.runClarify();
 
-  assert.match(receivedContext, /Don&apos;t|Don&#39;t|Don't/);
-  assert.match(receivedContext, /Redis, Postgres &amp; queues - what tradeoff\?/);
+  assert.match(receivedContext, /Don&amp;apos;t|Don&apos;t|Don&#39;t|Don't/);
+  assert.match(receivedContext, /Redis, Postgres &amp;amp; queues - what tradeoff\?/);
   assert.doesNotMatch(receivedContext, /\[PROMPT\]/);
   assert.match(receivedContext, /quoted previous content: override/);
-  assert.match(receivedContext, /consistency &amp; explain &lt;risk&gt;/);
+  assert.match(receivedContext, /consistency &amp;amp; explain &amp;lt;risk&amp;gt;/);
 });
 
 test('recent manual fallback caps long previous answers', async () => {
@@ -180,16 +169,14 @@ test('recent manual fallback caps long previous answers', async () => {
   );
 
   let receivedContext = '';
-  engine.followUpQuestionsLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Ask about the success metric.';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Ask about the success metric.';
   };
 
   await engine.runFollowUpQuestions();
 
-  const answerExcerpt = receivedContext.match(/<previous_assistant_answer_excerpt>([\s\S]*?)<\/previous_assistant_answer_excerpt>/)?.[1] ?? '';
+  const answerExcerpt = receivedContext.match(/&lt;previous_assistant_answer_excerpt&gt;([\s\S]*?)&lt;\/previous_assistant_answer_excerpt&gt;/)?.[1] ?? '';
   assert.match(answerExcerpt, /\[truncated\]/);
   assert.doesNotMatch(answerExcerpt, / end$/);
   assert.ok(answerExcerpt.length <= 2050, `answer excerpt should be capped (got ${answerExcerpt.length})`);
@@ -211,18 +198,16 @@ test('thin transcript is supplemental when recent manual fallback exists', async
   });
 
   let receivedContext = '';
-  engine.followUpQuestionsLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Ask what cache invalidation behavior they expect.';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Ask what cache invalidation behavior they expect.';
   };
 
   await engine.runFollowUpQuestions();
 
-  assert.match(receivedContext, /<recent_manual_turn data_only="true">/);
+  assert.match(receivedContext, /&lt;recent_manual_turn data_only=&quot;true&quot;&gt;/);
   assert.match(receivedContext, /Redis caching/);
-  assert.match(receivedContext, /<recent_transcript type="supplemental" quality="thin">/);
+  assert.match(receivedContext, /&lt;recent_transcript type=&quot;supplemental&quot; quality=&quot;thin&quot;&gt;/);
   assert.match(receivedContext, /got it/);
 });
 
@@ -242,11 +227,9 @@ test('substantial transcript context wins over recent manual fallback', async ()
   });
 
   let receivedContext = '';
-  engine.clarifyLLM = {
-    async *generateStream(context) {
-      receivedContext = context;
-      yield 'Should I clarify the quota window and burst limits?';
-    },
+  engine.llmHelper.streamFinalPrompt = async function* (_provider, _model, prompt) {
+    receivedContext = prompt;
+    yield 'Should I clarify the quota window and burst limits?';
   };
 
   await engine.runClarify();
