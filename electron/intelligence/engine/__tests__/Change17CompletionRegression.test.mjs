@@ -128,3 +128,28 @@ test('CHG-17: denied/unavailable sources are explicit and post-read cancellation
   assert.equal(late.evidence.items.length, 0);
   assert.equal(late.trace.sourceOutcomes[0].status, 'cancelled');
 });
+
+test('CHG-21: long-session follow-up preserves the latest completed manual exchange', async () => {
+  const sessionId = 'chg21-long-session';
+  clearConversationState(sessionId);
+  try {
+    for (let i = 0; i < 20; i++) {
+      appendConversationTurn({ sessionId, role: 'user', speaker: 'user', source: 'manual',
+        text: 'Earlier unrelated example ' + i, finalized: true, generationStatus: 'completed', requestSequence: i });
+    }
+    appendConversationTurn({ sessionId, role: 'user', speaker: 'user', source: 'manual',
+      text: 'Why are we using a priority queue?', finalized: true, generationStatus: 'completed', requestSequence: 21 });
+    appendConversationTurn({ sessionId, role: 'assistant', speaker: 'assistant', source: 'manual',
+      text: 'We chose it to process urgent repair jobs before routine maintenance.', finalized: true, generationStatus: 'completed', requestSequence: 21 });
+    const engine = new SneakPeekIntelligenceEngine();
+    const question = 'Why did we choose that queue?';
+    const result = await engine.handle(makeRequest(sessionId, question));
+    const isolated = await engine.handle(makeRequest('chg21-long-session-other', question));
+    assert.equal(result.intent, 'follow-up');
+    assert.match(result.prompt.finalPrompt, /urgent repair jobs/);
+    assert.doesNotMatch(isolated.prompt.finalPrompt, /urgent repair jobs/);
+    assert.deepEqual(result.diagnostics.retrieval, []);
+  } finally {
+    clearConversationState(sessionId);
+  }
+});

@@ -1,5 +1,39 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-096 — Manual lifecycle fixture can match a previous scenario in conversation history (2026-11-16)
+
+WORK-0077 / TASK-0004. Final desktop rerun failed before cancelling: the STOP request completed and the fixture did not observe its pre-STOP token. The transport selected the first marker anywhere in the final prompt, so a retained previous request could select the wrong mock behavior. Read the marker only from the canonical current-question section. Wait for observed pre-STOP text and terminal events instead of relying on invoke completion ordering.
+
+## ERR-095 — Model misreads raw meeting timestamp as elapsed seconds (2026-11-16)
+
+WORK-0077 / TASK-0004. Real local baseline named the correct meeting and speaker but called a raw 42000 locator “42,000 seconds”. The first CHG-21 iteration still printed the raw value. Meeting adapters may supply elapsed or epoch milliseconds. Record the raw values internally, but omit those machine locators from model-visible provenance and request only human-readable time already present in the evidence. Verify that original typed evidence is preserved and the cited meeting and speaker remain correct.
+
+## ERR-094 — Local model repeats an instruction embedded in document evidence (2026-11-16)
+
+WORK-0077 / TASK-0004 / CHG-21. Synthetic real-model baseline returned both requested facts (JWT/EdDSA) and an unrelated imperative canary from the same document chunk. The existing system data-only instruction prohibited following directives but did not explicitly prohibit quoting unrelated directives as answer facts. Add a narrow relevance policy adjacent to the serialized evidence. Recheck the exact same fixture and record residual outcomes.
+
+## ERR-093 — Retrieved but nonfactual rows suppress the missing-evidence instruction (2026-11-16)
+
+WORK-0077 / TASK-0004 / CHG-21. Reproduced in the compiled canonical behavioral suite. A document adapter returns a referent-only row. The assembler removes it correctly, but the engine used the raw retrieval count to decide whether to warn of missing evidence. The same mismatch applies to blank or sanitized-away rows. Base the instruction on successfully rendered authorized factual evidence, including the separately authorized email form input.
+
+## ERR-092 — Desktop paint wait can outlive its scenario (2026-11-16)
+
+WORK-0077 / TASK-0003. During the strengthened run, manual STOP passed and the first meeting close completed, then the run stopped progressing before the next recorded scenario. The two-animation-frame wait was unbounded and depended on Chromium foreground scheduling. Disable background throttling in the disposable test window, and bound the paint wait with a diagnostic timeout so failure cannot be reported as a screenshot pass.
+
+## ERR-091 — Manual STOP desktop test ended observation before provider release (2026-11-16)
+
+WORK-0077 / TASK-0003. The existing scenario proved cancellation settled while generation was parked, but detached preload listeners before the provider could attempt its late token. Preserve that assertion and add a post-release observation through a new completed manual request. This is a verification gap.
+
+## ERR-090 — Blind non-code screenshot unexpectedly inherits prior answer (2026-11-16)
+
+**WORK-0076 / TASK-0003 / CHG-20.** Owner post-WORK-0075 macOS `test:node-runner` has 8,966 cases / 8,898 pass / **1 fail** / 67 skip / 0 cancelled. Exact failing test: `electron/llm/__tests__/suggestionPromptAssembly.test.mjs:273`, “WhatToAnswerLLM assembles runtime intent, prior responses, and screen context as user content.” The emitted untrusted user message contained an escaped `Prior <answer> & phrase` as `<previous_responses>` although the unqualified screenshot was supposed to be answered from fresh screen evidence, and lacked the repeat-press directive.
+
+**Source-confirmed cause:** WORK-0075 correctly tightened `isPromotedScreenCodingTurn` to avoid falsely coding a screenshot with readable *non-code* OCR (“stack trace says permission denied”). The retained compatibility `WhatToAnswerLLM.generateStream` accidentally used that *coding promotion* predicate as the unrelated *blind-screen repeat* predicate for prior-answer exclusion and repeat instructions. A valid non-code screen is blind but not coding; the two policies must be independent. This is a newly exposed compatibility regression, not evidence of a second active CHG-20 provider pipeline.
+
+**Prepared repair (Mac verification pending):** Identify an image/DOM/OCR screen without a resolved question separately from coding promotion. Preserve the existing coding repeat contract when promoted; give other blind screens a neutral repeat-press directive and omit stale prior responses from prompt, optional V2 context/fusion, and the transport `profile_history` scope. Keep requested questioned-turn history and coding promotion rules unchanged. Extend the existing *behavioral* regression to assert the generic, non-code directive without relaxing history exclusion. Source/JS checks and patch applicability must be recorded separately from the owner's compiled Electron test result.
+
+**Status:** Repair prepared, owner `npm run test:node-runner`, `npm test` and desktop post-patch confirmation PENDING. C20-AC2 remains pending; do not report CHG-20 Verified until current-tree evidence is complete.
+
 Updated: 2026-11-04. Agent-maintained. New errors go here before a fix is attempted. This file contains sanitized summaries, not raw secrets, personal documents or private conversations.
 
 ## Status rules
@@ -867,3 +901,25 @@ WORK-0074 / TASK-0003. Verification-delivery defect, not a newly reproduced answ
 Prepare a separate CHG-20 runner in a downloadable patch, reusing the unchanged OS restrictions and genuine rendered harness. Record tracked diff and build hashes before/after, retain same-profile relaunch and event evidence, and report preexisting whitespace separately. Do not reinterpret unchanged checkout as proof that the entire staged migration has received independent review. No production defect or new completion claim is inferred.
 
 **WORK-0074 result:** Separate runner implemented in the downloadable patch, syntax/apply/reverse/byte checks passed, and both actual desktop phases passed. Evidence copied to `/Users/abitesh/Downloads/Sneak-Peek-CHG20-WORK0074/evidence`. Repository installation pending; do not mark ERR-086 installed/resolved yet. Existing production behavior untouched; no new answer failure reproduced.
+
+
+## ERR-087 — Speculative WTA error event escapes suppression (2026-11-15)
+WORK-0075 / TASK-0003. Confirmed source: runWhatShouldISay catch emits the UI-wired error event before returning null for speculation. Prior tests checked final output but did not subscribe to error. Add event/history regression before fixing.
+
+## ERR-088 — Promoted screen coding bypasses canonical structure/coverage checks (2026-11-15)
+WORK-0075 / TASK-0003. Confirmed source: validateCanonicalAnswer returns null for every promoted screen-coding answer after evidence checks, even a prose-only or truncated code answer. Existing positive fixture reused conceptual semaphore scaffold with no code. Replace the positive fixture with genuine valid code, retain streaming/no-spurious-regeneration assertions, add negative missing/truncated-code and explicit-format tests. Do not treat screen promotion as authority to skip validation.
+
+
+## ERR-089 — WORK-0075 partial-edit three-test regression (2026-11-15)
+
+**Owner-reproduced:** The owner supplied two full terminal logs, not isolated excerpts. Full Electron `npm test`: 9,101 total / 9,031 pass / 3 fail / 67 skip / 0 cancelled. All-checks `&&` chain: five typechecks and renderer/Electron builds passed; `test:node-runner` failed 3 cases of 8,966 and stopped the remaining chain. The failing assertions were (a) speculative scaffold test used forbidden regeneration output `this should never be requested`, (b) non-code OCR with an image returned `Could you repeat that?` instead of the provider's screen-grounded explanation, and (c) throwing during `captureAnswerContext` propagated out of speculative WTA before its catch. Related to ERR-087/088 but distinct from source-only proof.
+
+**Root causes in uploaded worktree:** (a) Codex changed the canonical finalize path from `!isSpeculative && !partial` to `!partial`; (b) the shared screen-promotion predicate treated every attached image as code even when readable OCR had no structural code; (c) provider route snapshot capture happened above the streaming `try`. The promoted validator additionally used the lightweight general-implementation shape, which cannot demand a complete six-section algorithm answer. This is not evidence that earlier commits were failing: these errors reproduce after the interrupted WORK-0075 edits.
+
+**Repair in this ZIP, owner run pending:** Preserve speculative silent catch but guard pre-try route capture, reinstate no speculative repair, refine deictic image/OCR coding promotion while retaining uninspected image and explicit code intent, and validate real promoted code against the six-section DSA contract. Add positive/negative validator tests. Local isolated predicate and validator smoke checks pass; Electron/macOS and acceptance are not run inside the ZIP workspace. State: **Fix prepared, unverified on owner Mac**.
+
+
+**WORK-0077 resolutions:** ERR-076 compiled typed speech, older recall and scope suites passed. ERR-087/088 speculation and promoted code cases passed. ERR-090 passed direct Node (12/12) and Electron compatibility checks, then full suites. ERR-086 runner is owner-staged and executed successfully. ERR-091/092 resolved for CHG-20 by the final two-launch harness run with delayed post-STOP transport and bounded paint. Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI/desktop-chg20/result.json`. The first strengthened run passed manual STOP but was terminated after it stopped progressing during meeting overlays. The exact renderer scheduling cause remains unconfirmed.
+
+
+**WORK-0077 CHG-21 resolutions:** ERR-093 and ERR-095 reproduced against old compiled output and passed focused and broad checks after repair. ERR-094 canary quoted in 1 baseline case and 0 final cases with the same model and synthetic document. This verifies the tested example. ERR-096 was isolated to scenario matching and renderer event ordering in the acceptance fixture. Final two-launch run passed after current-question matching and explicit event waits. See `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI/desktop-final/result.json`. Spanish FIFO factual error and local p95 miss remain open quality findings rather than failed automated suites.

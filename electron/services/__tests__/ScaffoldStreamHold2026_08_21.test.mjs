@@ -77,7 +77,14 @@ test('review 2026-08-22: a PROMOTED screen-coding turn streams via the coding ga
   // consult the same shared predicate: the six-section answer must (a) still
   // paint during the stream (codingGate, not the RC-4 hold) and (b) never
   // trigger the scaffold-regeneration second LLM call.
-  const { engine, state } = await makeEngine(SCAFFOLD_ANSWER);
+  const { engine, state } = await makeEngine([
+    '## Approach\nUse a dictionary of earlier values to find the complement.\n',
+    '## Technique / Data Structure / Algorithm Used\nHash map.\n',
+    '## Code\n```python\ndef twoSum(nums, target):\n    seen = {}\n    for i, n in enumerate(nums):\n        if target - n in seen: return [seen[target - n], i]\n        seen[n] = i\n```\n',
+    '## Dry Run\nFor [2, 7] and target 9, store 2 then return [0, 1].\n',
+    '## Complexity\nTime O(n), Space O(n).\n',
+    '## Interviewer Follow-up Points\nCheck duplicates and absent pairs.\n',
+  ]);
   const regenCalls = [];
   const originalTransport = engine.llmHelper.streamFinalPrompt;
   engine.llmHelper.streamFinalPrompt = async function* (...args) {

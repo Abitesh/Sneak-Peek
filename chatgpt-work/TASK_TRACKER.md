@@ -1,5 +1,32 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0077 / TASK-0003 and TASK-0004 (2026-11-16)
+
+**CHG-20 Verified. C20-AC1 and C20-AC2 PASS.** See [surface map](../scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). **CHG-21 Implemented, unverified.** C21-AC1 passes for current authorized local scope. C21-AC2 remains open. Grounding, document directive handling and meeting timestamps improved. Final comparable rubric is 15/17, first-useful p95 2.343 s and engine-to-final maximum 4.803 s. Full STOP-click-to-final timing with STT/render and cross-provider/device evidence remain unverified. CHG-22 stays gated. See the [quality evaluation](../scripts/audit/chg21-quality-evaluation.md). Current evidence directory: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI`.
+
+## WORK-0076 / TASK-0003 / CHG-20 — post-WORK-0075 remaining compatibility test (2026-11-16)
+
+**State: incremental ZIP prepared; owner macOS verification pending.** Owner verified WORK-0075 applied cleanly and 36/36 targeted regressions passed, including speculative silence, ordinary OCR screen, and promoted coding tests. Five TS checks, renderer build and Electron build passed in the subsequent all-checks chain. `test:node-runner` has **8,898 pass / 1 fail / 67 skip / 0 cancelled** (8,966 total), stopped the `&&` chain before auto-answer/intelligence/meeting-notes/lib/scripts/Whisper. Exact legacy WTA blind-screen regression and scope are ERR-090.
+
+**WORK-0076 repair:** `electron/llm/WhatToAnswerLLM.ts` cleanly separates blind-screen repeat suppression of prior answers from coding-task promotion. Extend `electron/llm/__tests__/suggestionPromptAssembly.test.mjs` to protect fresh non-code screenshot replies without forcing the coding contract; update error/change/handoff and audit. Do not overwrite WORK-0075, stage or commit.
+
+**Acceptance:** C20-AC1 source-level PASS via independent owner-supplied Copilot review. C20-AC2 PENDING until the patched test, broad affected suites, same-profile desktop acceptance, manual STOP contract/diff review and explicitly categorized skips/deferred real-provider/phone/Windows GUI checks are recorded for this working tree. The current source has not received a fresh macOS or Windows CI run. CHG-21 remains gated.
+
+**Next:** Verify ZIP hash and `git apply --check` without altering the index; run the exact failing file directly, then `test:node-runner`, full Electron and the still-unexecuted suites and desktop acceptance; capture full-suite logs in Downloads only. Review the results and accept CHG-20 only if C20-AC2 checks actually pass.
+
+## WORK-0075 / TASK-0003 / CHG-20 — completed partial-edit repair (2026-11-15)
+
+**State: bounded ZIP patch prepared against owner-uploaded continuation snapshot at main `c7d1f790`; macOS validation PENDING.** The owner ZIP includes six tracked worktree modifications and one already-installed, untracked CHG-20 runner. Do not reapply older patches, overwrite owner edits, or stage/commit/push/reset/stash. C20-AC1 source-level PASS from the owner's independent Copilot review; C20-AC2 remains PENDING and CHG-21 stays gated until post-patch macOS acceptance.
+
+**Owner logs:** `npm test` reports 9,101 total / 9,031 pass / 3 fail / 0 cancelled / 67 skipped. The separate all-checks `&&` chain passed five typechecks and both builds, then `test:node-runner` reported 8,966 total / 8,896 pass / 3 fail / 0 cancelled / 67 skipped and stopped the chain. The three failures are: speculative contaminated answer unexpectedly regenerated; a readable non-code screenshot incorrectly forced a coding-format repair; and speculative provider route snapshot failure escaped the catch. Subsequent listed suites in that chain are NOT evidenced by this log.
+
+**Patch contents:** preserve Codex's intended silent error event correction; move speculative route-snapshot errors into guarded fail-closed cleanup; restore no speculative post-generation repair; distinguish image-only uncertain code from a screenshot with readable non-code OCR while keeping explicit coding asks; validate real screen-promoted Solution code with the DSA six-section contract and preserve explicit `explain without code`. Expand the local answer-validation fixtures and update error/acceptance records. The previously installed untracked desktop runner is NOT touched by this incremental patch.
+
+**Local evidence:** TypeScript 5.8 transpilation of edited modules and JavaScript syntax checks PASSED. An isolated runtime check executed the real shared promotion predicate and real `AnswerValidator` structure checks through a TypeScript-to-CJS bridge with mocked unrelated environment/coverage dependencies: 5 promotion cases and 6 canonical-validator cases passed. Pure model tests are not a substitute for the user's compiled Electron, intelligence, renderer and real IPC runs. Forward/reverse Git patch checks against the exact uploaded files and ZIP integrity are recorded in `scripts/audit/chg20-work0075-evidence.md`.
+
+**Next:** apply only this incremental ZIP after integrity and `git apply --check`; first run focused `AnswerValidation`, `IntelligenceEngineSentinel`, `IntelligenceEngineScreenContext`, `IntelligenceEngineScaffoldContaminationFallback`, `ScaffoldStreamHold`; then all TS checks/builds, `npm test -- --test-concurrency=4`, intelligence and other named suites plus same-profile CHG-20 desktop acceptance. Save broad-suite logs only in Downloads. Reconcile any real new failure by source and rerun; independently review patched behavior/STOP, skip/TODO applicability and C20-AC2 before marking CHG-20 Verified. Windows Build Smoke for the **prior commit** passed; these incremental changes are NOT Windows CI-tested.
+
+
 ## WORK-0074 / TASK-0003 / CHG-20 (2026-11-15)
 
 **Implemented, unverified for final acceptance.** Current-tree diagnosis confirms WORK-0073 implementation and saved green suites; a fresh isolated two-launch desktop run also passed. ERR-086: permanent CHG-20 runner prepared as a verified ZIP patch, **not installed**. Detailed report/application/evidence: `/Users/abitesh/Downloads/Sneak-Peek-CHG20-WORK0074.zip` and matching directory. Owner index preserved (81 staged paths). Four tracking files updated only.
@@ -307,8 +334,8 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-16 | Not assessed | ROADMAP CHG-16 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-18 | Implemented, unverified for broader acceptance | ROADMAP CHG-18 / WORK-0026 | Combined implementation was owner-authorized; scoped engine/IPC and desktop tests pass, but full acceptance/cutover criteria are not all verified. Do not mark planned or fully accepted based on CHG-19. |
 | CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
-| CHG-20 | Implemented, unverified | ROADMAP CHG-20 / TASK-0003 / WORK-0073 | Local suites and isolated desktop pass. Independent review and final acceptance pending. |
-| CHG-21 | Planned | ROADMAP CHG-21 | Wait for predecessor acceptance; do not start by deleting legacy code. |
+| CHG-20 | Verified | ROADMAP CHG-20 / TASK-0003 / WORK-0077 | C20-AC1 and C20-AC2 PASS. |
+| CHG-21 | Implemented, unverified | ROADMAP CHG-21 / TASK-0004 / WORK-0077 | Local regression evidence passed. Quality and full desktop latency acceptance remain open. |
 | CHG-22 | Planned | ROADMAP CHG-22 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | FEAT-001 | Planned | ROADMAP FEAT-001 | Separate explicitly approved audio/UI integration task; do not rewrite capture during CHG-17. |
 | FEAT-002 | Planned | ROADMAP FEAT-002 | Performance target; depends on transcript handoff, retrieval, provider health and agreed output bounds. |

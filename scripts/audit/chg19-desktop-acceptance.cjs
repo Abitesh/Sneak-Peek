@@ -171,6 +171,7 @@ app.whenReady().then(async () => {
   } else assert.ok(manager.getMeetingDetails('chg19-a'), 'same profile retains synthetic meeting');
   const win = await waitFor(() => windows.find(w => !w.isDestroyed() && /window=launcher/.test(w.webContents.getURL())), 'production launcher');
   await waitFor(() => win.webContents.executeJavaScript('document.body.innerText.length > 40'), 'launcher paint');
+  win.webContents.setBackgroundThrottling(false);
   win.show(); win.focus();
   win.webContents.send('meetings-updated');
   await waitFor(() => win.webContents.executeJavaScript(`document.body.innerText.includes('CHG19 Synthetic Meeting A')`), 'synthetic meeting list');
@@ -178,7 +179,15 @@ app.whenReady().then(async () => {
   const js = code => win.webContents.executeJavaScript(code);
   const title = type => type === 'meeting' ? 'Search this meeting' : 'Search all meetings';
   const visible = type => js(`Array.from(document.querySelectorAll('span')).some(e=>e.textContent===${JSON.stringify(title(type))})`);
-  async function paint() { await js('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'); }
+  async function paint() {
+    let timer;
+    try {
+      await Promise.race([
+        js('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Timed out waiting for launcher paint')), 5000); }),
+      ]);
+    } finally { clearTimeout(timer); }
+  }
   async function screenshot(name) { await paint(); const file = `${phase}-${name}.png`; fs.writeFileSync(path.join(temp, file), (await win.webContents.capturePage()).toPNG()); return file; }
   async function input(selector, value, repeats = 1) {
     await waitFor(() => js(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector);
@@ -315,6 +324,7 @@ app.whenReady().then(async () => {
       const priorRoute = helper.getSneakPeekGenerationRouteOptions;
       let releaseParked;
       let observedStopSignal;
+      let lateManualAttempted = false;
       const parked = new Promise(resolve => { releaseParked = resolve; });
       const attempts = [];
       helper.getSneakPeekGenerationRouteOptions = () => ({
@@ -323,8 +333,10 @@ app.whenReady().then(async () => {
         models: { groq: 'selected-synthetic-model', openai: 'allowed-synthetic-fallback' },
       });
       helper.streamFinalPrompt = async function* (provider, model, prompt, options) {
-        const scenario = ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED'].find(marker => prompt.includes(marker));
-        assert.ok(scenario);
+        const question = /<current_question>([\s\S]*?)<\/current_question>/.exec(prompt)?.[1];
+        const scenario = ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED', 'POST_STOP_RECOVERY']
+          .find(marker => question?.includes(marker));
+        assert.ok(scenario, 'manual lifecycle scenario must come from the current question');
         attempts.push({ scenario, provider, model });
         if (scenario === 'EARLY_FAIL' && provider === 'groq') throw new Error('Synthetic pre-commit failure');
         if (scenario === 'AFTER_COMMIT') { yield 'Visible partial.'; throw new Error('Synthetic post-commit failure'); }
@@ -332,6 +344,7 @@ app.whenReady().then(async () => {
           observedStopSignal = options.abortSignal;
           yield 'Visible before STOP.';
           await parked;
+          lateManualAttempted = true;
           yield 'Late token should not arrive.';
           return;
         }
@@ -340,42 +353,70 @@ app.whenReady().then(async () => {
       try {
         const manual = await js(`(async () => {
           let current = [];
+          window.__manualLifecycleEvents = [];
+          const record = event => { current.push(event); window.__manualLifecycleEvents.push(event); };
           const off = [
-            window.electronAPI.onGeminiStreamToken((token, meta) => current.push({ kind:'token', token, meta })),
-            window.electronAPI.onGeminiStreamDone(meta => current.push({ kind:'done', meta })),
-            window.electronAPI.onGeminiStreamError((error, meta) => current.push({ kind:'error', error, meta })),
+            window.electronAPI.onGeminiStreamToken((token, meta) => record({ kind:'token', token, meta })),
+            window.electronAPI.onGeminiStreamDone(meta => record({ kind:'done', meta })),
+            window.electronAPI.onGeminiStreamError((error, meta) => record({ kind:'error', error, meta })),
           ];
+          const waitForEvent = async predicate => {
+            const deadline = performance.now() + 5000;
+            while (performance.now() < deadline) {
+              if (current.some(predicate)) return;
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            throw new Error('Timed out waiting for manual lifecycle renderer event');
+          };
           try {
             const results = {};
             for (const kind of ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED']) {
               current = [];
               const submit = window.electronAPI.streamGeminiChat('Explain the synthetic test ' + kind);
               if (kind === 'STOP_PARKED') {
-                for (let i = 0; i < 100 && !current.length; i++) await new Promise(resolve => setTimeout(resolve, 10));
+                await waitForEvent(event => event.kind === 'token' && event.token === 'Visible before STOP.');
                 window.electronAPI.cancelChatStream();
                 const settled = await Promise.race([submit.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 1000))]);
                 if (!settled) throw new Error('STOP did not settle while the provider remained parked');
               } else {
                 await submit;
+                await waitForEvent(event => event.kind === (kind === 'EARLY_FAIL' ? 'done' : 'error'));
               }
               results[kind] = current.slice();
             }
             return results;
-          } finally { off.forEach(stop => stop()); }
+          } catch (error) { off.forEach(stop => stop()); throw error; }
+          finally { window.__manualLifecycleOff = off; }
         })()`);
         assert.deepEqual(manual.EARLY_FAIL.map(event => event.kind), ['token', 'done']);
         assert.deepEqual(manual.AFTER_COMMIT.map(event => event.kind), ['token', 'error']);
         assert.deepEqual(manual.STOP_PARKED.map(event => event.kind), ['token']);
         assert.equal(observedStopSignal?.aborted, true);
+        releaseParked();
+        await waitFor(() => lateManualAttempted, 'parked manual provider attempted a late token');
+        const previousCount = Object.values(manual).reduce((count, list) => count + list.length, 0);
+        await js(`window.electronAPI.streamGeminiChat('Explain the synthetic test POST_STOP_RECOVERY')`);
+        await waitFor(() => js(`window.__manualLifecycleEvents.length >= ${previousCount + 2}`), 'manual recovery IPC events');
+        await paint();
+        const recovery = await js('window.__manualLifecycleEvents').then(rows => rows.slice(previousCount));
+        assert.deepEqual(recovery.map(event => event.kind), ['token', 'done']);
+        assert.equal(recovery[0].token, 'Synthetic recovery completed.');
+        assert.equal(recovery[0].meta.streamId, recovery[1].meta.streamId);
+        assert.notEqual(recovery[0].meta.streamId, manual.STOP_PARKED[0].meta.streamId);
         assert.deepEqual(attempts.map(({ scenario, model }) => [scenario, model]), [
           ['EARLY_FAIL', 'selected-synthetic-model'], ['EARLY_FAIL', 'allowed-synthetic-fallback'],
           ['AFTER_COMMIT', 'selected-synthetic-model'], ['STOP_PARKED', 'selected-synthetic-model'],
+          ['POST_STOP_RECOVERY', 'selected-synthetic-model'],
         ]);
         scenarios.push({ id: 'WORK-0073-MANUAL-LIFECYCLE', status: 'PASS', attempts,
           eventKinds: Object.fromEntries(Object.entries(manual).map(([key, value]) => [key, value.map(event => event.kind)])),
-          stopSettledBeforeProviderRelease: true });
+          stopSettledBeforeProviderRelease: true, lateManualAttempted,
+          postReleaseEvents: recovery.map(event => event.kind),
+          cancelledStreamId: manual.STOP_PARKED[0].meta.streamId,
+          recoveryStreamId: recovery[0].meta.streamId });
       } finally {
         releaseParked();
+        await js('window.__manualLifecycleOff?.forEach(off => off()); void 0;');
         helper.streamFinalPrompt = priorTransport;
         helper.getSneakPeekGenerationRouteOptions = priorRoute;
       }

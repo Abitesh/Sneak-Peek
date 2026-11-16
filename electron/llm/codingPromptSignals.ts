@@ -184,10 +184,10 @@ export function isDeicticAsk(question: string | undefined | null): boolean {
 //      stream-held and then regenerated away.
 // One exported predicate, consulted everywhere, fixes both divergences.
 //
-// Images still promote without inspection — pixels cannot be structurally
-// checked client-side, and the original live defect ("screenshot attached but
-// code not generated") was image-based. Captured TEXT must contain a real
-// structural code template (a signature or fenced block, not a phrase).
+// Image-only turns still promote when no captured text is available — pixels
+// cannot be structurally checked client-side. However, attached screenshots
+// WITH readable non-code OCR (e.g. an error message) are not proof of coding.
+// Captured code text needs a real signature/fenced block, not a loose phrase.
 export function isPromotedScreenCodingTurn(input: {
   /** The routed turn is already coding-shaped — promotion is moot. */
   alreadyCoding: boolean;
@@ -198,8 +198,15 @@ export function isPromotedScreenCodingTurn(input: {
   if (input.alreadyCoding) return false;
   const q = (input.question || '').trim();
   if (q && !isDeicticAsk(q)) return false;
-  if (input.hasImages) return true;
-  return detectStructuralCodeTemplate(input.screenText);
+  if (detectStructuralCodeTemplate(input.screenText)) return true;
+  // A screenshot without usable text may still contain code not available to
+  // OCR. A screenshot whose captured text is clearly non-code must not force
+  // a six-section coding answer to a deictic question about that text.
+  // When OCR extracted non-code text, keep explicit solution/coding intent:
+  // the visible code may still be inside the image but absent from its OCR.
+  // A generic deictic prompt about an error message is not enough on its own.
+  const explicitCodeAsk = /\b(?:solv(?:e|ing)|implement|coding|algorithm|write\s+code|fix\s+(?:this\s+)?code)\b/i.test(q);
+  return input.hasImages && (!(input.screenText || '').trim() || explicitCodeAsk);
 }
 
 // ── build-task detection ────────────────────────────────────────────────────

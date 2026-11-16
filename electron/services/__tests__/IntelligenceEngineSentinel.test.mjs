@@ -156,3 +156,21 @@ test('runWhatShouldISay still emits and stores real answers', async () => {
   assert.equal(session.getFullUsage()[0].answer, realAnswer);
   assert.equal(session.getFullTranscript().some(segment => segment.text === realAnswer), true);
 });
+
+for (const scenario of ['setup', 'throws', 'empty']) {
+  test(`speculative ${scenario} failure emits no user-facing error or answer`, async () => {
+    const output = scenario === 'throws' ? async function* () { throw new Error('synthetic provider failure'); } : [];
+    const { engine, session } = await makeEngineWithAnswer(output);
+    if (scenario === 'setup') engine.llmHelper.getSneakPeekGenerationRouteOptions = () => { throw new Error('synthetic route failure'); };
+    const events = [];
+    for (const name of ['error', 'suggested_answer_token', 'suggested_answer', 'suggested_answer_discard']) {
+      engine.on(name, (...args) => events.push({ name, args }));
+    }
+    assert.equal(await engine.runWhatShouldISay('What is a mutex?', 0.9, undefined,
+      { speculative: true, skipCooldown: true }), null);
+    assert.deepEqual(events, []);
+    assert.equal(engine.speculativeText, null);
+    assert.deepEqual(session.getFullUsage(), []);
+    assert.equal(session.getFullTranscript().some(turn => turn.speaker === 'assistant'), false);
+  });
+}

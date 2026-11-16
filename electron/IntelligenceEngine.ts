@@ -1228,9 +1228,30 @@ export class IntelligenceEngine extends EventEmitter {
         // this request is parked at an await can no longer split one answer across
         // two modes (mismatched contract vs. prompt). generationId is stamped onto
         // every live token (#3) so the renderer can drop stale-generation batches.
-        const snapshotModeInfo = this.getActiveModeInfo();
-        const snapshotModeId = this.getActiveModeId();
-        const answerSnapshot = captureAnswerContext(this.llmHelper, snapshotModeInfo, question ?? '', Boolean(imagePaths?.length));
+        let snapshotModeInfo: ReturnType<typeof this.getActiveModeInfo>;
+        let snapshotModeId: ReturnType<typeof this.getActiveModeId>;
+        let answerSnapshot: ReturnType<typeof captureAnswerContext>;
+        try {
+            snapshotModeInfo = this.getActiveModeInfo();
+            snapshotModeId = this.getActiveModeId();
+            answerSnapshot = captureAnswerContext(this.llmHelper, snapshotModeInfo, question ?? '', Boolean(imagePaths?.length));
+        } catch (error) {
+            // Snapshot capture happens before the main generation try/finally.
+            // A background prefetch must fail silently even when route lookup
+            // itself throws; never leave its controller or UI mode parked.
+            if (!isWtaSuperseded()) {
+                if (isSpeculative) {
+                    this.speculativeText = null;
+                    this.speculativeTextExpiry = Infinity;
+                }
+                if (this.whatToAnswerCancellationToken === whatToAnswerCancellationToken) {
+                    this.whatToAnswerCancellationToken = null;
+                }
+                this.setMode('idle');
+            }
+            if (isSpeculative) return null;
+            throw error;
+        }
         answerSnapshot.realtimeInstruction = options?.promptInstruction;
         answerSnapshot.skill = options?.activeSkill ? { id: options.activeSkill.id, name: options.activeSkill.name, instruction: options.activeSkill.promptBlock } : undefined;
         const meetingMarker = this.currentSessionId
@@ -1787,7 +1808,7 @@ export class IntelligenceEngine extends EventEmitter {
                     const extracted = detectAndExtractScaffoldMisfire(answerPlan.answerType, fullAnswer);
                     if (extracted) fullAnswer = extracted;
                 }
-                const assessRelevance = spoken && answerPlan.answerType !== 'ethical_usage_answer'
+                const assessRelevance = !isSpeculative && spoken && answerPlan.answerType !== 'ethical_usage_answer'
                     && Boolean(extractedQuestion.latestQuestion && extractedQuestion.confidence >= 0.6);
                 let relevanceIssue: ((text: string) => Promise<import('./intelligence/engine/AnswerValidation').AnswerValidationIssue | null>) | undefined;
                 if (assessRelevance) {
@@ -1908,7 +1929,14 @@ export class IntelligenceEngine extends EventEmitter {
                     .lifecycle('failed', { errorCategory: (error as Error)?.name || 'handler_error', finalAction: 'retry' });
                 commitTrace(wtaTrace);
             } catch { /* trace never affects the fallback */ }
-            if (isSpeculative) { this.speculativeText = null; this.speculativeTextExpiry = Infinity; }
+            if (isSpeculative) {
+                this.speculativeText = null;
+                this.speculativeTextExpiry = Infinity;
+                this.setMode('idle');
+                // The engine error event is forwarded to the UI. Background
+                // prefetch failure must stop here, before any visible event.
+                return null;
+            }
             // If we opened a partial streaming row, discard it (the catch returns a
             // non-null fallback, so the manual path's null-cleanup never runs and
             // no 'suggested_answer' would otherwise fire) so the error row below is
@@ -1919,16 +1947,12 @@ export class IntelligenceEngine extends EventEmitter {
             // test/auxiliary consumer did not subscribe to engine diagnostics.
             if (this.listenerCount('error') > 0) this.emit('error', error as Error, 'what_to_say');
             this.setMode('idle');
-            // Speculative prefetch has no user-visible request. An unavailable
-            // provider or empty stream must stay silent, never surface a retry.
-            if (isSpeculative) return null;
             const unavailableRoute = (error as Error)?.message === 'Active provider transport is not yet supported by the Sneak-Peek generation contract.';
             const retry = unavailableRoute
                 ? 'The selected AI provider or model is unavailable. Check your model and API Keys in Settings, then retry.'
                 : buildGracefulRetry(question);
-            // A manual press returning non-null must emit a final event; a
-            // speculative generation has no visible UI placeholder to resolve.
-            if (!isSpeculative) this.emit('suggested_answer', retry, question || 'What to Answer', confidence, generationId);
+            // Manual failures must resolve their visible streaming placeholder.
+            this.emit('suggested_answer', retry, question || 'What to Answer', confidence, generationId);
             return retry;
         } finally {
             // Only the request that still owns the slot may clear it. An older

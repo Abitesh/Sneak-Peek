@@ -53,8 +53,8 @@ Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md
 | CHG-17 | Canonical RAG under the intelligence engine | In progress (owner-reported; local reconciliation pending) | Reconcile actual CHG-01–16 state; preserve uncommitted Change 17/chat-RAG repair. |
 | CHG-18 | Legacy meeting/global RAG answer paths | Planned | CHG-17 verified; preserve CHG-15 behavior. |
 | CHG-19 | Duplicated responsibility cleanup | Verified (scoped cancellation cleanup) | C19-AC1/C19-AC2 PASS; WORK-0046 isolated desktop evidence. Active compatibility retained. |
-| CHG-20 | One primary intelligence pipeline | Implemented, unverified | WORK-0073 local ownership map and macOS evidence. Independent review and final acceptance pending. |
-| CHG-21 | Final intelligence quality/regression pass | Planned | CHG-20; packaging work requires separate authorization. |
+| CHG-20 | One primary intelligence pipeline | Verified | C20-AC1 and C20-AC2 PASS. See WORK-0077 and the surface map. |
+| CHG-21 | Final intelligence quality/regression pass | Implemented, unverified | WORK-0077. Local regressions passed. Quality and full desktop latency acceptance remain open. |
 | CHG-22 | Final verified-dead architecture deletion | Planned | CHG-01–21 verified for affected responsibilities. |
 | CHG-23 | Dedicated Coding, CS Fundamentals, and Resume & Projects modes | Planned — owner-approved future scope | CHG-22 verified; coordinate FEAT-003/004, preserve existing Technical Interview. |
 
@@ -282,7 +282,7 @@ Gate: CHG-19
 - C20-AC1: Repository-wide runtime/call map covers every surface and intentional compatibility exception; no unowned second prompt/provider orchestration.
 - C20-AC2: Required automated and manual verification recorded; protected boundaries unchanged; diff and tracking records reviewed.
 
-WORK-0073 repairs canonical WTA output, action/provider permissions, authorized screen inputs and the manual STOP boundary. See the [production surface map](scripts/audit/chg20-surface-map.md#work-0073--production-dispatch-and-macos-evidence-2026-11-15) for local evidence and intentional non-answer responsibilities. C20-AC1 is locally supported and awaits independent review. C20-AC2 and the CHG-21 gate stay open until final acceptance is evidenced.
+**Verified (WORK-0077, 2026-11-16).** C20-AC1 PASS based on the owner-supplied independent source review and the locally rechecked [production surface map](scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). C20-AC2 PASS on the WORK-0076 checkout after five typechecks, both builds, four core suites, focused source/privacy and lifecycle checks, and the two-launch macOS desktop run with late-provider STOP and recovery. CHG-21 is unblocked. See WORK-0077 for external coverage limits.
 
 ### CHG-21 — Final intelligence quality/regression pass
 
@@ -294,6 +294,8 @@ Gate: CHG-20; packaging work requires separate authorization.
 
 - C21-AC1: Full required suites, explicit engine tests, typechecks, approved packaging and manual smoke checks recorded; baseline vs introduced failures separated.
 - C21-AC2: Required automated and manual verification recorded; protected boundaries unchanged; diff and tracking records reviewed.
+
+**Implemented, unverified (WORK-0077, 2026-11-16).** C21-AC1 passes for the authorized local scope: five typechecks, two builds, the full core suites including explicit engine tests, source-mode asset validation and two-launch macOS smoke. Packaging requires separate authorization. C21-AC2 remains open for the local quality thresholds and full product timing. Raw rubric rose from 12/17 to 15/17. Final first-useful p95 was 2.343 seconds and the engine-only maximum completion was 4.803 seconds. See the [evaluation, evidence and completion checklist](scripts/audit/chg21-quality-evaluation.md). CHG-22 remains gated.
 
 ### CHG-22 — Final verified-dead architecture deletion
 

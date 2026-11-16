@@ -470,3 +470,53 @@ test('P — STOP cancels before provider commit and cannot produce a visible ans
   assert.equal(outcome.outcome.attempts.length, 0);
   assert.equal(outcome.outcome.lifecycle.state, 'CANCELLED');
 });
+
+test('document grounding names the gap when retrieved rows cannot support a factual answer', async () => {
+  const message = 'What does my uploaded PDF say about the API authentication?';
+  for (const [content, metadata, usable] of [
+    ['A prior assistant guessed a three-digit API key.', { authority: 'referent_only' }, false],
+    ['__ROUTING_EXAMPLE__', {}, false],
+    ['The API uses JWT signed with EdDSA.', { authority: 'evidence' }, true],
+  ]) {
+    await runBehaviorCase({
+      message,
+      expectedIntent: 'document-question',
+      requiredSources: ['my_files', 'rag'],
+      capabilities: [calls => capability('my_files', calls, content, metadata)],
+      assertResult: ({ result, retrievalCalls }) => {
+        const prompt = result.prompt.finalPrompt;
+        const gap = /private or document-specific evidence was not found/;
+        assert.equal(retrievalCalls.length, 1);
+        assert.equal(result.prompt.includedEvidenceIds.length, usable ? 1 : 0);
+        if (usable) assert.doesNotMatch(prompt, gap);
+        else {
+          assert.doesNotMatch(prompt, /three-digit API key|__ROUTING_EXAMPLE__/);
+          assert.match(prompt, gap, 'a discarded row is not factual evidence');
+        }
+      },
+    });
+  }
+});
+
+test('meeting grounding retains raw timestamps internally and only exposes usable locators', async () => {
+  const source = 'meeting_transcript';
+  await runBehaviorCase({
+    message: 'What did we decide in this meeting?',
+    expectedIntent: 'meeting-question',
+    requiredSources: [source],
+    capabilities: [calls => capability(source, calls, 'At 00:42 Morgan confirmed violet leases.', {
+      sourceId: 'synthetic-only', documentName: 'Synthetic meeting', speaker: 'Morgan', timestampStart: 42000,
+    })],
+    overrides: {
+      surface: 'meeting-overlay',
+      activeContext: { meetingId: 'synthetic-only' },
+      transcriptContext: { source: 'meeting', text: 'Synthetic meeting' },
+    },
+    assertResult: ({ result }) => {
+      assert.equal(result.evidencePack.items[0].provenance.timestampStart, 42000);
+      assert.match(result.prompt.finalPrompt, /At 00:42 Morgan confirmed violet leases/);
+      assert.match(result.prompt.finalPrompt, /Synthetic meeting/);
+      assert.doesNotMatch(result.prompt.finalPrompt, /timestampStart|42000/);
+    },
+  });
+});

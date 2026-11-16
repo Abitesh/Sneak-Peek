@@ -245,6 +245,12 @@ export class WhatToAnswerLLM {
                 .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
                 .join('\n\n');
             const hasScreenText = capturedScreenText.length > 0;
+            // An unqualified repeat press on a visual screen is not a request
+            // to agree with the last answer. This is independent of CODING
+            // promotion: WORK-0075 correctly rejects a non-code OCR screen as a
+            // coding task, but that screen still has no new resolved question.
+            const blindScreenTurn = (hasAttachedImages || hasScreenText)
+                && !answerPlan?.question?.trim();
             // Coding signals for this turn, resolved once (shape, explicit
             // format, supplied template) through the one shared resolver so this
             // surface cannot drift from the others carrying the same signals.
@@ -370,6 +376,13 @@ ANSWER SHAPE: ${intentResult.answerShape}
             if (promotedScreenCodingTurn) {
                 intentContextParts.push(`<repeat_press_directive>
 The user triggered this action with a coding problem on screen and NO new question. That is a request for the COMPLETE solution to the on-screen problem, following the coding contract's full section shape — even if a previous answer in this conversation already covered it, and even if this looks like a follow-up. Never respond with commentary on, agreement with, or a summary of an earlier answer. Produce the full answer as if asked for the first time.
+</repeat_press_directive>`);
+            } else if (blindScreenTurn) {
+                // Non-coding OCR is still a fresh, blind screen request. Do not
+                // make a CRM page, permission error, or generic screenshot into
+                // a DSA answer merely to suppress stale assistant history.
+                intentContextParts.push(`<repeat_press_directive>
+The user triggered this action on the current screen without a new resolved question. Answer the current screen directly in the normal format appropriate to its content. Do not agree with, echo, or summarize an earlier answer. Only use a coding response format if the screen actually contains a coding task.
 </repeat_press_directive>`);
             }
             const intentContext = intentContextParts.length > 0
@@ -913,13 +926,13 @@ The user triggered this action with a coding problem on screen and NO new questi
                 modeTemplateType: 'active',
                 screenContext,
                 domContext: processedDomContext,
-                // Prior responses are WITHHELD on a promoted blind screen turn:
-                // there is no question text they could disambiguate, and their
-                // only measured effect was pulling the model into agreeing with
-                // its own earlier answer instead of re-answering the screen
-                // (repeat-press repro 2026-08-19). Every other turn keeps them.
+                // Withhold earlier assistant responses on blind screen presses
+                // (including non-code OCR), and on promoted coding screen turns.
+                // Both must answer fresh visual evidence rather than echo a
+                // previous assistant turn. Questioned non-coding turns retain
+                // their relevant prior responses as before.
                 priorResponses: (!documentGroundedCustomModeActiveForPrompt
-                    && !promotedScreenCodingTurn
+                    && !blindScreenTurn && !promotedScreenCodingTurn
                     && temporalContext?.hasRecentResponses) ? temporalContext.previousResponses : undefined,
                 intentContext,
                 retrievedModeContext: [typedModeContext || modeContextBlock, personalFileContext]
@@ -947,7 +960,7 @@ The user triggered this action with a coding problem on screen and NO new questi
                         pinnedModeInstructions ? { source: 'mode_instructions' as const, content: String(pinnedModeInstructions) } : null,
                         effectiveCandidateProfile ? { source: 'profile_tree' as const, content: String(effectiveCandidateProfile) } : null,
                         workingTranscript ? { source: 'live_transcript_current' as const, content: String(workingTranscript) } : null,
-                        temporalContext?.hasRecentResponses && temporalContext.previousResponses ? { source: 'conversation_history' as const, content: String(temporalContext.previousResponses) } : null,
+                        !blindScreenTurn && !promotedScreenCodingTurn && temporalContext?.hasRecentResponses && temporalContext.previousResponses ? { source: 'conversation_history' as const, content: String(temporalContext.previousResponses) } : null,
                         modeContextBlock ? { source: 'reference_files' as const, content: String(modeContextBlock) } : null,
                         processedDomContext ? { source: 'browser_dom' as const, content: String(processedDomContext) } : null,
                     ].filter(Boolean) as Array<{ source: any; content: string }>;
@@ -1041,7 +1054,8 @@ The user triggered this action with a coding problem on screen and NO new questi
             // Candidate resume facts AND prior assistant responses both fall under
             // the 'profile_history' data scope; push once if either is present.
             const hasProfileHistory = Boolean(effectiveCandidateProfile)
-                || Boolean(!documentGroundedCustomModeActiveForPrompt && temporalContext?.hasRecentResponses && temporalContext.previousResponses.length > 0);
+                || Boolean(!documentGroundedCustomModeActiveForPrompt && !blindScreenTurn && !promotedScreenCodingTurn
+                    && temporalContext?.hasRecentResponses && temporalContext.previousResponses.length > 0);
             if (hasProfileHistory) packetScopes.push('profile_history');
             // Coding/DSA answers get a small reasoning budget for correctness;
             // everything else streams with thinking off (fastest TTFT). The WTA
@@ -1114,7 +1128,8 @@ The user triggered this action with a coding problem on screen and NO new questi
                         typedModeContext?.trim() ? { kind: 'reference_file' as const, content: typedModeContext, source: 'mode_reference_material' } : null,
                         screenForEnvelope.trim() ? { kind: 'screen' as const, content: screenForEnvelope, source: 'screen_ocr' } : null,
                         processedDomContext?.trim() ? { kind: 'browser_dom' as const, content: processedDomContext, source: 'browser' } : null,
-                        (!documentGroundedCustomModeActiveForPrompt && temporalContext?.hasRecentResponses && temporalContext.previousResponses?.length)
+                        (!documentGroundedCustomModeActiveForPrompt && !blindScreenTurn && !promotedScreenCodingTurn
+                            && temporalContext?.hasRecentResponses && temporalContext.previousResponses?.length)
                             ? { kind: 'other' as const, content: temporalContext.previousResponses.join('\n'), source: 'prior_assistant_responses' } : null,
                     ].filter((e): e is NonNullable<typeof e> => e !== null);
                     _v2TurnUser = buildTurnContentV2({

@@ -1,3 +1,4 @@
+import { detectExplicitCodingContract } from '../../llm/codingFollowup';
 import { isCodingAnswerType } from '../../llm/AnswerPlanner';
 import { isPromotedScreenCodingTurn } from '../../llm/codingPromptSignals';
 import { validateAnswerStructure } from '../../llm/AnswerValidator';
@@ -42,10 +43,15 @@ export function validateCanonicalAnswer(request: SneakPeekIntelligenceRequest, r
     const errors = checked.violations.filter(item => item.severity === 'error');
     if (errors.length) return { reason: 'document-grounding', diagnostic: errors.map(item => item.code).join('; '), unsafeToPersist: true };
   }
-  if (promotedScreenCoding) return null;
-  const structure = validateAnswerStructure(plan.answerType, answer);
-  if (!structure.ok) return { reason: isCodingAnswerType(plan.answerType) ? 'coding' : 'spoken-format',
-    diagnostic: structure.missingSections.join(', ') };
+  // Promotion changes the answer's format, not its validation authority.
+  // Preserve explicit user format constraints; screenshot text is not an instruction.
+  const effectiveType = promotedScreenCoding && !coding ? 'dsa_question_answer' : plan.answerType;
+  const explicitContract = promotedScreenCoding
+    ? detectExplicitCodingContract(request.manualQuestion ?? request.userMessage ?? plan.question) : null;
+  const structure = validateAnswerStructure(effectiveType, answer, explicitContract);
+  if (!structure.ok) return { reason: isCodingAnswerType(effectiveType) ? 'coding' : 'spoken-format',
+    diagnostic: structure.missingSections.join(', ') || 'Honor the requested coding format.',
+    ...(promotedScreenCoding ? { unsafeToPersist: true } : {}) };
   if (!isCodingAnswerType(plan.answerType) && !promotedScreenCoding
       && (isScaffoldRegenerationEligible(plan.answerType, answer)
         || (request.liveAnswer && hasUnrecoveredScaffoldContamination(plan.answerType, answer)))) {
@@ -54,7 +60,7 @@ export function validateCanonicalAnswer(request: SneakPeekIntelligenceRequest, r
   if (technicalJson && /^\s*[\[{]/.test(answer)) return null;
   const coverage = assessAnswerCoverage(result.resolvedQuestion, answer);
   if (shouldAttemptClauseRepair(coverage)) return { reason: 'relevance', diagnostic: `Missing question clauses: ${coverage.missing.join('; ')}` };
-  if (request.liveAnswer && !isCodingAnswerType(plan.answerType)
+  if (request.liveAnswer && !isCodingAnswerType(effectiveType)
     && result.responsePlan.detailLevel === 'concise' && answer.split(/\s+/).length > 140) {
     return { reason: 'concise', diagnostic: 'Respect the original concise spoken response plan without removing supported facts.' };
   }

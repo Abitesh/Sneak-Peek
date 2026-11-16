@@ -1,5 +1,30 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0077 / TASK-0003 and TASK-0004 (2026-11-16)
+
+**CHG-20 Verified. C20-AC1 and C20-AC2 PASS.** See [surface map](../scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). **CHG-21 Implemented, unverified.** C21-AC1 passes for current authorized local scope. C21-AC2 remains open. Grounding, document directive handling and meeting timestamps improved. Final comparable rubric is 15/17, first-useful p95 2.343 s and engine-to-final maximum 4.803 s. Full STOP-click-to-final timing with STT/render and cross-provider/device evidence remain unverified. CHG-22 stays gated. See the [quality evaluation](../scripts/audit/chg21-quality-evaluation.md). Current evidence directory: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI`.
+
+## WORK-0076 / TASK-0003 / CHG-20 — one post-WORK-0075 failure (2026-11-16)
+
+**State: incremental patch prepared, owner macOS validation pending.** User applied WORK-0075, verified 36/36 focused tests plus five TS checks and both builds. The next `test:node-runner` finished with 8,898 PASS / **one failure** / 67 skip / 0 cancel. `&&` stopped before the other listed suites. ERR-090 explains the legacy WTA screenshot repeat-path failure: a non-code OCR screenshot is no longer promoted as code (correctly), but stale earlier answers must still be withheld on a blank/repeat screen press. New patch separates the two policies; the existing test retains negative history checks and now requires the neutral repeat directive.
+
+**Scope:** `electron/llm/WhatToAnswerLLM.ts` (legacy/compatibility path, not a new generator); `electron/llm/__tests__/suggestionPromptAssembly.test.mjs`, tracking records and `scripts/audit/chg20-work0076-evidence.md`. The WORK-0075 canonical provider/privacy/STOP repairs and installed runner are untouched. Preserve the owner's staged/unstaged status; do not reset, stash, commit or push.
+
+**Next owner checks:** validate ZIP/apply hash + reverse check; build Electron, run single failing test directly; then `test:node-runner`, `npm test`, remaining required suites and two-launch `run-chg20-desktop-acceptance.mjs` on fresh renderer/Electron builds. Large-suite logs to Downloads; small commands directly to terminal. If checks are green, review current diff/source-provenance and manually classify skipped/TODO/device/provider/Windows UI coverage before marking C20-AC2 accepted. C20-AC1 has owner-supplied independent source-level PASS; C20-AC2 pending; CHG-21 gated.
+
+## WORK-0075 / TASK-0003 / CHG-20 — completed partial-edit repair (2026-11-15)
+
+**State: bounded ZIP patch prepared against owner-uploaded continuation snapshot at main `c7d1f790`; macOS validation PENDING.** The owner ZIP includes six tracked worktree modifications and one already-installed, untracked CHG-20 runner. Do not reapply older patches, overwrite owner edits, or stage/commit/push/reset/stash. C20-AC1 source-level PASS from the owner's independent Copilot review; C20-AC2 remains PENDING and CHG-21 stays gated until post-patch macOS acceptance.
+
+**Owner logs:** `npm test` reports 9,101 total / 9,031 pass / 3 fail / 0 cancelled / 67 skipped. The separate all-checks `&&` chain passed five typechecks and both builds, then `test:node-runner` reported 8,966 total / 8,896 pass / 3 fail / 0 cancelled / 67 skipped and stopped the chain. The three failures are: speculative contaminated answer unexpectedly regenerated; a readable non-code screenshot incorrectly forced a coding-format repair; and speculative provider route snapshot failure escaped the catch. Subsequent listed suites in that chain are NOT evidenced by this log.
+
+**Patch contents:** preserve Codex's intended silent error event correction; move speculative route-snapshot errors into guarded fail-closed cleanup; restore no speculative post-generation repair; distinguish image-only uncertain code from a screenshot with readable non-code OCR while keeping explicit coding asks; validate real screen-promoted Solution code with the DSA six-section contract and preserve explicit `explain without code`. Expand the local answer-validation fixtures and update error/acceptance records. The previously installed untracked desktop runner is NOT touched by this incremental patch.
+
+**Local evidence:** TypeScript 5.8 transpilation of edited modules and JavaScript syntax checks PASSED. An isolated runtime check executed the real shared promotion predicate and real `AnswerValidator` structure checks through a TypeScript-to-CJS bridge with mocked unrelated environment/coverage dependencies: 5 promotion cases and 6 canonical-validator cases passed. Pure model tests are not a substitute for the user's compiled Electron, intelligence, renderer and real IPC runs. Forward/reverse Git patch checks against the exact uploaded files and ZIP integrity are recorded in `scripts/audit/chg20-work0075-evidence.md`.
+
+**Next:** apply only this incremental ZIP after integrity and `git apply --check`; first run focused `AnswerValidation`, `IntelligenceEngineSentinel`, `IntelligenceEngineScreenContext`, `IntelligenceEngineScaffoldContaminationFallback`, `ScaffoldStreamHold`; then all TS checks/builds, `npm test -- --test-concurrency=4`, intelligence and other named suites plus same-profile CHG-20 desktop acceptance. Save broad-suite logs only in Downloads. Reconcile any real new failure by source and rerun; independently review patched behavior/STOP, skip/TODO applicability and C20-AC2 before marking CHG-20 Verified. Windows Build Smoke for the **prior commit** passed; these incremental changes are NOT Windows CI-tested.
+
+
 ## WORK-0074 / TASK-0003 / CHG-20 (2026-11-15)
 
 **Implemented, unverified for final acceptance.** Current-tree diagnosis confirms WORK-0073 implementation and saved green suites; a fresh isolated two-launch desktop run also passed. ERR-086: permanent CHG-20 runner prepared as a verified ZIP patch, **not installed**. Detailed report/application/evidence: `/Users/abitesh/Downloads/Sneak-Peek-CHG20-WORK0074.zip` and matching directory. Owner index preserved (81 staged paths). Four tracking files updated only.
