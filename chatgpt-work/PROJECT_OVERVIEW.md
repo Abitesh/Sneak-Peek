@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## Current intelligence checks — WORK-0078 (2026-11-17)
+
+The canonical engine now gates stored history before resolving references, uses authorized uncitable snapshots on explicit follow-ups, recognizes selected multilingual screen phrases and separates meeting retrieval terms from formatting instructions. Global search presents meeting title and speaker separately while retaining internal provenance. The isolated desktop harness can measure actual Ollama responses through the rendered global overlay and the production transport using an opt-in loopback policy. See [current evidence](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17).
+
 ## Canonical intelligence and evaluation — WORK-0077 (2026-11-16)
 
 CHG-20 passed its two acceptance checks. The production entry points and supported compatibility paths are mapped in [the surface audit](../scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). For CHG-21, the shared prompt assembler now uses rendered factual evidence to say when a requested source did not yield support. It keeps retrieved directives separate from facts and keeps raw meeting timestamps in app provenance. The local evaluation runner exercises the canonical engine and stream controller with synthetic retrieval fixtures and an installed Ollama model. See the task tracker for CHG-21 acceptance status.

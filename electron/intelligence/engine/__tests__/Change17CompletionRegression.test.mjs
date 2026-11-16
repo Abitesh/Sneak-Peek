@@ -153,3 +153,83 @@ test('CHG-21: long-session follow-up preserves the latest completed manual excha
     clearConversationState(sessionId);
   }
 });
+
+test('denied conversation cannot rewrite a follow-up or leak its antecedent into the provider prompt', async () => {
+  const sessionId = 'chg21-denied-referent';
+  try {
+    appendConversationTurn({ sessionId, role: 'user', speaker: 'user', source: 'manual',
+      text: 'Why did we choose the synthetic BIRCHCANARY queue?', generationStatus: 'completed', requestSequence: 1 });
+    appendConversationTurn({ sessionId, role: 'assistant', speaker: 'assistant', source: 'manual',
+      text: 'For processing urgent jobs.', generationStatus: 'completed', requestSequence: 1 });
+    const engine = new SneakPeekIntelligenceEngine();
+    const question = 'Why did we choose that queue?';
+    const allowed = await engine.handle(makeRequest(sessionId, question));
+    assert.match(allowed.resolvedQuestion, /BIRCHCANARY/);
+    const denied = await engine.handle(makeRequest(sessionId, question, {
+      contextPermissions: { ...permissions, conversation: false },
+    }));
+    assert.equal(denied.resolvedQuestion, question);
+    assert.doesNotMatch(denied.prompt.finalPrompt, /BIRCHCANARY|urgent jobs/);
+    assert.ok(denied.contextPlan.forbiddenSources.includes('recent_conversation'));
+    assert.deepEqual(denied.conversationContext.immediatePreviousTurns, []);
+    assert.doesNotMatch(JSON.stringify(denied.conversationContext), /BIRCHCANARY|urgent jobs/);
+  } finally {
+    clearConversationState(sessionId);
+  }
+});
+
+test('an explicit follow-up can use authorized uncitable continuity without an indexed antecedent', async () => {
+  const engine = new SneakPeekIntelligenceEngine();
+  const question = 'Why did we choose that queue?';
+  const snapshot = 'A priority queue lets urgent repair jobs run first.';
+  const request = makeRequest('chg21-snapshot-only', question, { surface: 'follow-up', sessionSnapshot: snapshot });
+  const allowed = await engine.handle(request);
+  assert.match(allowed.prompt.finalPrompt, /<session_snapshot [^>]*citation_authority="none"/);
+  assert.match(allowed.prompt.finalPrompt, /urgent repair jobs/);
+  assert.deepEqual(allowed.diagnostics.retrieval, []);
+  const denied = await engine.handle({ ...request, contextPermissions: { ...permissions, conversation: false } });
+  assert.doesNotMatch(denied.prompt.finalPrompt, /urgent repair jobs/);
+});
+
+test('explicit multilingual screen references select screen evidence only with a permitted attachment', async () => {
+  const engine = new SneakPeekIntelligenceEngine();
+  for (const question of [
+    'En español, ¿qué indica el error en mi pantalla?',
+    'Que signifie cette erreur sur mon écran ?',
+    'Was bedeutet der Fehler auf meinem Bildschirm?',
+  ]) {
+    const request = makeRequest(question, question, {
+      screenContext: { text: 'Synthetic OCR: permission denied' },
+      contextPermissions: { ...permissions, screen: true },
+    });
+    const allowed = await engine.handle(request);
+    assert.ok(allowed.contextPlan.requiredSources.includes('screen'));
+    assert.match(allowed.prompt.finalPrompt, /Synthetic OCR: permission denied/);
+    const denied = await engine.handle({ ...request, contextPermissions: { ...permissions, screen: false } });
+    assert.doesNotMatch(denied.prompt.finalPrompt, /Synthetic OCR/);
+    const missing = await engine.handle({ ...request, screenContext: undefined });
+    assert.ok(!missing.contextPlan.requiredSources.includes('screen'));
+  }
+});
+
+test('meeting search omits answer formatting from retrieval while preserving the current question', async () => {
+  const question = 'According to the meetings, which one selected violet leases, and why? Reply in one sentence.';
+  const queries = [];
+  const engine = new SneakPeekIntelligenceEngine({
+    retrievalCoordinator: new RetrievalCoordinator({
+      capabilities: [createRetrievalCapability('meeting_transcript', async ({ query, request }) => {
+        queries.push(query);
+        assert.deepEqual(request.retrievalScope, { kind: 'global-meetings' });
+        return { items: [] };
+      })],
+    }),
+  });
+  const result = await engine.handle(makeRequest('chg21-meeting-format', question, {
+    surface: 'global-rag',
+    retrievalScope: { kind: 'global-meetings' },
+    contextPermissions: { ...permissions, transcript: true },
+  }));
+  assert.deepEqual(queries, ['which one selected violet leases, and why?']);
+  assert.equal(result.resolvedQuestion, question);
+  assert.ok(result.prompt.finalPrompt.includes(question));
+});

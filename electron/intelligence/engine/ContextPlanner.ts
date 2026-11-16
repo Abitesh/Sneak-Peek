@@ -282,6 +282,14 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   }
 
   if (!request.action && (!request.liveAnswer || request.answerContext) && !request.documentDraft && !request.imageAnalysis) {
+    // An explicit follow-up can have authorized request-local continuity
+    // before the session store has an indexed question/answer antecedent.
+    if (request.surface === 'follow-up' && understanding.followUp
+      && request.contextPermissions.conversation && request.sessionSnapshot?.trim()
+      && ['general-question', 'follow-up', 'conversational-response', 'ambiguous'].includes(understanding.intent)) {
+      require('recent_conversation');
+      rationale.push('Explicit follow-up uses the supplied conversation as uncitable continuity.');
+    }
     // A phone history snapshot may include prior assistant answers with private
     // source lineage. Only include it as conversation (never cited evidence),
     // and do not let old project/profile claims override this turn's exact sources.

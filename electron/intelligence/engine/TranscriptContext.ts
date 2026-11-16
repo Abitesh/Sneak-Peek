@@ -27,6 +27,8 @@ export interface RecentConversationContextRequest {
   recentWindowSeconds?: number;
   /** Interim transcript turns are useful for live question detection. Default: true. */
   includeNonFinalized?: boolean;
+  /** False keeps only the supplied current turn and does not read stored history. */
+  includePreviousTurns?: boolean;
 }
 
 export interface RecentConversationContext {
@@ -89,8 +91,9 @@ export function getRecentConversationContext(
     : DEFAULT_RECENT_WINDOW_SECONDS;
   const includeNonFinalized = request.includeNonFinalized !== false;
 
-  const state = getConversationState(request.sessionId);
-  const storedCurrent = getCurrentConversationTurn(request.sessionId);
+  const readPrevious = request.includePreviousTurns !== false;
+  const state = readPrevious ? getConversationState(request.sessionId) : undefined;
+  const storedCurrent = readPrevious && !request.currentTurn ? getCurrentConversationTurn(request.sessionId) : undefined;
   const currentTurn = request.currentTurn ?? storedCurrent ?? (
     request.currentQuestion?.trim()
       ? {
@@ -105,11 +108,11 @@ export function getRecentConversationContext(
       : null
   );
 
-  let recent = getConversationWindow(request.sessionId, {
+  let recent = readPrevious ? getConversationWindow(request.sessionId, {
     seconds: windowSeconds,
     limit: recentLimit,
     includeNonFinalized,
-  });
+  }) : [];
   recent = recent.filter((turn) => turn.id === currentTurn?.id || isUsableConversationTurn(turn));
 
   // A live/interim current turn may not have reached the canonical store yet.

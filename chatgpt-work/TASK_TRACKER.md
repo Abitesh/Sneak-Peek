@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0078 / TASK-0004 / CHG-21 (2026-11-17)
+
+**Implemented, unverified.** Follow-up permissions/continuity, multilingual OCR, scoped meeting retrieval, attribution, and real rendered timing coverage improved. The final local core suites and desktop smoke passed. C21-AC1 local PASS. C21-AC2 open for factual review, repeated latency and real STT-to-render timing. CHG-22 has not begun. See the [evaluation and exact checklist](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.
+
 ## WORK-0077 / TASK-0003 and TASK-0004 (2026-11-16)
 
 **CHG-20 Verified. C20-AC1 and C20-AC2 PASS.** See [surface map](../scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). **CHG-21 Implemented, unverified.** C21-AC1 passes for current authorized local scope. C21-AC2 remains open. Grounding, document directive handling and meeting timestamps improved. Final comparable rubric is 15/17, first-useful p95 2.343 s and engine-to-final maximum 4.803 s. Full STOP-click-to-final timing with STT/render and cross-provider/device evidence remain unverified. CHG-22 stays gated. See the [quality evaluation](../scripts/audit/chg21-quality-evaluation.md). Current evidence directory: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI`.
@@ -335,7 +339,7 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-18 | Implemented, unverified for broader acceptance | ROADMAP CHG-18 / WORK-0026 | Combined implementation was owner-authorized; scoped engine/IPC and desktop tests pass, but full acceptance/cutover criteria are not all verified. Do not mark planned or fully accepted based on CHG-19. |
 | CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
 | CHG-20 | Verified | ROADMAP CHG-20 / TASK-0003 / WORK-0077 | C20-AC1 and C20-AC2 PASS. |
-| CHG-21 | Implemented, unverified | ROADMAP CHG-21 / TASK-0004 / WORK-0077 | Local regression evidence passed. Quality and full desktop latency acceptance remain open. |
+| CHG-21 | Implemented, unverified | ROADMAP CHG-21 / TASK-0004 / WORK-0078 | Current local regression and real rendered smoke passed. Quality and latency acceptance remain open. |
 | CHG-22 | Planned | ROADMAP CHG-22 | Wait for predecessor acceptance; do not start by deleting legacy code. |
 | FEAT-001 | Planned | ROADMAP FEAT-001 | Separate explicitly approved audio/UI integration task; do not rewrite capture during CHG-17. |
 | FEAT-002 | Planned | ROADMAP FEAT-002 | Performance target; depends on transcript handoff, retrieval, provider health and agreed output bounds. |

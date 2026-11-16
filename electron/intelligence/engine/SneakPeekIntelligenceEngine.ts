@@ -37,6 +37,15 @@ export interface SneakPeekGenerationPort {
   }): AsyncGenerator<string, void, unknown>;
 }
 
+// Presentation-only wrappers must not become required lexical evidence terms.
+function meetingRetrievalQuery(question: string): string {
+  const cleaned = question
+    .replace(/^according to (?:the|these|my) meetings?,\s*/i, '')
+    .replace(/([?!.])\s*(?:answer|reply|respond) in (?:one|two|three|[123]) (?:sentences?|bullets?)[.!]?\s*$/i, '$1')
+    .trim();
+  return cleaned || question;
+}
+
 export class SneakPeekIntelligenceEngine {
   private readonly retrievalCoordinator: RetrievalCoordinator;
   private readonly generationPort?: SneakPeekGenerationPort;
@@ -204,7 +213,7 @@ export class SneakPeekIntelligenceEngine {
     stages.push('understand');
     pipelineStages.push('TurnUnderstanding');
     const resolvedQuestion = this.resolveQuestion(request);
-    const storedConversation = getConversationState(request.sessionId);
+    const storedConversation = request.contextPermissions.conversation ? getConversationState(request.sessionId) : undefined;
     const turnUnderstanding = understandTurn({
       manualQuestion: request.manualQuestion ?? request.userMessage,
       selectedText: request.manualQuestion,
@@ -224,8 +233,9 @@ export class SneakPeekIntelligenceEngine {
       sessionId: request.sessionId,
       currentTurn: this.toConversationTurn(request.currentTurn),
       currentQuestion: request.userMessage,
+      includePreviousTurns: request.contextPermissions.conversation,
     });
-    if (request.answerContext) {
+    if (request.answerContext && request.contextPermissions.conversation) {
       const turns = request.recentConversation.slice(-12).map(turn => this.toConversationTurn(turn));
       const currentTurn = this.toConversationTurn(request.currentTurn);
       conversationContext = { currentTurn, immediatePreviousTurns: turns.filter(turn => turn.id !== currentTurn.id).slice(-2).reverse(),
@@ -259,7 +269,9 @@ export class SneakPeekIntelligenceEngine {
     pipelineStages.push('RetrievalCoordinator');
     const retrievalQuery = contextPlan.requiredSources.includes('project_knowledge')
       ? projectRetrievalQuery(turnUnderstanding.question || resolvedQuestion, request.activeContext?.projectName, request.activeContext?.projectSourceIds)
-      : turnUnderstanding.question || resolvedQuestion;
+      : request.retrievalScope
+        ? meetingRetrievalQuery(turnUnderstanding.question || resolvedQuestion)
+        : turnUnderstanding.question || resolvedQuestion;
     const retrievalPlan = this.planRetrieval(retrievalQuery, contextPlan);
 
     if (lifecycle?.state === 'PLANNING') lifecycle.transition('RETRIEVING', 'context plan created; retrieval started');
@@ -351,7 +363,7 @@ export class SneakPeekIntelligenceEngine {
     const cancelledUnderstanding = understandTurn({
       manualQuestion: request.manualQuestion ?? request.userMessage,
       sessionId: request.sessionId,
-      conversationState: getConversationState(request.sessionId),
+      conversationState: request.contextPermissions.conversation ? getConversationState(request.sessionId) : undefined,
       hasScreenContext: Boolean(request.screenContext),
     });
     // Follow-up resolution may use stored conversation state. The cancelled
@@ -369,6 +381,7 @@ export class SneakPeekIntelligenceEngine {
       sessionId: request.sessionId,
       currentTurn: this.toConversationTurn(request.currentTurn),
       currentQuestion: request.userMessage,
+      includePreviousTurns: request.contextPermissions.conversation,
     });
     const evidence = { items: [], sufficient: false };
     const evidencePack = buildEvidencePackFromSneakPeekEvidence({

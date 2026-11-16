@@ -7,7 +7,7 @@ const { app, BrowserWindow, safeStorage, systemPreferences, desktopCapturer, dia
 const root = path.resolve(__dirname, '../..');
 const temp = process.env.SNEAK_PEEK_ACCEPTANCE_ROOT;
 if (!temp || !fs.existsSync(path.join(temp, 'sandbox.sb'))) throw new Error('Use the sandboxed acceptance runner');
-const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG19_PHASE']);
+const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG19_PHASE', 'CHG21_LOCAL_OLLAMA']);
 for (const key of Object.keys(process.env)) if (!keep.has(key)) delete process.env[key];
 for (const key of ['appData','userData','sessionData','logs','crashDumps','documents','downloads','desktop','temp']) {
   const dir = path.join(temp, key); fs.mkdirSync(dir, { recursive: true }); app.setPath(key, dir);
@@ -91,6 +91,7 @@ app.whenReady().then(async () => {
   }
   const state = AppState.getInstance();
   const helper = state.processingHelper.getLLMHelper();
+  const productionStream = helper.streamFinalPrompt.bind(helper);
   const rag = await waitFor(() => state.getRAGManager(), 'real RAG manager');
   // Only model transports are deterministic. Actual source adapters, lexical
   // retrieval, planner, prompt, provider router and stream controller run.
@@ -144,8 +145,9 @@ app.whenReady().then(async () => {
   };
   const read = rag.readPlannedCanonicalSource.bind(rag);
   rag.readPlannedCanonicalSource = async input => {
+    const startedAt = performance.now();
     const result = await read(input);
-    reads.push({ requestId: scope.getStore()?.requestId, sourceType: input.sourceType, sourceId: input.sourceId ?? null, sessionId: input.sessionId, resultSourceIds: result.results.map(r => r.source.id), usedCanonical: result.usedCanonical });
+    reads.push({ startedAt, finishedAt: performance.now(), requestId: scope.getStore()?.requestId, sourceType: input.sourceType, sourceId: input.sourceId ?? null, sessionId: input.sessionId, resultSourceIds: result.results.map(r => r.source.id), usedCanonical: result.usedCanonical });
     return result;
   };
   const { DatabaseManager } = require(path.join(root, 'dist-electron/electron/db/DatabaseManager.js'));
@@ -195,7 +197,9 @@ app.whenReady().then(async () => {
     await win.webContents.insertText(value);
     // Allow the actual controlled React input and search menu to settle.
     await paint();
+    const submittedAt = performance.now();
     for (let i = 0; i < repeats; i++) { win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' }); }
+    return submittedAt;
   }
   async function open(type, label) {
     if (type === 'meeting' && !(await js(`Boolean(document.querySelector('input[placeholder="Ask about this meeting..."]'))`))) {
@@ -370,21 +374,24 @@ app.whenReady().then(async () => {
           };
           try {
             const results = {};
+            let stopSettlementMs;
             for (const kind of ['EARLY_FAIL', 'AFTER_COMMIT', 'STOP_PARKED']) {
               current = [];
               const submit = window.electronAPI.streamGeminiChat('Explain the synthetic test ' + kind);
               if (kind === 'STOP_PARKED') {
                 await waitForEvent(event => event.kind === 'token' && event.token === 'Visible before STOP.');
+                const stopAt = performance.now();
                 window.electronAPI.cancelChatStream();
                 const settled = await Promise.race([submit.then(() => true), new Promise(resolve => setTimeout(() => resolve(false), 1000))]);
                 if (!settled) throw new Error('STOP did not settle while the provider remained parked');
+                stopSettlementMs = performance.now() - stopAt;
               } else {
                 await submit;
                 await waitForEvent(event => event.kind === (kind === 'EARLY_FAIL' ? 'done' : 'error'));
               }
               results[kind] = current.slice();
             }
-            return results;
+            return { ...results, stopSettlementMs };
           } catch (error) { off.forEach(stop => stop()); throw error; }
           finally { window.__manualLifecycleOff = off; }
         })()`);
@@ -394,7 +401,7 @@ app.whenReady().then(async () => {
         assert.equal(observedStopSignal?.aborted, true);
         releaseParked();
         await waitFor(() => lateManualAttempted, 'parked manual provider attempted a late token');
-        const previousCount = Object.values(manual).reduce((count, list) => count + list.length, 0);
+        const previousCount = [manual.EARLY_FAIL, manual.AFTER_COMMIT, manual.STOP_PARKED].reduce((count, list) => count + list.length, 0);
         await js(`window.electronAPI.streamGeminiChat('Explain the synthetic test POST_STOP_RECOVERY')`);
         await waitFor(() => js(`window.__manualLifecycleEvents.length >= ${previousCount + 2}`), 'manual recovery IPC events');
         await paint();
@@ -409,8 +416,8 @@ app.whenReady().then(async () => {
           ['POST_STOP_RECOVERY', 'selected-synthetic-model'],
         ]);
         scenarios.push({ id: 'WORK-0073-MANUAL-LIFECYCLE', status: 'PASS', attempts,
-          eventKinds: Object.fromEntries(Object.entries(manual).map(([key, value]) => [key, value.map(event => event.kind)])),
-          stopSettledBeforeProviderRelease: true, lateManualAttempted,
+          eventKinds: Object.fromEntries(Object.entries(manual).filter(([, value]) => Array.isArray(value)).map(([key, value]) => [key, value.map(event => event.kind)])),
+          stopSettledBeforeProviderRelease: true, stopSettlementMs: manual.stopSettlementMs, lateManualAttempted,
           postReleaseEvents: recovery.map(event => event.kind),
           cancelledStreamId: manual.STOP_PARKED[0].meta.streamId,
           recoveryStreamId: recovery[0].meta.streamId });
@@ -455,6 +462,94 @@ app.whenReady().then(async () => {
     // Return through the actual launcher back button to open global search.
     await js(`document.querySelector('button svg.lucide-arrow-left').closest('button').click()`);
     await closeScenario('global', 'Escape'); await closeScenario('global', 'X');
+    if (process.env.CHG21_LOCAL_OLLAMA === '1') {
+      const previous = { transport: helper.streamFinalPrompt, route: helper.getSneakPeekGenerationRouteOptions, url: helper.ollamaUrl };
+      const model = 'llama3.2:3b';
+      try {
+        helper.ollamaUrl = 'http://127.0.0.1:11436';
+        helper.getSneakPeekGenerationRouteOptions = () => ({
+          capability: 'stream_chat', preferredProvider: 'ollama', allowedProviders: ['ollama'],
+          availability: { hasOllama: true }, models: { ollama: model }, maxAttempts: 1,
+        });
+        helper.streamFinalPrompt = async function* (provider, selected, prompt, options) {
+          const row = scope.getStore();
+          assert.ok(row?.requestId);
+          assert.equal(provider, 'ollama');
+          assert.equal(selected, model);
+          assert.doesNotMatch(prompt, /FORBIDDEN_PERSONAL_CANARY/);
+          row.providerStartedAt = performance.now();
+          row.prompt = prompt;
+          row.providerCalls = (row.providerCalls ?? 0) + 1;
+          for await (const token of productionStream(provider, selected, prompt, options)) {
+            if (row.providerFirstAt === undefined && token.trim()) row.providerFirstAt = performance.now();
+            yield token;
+          }
+          row.providerFinishedAt = performance.now();
+        };
+        const multiFacts = [/violet leases/i, /crash recovery/i, /rate limiting/i, /Synthetic Meeting A/i, /Synthetic Meeting B/i];
+        const cases = [
+          ...Array.from({ length: 3 }, () => ({
+            label: 'ambiguous-singular-reference',
+            question: 'According to the meetings, which one selected violet leases, and why? Reply in one sentence.',
+            expected: multiFacts,
+          })),
+          {
+            label: 'explicit-multiple-meetings',
+            question: 'According to the meetings, which meetings selected violet leases, and why? Reply in one sentence.',
+            expected: multiFacts,
+          },
+          {
+            label: 'specific-grounded-lookup',
+            question: 'According to the meetings, which meeting selected violet leases for crash recovery? Reply in one sentence.',
+            expected: [/violet leases/i, /crash recovery/i, /Synthetic Meeting A/i],
+            forbidden: /Synthetic Meeting B/i,
+          },
+        ];
+        for (const [index, fixture] of cases.entries()) {
+          const trial = index + 1;
+          const before = records.length;
+          const triggeredAt = await input('input[placeholder="Search or ask anything..."]', fixture.question);
+          const row = await waitFor(() => records.slice(before).find(r => r.channel === 'rag:query-global' && r.providerStartedAt),
+            'local-model global retrieval and dispatch');
+          const observedText = () => js(`(() => {
+            const copy = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Copy message');
+            if (copy) return copy.parentElement.firstElementChild.textContent.trim();
+            return Array.from(document.querySelectorAll('.items-start.mb-6 > div')).map(e=>e.textContent.trim()).filter(Boolean).at(-1) ?? '';
+          })()`);
+          const firstVisibleAt = await waitFor(async () => (await observedText()).length >= 5 && performance.now(), 'first visible local-model text');
+          await waitFor(() => row.settledAt, 'local-model global settled');
+          const own = events.filter(event => event.requestId === row.requestId);
+          assert.equal(own.filter(event => event.channel === 'rag:stream-complete').length, 1);
+          assert.equal(own.filter(event => event.channel === 'rag:stream-error').length, 0);
+          const generated = own.filter(event => event.channel === 'rag:stream-chunk').map(event => event.payload.chunk).join('').trim();
+          assert.ok(generated, 'the local provider must generate an answer');
+          await waitFor(async () => (await observedText()) === generated, 'full local-model answer visible and matching the stream');
+          await paint();
+          const finalVisibleAt = performance.now();
+          const sourceReads = reads.filter(read => read.requestId === row.requestId);
+          assert.equal(sourceReads.length, 1);
+          assert.ok(sourceReads[0].resultSourceIds.every(id => ['chg19-a', 'chg19-b'].includes(id)));
+          const mark = value => Math.round(value - triggeredAt);
+          scenarios.push({ id: 'WORK-0078-LOCAL-GLOBAL', status: 'OBSERVED', trial, model, case: fixture.label, answer: generated,
+            useful: fixture.expected.every(rule => rule.test(generated)) && !fixture.forbidden?.test(generated),
+            resultSourceIds: sourceReads[0].resultSourceIds,
+            promptBytes: Buffer.byteLength(row.prompt),
+            triggerToIpcMs: mark(row.at), retrievalMs: Math.round(sourceReads[0].finishedAt - sourceReads[0].startedAt),
+            triggerToProviderMs: mark(row.providerStartedAt), providerFirstMs: Math.round(row.providerFirstAt - row.providerStartedAt),
+            firstVisibleMs: mark(firstVisibleAt), providerDoneMs: mark(row.providerFinishedAt), finalVisibleMs: mark(finalVisibleAt),
+            stt: 'not applicable to saved meeting search', attempts: row.providerCalls,
+            screenshot: await screenshot('local-global-' + trial) });
+          save();
+          win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+          win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+          await waitFor(async () => !(await visible('global')), 'close local-model global overlay');
+        }
+      } finally {
+        helper.streamFinalPrompt = previous.transport;
+        helper.getSneakPeekGenerationRouteOptions = previous.route;
+        helper.ollamaUrl = previous.url;
+      }
+    }
     // Exercise the real renderer's unavailable path with an unavailable RAG
     // manager. A project-like question must never enter ordinary chat.
     const originalGetRAGManager = state.getRAGManager;

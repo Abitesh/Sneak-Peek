@@ -1,5 +1,29 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-102 — Global answer loses meeting attribution across two matching records (2026-11-17)
+
+WORK-0078 / TASK-0004. After fixing query pollution, one source read returned both authorized meetings. Across three real-model rendered runs the model reported only one reason with no meeting title. One response misattributed the claim to ContextPlan. The exact titles were buried in serialized internal provenance. Present global meeting title and speaker as concise source fields, keep internal provenance in the evidence pack and instruct the model to report each independently relevant match. The first all-meetings variant removed the saved-meeting fallback provenance marker and dropped citation from the single-meeting model fixture. Keep the single-meeting prompt and fallback markers intact. The first focused check of the narrowed global branch also failed because the test builder discarded retrievalScope. Forward the scope in the fixture and retain the title, speaker, and provenance assertions.
+
+## ERR-100 — Global meeting lookup treats answer formatting as evidence terms (2026-11-17)
+
+WORK-0078 / TASK-0004. Three real-model macOS global overlay trials used “According to the meetings, which one selected violet leases, and why? Reply in one sentence.” The local transport completed in 844–1394 ms, but the scoped meeting reader returned zero rows. The known meeting chunks contain the decision and the reason. The existing strict-majority lexical gate receives the response wrapper as factual terms. Remove only explicit meeting wrappers and narrowly matched answer-length suffixes at the canonical retrieval-query boundary. Preserve the verbatim current question, single source read, scope, scores and storage. Reuse the same desktop question in the rerun.
+
+## ERR-101 — Retrieved OCR prompt text quoted an unrelated directive (2026-11-17)
+
+WORK-0078 / TASK-0004. After the Spanish OCR route fix, the actual local model identified the permission error but quoted the synthetic directive from the OCR. Image policy covered pixels; rendered screen text lacked adjacent use instructions. Apply data-only guidance at the screen-text section and recheck the unchanged expanded case.
+
+## ERR-099 — Explicit non-English screen reference drops available OCR (2026-11-17)
+
+WORK-0078 / TASK-0004. Expanded local evaluation asked about “el error en mi pantalla” with OCR attached. The canonical planner chose no screen evidence, and the model guessed generic causes instead of explaining the visible permission error. The screen detector recognized only English. Add explicit Spanish, French and German references, preserving the existing screen-attachment and permission requirements.
+
+## ERR-097 — Denied conversation can influence the provider-facing question (2026-11-17)
+
+WORK-0078 / TASK-0004. Compiled negative case: same-session stored conversation resolved “that queue” to a synthetic private topic before the planner respected the denied conversation permission. Even with no rendered conversation section, the rewritten current question carried the topic. Guard stored context before understanding, including cancellation.
+
+## ERR-098 — Explicit follow-up drops an authorized snapshot without a stored referent (2026-11-17)
+
+WORK-0078 / TASK-0004. Fresh local evaluation kept the follow-up failure. The Follow-up surface had a supplied snapshot and an understood referential question; the general-question branch did not select recent conversation, so the model could not see it. Reproduced through the actual compiled engine. Preserve source permissions and reference-only treatment.
+
 ## ERR-096 — Manual lifecycle fixture can match a previous scenario in conversation history (2026-11-16)
 
 WORK-0077 / TASK-0004. Final desktop rerun failed before cancelling: the STOP request completed and the fixture did not observe its pre-STOP token. The transport selected the first marker anywhere in the final prompt, so a retained previous request could select the wrong mock behavior. Read the marker only from the canonical current-question section. Wait for observed pre-STOP text and terminal events instead of relying on invoke completion ordering.
@@ -923,3 +947,6 @@ WORK-0075 / TASK-0003. Confirmed source: validateCanonicalAnswer returns null fo
 
 
 **WORK-0077 CHG-21 resolutions:** ERR-093 and ERR-095 reproduced against old compiled output and passed focused and broad checks after repair. ERR-094 canary quoted in 1 baseline case and 0 final cases with the same model and synthetic document. This verifies the tested example. ERR-096 was isolated to scenario matching and renderer event ordering in the acceptance fixture. Final two-launch run passed after current-question matching and explicit event waits. See `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI/desktop-final/result.json`. Spanish FIFO factual error and local p95 miss remain open quality findings rather than failed automated suites.
+
+
+**WORK-0078 outcomes:** ERR-097–100 pass focused regressions and final local suites. Screen-injection ERR-101 was corrected for the tested Spanish OCR prompt across final repeats. ERR-102 improves title attribution, with complete explicit plural and specific answers on the rendered matrix, but the ambiguous query still omits a second matching record. This remains open for answer completeness. The model also misdescribed FIFO and missed the first-useful and six-second targets in observed runs. Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.

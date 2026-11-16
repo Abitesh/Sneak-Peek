@@ -47,6 +47,7 @@ function makeRequest(message, overrides = {}) {
     manualQuestion: overrides.manualQuestion,
     screenContext: overrides.screenContext,
     activeContext: overrides.activeContext,
+    retrievalScope: overrides.retrievalScope,
     responseShape: overrides.responseShape,
     providerPreferences: overrides.providerPreferences,
     contextPermissions: overrides.contextPermissions ?? ALL_PERMISSIONS,
@@ -508,14 +509,17 @@ test('meeting grounding retains raw timestamps internally and only exposes usabl
       sourceId: 'synthetic-only', documentName: 'Synthetic meeting', speaker: 'Morgan', timestampStart: 42000,
     })],
     overrides: {
-      surface: 'meeting-overlay',
+      surface: 'global-rag',
+      retrievalScope: { kind: 'global-meetings' },
       activeContext: { meetingId: 'synthetic-only' },
       transcriptContext: { source: 'meeting', text: 'Synthetic meeting' },
     },
     assertResult: ({ result }) => {
       assert.equal(result.evidencePack.items[0].provenance.timestampStart, 42000);
       assert.match(result.prompt.finalPrompt, /At 00:42 Morgan confirmed violet leases/);
-      assert.match(result.prompt.finalPrompt, /Synthetic meeting/);
+      assert.match(result.prompt.finalPrompt, /<meeting_title>Synthetic meeting<\/meeting_title>/);
+      assert.match(result.prompt.finalPrompt, /<speaker>Morgan<\/speaker>/);
+      assert.doesNotMatch(result.prompt.finalPrompt, /Selected by ContextPlan/);
       assert.doesNotMatch(result.prompt.finalPrompt, /timestampStart|42000/);
     },
   });

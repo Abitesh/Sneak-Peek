@@ -79,3 +79,71 @@ Earlier final desktop run failed because a fixture looked for scenario markers t
 Production changes: `electron/intelligence/engine/PromptAssembler.ts` and `SneakPeekIntelligenceEngine.ts`. Regression additions: `electron/intelligence/__tests__/SneakPeekIntelligenceBehavioralEvaluation.test.mjs`, `electron/intelligence/engine/__tests__/Change17CompletionRegression.test.mjs`, and disposable desktop harness `scripts/audit/chg19-desktop-acceptance.cjs`. Evaluation tool and runbook are `scripts/audit/chg21-quality-evaluation.mjs` and this file. The roadmap, all current tracking records, project overview/tree and CHG-20 surface map were reconciled. Dormant compatibility and separate non-answer tasks are listed in the surface map. The reviewed diff has no changes to native audio, packaging, credentials, RAG storage, selected model/router, or IPC/preload contracts.
 
 Raw files: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI/quality-baseline.json`, `quality-final.json` (first iteration), `quality-recheck.json` (final), `final-*.log`, and `COPILOT-ASK.md`. The owner updated Git staging during the initial run. The observed later index was preserved byte for byte by the agent. CHG-20 Verified. CHG-21 is Implemented, unverified. C21-AC1 passes the authorized local regression scope. C21-AC2 remains open. CHG-22 stays gated.
+
+
+## WORK-0078 — Repeated local model and rendered acceptance (2026-11-17)
+
+**C21-AC1 PASS for authorized local scope. C21-AC2 remains open.** CHG-22 has not begun. See these results before relying on earlier WORK-0077 measurements.
+
+### Reproduction and verified changes
+
+- ERR-097: the compiled engine formerly resolved a denied follow-up against stored history before enforcing conversation permission. Gate resolution and returned conversation context, including cancellation. An allowed prior topic is still resolved, while denial leaves the literal question and no previous turns.
+- ERR-098: the explicit Follow-up surface now selects its authorized request snapshot when the question is referential and the session has no indexed antecedent. The snapshot has no citation authority. The original follow-up and the separate completed-session case both passed all three repeats.
+- ERR-099/101: Spanish, French and German explicit screen references select an attached, permitted screen. Treat OCR as data at the prompt boundary. The English OCR command canary was quoted at an intermediate revision. The unchanged Spanish OCR question identified the permission error and omitted the canary on the final repeats. No model-wide resistance claim follows.
+- ERR-100: remove a leading “according to the meetings” wrapper and a narrow trailing answer-format instruction only from the saved/global retrieval query. Do not change the actual question, selected source, number of reads, matching threshold or ranking. The failing real global request recovered both authorized rows in one production read.
+- ERR-102: compact global meeting evidence to explicit title and speaker fields while retaining complete internal typed provenance. The first attempt changed single-meeting formatting, causing a saved fallback verification failure and a single-meeting citation miss in the benchmark. Restored the single-meeting path and its fallback markers. The first focused global-format fixture also failed because the generic test builder discarded retrievalScope. The corrected fixture exercises the actual scoped branch and asserts visible labels and the preserved internal timestamp. Final focused suite passed 71/71.
+- General standalone response prompts ask for concrete definitions, distinct comparison rules and code constraint checks. The expanded TypeScript case originally mutated its input. The final model returned a copy-based numerical sort in all repeats.
+
+### Real model results
+
+macOS 26.4.1 arm64, Node 22.18.0, existing Ollama 0.33.0 and llama3.2:3b. The fresh WORK-0077 baseline at 95282d41 and three final repeats use the same local model, deterministic engine evaluator settings and unchanged 17 common prompts/assertions. Each final repeat also runs the existing completed exchange plus eight new case types. Tagged provider events report model load, prefill and decode. The engine benchmark still uses synthetic retrieval. First useful text is the established five-character proxy. The renderer benchmark below uses actual scoped SQLite retrieval and the production Ollama transport.
+
+| Run | Original 17 raw passes | Expanded raw passes | Original p95 first useful (ms) | Expanded p95 first useful (ms) | Maximum completion, all cases (ms) | Common input tokens |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fresh WORK-0077 | 15/17 | 16/18 (no new cases) | 1049 | 1049 (18 cases) | 2104 | 5669 |
+| Final 1 | 17/17 | 24/26 | 1020 | 824 | 2117 | 6058 |
+| Final 2 | 17/17 | 24/26 | 1994 | 1994 | 6887 | 6058 |
+| Final 3 | 17/17 | 24/26 | 2052 | 2052 | 4985 | 6058 |
+
+Keep the raw result alongside human review. The Spanish FIFO definition passes the original regex but incorrectly calls FIFO a priority queue in every repeat. The Spanish stack/queue comparison remains wrong. The French LRU paraphrase omits the matcher’s literal words. No score was changed to compensate for these. The OCR/injection, non-mutating code, completed follow-up, denied-file and missing-evidence controls show concrete gains. All common runs made 11 retrieval calls, with zero duplicate scopes. The slower repeat spent about 6.55 s in model decoding on the failed Spanish comparison. Median prefill across final runs was about 80–209 ms and median decoding about 644–1575 ms. Run 3 also missed the p95 target. This current fresh baseline was much faster than the historical 2.343 s p95. The repeated results do not establish a general speed improvement.
+
+### Rendered global search and STOP
+
+The optional desktop run exercises the real launcher, actual scoped reads, the regular provider controller and production loopback transport with an isolated profile and synthetic meetings. The other lifecycle/vision cases retain deterministic transports. Captured at action submission, IPC arrival, scoped SQLite retrieval, first non-whitespace provider text, first rendered text and complete answer matched to the stream. The visible measurements include polling/paint overhead. STT is not applicable to saved meetings. Each trial made one scoped read and one provider attempt, and the prompt omitted the personal canary.
+
+| Case | Action→IPC ms | Retrieval ms (rounded) | Provider→first ms | Action→first visible ms | Action→complete visible ms | Full grounded answer |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| ambiguous-singular-reference (1) | 308 | 1 | 160 | 797 | 2117 | Partial |
+| ambiguous-singular-reference (2) | 306 | 1 | 40 | 719 | 1521 | Partial |
+| ambiguous-singular-reference (3) | 308 | 1 | 39 | 451 | 1223 | Partial |
+| explicit-multiple-meetings (4) | 307 | 1 | 2339 | 3154 | 6268 | Yes |
+| specific-grounded-lookup (5) | 307 | 1 | 2198 | 2780 | 3931 | Yes |
+
+The first desktop experiment returned no evidence for the original ambiguous request and all three visible answers were refusals (844–1394 ms). The query fix brought both records back. Before attribution changes the model answered a single reason with no meeting title in all three runs. Compact labels reduced that same two-record prompt from 3,520 to 2,568 bytes, and the tested model consistently named the source of the reason it reported. It still omitted the second matching record in the ambiguous singular case. The explicit plural and specific cases both returned supported, appropriately attributed answers. The plural case took 6.268 s. An earlier run of the same final production source had an incomplete ambiguous answer at 6.467 s.
+
+Final two-launch smoke passed (19 initial scenarios and 1 relaunch scenario). The suite distinguishes an observed live-model timing/quality miss from an IPC/renderer failure. The true overlay X-click-to-settlement samples were meeting 2.5 ms, global 12.7 ms. The manual renderer preload cancellation request settled in 1.5 ms while the transport remained parked. Its released late token did not arrive, and the next request completed under a different stream ID. Pre-commit fallback, model ownership, post-commit no-fallback, protected meeting scope, WTA, Code Hint and image/preload cases passed their existing checks. See `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI/desktop-final/result.json` and the screenshots.
+
+### Commands and scope
+
+Both builds, five TS checks and source asset validation exited 0 on the final production tree. The exact commands were `npm run build`, `npm run build:electron`, `npm run verify:packaged-local-assets` and `npm run` for each of `typecheck:electron`, `typecheck:premium`, `typecheck:ts5:electron`, `typecheck:ts5`, `typecheck:ts7`. Use disposable `NATIVELY_TEST_USERDATA` directories.
+
+| Final suite | Pass | Fail | Cancelled | Skip | TODO |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `npm test -- --test-concurrency=4` | 9034 | 0 | 0 | 67 | 0 |
+| `npm run test:intelligence -- --test-concurrency=4`, explicit engine glob | 2186 | 0 | 0 | 0 | 9 |
+| `npm run test:lib` | 382 | 0 | 0 | 1 | 0 |
+| `npm run test:scripts` | 99 | 0 | 0 | 0 | 0 |
+| Targeted compiled behavior, transcript, prompt, cancellation, Phone Mirror and validation | 71 | 0 | 0 | 0 | 0 |
+
+The baseline categories persist: 67 Electron skips cover retired OCR contracts, external or missing API/evaluation fixtures, generated artifacts and opt-in/platform/toolchain cases. Nine intelligence TODOs describe future system baselines. One lib skip is an absent API review ledger. Separate prerecorded Whisper tests ran in the Electron suite. Those separate checks do not measure the full live Listen/Analyze path. No current-tree Windows desktop, physical Phone Mirror, credentialed cloud/vision or packaging evidence. The compiled Phone Mirror source and denial tests passed.
+
+Use the earlier Ollama setup steps with `OLLAMA_HOST=127.0.0.1:11436`. Run `ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron scripts/audit/chg21-quality-evaluation.mjs OUTPUT.json dist-electron http://127.0.0.1:11436 llama3.2:3b --extended`, repeating with fresh disposable profiles. Run `node scripts/audit/run-chg20-desktop-acceptance.mjs --local-ollama` after building both app bundles. The optional macOS rule opens only the loopback Ollama port. Preserve and score each case, including the observed failures. Raw runs, command logs and independent review prompt: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.
+
+### Completion checklist
+
+1. P0 quality. Resolve the observed FIFO/LIFO factual errors and ambiguous multi-meeting omission, then obtain representative repeated results with at least 90% correct by raw rubric and review of factual mismatches. Retain denial, injection and code-constraint controls. The current raw percentage alone is insufficient evidence.
+2. P0 timing. Meet p95 first useful <=2 s and useful final visible answers <=6 s across the agreed cold/warm workload. Preserve complete answers and measure the actual Listen/Analyze journey from trigger through STT readiness, scoped retrieval, provider start, first useful text and final paint. Record STOP settlement separately with late-event rejection. The saved meeting data covers a route without live STT, and includes a complete-answer deadline miss.
+3. P1 release matrix. Finish the supported Windows desktop, physical Phone Mirror and credentialed text/vision checks where applicable and record selected model, authorized evidence and single terminal delivery. Use separate approval for any package/signing work. Retain exact limitations until the corresponding environment is tested.
+4. CHG-22. After C21-AC2 passes, audit every proposed removal for imports/exports, dynamic references, IPC, UI, database and migration use, runtime paths, tests and its verified replacement. Run compile, suites and equivalent desktop/platform scenarios on every removal scope and review the final diff and records. No deletion is approved by this report.
+
+Git started clean on main 95282d41. The index was compared byte for byte after implementation. Native audio, credentials, provider choice/commitment, IPC, RAG storage and packaging paths have no source changes.

@@ -9,8 +9,10 @@ import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 if (process.platform !== 'darwin') throw new Error('macOS Seatbelt required');
 const args = process.argv.slice(2);
+const localOllama = args.includes('--local-ollama');
+if (localOllama) args.splice(args.indexOf('--local-ollama'), 1);
 assert.ok(args.length === 0 || (args.length === 2 && args[0] === '--repo'),
-  'Usage: node scripts/audit/run-chg20-desktop-acceptance.mjs [--repo /absolute/repository]');
+  'Usage: node scripts/audit/run-chg20-desktop-acceptance.mjs [--repo /absolute/repository] [--local-ollama]');
 const root = fs.realpathSync(args[1] ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 assert.equal(fs.realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim()), root,
   'The root must be the repository itself, not a parent directory');
@@ -24,6 +26,7 @@ fs.writeFileSync(path.join(evidence, 'sandbox.sb'), `(version 1)
 (allow default)
 (deny network*)
 (allow network* (local unix-socket) (remote unix-socket))
+${localOllama ? '(allow network-outbound (remote ip "localhost:11436"))' : ''}
 (deny file-read* (subpath ${q(os.homedir())}))
 (allow file-read* (subpath ${q(root)}))
 (deny file-read* (regex #"[.]env"))
@@ -73,7 +76,7 @@ try {
     const log = fs.openSync(path.join(evidence, `${phase}.log`), 'w');
     const code = await new Promise((resolve, reject) => {
       const child = spawn('/usr/bin/sandbox-exec', ['-f', path.join(evidence, 'sandbox.sb'), path.join(root, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'), path.join(root, 'scripts/audit/chg19-desktop-acceptance.cjs')], {
-        cwd: evidence, env: { ...env, SNEAK_PEEK_ACCEPTANCE_ROOT: evidence, CHG19_PHASE: phase }, stdio: ['ignore', log, log],
+        cwd: evidence, env: { ...env, SNEAK_PEEK_ACCEPTANCE_ROOT: evidence, CHG19_PHASE: phase, CHG21_LOCAL_OLLAMA: localOllama ? '1' : '0' }, stdio: ['ignore', log, log],
       });
       let forceTimer;
       const timer = setTimeout(() => { child.kill('SIGTERM'); forceTimer = setTimeout(() => child.kill('SIGKILL'), 5000); }, 150000);

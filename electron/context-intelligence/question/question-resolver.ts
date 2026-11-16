@@ -252,7 +252,7 @@ const PROJECT_IMPLEMENTATION_DETAIL_CUE =
 const PERSONAL_CUE = /\b(?:my resume|my cv|about me|about myself|tell me about myself|my experience|my skills|my background|my education|my internship|my job|what do i have|what did i do|do i have|did i use)\b/i;
 const DOCUMENT_CUE = /\b(?:document|documents|file|files|pdf|attachment|attached|resume|cv|paper|report|what does .* say|according to)\b/i;
 const MEETING_CUE = /\b(?:meeting|transcript|interview|interviewer|what did .* say|what was .* mentioned|discussed|said earlier)\b/i;
-const SCREEN_CUE = /\b(?:this error|this screen|this screenshot|shown|displayed|on screen|what is this|what am i looking at)\b/i;
+const SCREEN_CUE = /\b(?:this error|this screen|this screenshot|shown|displayed|on screen|what is this|what am i looking at|en (?:mi|esta|la) pantalla|esta captura de pantalla|sur (?:mon|l[’']|cet)\s*écran|cette capture d[’']écran|auf (?:meinem|diesem|dem) bildschirm|dieser screenshot)\b/iu;
 const STATEMENT_RESPONSE_CUE = /^(?:i\s+(?:don't|do not|didn't|did not|can't|cannot|am confused|understand|don't understand)|that (?:doesn't|does not|didn't|did not) make sense|i'm confused|i am confused|i need help)\b/i;
 const DURATION_CUE = /\b(?:in|within|for)\s+(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?)\b/i;
 

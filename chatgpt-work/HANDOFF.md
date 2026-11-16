@@ -1,5 +1,9 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0078 / TASK-0004 / CHG-21 (2026-11-17)
+
+**Implemented, unverified.** Follow-up permissions/continuity, multilingual OCR, scoped meeting retrieval, attribution, and real rendered timing coverage improved. The final local core suites and desktop smoke passed. C21-AC1 local PASS. C21-AC2 open for factual review, repeated latency and real STT-to-render timing. CHG-22 has not begun. See the [evaluation and exact checklist](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.
+
 ## WORK-0077 / TASK-0003 and TASK-0004 (2026-11-16)
 
 **CHG-20 Verified. C20-AC1 and C20-AC2 PASS.** See [surface map](../scripts/audit/chg20-surface-map.md#work-0077--final-chg-20-acceptance-2026-11-16). **CHG-21 Implemented, unverified.** C21-AC1 passes for current authorized local scope. C21-AC2 remains open. Grounding, document directive handling and meeting timestamps improved. Final comparable rubric is 15/17, first-useful p95 2.343 s and engine-to-final maximum 4.803 s. Full STOP-click-to-final timing with STT/render and cross-provider/device evidence remain unverified. CHG-22 stays gated. See the [quality evaluation](../scripts/audit/chg21-quality-evaluation.md). Current evidence directory: `/Users/abitesh/Downloads/Sneak-Peek-WORK0077.YRLAFI`.

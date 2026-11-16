@@ -54,7 +54,7 @@ Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md
 | CHG-18 | Legacy meeting/global RAG answer paths | Planned | CHG-17 verified; preserve CHG-15 behavior. |
 | CHG-19 | Duplicated responsibility cleanup | Verified (scoped cancellation cleanup) | C19-AC1/C19-AC2 PASS; WORK-0046 isolated desktop evidence. Active compatibility retained. |
 | CHG-20 | One primary intelligence pipeline | Verified | C20-AC1 and C20-AC2 PASS. See WORK-0077 and the surface map. |
-| CHG-21 | Final intelligence quality/regression pass | Implemented, unverified | WORK-0077. Local regressions passed. Quality and full desktop latency acceptance remain open. |
+| CHG-21 | Final intelligence quality/regression pass | Implemented, unverified | WORK-0078. Local regression passed. Repeated model quality and full desktop latency still need acceptance. |
 | CHG-22 | Final verified-dead architecture deletion | Planned | CHG-01–21 verified for affected responsibilities. |
 | CHG-23 | Dedicated Coding, CS Fundamentals, and Resume & Projects modes | Planned — owner-approved future scope | CHG-22 verified; coordinate FEAT-003/004, preserve existing Technical Interview. |
 
@@ -296,6 +296,8 @@ Gate: CHG-20; packaging work requires separate authorization.
 - C21-AC2: Required automated and manual verification recorded; protected boundaries unchanged; diff and tracking records reviewed.
 
 **Implemented, unverified (WORK-0077, 2026-11-16).** C21-AC1 passes for the authorized local scope: five typechecks, two builds, the full core suites including explicit engine tests, source-mode asset validation and two-launch macOS smoke. Packaging requires separate authorization. C21-AC2 remains open for the local quality thresholds and full product timing. Raw rubric rose from 12/17 to 15/17. Final first-useful p95 was 2.343 seconds and the engine-only maximum completion was 4.803 seconds. See the [evaluation, evidence and completion checklist](scripts/audit/chg21-quality-evaluation.md). CHG-22 remains gated.
+
+**WORK-0078 (2026-11-17).** C21-AC1 passes for the authorized local scope. C21-AC2 remains open. The original 17-case raw rubric passed in all three final repeats, but review still finds a Spanish factual error. One first-useful p95 was 2.052 s. Real rendered global search correctly attributed both meetings on an explicit plural question, but its complete answer took 6.268 s. The live Listen/Analyze timing and supported external environments remain unverified. See the [current evaluation](scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). CHG-22 is gated.
 
 ### CHG-22 — Final verified-dead architecture deletion
 
