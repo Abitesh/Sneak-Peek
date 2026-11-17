@@ -1,5 +1,11 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0082 / TASK-0004 and TASK-0005 (2026-11-17)
+
+Main `0f18dcbc` was clean at intake. **C21-AC1 local PASS. C21-AC2 open. CHG-22 In progress, full C22-AC1/C22-AC2 open.** [Production timing matrix](../scripts/audit/chg21-quality-evaluation.md#work-0082--production-acceptance-matrix-and-matched-renderer-checks) and [candidate deletion audit](../scripts/audit/chg20-surface-map.md#work-0082--verified-dead-screenshot-path-and-manual-chat-trial). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0082.dlEgYk`.
+
+Do not redo the full deletion trial before migrating the ERR-114 privacy, grounding, providers and lifecycle assertions. The small independent deletion is already applied locally. Preserve registered IPC, screenshot shortcut, capture, provider pinning, stored data and STOP. Start acceptance work on the measured warm Listen miss, then record physical speech-to-paint and applicable external coverage. No timing threshold was lowered for the approved model-ready workload.
+
 ## WORK-0081 / TASK-0004 / CHG-21 (2026-11-17)
 
 **C21-AC1 PASS in the authorized local scope. C21-AC2 open. CHG-22 Blocked.** Main is `3205976e`; the owner's 29 staged paths were preserved. WORK-0081 is unstaged. [Current evaluation](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17) and [read-only cleanup audit](../scripts/audit/chg20-surface-map.md#work-0081--read-only-chg-22-caller-audit). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0081.IBZV8O`.

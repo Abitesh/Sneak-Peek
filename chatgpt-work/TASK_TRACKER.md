@@ -1,5 +1,13 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0082 / TASK-0004 and TASK-0005 / CHG-21 and CHG-22 (2026-11-17)
+
+**CHG-21 Implemented, unverified. C21-AC1 PASS in authorized local scope. C21-AC2 open.** Applied the owner-approved production timing matrix. Real rendered local timing confirmed the cold-start miss, a prepared first-visible outlier and a slower resident Listen case. ERR-104 remains open. The latest Listen completion also reproduced the definition problem in ERR-110. ERR-102 did not recur in the repeated global batch. Retain its earlier failure evidence and repeatability requirement. [Timing and quality evidence](../scripts/audit/chg21-quality-evaluation.md#work-0082--production-acceptance-matrix-and-matched-renderer-checks).
+
+**TASK-0005 / CHG-22 In progress.** Executed the candidate-level gate for unreachable screenshot processing, four dead LLM helpers and the old manual-chat screenshot model-switch block. Actual renderer and compiled regressions exercise the current attachment and scope boundaries. The complete manual-body deletion trial exposed 135 additional failures across 55 files beyond seven pre-existing failures in the nonstandard reference sweep. The full deletion was restored. ERR-114 records the failing assertions and next migration step. [Removal, retained interfaces and dependency evidence](../scripts/audit/chg20-surface-map.md#work-0082--verified-dead-screenshot-path-and-manual-chat-trial).
+
+**Next:** Resolve the provider-first warm Listen delay and imprecise bounded-queue response without weakening factual checks. Continue the ERR-114 mapping at the active privacy/grounding owners before another whole-body deletion attempt. Keep Windows desktop, physical Phone Mirror, fresh physical STT timing and credentialed vision/model evidence pending. No CHG-23 work.
+
 ## WORK-0081 / TASK-0004 / CHG-21 (2026-11-17)
 
 **Implemented, unverified. C21-AC1 PASS in the authorized local scope. C21-AC2 open.** ERR-112 repaired and verified on actual manual chat. ERR-113 had one successful physical microphone → STT → Analyze → final renderer run after macOS granted access. The original silence cause is unproven. Kept the saved Gemini selection, existing fallback authorization and first-token rules. Five typechecks, both builds, local asset validation, four core suites, focused routing/commitment regressions and isolated two-launch macOS desktop passed. Two fresh frozen workloads scored 26/26 factually and 25/26 on the unchanged rubric. [Commands and evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).

@@ -9,10 +9,9 @@
 //  - mergeScreenText / buildScreenLayer: OCR text merges into the same
 //    context text a vision model's extraction occupies, even when vision
 //    succeeded (Problem 40 — dual path for accuracy).
-//  - Static wiring: both screen-ask entry points (generate-what-to-say,
-//    gemini-chat-stream) call the gate before any images reach a provider,
-//    and ScreenUnderstandingService races OCR alongside vision rather than
-//    serially or not at all.
+//  - WTA gates capture-based vision before screen understanding. Manual attachments
+//    pin a canonical vision route, which also enforces outbound image permissions.
+//    ScreenUnderstandingService races OCR alongside vision.
 //
 // Run: npm run build:electron, then node --test on this file (or `npm test`).
 
@@ -128,22 +127,30 @@ describe('End-to-end wiring: screen button -> capture -> vision/OCR -> gate -> c
     assert.ok(gateCall < susCall, 'the vision gate must run BEFORE ScreenUnderstandingService, not after');
   });
 
-  test('gemini-chat-stream (manual chat surface) resolves the vision gate before the V3/legacy prompt assembly', () => {
+  test('manual attachments pin the canonical vision route and enforce outbound image permissions', () => {
     const source = read('electron/ipcHandlers.ts');
-    const handlerStart = source.indexOf('const _geminiChatStreamHandler');
-    assert.ok(handlerStart !== -1, 'gemini-chat-stream handler must exist');
-    const gateCall = source.indexOf('resolveVisionGate(', handlerStart);
-    const v3Call = source.indexOf('const composed = await buildV3Prompt({', handlerStart);
-    assert.ok(gateCall !== -1, 'manual-chat handler must call resolveVisionGate');
-    assert.ok(v3Call !== -1 && gateCall < v3Call,
-      'the vision gate must run before the actual V3 prompt-composer invocation');
+    const start = source.indexOf('const _geminiChatStreamHandler');
+    const end = source.indexOf('// Historical compatibility implementation below is unreachable.', start);
+    assert.ok(start >= 0 && end > start);
+    const manual = source.slice(start, end);
+    assert.match(manual, /captureAnswerContext\(llmHelper, manualActiveMode, .*Boolean\(imagePaths\?\.length\)\)/);
+    const validation = manual.indexOf('resolveAppImagePaths(imagePaths)');
+    const dispatch = manual.indexOf('createAnswerExecution(');
+    assert.ok(validation >= 0 && validation < dispatch);
+    assert.match(manual, /screenContext: \{ imagePaths: canonicalImages \}/);
+    assert.doesNotMatch(manual, /llmHelper\.setModel\(/);
+    const runtime = read('electron/intelligence/engine/CanonicalRuntime.ts');
+    assert.match(runtime, /if \(required\.has\('screen'\)\) scopes\.add\('screenshots'\)/);
+    const transport = read('electron/LLMHelper.ts').split('public async * streamFinalPrompt(').at(-1);
+    assert.match(transport, /if \(provider !== 'ollama'\) this\.assertOutboundImagesAllowed\(provider, true\)/);
   });
 
-  test('both screen-ask surfaces auto-switch via llmHelper.setModel when the gate finds a vision binding, never silently', () => {
+  test('WTA logs a capability switch when its vision gate supplies a verified model', () => {
     const source = read('electron/ipcHandlers.ts');
-    const occurrences = source.split('gate.switchTo').length - 1;
-    assert.ok(occurrences >= 2, 'both surfaces must branch on gate.switchTo');
-    assert.match(source, /console\.warn\(\s*\n?\s*`\[VisionGate\]/, 'an auto-switch must be logged, not silent');
+    const start = source.indexOf("'generate-what-to-say'");
+    assert.ok(start >= 0);
+    const wta = source.slice(start);
+    assert.match(wta, /if \(gate\.switchTo\) \{[\s\S]{0,600}console\.warn[\s\S]{0,600}setModel\(gate\.switchTo\.id\)/);
   });
 
   test('ScreenUnderstandingService races OCR alongside vision (Problem 40), not serially and not never', () => {

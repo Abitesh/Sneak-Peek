@@ -33,7 +33,8 @@ test('primary manual conversation turns persist generation outcomes', () => {
 test('superseded manual generations never fall through to legacy generation', () => {
   const ipc = read('ipcHandlers.ts');
   const start = ipc.indexOf('// CHANGE 13: the canonical Sneak-Peek Intelligence Engine is now the PRIMARY');
-  const end = ipc.indexOf('// Vision capability gate (Problem 39)', start);
+  const end = ipc.indexOf('// Historical compatibility implementation below is unreachable.', start);
+  assert.ok(start >= 0 && end > start, 'canonical manual handler boundary');
   const primary = ipc.slice(start, end);
 
   assert.match(primary, /run\.lifecycle\.state === 'CANCELLED' \|\| myController\.signal\.aborted/);

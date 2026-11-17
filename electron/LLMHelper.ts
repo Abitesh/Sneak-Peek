@@ -12,7 +12,7 @@ import {
   UNIVERSAL_RECAP_PROMPT, UNIVERSAL_FOLLOWUP_PROMPT, UNIVERSAL_FOLLOW_UP_QUESTIONS_PROMPT, UNIVERSAL_ASSIST_PROMPT,
   CUSTOM_SYSTEM_PROMPT, CUSTOM_ANSWER_PROMPT, CUSTOM_WHAT_TO_ANSWER_PROMPT,
   CUSTOM_RECAP_PROMPT, CUSTOM_FOLLOWUP_PROMPT, CUSTOM_FOLLOW_UP_QUESTIONS_PROMPT, CUSTOM_ASSIST_PROMPT,
-  CHAT_MODE_PROMPT, CORE_IDENTITY, EXECUTION_CONTRACT, IMAGE_TRUST_TRAILER
+  CHAT_MODE_PROMPT, CORE_IDENTITY, EXECUTION_CONTRACT
 } from "./llm/prompts"
 import {
   TINY_SYSTEM_PROMPT, TINY_ANSWER_PROMPT, TINY_WHAT_TO_ANSWER_PROMPT,
@@ -409,30 +409,6 @@ function openaiReasoningParam(model: string): { reasoning_effort: OpenAiReasonin
   const effort = getOpenAiReasoningEffort(model);
   return effort ? { reasoning_effort: effort } : {};
 }
-
-// Simple prompt for image analysis (not interview copilot - kept separate).
-// Security fix (code-review finding, Phase 3, 2026-07-28): this prompt is
-// used by debugSolutionWithImages, which feeds
-// ProcessingHelper.processScreenshots()'s debug path — the app's PRIMARY
-// screenshot-capture "solve"/"debug" hotkey flow, and arguably the single
-// most natural attack surface for an image-embedded prompt-injection
-// attempt (a crafted on-screen webpage/editor/document). (extractProblemFromImages,
-// also listed as a consumer in an earlier version of this comment, has zero
-// live callers — confirmed dead code as of this pass; corrected here so a
-// future reader doesn't chase a phantom call site.) This bare one-line
-// prompt previously composed NONE of CORE_IDENTITY's protections.
-// Deliberately does NOT compose the FULL CORE_IDENTITY here — that's a
-// large, comprehensive prompt (anti-AI-tells, behavioral-admission
-// templates, etc.) meant for full conversational answer surfaces, and its
-// <accuracy_admissions> templates (which mandate exact opening sentences)
-// would directly conflict with generateRollingScript's sibling strict
-// JSON-only contract. Uses IMAGE_TRUST_TRAILER instead — the same
-// compact-trailer pattern SECURITY_TRAILER already establishes for short
-// prompts that don't compose CORE_IDENTITY (see that constant's own header
-// comment in prompts.ts for the full protection list and rationale).
-const IMAGE_ANALYSIS_PROMPT = `Analyze concisely. Be direct. No markdown formatting. Return plain text only.
-
-${IMAGE_TRUST_TRAILER}`
 
 /** Per-call routing/budget overrides for the meeting-notes path. Omitted → today's behaviour. */
 export type MeetingSummaryCallOpts = {
@@ -2482,120 +2458,6 @@ export class LLMHelper {
     });
   }
 
-  public async extractProblemFromImages(imagePaths: string[]) {
-    try {
-      const prompt = `You are a wingman. Please analyze these images and extract the following information in JSON format:\n{
-  "problem_statement": "A clear statement of the problem or situation depicted in the images.",
-  "context": "Relevant background or context from the images.",
-  "suggested_responses": ["First possible answer or action", "Second possible answer or action", "..."],
-  "reasoning": "Explanation of why these suggestions are appropriate."
-}\nImportant: Return ONLY the JSON object, without any markdown formatting or code blocks.`
-
-      const text = await this.generateWithVisionFallback(IMAGE_ANALYSIS_PROMPT, prompt, imagePaths)
-      return JSON.parse(this.cleanJsonResponse(text))
-    } catch (error) {
-      // console.error("Error extracting problem from images:", error)
-      throw error
-    }
-  }
-
-  public async generateSolution(problemInfo: any) {
-    const prompt = `Given this problem or situation:\n${JSON.stringify(problemInfo, null, 2)}\n\nPlease provide your response in the following JSON format:\n{
-  "solution": {
-    "code": "The code or main answer here.",
-    "problem_statement": "Restate the problem or situation.",
-    "context": "Relevant background/context.",
-    "suggested_responses": ["First possible answer or action", "Second possible answer or action", "..."],
-    "reasoning": "Explanation of why these suggestions are appropriate."
-  }
-}\nImportant: Return ONLY the JSON object, without any markdown formatting or code blocks.`
-
-    try {
-      const text = await this.generateWithVisionFallback(IMAGE_ANALYSIS_PROMPT, prompt)
-      const parsed = JSON.parse(this.cleanJsonResponse(text))
-      return parsed
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Generate a structured 4-phase "Rolling Interview Script" from screenshot(s).
-   * Returns a typed Solution with: problem_identifier_script, brainstorm_script,
-   * code, dry_run_script, time_complexity, space_complexity.
-   */
-  public async generateRollingScript(imagePaths: string[]): Promise<{
-    problem_identifier_script: string;
-    brainstorm_script: string;
-    code: string;
-    dry_run_script: string;
-    time_complexity: string;
-    space_complexity: string;
-  }> {
-    const systemPrompt = `You are an elite FAANG Senior Software Engineer taking a live technical interview.
-The user has provided a screenshot of a coding problem. You must generate a highly structured "Rolling Interview Script" that the candidate can read out loud to pass the interview perfectly.
-
-Output EXACTLY this JSON structure, and nothing else (no markdown fences around the whole response):
-{
-  "problem_identifier_script": "1-2 conversational sentences confirming you understand the problem and its edge cases. Start with 'So just to make sure I understand...'",
-  "brainstorm_script": "3-4 conversational sentences. First, mention a naive/brute-force approach and its complexity. Then, pivot to the optimal approach, mentioning the key data structure or algorithm. End by asking the interviewer if you can proceed with the optimal approach. Keep it natural.",
-  "code": "The full, production-ready, heavily-commented optimal code solution in the language shown or Python if unclear. Include all necessary imports.",
-  "dry_run_script": "2-3 conversational sentences doing a quick dry-run of the code with a simple example input. E.g., 'Let\\'s trace this. If our array is [1,2], the loop starts...'",
-  "time_complexity": "O(...) — brief 5-word explanation",
-  "space_complexity": "O(...) — brief 5-word explanation"
-}
-
-CRITICAL RULES:
-- The scripts MUST sound like a human speaking out loud in an interview. Use "I", "we", "my first thought is".
-- The JSON must be perfectly valid. Escape any internal quotes with backslash.
-- Do NOT wrap the JSON in markdown fences.
-
-${IMAGE_TRUST_TRAILER}`;
-
-    const userPrompt = `Please analyze the coding problem shown in the screenshot(s) and generate the Rolling Interview Script JSON.`;
-
-    try {
-      const raw = await this.generateWithVisionFallback(systemPrompt, userPrompt, imagePaths);
-      const cleaned = this.cleanJsonResponse(raw);
-
-      // Primary: direct parse
-      try {
-        return JSON.parse(cleaned);
-      } catch (_) {
-        // Fallback: extract JSON block via regex
-        const match = cleaned.match(/\{[\s\S]*\}/);
-        if (match) return JSON.parse(match[0]);
-        throw new Error('Could not extract valid JSON from LLM response');
-      }
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  public async debugSolutionWithImages(problemInfo: any, currentCode: string, debugImagePaths: string[]) {
-    try {
-      const prompt = `You are a wingman. Given:\n1. The original problem or situation: ${JSON.stringify(problemInfo, null, 2)}\n2. The current response or approach: ${currentCode}\n3. The debug information in the provided images\n\nPlease analyze the debug information and provide feedback in this JSON format:\n{
-  "solution": {
-    "code": "The code or main answer here.",
-    "problem_statement": "Restate the problem or situation.",
-    "context": "Relevant background/context.",
-    "suggested_responses": ["First possible answer or action", "Second possible answer or action", "..."],
-    "reasoning": "Explanation of why these suggestions are appropriate."
-  }
-}\nImportant: Return ONLY the JSON object, without any markdown formatting or code blocks.`
-
-      const text = await this.generateWithVisionFallback(IMAGE_ANALYSIS_PROMPT, prompt, debugImagePaths)
-      const parsed = JSON.parse(this.cleanJsonResponse(text))
-      return parsed
-    } catch (error) {
-      throw error
-    }
-  }
-
-
-
-
-
   /**
    * NEW: Helper to process image: resize to max 1536px and compress to JPEG 80%
    * drastically reduces token usage and upload time.
@@ -4625,12 +4487,8 @@ let isMultimodal = !!(imagePaths?.length);
     // private_vision AND the `screenshots` scope denied put the pixels on the
     // wire to Gemini with both switches off.
     //
-    // Its entry points (analyzeImageFiles, generateRollingScript,
-    // debugSolutionWithImages, extractProblemFromImages) are currently reached
-    // only from an unwired IPC and from ProcessingHelper.processScreenshots(),
-    // which nothing in the main process calls — so the leak was armed behind a
-    // door that is not connected. The gate lives HERE rather than at those
-    // callers so it does not depend on them staying dead.
+    // Keep enforcement at the transport boundary, including for the
+    // analyzeImageFiles compatibility method and its privacy regressions.
     const deniedForVision = this.getDeniedOutboundScopes(userPrompt, imagePaths);
     {
       const { decision, localAvailable } =
@@ -4845,9 +4703,7 @@ let isMultimodal = !!(imagePaths?.length);
 
     // ──────────────────────────────────────────────────────────────────
     // Codex CLI runs FIRST when available — same priority as in chat() so
-    // every AI feature that flows through generateWithVisionFallback
-    // (analyzeImageFiles, generateRollingScript, debugSolutionWithImages,
-    // extractProblemFromImages, generateSolution) honors the user's pick.
+    // the compatibility image analyzer honors the user's pick.
     // On failure we fall back to the cloud tier rotation below.
     // ──────────────────────────────────────────────────────────────────
     if (this.isCodexAvailable()) {

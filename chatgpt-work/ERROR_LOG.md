@@ -1,5 +1,20 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-114 — Whole manual-chat legacy deletion invalidates source-based checks (2026-11-17)
+
+WORK-0082 / TASK-0005 / CHG-22. A trial removed only the unreachable portion of the registered manual handler (96 AST statements after an always-true terminal block) while preserving the canonical route, sender ownership and setup catch. The explicit IPC/ProcessingHelper reference sweep failed 142 of 1677 tests. The same sweep on the baseline failed 7 of 1677. These failures include layout pins and assertions for earlier security, evidence, cancellation and provider behavior. Runtime reachability and test migration are separate proofs. Restore the manual trial before delivering the independent screenshot cleanup. Classify the failures by test and remap each applicable invariant to the canonical owner before deleting the whole branch. The broader sweep includes nonstandard suites and fixtures; the usual regression commands remain required.
+
+**Trial reconciled:** Final scoped tree 1670/1677 passed, with the identical seven baseline failures in the broadened sweep. Baseline failures include old optional OKF/premium assertions and absent authored E2E fixtures. They are outside the standard four suites. The 135 added failures only exist in the restored full-deletion trial. The failures are listed by test and location in `/Users/abitesh/Downloads/Sneak-Peek-WORK0082.dlEgYk/err-114-inventory.tsv`. Keep ERR-114 open for full manual-body cleanup even though the scoped removals introduced no new failures.
+
+## WORK-0082 — CHG-21 follow-up on ERR-102, ERR-104 and ERR-110
+
+- ERR-102: 15/15 newly reviewed real local-model global cases preserved matching meeting identities and reasons, with the narrow lookup staying narrow. Keep the previous inconsistent run in the record.
+- ERR-104: Open. Genuine unloaded global first useful/final visible 5115/6157 ms. Prepared global p95 reached 2187 ms. A separate resident global batch passed. Resident Analyze reached 3717/4965 ms with injected transcript. Source stage evidence separates startup, provider latency and renderer overhead. Accepted workloads keep both numerical thresholds.
+- ERR-110: Open. Latest resident Listen generation still misstated the capacity definition. The synthetic lifecycle succeeded and the factual quality check failed.
+- ERR-112: Previously verified for authorized live fallback. Fresh controlled fallback worked at the actual desktop boundary. Live Gemini availability and cloud recovery timings were not re-exercised.
+- ERR-113: Previous physical transcript and Analyze evidence remains valid at its scope. This run injected STT events and did not retest physical timing or diagnose earlier silence.
+
+
 ## ERR-112 — Owner's saved provider route fails before first token (2026-11-17)
 
 WORK-0081 / TASK-0004. Owner observed both a greeting and a general technical question fail in the real app. Requested route reported `gemini_flash` and `maxAttempts: 3`. Determine actual configured/eligible attempts, transport and response classification, then verify with synthetic questions in the owner's selected route. Provider response data and credentials must stay private.

@@ -145,12 +145,16 @@ describe('Acceptance step 6: Screen → capture → OCR/vision → answer in cha
     assert.match(PROVIDER_REGISTRY, /export function resolveVisionGate\(/);
   });
 
-  test('both screen-ask entry points (WTA and manual chat) call the vision gate', () => {
+  test('WTA uses its capability gate and manual chat passes approved attachments into canonical execution', () => {
     const wtaStart = IPC_HANDLERS.indexOf("'generate-what-to-say'");
     const chatStart = IPC_HANDLERS.indexOf('const _geminiChatStreamHandler');
-    assert.ok(wtaStart !== -1 && chatStart !== -1, 'both screen-ask entry points must exist');
+    const legacyStart = IPC_HANDLERS.indexOf('// Historical compatibility implementation below is unreachable.', chatStart);
+    assert.ok(wtaStart !== -1 && chatStart !== -1 && legacyStart > chatStart);
     assert.ok(IPC_HANDLERS.indexOf('resolveVisionGate(', wtaStart) !== -1, 'generate-what-to-say must call resolveVisionGate');
-    assert.ok(IPC_HANDLERS.indexOf('resolveVisionGate(', chatStart) !== -1, 'gemini-chat-stream must call resolveVisionGate');
+    const manual = IPC_HANDLERS.slice(chatStart, legacyStart);
+    assert.match(manual, /validatedManualImages = resolveAppImagePaths\(imagePaths\)/);
+    assert.match(manual, /screenContext: \{ imagePaths: canonicalImages \}/);
+    assert.match(manual, /createAnswerExecution\(llmHelper, appState, sneakPeekRequest\)/);
   });
 
   test('an independent OCR bridge exists and its output is merged with vision text (dual path)', () => {

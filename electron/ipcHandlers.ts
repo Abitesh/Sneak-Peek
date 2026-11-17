@@ -1520,25 +1520,6 @@ if (true as boolean) {
 }
 // Historical compatibility implementation below is unreachable. Retained for CHG-22 review.
 
-// Vision capability gate (Problem 39): a screenshot attached to manual
-// chat is a screen ask too — the same rule as generate-what-to-say
-// applies before any images reach the selected model. Auto-switch to a
-// verified vision-capable binding, or refuse with a clear error.
-if (imagePaths && imagePaths.length > 0) {
-const { CredentialsManager: CredsForGate } = require('./services/CredentialsManager');
-const gate = resolveVisionGate(llmHelper.getCapabilities(), CredsForGate.getInstance().getAllProviderHealth());
-if (!gate.ok) {
-event.sender.send('gemini-stream-error', gate.message, { streamId: myStreamId });
-return null; // sibling error paths return null; handler is typed `| null`
-}
-if (gate.switchTo) {
-console.warn(
-`[VisionGate] "${llmHelper.getCurrentModelId()}" has no vision — auto-switching to verified `
-+ `vision-capable model "${gate.switchTo.id}" for this screen ask.`,
-);
-llmHelper.setModel(gate.switchTo.id);
-}
-}
 // Skill invocation parsed EARLY (PR #429 Bug 003). It used to live ~35k
 // characters below, after the Context Intelligence V3 short-circuit had
 // already returned — so under V3 (default ON since 2026-07-30) the

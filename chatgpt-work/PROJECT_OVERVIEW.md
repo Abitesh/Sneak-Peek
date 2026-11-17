@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## Screenshot path cleanup — WORK-0082 (2026-11-17)
+
+The screenshot shortcut still enters the renderer WTA action. Typed manual image attachments continue through allowed-path validation, the canonical screenshot scope, pinned routing and outbound image policy. The unused rolling-script/debug helpers and their ephemeral problem state were removed. Existing screenshot queues, shortcut settings and IPC remain available. [Caller and runtime evidence](../scripts/audit/chg20-surface-map.md#work-0082--verified-dead-screenshot-path-and-manual-chat-trial).
+
 ## Manual chat provider recovery — WORK-0081 (2026-11-17)
 
 The canonical pipeline uses the exact streaming model that passed the eligible provider's live connection probe. Canonical Groq text dispatch attempts the pinned model without SDK retry or internal model switching. Supported hosted providers on the ordinary manual text path are bounded to seven seconds per attempt before their first token. The existing authorization and commitment rules govern every transition. Fixed categories and HTTP status explain failures without submitting vendor error bodies to the renderer. [Real-app and regression evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
