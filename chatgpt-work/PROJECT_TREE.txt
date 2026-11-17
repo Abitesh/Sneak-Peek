@@ -1362,6 +1362,7 @@
 │   │   ├── dnsHelpers.ts
 │   │   ├── ElevenLabsStreamingSTT.ts
 │   │   ├── GoogleSTT.ts
+│   │   ├── ListenSession.ts
 │   │   ├── LocalWhisperSTT.ts
 │   │   ├── meetingLifecycleQueue.ts
 │   │   ├── MicrophoneCapture.ts
@@ -104348,6 +104349,7 @@
 │               │   └── model_quantized.onnx
 │               ├── tokenizer_config.json
 │               └── tokenizer.json
+├── ROADMAP-v1.md
 ├── ROADMAP.md
 ├── scripts
 │   ├── __tests__

@@ -1256,9 +1256,22 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   const interviewerListenRef = useRef('');
   const [interviewerListenPartial, setInterviewerListenPartial] = useState('');
   const interviewerListenPartialRef = useRef('');
-  // Wall-clock start of the current Listen turn — used to size the SessionTracker
-  // fallback window on Analyze when renderer buffers missed system-audio IPC.
-  const listenStartedAtRef = useRef(0);
+  const activeListenIdRef = useRef<string | null>(null);
+  const [listenLeadIn, setListenLeadIn] = useState({ user: '', interviewer: '' });
+  const [microphoneCaption, setMicrophoneCaption] = useState('');
+  const [interviewerCaption, setInterviewerCaption] = useState('');
+  const [listenStatus, setListenStatus] = useState('');
+  const clearListenTranscript = () => {
+    setListenLeadIn({ user: '', interviewer: '' });
+    voiceInputRef.current = '';
+    manualTranscriptRef.current = '';
+    interviewerListenRef.current = '';
+    interviewerListenPartialRef.current = '';
+    setVoiceInput('');
+    setManualTranscript('');
+    setInterviewerListenFinal('');
+    setInterviewerListenPartial('');
+  };
   // Listen → Analyze audio state machine (Idle → Listening → Speaking detected
   // → Transcribing → Processing). Deliberately independent from
   // `showAnswerPanel` so the indicator stays visible for the whole session
@@ -1266,7 +1279,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   // are all momentarily false (right after Analyze stops recording, before the
   // AI request starts).
   const [audioSessionState, setAudioSessionState] = useState<
-    'idle' | 'listening' | 'speaking' | 'transcribing' | 'processing'
+    'idle' | 'starting' | 'listening' | 'speaking' | 'transcribing' | 'processing'
   >('idle');
   const [showTranscript, setShowTranscript] = useState(() => {
     const stored = localStorage.getItem('natively_interviewer_transcript');
@@ -2433,6 +2446,27 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   }, []);
 
   // PR #173: STT not configured warning — shown when provider is 'none' during a meeting
+  // A permission warning is a snapshot of what the OS reported. Recheck
+  // after returning from macOS settings, and retain capture/STT issues that
+  // depend on more than the permission bit.
+  useEffect(() => {
+    if (!isMac || !systemAudioWarning) return;
+    const warning = systemAudioWarning;
+    const microphone = warning.channel === 'mic' && warning.titleKey === 'Microphone Blocked';
+    const screen = warning.kind === 'screen-recording-permission';
+    if (!microphone && !screen) return;
+    let disposed = false;
+    const refresh = () => {
+      void window.electronAPI.checkPermissions?.().then(permissions => {
+        if (disposed || (microphone ? permissions.microphone : permissions.screen) !== 'granted') return;
+        setSystemAudioWarning(current => current === warning ? null : current);
+      }).catch(() => {});
+    };
+    window.addEventListener('focus', refresh);
+    refresh();
+    return () => { disposed = true; window.removeEventListener('focus', refresh); };
+  }, [systemAudioWarning]);
+
   const [sttNotConfigured, setSttNotConfigured] = useState(false);
   useEffect(() => {
     let mounted = true;
@@ -3587,8 +3621,14 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
       if (preserveListenOnResetRef.current) {
         preserveListenOnResetRef.current = false;
       } else {
+        activeListenIdRef.current = null;
         isRecordingRef.current = false;
         setIsManualRecording(false);
+        setMicrophoneCaption('');
+        setInterviewerCaption('');
+        setListenStatus('');
+        setAudioSessionState('idle');
+        clearListenTranscript();
       }
       eagerCodeExpansionHoldRef.current = false;
       answerPanelPinnedRef.current = false;
@@ -5003,55 +5043,57 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
       }),
     );
 
-    // Real-time Transcripts
+    // Manual Listen events arrive from their own main-process recognizers.
+    cleanups.push(
+      window.electronAPI.onListenTranscript?.((transcript) => {
+        if (transcript.id !== activeListenIdRef.current) return;
+        setAudioSessionState((prev) => (prev === 'listening' ? 'speaking' : prev));
+        if (transcript.speaker === 'user') {
+          if (transcript.final) {
+            voiceInputRef.current = mergeTranscriptChunks(voiceInputRef.current, transcript.text);
+            setVoiceInput(voiceInputRef.current);
+            manualTranscriptRef.current = '';
+            setManualTranscript('');
+          } else {
+            manualTranscriptRef.current = transcript.text;
+            setManualTranscript(transcript.text);
+          }
+        } else if (transcript.final) {
+          interviewerListenRef.current = mergeTranscriptChunks(interviewerListenRef.current, transcript.text);
+          setInterviewerListenFinal(interviewerListenRef.current);
+          interviewerListenPartialRef.current = '';
+          setInterviewerListenPartial('');
+        } else {
+          interviewerListenPartialRef.current = transcript.text;
+          setInterviewerListenPartial(transcript.text);
+        }
+      }) ?? (() => {}),
+      window.electronAPI.onListenSessionEnded?.((id) => {
+        if (activeListenIdRef.current !== id) return;
+        activeListenIdRef.current = null;
+        isRecordingRef.current = false;
+        setIsManualRecording(false);
+        clearListenTranscript();
+        setMicrophoneCaption('');
+        setInterviewerCaption('');
+        setRollingTranscript('');
+        setAudioSessionState('idle');
+      }) ?? (() => {}),
+      window.electronAPI.onListenCaptureError?.(({ id, kind }) => {
+        if (id && id !== activeListenIdRef.current) return;
+        if (kind === 'permission') setListenStatus('Microphone access is blocked. Re-enable it in System Settings.');
+        if (kind === 'microphone') setListenStatus('Microphone capture failed. Check the input in Audio Settings.');
+        if (kind === 'system') setListenStatus('System audio did not start. Check the output and screen recording permission.');
+        if (kind === 'stt') setListenStatus('Transcription reported an error. Check the provider in Audio Settings.');
+      }) ?? (() => {}),
+    );
+
+    // Background meeting transcript stays independent from manual Listen.
     cleanups.push(
       window.electronAPI.onNativeAudioTranscript((transcript) => {
-        // Listen session: accumulate BOTH user mic and system/interviewer audio
-        // for Analyze/Enter. Capture already runs both channels via startMeeting;
-        // this gate only decides which chunks enter the Listen-scoped buffers.
-        if (isRecordingRef.current && transcript.speaker === 'user') {
-          // First sound from the user's mic after Listen — surface "Speaking
-          // detected" so the state machine reflects real audio, not just the
-          // button press.
-          setAudioSessionState((prev) => (prev === 'listening' ? 'speaking' : prev));
-          if (transcript.final) {
-            // Accumulate final transcripts, collapsing STT overlap/re-transcription
-            // races (RC5, docs/context-rebuild/03_LIVE_REPRO_FINDINGS.md item 4)
-            // instead of blindly concatenating.
-            setVoiceInput((prev) => {
-              const updated = mergeTranscriptChunks(prev, transcript.text);
-              voiceInputRef.current = updated;
-              return updated;
-            });
-            setManualTranscript(''); // Clear partial preview
-            manualTranscriptRef.current = '';
-          } else {
-            // Show live partial transcript
-            setManualTranscript(transcript.text);
-            manualTranscriptRef.current = transcript.text;
-          }
-          return; // Don't add user mic lines to the rolling interviewer bar
-        }
-
-        if (isRecordingRef.current && transcript.speaker === 'interviewer') {
-          setAudioSessionState((prev) => (prev === 'listening' ? 'speaking' : prev));
-          if (transcript.final) {
-            setInterviewerListenFinal((prev) => {
-              const updated = mergeTranscriptChunks(prev, transcript.text);
-              interviewerListenRef.current = updated;
-              return updated;
-            });
-            setInterviewerListenPartial('');
-            interviewerListenPartialRef.current = '';
-          } else {
-            setInterviewerListenPartial(transcript.text);
-            interviewerListenPartialRef.current = transcript.text;
-          }
-          // Fall through so the rolling interviewer bar still updates.
-        }
-
-        // Ignore user mic transcripts when not in a Listen session
+        if (activeListenIdRef.current) return;
         if (transcript.speaker === 'user') {
+          setMicrophoneCaption(transcript.text.slice(-320));
           return;
         }
 
@@ -5060,7 +5102,8 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
           return;
         }
 
-        // Route to rolling transcript bar — partials debounced; finals commit immediately.
+        setInterviewerCaption(transcript.text.slice(-320));
+        // Keep the existing rolling history and speaker activity lifecycle.
         if (!transcript.final) {
           if (!interviewerSpeakingRef.current) {
             interviewerSpeakingRef.current = true;
@@ -6376,188 +6419,95 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
     return () => cleanups.forEach((fn) => fn());
   }, [currentModel, queueToken, flushToken]); // Ensure tracking captures correct model
 
-  /** Stop mic + system Listen capture without sending the transcript to the model. */
+  /** Stop discards this turn. Analyze has its own finalization path. */
   const handleStopListening = () => {
-    if (!isRecordingRef.current && !isManualRecording) return;
+    const id = activeListenIdRef.current;
+    if (!id) return;
+    activeListenIdRef.current = null;
     isRecordingRef.current = false;
     setIsManualRecording(false);
-    listenStartedAtRef.current = 0;
-    window.electronAPI
-      ?.finalizeMicSTT?.()
-      .catch((err) => console.error('[SneakPeekInterface] Failed to send finalizeMicSTT:', err));
-    setVoiceInput('');
-    voiceInputRef.current = '';
-    setManualTranscript('');
-    manualTranscriptRef.current = '';
-    setInterviewerListenFinal('');
-    interviewerListenRef.current = '';
-    setInterviewerListenPartial('');
-    interviewerListenPartialRef.current = '';
+    clearListenTranscript();
     setAudioSessionState('idle');
+    setMicrophoneCaption('');
+    setInterviewerCaption('');
+    setRollingTranscript('');
+    void window.electronAPI.stopListen(id).catch(() => setListenStatus('Could not confirm that Listen stopped.'));
   };
 
-  // The shared `isProcessing` flag is flipped false by several different
-  // stream-completion paths (see the various `setIsProcessing(false)` call
-  // sites), not just this one. Rather than duplicate that completion logic,
-  // watch it here: once a 'processing' audio session sees isProcessing go
-  // false, the answer has landed in chat and the session is done.
   useEffect(() => {
-    if (!isProcessing && audioSessionState === 'processing') {
-      setAudioSessionState('idle');
-    }
+    if (!isProcessing && audioSessionState === 'processing') setAudioSessionState('idle');
   }, [isProcessing, audioSessionState]);
 
-  // ── Listen ── Start mic + system-audio STT capture for a push-to-talk turn.
-  //
-  // SneakPeekInterface only mounts as the overlay's *meeting* UI (see
-  // App.tsx's `isOverlayWindow` branch) — the window swap to this component
-  // happens inside main's startMeeting(), which is what actually constructs
-  // MicrophoneCapture + SystemAudioCapture and both STT providers
-  // (setupSystemAudioPipeline / startCaptureChannels in electron/main.ts).
-  // So by the time this button is clickable, BOTH channels are already running
-  // for the life of the meeting; "Listen" gates which transcript chunks the UI
-  // accumulates (see `isRecordingRef` in onNativeAudioTranscript) — mic (you)
-  // and system/loopback (the other person on the call). The defensive
-  // getMeetingActive/startMeeting + ensureListenAudioCapture path below covers
-  // Ambient AI Chat (capture skipped at meeting start) and failed system starts.
   const handleStartListening = () => {
-    setVoiceInput('');
-    voiceInputRef.current = '';
-    setManualTranscript('');
-    manualTranscriptRef.current = '';
-    setInterviewerListenFinal('');
-    interviewerListenRef.current = '';
-    setInterviewerListenPartial('');
-    interviewerListenPartialRef.current = '';
-    listenStartedAtRef.current = Date.now();
-    isRecordingRef.current = true; // Update ref immediately
+    if (activeListenIdRef.current || isProcessing) return;
+    const id = crypto.randomUUID();
+    activeListenIdRef.current = id;
+    clearListenTranscript();
+    setListenStatus('');
+    isRecordingRef.current = true;
     setIsManualRecording(true);
-    setAudioSessionState('listening');
-    // Force the overlay open so the live transcript is immediately visible.
+    setAudioSessionState('starting');
     setIsExpanded(true);
 
     void (async () => {
       try {
-        let inputDeviceId = localStorage.getItem('preferredInputDeviceId');
-        if (isInternalCaptureDevice(inputDeviceId)) {
-          localStorage.removeItem('preferredInputDeviceId');
-          inputDeviceId = null;
-        }
-        let outputDeviceId = localStorage.getItem('preferredOutputDeviceId');
-        const useExperimentalSck =
-          isMac && localStorage.getItem('useExperimentalSckBackend') === 'true';
-        if (useExperimentalSck) {
-          outputDeviceId = 'sck';
-        }
-
+        const savedInput = localStorage.getItem('preferredInputDeviceId');
+        const inputDeviceId = isInternalCaptureDevice(savedInput) ? undefined : savedInput ?? undefined;
+        const outputDeviceId = isMac && localStorage.getItem('useExperimentalSckBackend') === 'true'
+          ? 'sck' : localStorage.getItem('preferredOutputDeviceId') ?? undefined;
         const active = await window.electronAPI.getMeetingActive();
+        if (activeListenIdRef.current !== id) return;
         if (!active) {
           preserveListenOnResetRef.current = true;
-          await window.electronAPI.startMeeting({
-            audio: { inputDeviceId, outputDeviceId },
-          });
+          await window.electronAPI.startMeeting({ audio: { inputDeviceId, outputDeviceId } });
         }
-
-        const status = await window.electronAPI.ensureListenAudioCapture?.();
-        if (!status) return;
-        if ((!status.mic || !status.system) && status.message) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: genMessageId(),
-              role: 'system',
-              text: `⚠️ ${status.message}`,
-            },
-          ]);
-        } else if (status.sameDevice && status.message) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: genMessageId(),
-              role: 'system',
-              text: `⚠️ ${status.message}`,
-            },
-          ]);
+        if (activeListenIdRef.current !== id) return;
+        const status = await window.electronAPI.startListen(id, inputDeviceId, outputDeviceId);
+        if (status.message && (activeListenIdRef.current === id || !activeListenIdRef.current)) {
+          setListenStatus(status.message);
         }
-        if (!status.ok) {
-          isRecordingRef.current = false;
-          setIsManualRecording(false);
-          setAudioSessionState('idle');
+        if (activeListenIdRef.current !== id) return;
+        if (!status.ok) handleStopListening();
+        else {
+          if (status.recent) setListenLeadIn(status.recent);
+          if (status.mic) setSystemAudioWarning(current => current?.titleKey === 'Microphone Blocked' ? null : current);
+          setAudioSessionState(prev => prev === 'starting' ? 'listening' : prev);
         }
-      } catch (err) {
-        console.error('[SneakPeekInterface] Failed to ensure Listen audio:', err);
+      } catch {
+        if (activeListenIdRef.current !== id) return;
         preserveListenOnResetRef.current = false;
-        isRecordingRef.current = false;
-        setIsManualRecording(false);
-        setAudioSessionState('idle');
+        handleStopListening();
+        setListenStatus('Listen could not start. Check the microphone and transcription in Audio Settings.');
       }
     })();
   };
 
-  // ── Analyze ── Auto-stop the Listen capture, finalize BOTH STT channels, and
-  // send the combined interviewer + user transcript to the AI.
   const handleAnalyzeNow = async () => {
-    if (!isManualRecording) return;
+    const id = activeListenIdRef.current;
+    if (!id || !isManualRecording || audioSessionState === 'starting') return;
     if (!tryBeginOverlayAction('answer_now')) return;
     try {
-      // Stop recording, finalize mic + system STT, then wait a beat for
-      // final transcript chunks to land before consuming the transcript.
       isRecordingRef.current = false;
       setIsManualRecording(false);
-      setManualTranscript('');
-      setInterviewerListenPartial('');
       setAudioSessionState('transcribing');
 
-      window.electronAPI
-        ?.finalizeMicSTT?.()
-        .catch((err) => console.error('[SneakPeekInterface] Failed to send finalizeMicSTT:', err));
-
-      await new Promise((resolve) => setTimeout(resolve, 280));
-
+      const transcript = await window.electronAPI.analyzeListen(id);
+      if (activeListenIdRef.current !== id) return;
+      activeListenIdRef.current = null;
+      clearListenTranscript();
+      setMicrophoneCaption('');
+      setInterviewerCaption('');
+      setRollingTranscript('');
+      if (!transcript) {
+        setAudioSessionState('idle');
+        return;
+      }
       const currentAttachments = attachedContext;
       setAttachedContext([]);
-
-      let me = mergeTranscriptChunks(
-        voiceInputRef.current,
-        manualTranscriptRef.current,
-      ).trim();
-      let them = mergeTranscriptChunks(
-        interviewerListenRef.current,
-        interviewerListenPartialRef.current,
-      ).trim();
-
-      // Safety net: SessionTracker may already have interviewer (system audio)
-      // lines that the Listen UI buffers missed (late IPC, Ambient Chat late
-      // start, throttle drop). Fill only empty sides to avoid double-paste.
-      if (!them || !me) {
-        const listenStartedAt = listenStartedAtRef.current;
-        const listenMs = listenStartedAt
-          ? Date.now() - listenStartedAt
-          : 30_000;
-        const secs = Math.max(8, Math.ceil(listenMs / 1000) + 3);
-        try {
-          const snap = listenStartedAt
-            ? await window.electronAPI.getListenWindowTranscript?.(secs, listenStartedAt)
-            : await window.electronAPI.getListenWindowTranscript?.(secs);
-          if (snap?.interviewer && !them) them = snap.interviewer.trim();
-          if (snap?.user && !me) me = snap.user.trim();
-        } catch {
-          /* non-fatal — keep renderer buffers */
-        }
-      }
-      const question = [them && `Interviewer: ${them}`, me && `Me: ${me}`]
+      const question = [transcript.interviewer && `Interviewer: ${transcript.interviewer}`, transcript.user && `Me: ${transcript.user}`]
         .filter(Boolean)
         .join('\n')
         .trim();
-      listenStartedAtRef.current = 0;
-      setVoiceInput('');
-      voiceInputRef.current = '';
-      setManualTranscript('');
-      manualTranscriptRef.current = '';
-      setInterviewerListenFinal('');
-      interviewerListenRef.current = '';
-      setInterviewerListenPartial('');
-      interviewerListenPartialRef.current = '';
 
       if (!question && currentAttachments.length === 0) {
         setAudioSessionState('idle');
@@ -6703,6 +6653,11 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
             ];
           });
         }
+    } catch {
+      if (activeListenIdRef.current === id) {
+        handleStopListening();
+        setListenStatus('Could not finalize transcription. Start a new Listen to try again.');
+      }
     } finally {
       endOverlayAction('answer_now');
     }
@@ -8312,6 +8267,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   // border/bg `-current` utilities pick up the right tone automatically.
   const audioStateLabel: Record<typeof audioSessionState, string> = {
     idle: '',
+    starting: 'Opening audio capture',
     listening: t('Listening'),
     speaking: t('Speaking detected'),
     transcribing: t('Transcribing'),
@@ -8319,6 +8275,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
   };
   const audioStateToneClass: Record<typeof audioSessionState, string> = {
     idle: '',
+    starting: 'text-text-secondary',
     listening: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
     speaking: 'border-emerald-500/35 bg-emerald-500/15 text-emerald-200',
     transcribing: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
@@ -8515,6 +8472,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
 
               <TopControlBar
                 isListening={isManualRecording}
+                canAnalyze={audioSessionState !== 'starting'}
                 isAnalyzing={audioSessionState === 'transcribing' || audioSessionState === 'processing'}
                 isProcessing={isProcessing}
                 currentModel={currentModel}
@@ -8525,6 +8483,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                 onAnalyze={() => void handleAnalyzeNow()}
                 onAnswer={() => void handleWhatToSay()}
                 onStop={() => {
+                  handleStopListening();
                   // Invalidate this renderer's Code Hint BEFORE the stop IPC
                   // travels to main. Already-sent batches are now rejected.
                   activeCodeHintRequestIdRef.current = null;
@@ -8548,6 +8507,8 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                   });
                 }}
               />
+
+              {listenStatus && <p className="no-drag px-4 pt-2 text-xs" role="status">{listenStatus}</p>}
 
               {hasStatusPill && (
               <div className="relative no-drag flex flex-wrap items-center justify-center gap-1.5 px-4 pt-3 pb-1">
@@ -8885,7 +8846,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                       <span>{t('Transcription Not Configured')}</span>
                     </div>
                     <p className="text-[11px] text-orange-600/70 dark:text-orange-400/60 leading-snug pl-[26px]">
-                      {t('Microphone is ready, but no speech-to-text provider is configured.')}
+                      {t('Choose a speech-to-text provider to transcribe captured audio.')}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -8918,11 +8879,21 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                 }}
               />
 
-              {/* Rolling Transcript Bar — live transcript + on-demand diagnostics
-                  for hard failures. Reconnecting/awaiting-audio status is owned by
-                  the top status pill, so the bar no longer mounts for those (which
-                  also avoids an empty bar / duplicated status text). */}
-              {showTranscript && rollingTranscript ? (
+              {showTranscript && (microphoneCaption || interviewerCaption || activeListenIdRef.current) && (
+                <div data-speaker-captions className="no-drag mx-4 mt-2 grid gap-1 rounded-lg border border-current/15 px-3 py-2 text-xs">
+                  <div><span className="font-semibold">{t('Them')}</span>{' '}
+                    {activeListenIdRef.current
+                      ? mergeTranscriptChunks(listenLeadIn.interviewer, mergeTranscriptChunks(interviewerListenFinal, interviewerListenPartial)).slice(-440)
+                      : interviewerCaption}
+                  </div>
+                  <div><span className="font-semibold">{t('You')}</span>{' '}
+                    {activeListenIdRef.current
+                      ? mergeTranscriptChunks(listenLeadIn.user, mergeTranscriptChunks(voiceInput, manualTranscript)).slice(-440)
+                      : microphoneCaption}
+                  </div>
+                </div>
+              )}
+              {showTranscript && rollingTranscript && !activeListenIdRef.current ? (
                 <RollingTranscript
                   text={rollingTranscript}
                   isActive={isInterviewerSpeaking}
@@ -8960,7 +8931,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                         <span>{audioStateLabel[audioSessionState]}</span>
                       </div>
                       {(audioSessionState === 'listening' || audioSessionState === 'speaking') && (
-                        <span className="text-[10px] opacity-70">{t('Live transcription')}</span>
+                        <span className="text-[10px] opacity-70">{audioSessionState === 'speaking' ? t('Live transcription') : 'Audio on · waiting for speech'}</span>
                       )}
                     </div>
                     {(manualTranscript || voiceInput || interviewerListenFinal || interviewerListenPartial) &&

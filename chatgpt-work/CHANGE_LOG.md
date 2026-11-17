@@ -1,5 +1,23 @@
 # Sneak-Peek — agent work log
 
+## WORK-0084 / TASK-0007 — Listen lifecycle, live captions and Roadmap 2.0 (2026-11-18)
+
+Owner approved V2 and retired the old global gates. Archived v1 byte-for-byte as ROADMAP-v1.md and adopted ROADMAP.md. Preserved old WORK/ERR evidence and transfers. Updated local ignored AGENTS.md, PROJECT_OVERVIEW.md, PROJECT_TREE.txt, TASK_TRACKER.md, ERROR_LOG.md and HANDOFF.md.
+
+Implemented owned Listen in electron/audio/ListenSession.ts, electron/main.ts, ipcHandlers/preload and renderer types. Updated MicrophoneCapture callback ownership, LocalWhisper/REST/OpenAI cancellation, SneakPeekInterface, TopControlBar and the two permission onboarding cards. Added compiled Listen tests and real-renderer coverage in scripts/audit/stabilization-full-product.cjs, migrated contract checks to the current owner, and adjusted test-acceptance.mjs. See the evidence file manifest for all exact paths.
+
+ERR-117: Stop used shared finalization and an unscoped recording flag. Analyze could pick meeting-history text by callback timestamp. New recognizers and sender/request-scoped events replace that path. The owner confirmed clean Stop → Listen before the later captions iteration. ERR-116 and ERR-118: unconditional readiness copy and locally simulated permission toggles could contradict macOS. Actual dev logs show both permissions granted, mic opened and 16 kHz PCM reached STT. No permission designations changed in the OS.
+
+The initial local-only PCM buffer had a manual toggle. The owner clarified that the real goal is to recover the last bit of the interviewer's question without another control, with both speakers visible during normal capture. Replaced the initial prototype with a bounded in-memory transcript window in the existing authorized meeting pipeline. No PCM is replayed, saved or newly sent for lead-in. A brief recognition delay or expired text can leave a gap. Ambient capture remains scoped to Listen.
+
+Verification: five typechecks and renderer/Electron builds passed. Focused Listen 7/7. Affected service/audio/Whisper/auto-answer/renderer suite 4,158 passed, 37 skipped, zero failed/cancelled. Intelligence and engine suite 2,196 passed, nine TODO, zero failed/cancelled. Desktop sandbox 15 scenarios plus microphone lifecycle, Listen/Analyze and STOP. Latest deterministic Analyze first/final visible 207/617 ms, STOP 134 ms with late output rejected. These are fixture timings. Initial desktop attempts found an overly exact PCM length assertion and obsolete Stop title selectors. Initial broad run had 17 stale source-signature failures; preserved the permission and construction assertions by retargeting to the new parameters. Initial renderer typecheck caught an unterminated string and was corrected. The runner rejected a local path in place of the Electron package name and was rerun correctly. No current-run physical lead-in, real credentialed vision, Windows or packaged acceptance claim. Evidence: /Users/abitesh/Downloads/Sneak-Peek-WORK0084.vRqFB6.
+
+## WORK-0083 / TASK-0006 — Product audit and Roadmap 2.0 proposal (2026-11-17)
+
+Reviewed clean local main at 181cccc4, matching public history, current source and product records, upstream source and public Parakeet/provider/retrieval material. Delivered the A–I proposal to /Users/abitesh/Downloads/Sneak-Peek-Roadmap-2.0.fo16xZ/Roadmap-2.0.md. No production files, settings or ROADMAP.md changed. Updated TASK_TRACKER.md, ERROR_LOG.md and HANDOFF.md for proposal status and ERR-115/116.
+
+Ran node scripts/audit/run-stabilization-full-product.mjs with the existing build on macOS. Exit 0, 15 product scenarios and two lifecycle checks passed. Reviewed the rendered overlay capture and launcher control inventory. Synthetic proof only. No fresh builds, broad suites, credentialed generation, physical audio, Windows GUI or paired handset checks. Small evidence files accompany the proposal.
+
 ## WORK-0076 / TASK-0003 / CHG-20 — blind-screen compatibility failure repair (2026-11-16)
 
 **Input:** User applied WORK-0075 on macOS. Focused five-file suite: 36 pass, zero fail/cancelled. All five TS typechecks and renderer/Electron builds passed. `test:node-runner`: 8,966 total, 8,898 pass, 1 fail, 67 skipped, 0 cancelled. The `&&` chain therefore did **not** run `test:auto-answer`, `test:intelligence`, `test:meeting-notes`, `test:lib`, `test:scripts`, or separate Whisper tests. The full `npm test` was not rerun after WORK-0075 in the supplied new logs. See ERR-090.

@@ -16,6 +16,7 @@ type ModeOption = { id: string; name: string };
 
 type TopControlBarProps = {
   isListening: boolean;
+  canAnalyze?: boolean;
   /** True while a Listen turn is being finalized/sent to the AI (Transcribing/Processing). */
   isAnalyzing?: boolean;
   isProcessing: boolean;
@@ -36,6 +37,7 @@ const collapsedKey = 'natively_top_control_bar_collapsed';
 
 export function TopControlBar({
   isListening,
+  canAnalyze = true,
   isAnalyzing = false,
   isProcessing,
   currentModel,
@@ -130,7 +132,7 @@ export function TopControlBar({
             type="button"
             className={`${controlClass} ${isAnalyzing ? 'bg-violet-400/20 text-violet-300' : ''}`}
             onClick={onAnalyze}
-            disabled={!isListening || isAnalyzing}
+            disabled={!isListening || !canAnalyze || isAnalyzing}
             title={isListening ? 'Stop listening and get an answer' : 'Start listening first'}
           >
             <AudioLines size={14} /> <span>Analyze</span>
@@ -141,7 +143,7 @@ export function TopControlBar({
           <button type="button" className={`${controlClass} ${isProcessing ? 'text-lime-300' : 'text-lime-200/85'}`} onClick={onAnswer} disabled={isProcessing} title="Answer from the current context">
             <Sparkles size={14} /> <span>Answer</span>
           </button>
-          <button type="button" className={`${controlClass} ${isProcessing ? 'bg-red-400/20 text-red-300' : ''}`} onClick={onStop} disabled={!isProcessing} title="Stop the current answer" aria-label="Stop current answer">
+          <button type="button" className={`${controlClass} ${isProcessing ? 'bg-red-400/20 text-red-300' : ''}`} onClick={onStop} disabled={!isProcessing && !isListening && !isAnalyzing} title="Stop listening or answering" aria-label="Stop current answer">
             <Square size={12} fill="currentColor" /> <span>Stop</span>
           </button>
           <button type="button" className={controlClass} onClick={onAsk} title={inputValue.trim() ? 'Send question' : 'Focus Ask input'}>

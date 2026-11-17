@@ -138,6 +138,7 @@ export class RestSTT extends EventEmitter {
     private safetyNetTimer: NodeJS.Timeout | null = null;
     private isActive = false;
     private isUploading = false;
+    private uploadAbort: AbortController | null = null;
     private flushPending = false;  // Bug #2 fix: queue flush when upload in progress
 
     // Audio config (must match SystemAudioCapture output)
@@ -240,6 +241,14 @@ export class RestSTT extends EventEmitter {
         this.flushAndUpload();
     }
 
+    public cancel(): void {
+        this.stop();
+        this.uploadAbort?.abort();
+        this.chunks = [];
+        this.totalBufferedBytes = 0;
+        this.flushPending = false;
+    }
+
     /**
      * Write raw PCM audio data to the internal buffer
      */
@@ -330,9 +339,12 @@ export class RestSTT extends EventEmitter {
         const wavBuffer = this.addWavHeader(pcm16k, TARGET_RATE);
 
         this.isUploading = true;
+        const upload = new AbortController();
+        this.uploadAbort = upload;
 
         try {
-            const transcript = await this.uploadAudio(wavBuffer);
+            const transcript = await this.uploadAudio(wavBuffer, upload.signal);
+            if (upload.signal.aborted) return;
 
             if (transcript && transcript.trim().length > 0) {
                 console.log(`[RestSTT] Transcript received`, { length: transcript.trim().length });
@@ -343,9 +355,11 @@ export class RestSTT extends EventEmitter {
                 });
             }
         } catch (err) {
+            if (upload.signal.aborted) return;
             console.error(`[RestSTT] Upload error:`, err);
             this.emit('error', err instanceof Error ? err : new Error(String(err)));
         } finally {
+            this.uploadAbort = null;
             this.isUploading = false;
 
             // Bug #2 fix: if a flush was requested while we were uploading, process it now
@@ -359,17 +373,17 @@ export class RestSTT extends EventEmitter {
     /**
      * Upload WAV audio to the REST endpoint
      */
-    private async uploadAudio(wavBuffer: Buffer): Promise<string> {
+    private async uploadAudio(wavBuffer: Buffer, signal: AbortSignal): Promise<string> {
         if (this.config.uploadType === 'binary') {
-            return this.uploadBinary(wavBuffer);
+            return this.uploadBinary(wavBuffer, signal);
         }
-        return this.uploadMultipart(wavBuffer);
+        return this.uploadMultipart(wavBuffer, signal);
     }
 
     /**
      * Upload via multipart FormData (Groq, OpenAI, ElevenLabs)
      */
-    private async uploadMultipart(wavBuffer: Buffer): Promise<string> {
+    private async uploadMultipart(wavBuffer: Buffer, signal: AbortSignal): Promise<string> {
         const form = new FormData();
 
         form.append('file', wavBuffer, {
@@ -396,6 +410,7 @@ export class RestSTT extends EventEmitter {
                 ...form.getHeaders(),
             },
             timeout: 30000,
+            signal,
         });
 
         return this.config.extractTranscript(response.data);
@@ -404,13 +419,14 @@ export class RestSTT extends EventEmitter {
     /**
      * Upload via raw binary body (Azure, IBM Watson)
      */
-    private async uploadBinary(wavBuffer: Buffer): Promise<string> {
+    private async uploadBinary(wavBuffer: Buffer, signal: AbortSignal): Promise<string> {
         const response = await axios.post(this.config.endpoint, wavBuffer, {
             headers: {
                 ...this.config.authHeader,
                 'Content-Type': 'audio/wav',
             },
             timeout: 30000,
+            signal,
         });
 
         return this.config.extractTranscript(response.data);

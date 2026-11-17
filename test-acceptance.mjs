@@ -143,7 +143,7 @@ async function testD_LifecycleHooks() {
         const mainSrc = readFileSync(join(PROJECT_ROOT, 'dist-electron/electron/main.js'), 'utf-8');
         
         const checks = [
-            { name: 'ensureListenAudioCapture', found: mainSrc.includes('ensureListenAudioCapture') },
+            { name: 'startListen', found: mainSrc.includes('startListen') },
             { name: 'setupSystemAudioPipeline', found: mainSrc.includes('setupSystemAudioPipeline') },
             { name: 'startCaptureChannels', found: mainSrc.includes('startCaptureChannels') },
             { name: 'localWhisperModelSystem', found: mainSrc.includes('localWhisperModelSystem') },

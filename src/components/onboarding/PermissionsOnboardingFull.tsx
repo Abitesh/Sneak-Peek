@@ -8,7 +8,7 @@
 //
 // Refined with Emil Kowalski's Design Engineering principles.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, Monitor, Mic, Lightbulb, Check, AlertCircle, ArrowRight, Lock } from 'lucide-react';
 import { SneakPeekLogoMark } from '../SneakPeekLogoMark';
@@ -203,16 +203,19 @@ export const PermissionsOnboardingFull: React.FC<Props> = ({ isOpen, onDismiss }
   const [canClick, setCanClick] = useState(false);
   const reduced = useReducedMotion() ?? false;
 
+  const permissionCheck = useRef(0);
   const refreshStatus = useCallback(async () => {
+    const check = ++permissionCheck.current;
     try {
       const p = await window.electronAPI?.checkPermissions?.();
-      if (!p) return;
+      if (!p || check !== permissionCheck.current) return;
       setPlatform(p.platform);
       setMicStatus(p.microphone as PermStatus);
       setScrStatus(p.screen     as PermStatus);
     } catch {
-      setMicStatus('not-determined');
-      setScrStatus('not-determined');
+      if (check !== permissionCheck.current) return;
+      setMicStatus('unknown');
+      setScrStatus('unknown');
     }
   }, []);
 

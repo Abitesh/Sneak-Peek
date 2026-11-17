@@ -434,18 +434,12 @@ startMeeting: (metadata?: any) => Promise<{ success: boolean; error?: string; co
 endMeeting: () => Promise<{ success: boolean; error?: string }>
 debugInjectTranscript: (segments: Array<{ speaker?: string; text: string; timestamp?: number; confidence?: number }>)
 => Promise<{ success: boolean; injected?: number; error?: string }>
-finalizeMicSTT: () => Promise<void>
-ensureListenAudioCapture: () => Promise<{
-ok: boolean
-meetingActive: boolean
-mic: boolean
-system: boolean
-ambientChatEnabled: boolean
-screenDenied: boolean
-sameDevice: string | null
-message?: string
-}>
-getListenWindowTranscript: (lastSeconds?: number, sinceMs?: number) => Promise<{ interviewer: string; user: string }>
+startListen: (id: string, input?: string, output?: string) => Promise<{ ok: boolean; message?: string; mic?: boolean; system?: boolean; recent?: { user: string; interviewer: string } }>;
+stopListen: (id: string) => Promise<void>;
+analyzeListen: (id: string) => Promise<{ user: string; interviewer: string } | null>;
+onListenTranscript: (callback: (event: { id: string; speaker: 'user' | 'interviewer'; text: string; final: boolean }) => void) => () => void;
+onListenSessionEnded: (callback: (id: string) => void) => () => void;
+onListenCaptureError: (callback: (event: { id?: string; kind: 'permission' | 'microphone' | 'system' | 'stt' }) => void) => () => void;
 getRecentMeetings: () => Promise<Array<{ id: string; title: string; date: string; duration: string; summary: string }>>
 getMeetingDetails: (id: string) => Promise<any>
 searchGlobalMeetings: (query: string, filters?: any) => Promise<{ enabled: boolean; results: any[] }>

@@ -473,18 +473,12 @@ endMeeting: () => Promise<{ success: boolean; error?: string }>;
 * is unpackaged  the gate lives in the main-process handler. */
 debugInjectTranscript: (segments: Array<{ speaker?: string; text: string; timestamp?: number; confidence?: number }>)
 => Promise<{ success: boolean; injected?: number; error?: string }>;
-finalizeMicSTT: () => Promise<void>;
-ensureListenAudioCapture: () => Promise<{
-ok: boolean;
-meetingActive: boolean;
-mic: boolean;
-system: boolean;
-ambientChatEnabled: boolean;
-screenDenied: boolean;
-sameDevice: string | null;
-message?: string;
-}>;
-getListenWindowTranscript: (lastSeconds?: number, sinceMs?: number) => Promise<{ interviewer: string; user: string }>;
+startListen: (id: string, input?: string, output?: string) => Promise<{ ok: boolean; message?: string; mic?: boolean; system?: boolean; recent?: { user: string; interviewer: string } }>;
+stopListen: (id: string) => Promise<void>;
+analyzeListen: (id: string) => Promise<{ user: string; interviewer: string } | null>;
+onListenTranscript: (callback: (event: { id: string; speaker: 'user' | 'interviewer'; text: string; final: boolean }) => void) => () => void;
+onListenSessionEnded: (callback: (id: string) => void) => () => void;
+onListenCaptureError: (callback: (event: { id?: string; kind: 'permission' | 'microphone' | 'system' | 'stt' }) => void) => () => void;
 getRecentMeetings: () => Promise<
 Array<{ id: string; title: string; date: string; duration: string; summary: string }>
 >;
@@ -1168,6 +1162,12 @@ DEBUG_SUCCESS: 'debug-success',
 DEBUG_ERROR: 'debug-error',
 } as const;
 // Expose the Electron API to the renderer process
+function subscribeListen<T>(channel: string, callback: (payload: T) => void): () => void {
+ const listener = (_event: Electron.IpcRendererEvent, payload: T) => callback(payload);
+ ipcRenderer.on(channel, listener);
+ return () => { ipcRenderer.removeListener(channel, listener); };
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
 // TEST-ONLY eval bridges (gated in main by NODE_ENV==='test')
 // Exposed unconditionally but inert in production: the underlying IPC handlers
@@ -1847,10 +1847,12 @@ startMeeting: (metadata?: any) => ipcRenderer.invoke('start-meeting', metadata),
 endMeeting: () => ipcRenderer.invoke('end-meeting'),
 debugInjectTranscript: (segments: Array<{ speaker?: string; text: string; timestamp?: number; confidence?: number }>) =>
 ipcRenderer.invoke('debug-inject-transcript', segments),
-finalizeMicSTT: () => ipcRenderer.invoke('finalize-mic-stt'),
-ensureListenAudioCapture: () => ipcRenderer.invoke('ensure-listen-audio-capture'),
-getListenWindowTranscript: (lastSeconds?: number, sinceMs?: number) =>
-ipcRenderer.invoke('get-listen-window-transcript', lastSeconds, sinceMs),
+startListen: (id: string, input?: string, output?: string) => ipcRenderer.invoke('start-listen', id, input, output),
+stopListen: (id: string) => ipcRenderer.invoke('stop-listen', id),
+analyzeListen: (id: string) => ipcRenderer.invoke('analyze-listen', id),
+onListenTranscript: (callback: (payload: { id: string; speaker: 'user' | 'interviewer'; text: string; final: boolean }) => void) => subscribeListen('listen-transcript', callback),
+onListenSessionEnded: (callback: (id: string) => void) => subscribeListen('listen-session-ended', callback),
+onListenCaptureError: (callback: (payload: { id?: string; kind: 'permission' | 'microphone' | 'system' | 'stt' }) => void) => subscribeListen('listen-capture-error', callback),
 getRecentMeetings: () => ipcRenderer.invoke('get-recent-meetings'),
 getMeetingDetails: (id: string) => ipcRenderer.invoke('get-meeting-details', id),
 searchGlobalMeetings: (query: string, filters?: any) => ipcRenderer.invoke('search:global-meetings', { query, filters }),

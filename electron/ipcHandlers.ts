@@ -800,27 +800,17 @@ safeHandle('generate-suggestion', async (event, context: string, lastQuestion: s
     event.sender.removeListener('destroyed', destroy);
   }
 });
-safeHandle('finalize-mic-stt', async () => {
-appState.finalizeMicSTT();
+const validListenId = (id: unknown): id is string => typeof id === 'string' && /^[a-f0-9-]{36}$/i.test(id);
+safeHandle('start-listen', async (event, id: unknown, input?: string, output?: string) => {
+if (!validListenId(id) || !appState.watchListenSurface(event.sender.id)) return { ok: false };
+return appState.startListen(event.sender.id, id, typeof input === 'string' ? input : undefined,
+  typeof output === 'string' ? output : undefined);
 });
-// Listen press: ensure mic + system/loopback are actually running (Ambient AI
-// Chat and failed pipeline starts otherwise leave interviewer STT dead).
-safeHandle('ensure-listen-audio-capture', async () => {
-return appState.ensureListenAudioCapture();
+safeHandle('stop-listen', async (event, id: unknown) => {
+if (validListenId(id)) appState.cancelListenCapture(event.sender.id, id);
 });
-// Analyze safety net: interviewer/user lines SessionTracker already has for
-// the Listen window, in case renderer buffers missed system-audio IPC.
-safeHandle('get-listen-window-transcript', async (_event, lastSeconds?: number, sinceMs?: number) => {
-const secs = typeof lastSeconds === 'number' && lastSeconds > 0 ? Math.min(lastSeconds, 600) : 120;
-try {
-const manager = appState.getIntelligenceManager?.();
-if (typeof sinceMs === 'number' && Number.isFinite(sinceMs) && sinceMs > 0) {
-return manager?.getListenWindowRolesSince?.(sinceMs) ?? { interviewer: '', user: '' };
-}
-return manager?.getListenWindowRoles?.(secs) ?? { interviewer: '', user: '' };
-} catch {
-return { interviewer: '', user: '' };
-}
+safeHandle('analyze-listen', async (event, id: unknown) => {
+return validListenId(id) ? appState.analyzeListen(event.sender.id, id) : null;
 });
 // IPC handler for analyzing image from file path
 function resolveAppImagePaths(imagePaths: readonly string[]): string[] {
@@ -12472,8 +12462,12 @@ appState.getWindowHelper().setLauncherOpacityPreview(!!active);
 // ─ ─ Permissions ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 safeHandle('permissions:check', async () => {
 if (process.platform === 'darwin') {
-const mic = systemPreferences.getMediaAccessStatus('microphone');
-const rawScreen = systemPreferences.getMediaAccessStatus('screen');
+const readPermission = (kind: 'microphone' | 'screen'): string => {
+try { return systemPreferences.getMediaAccessStatus(kind) || 'unknown'; }
+catch { return 'unknown'; }
+};
+const mic = readPermission('microphone');
+const rawScreen = readPermission('screen');
 // macOS reports the Screen Recording grant unreliably via
 // getMediaAccessStatus('screen'): a genuinely-granted permission is
 // frequently surfaced as 'denied' / 'not-determined' until the process is

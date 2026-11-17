@@ -440,6 +440,16 @@ this.emit('error', err instanceof Error ? err : new Error(String(err)));
 });
 this.startStreamingLoop();
 }
+cancel(): void {
+this.isActive = false;
+this.stopStreamingLoop();
+if (this.gapFlushTimer) clearTimeout(this.gapFlushTimer);
+this.gapFlushTimer = null;
+this.vad = null;
+this.pendingAudio = [];
+this.resetAgreementState();
+if (this.worker) this.beginWorkerTermination(this.worker);
+}
 stop(): void {
 if (!this.isActive) return;
 this.isActive = false;

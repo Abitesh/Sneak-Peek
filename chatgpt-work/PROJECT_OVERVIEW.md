@@ -1,5 +1,11 @@
 # Sneak-Peek — project overview and setup
 
+## Roadmap 2.0 and live audio ownership (2026-11-18)
+
+[Roadmap 2.0](../ROADMAP.md) is authoritative. [Roadmap v1](../ROADMAP-v1.md) holds CHG-01–23 and their unchanged historical evidence. The product continues on the canonical Intelligence Engine.
+
+An authorized meeting's existing mic/system STT supplies live Them and You captions and a bounded recent text window. Listen automatically seeds its new owner with that text. Ambient AI Chat keeps audio off before Listen. There is no new recorder or raw pre-roll replay. Each Listen owns fresh recognizers and sender/request IDs. Stop closes the turn and Analyze finalizes it. Ambient Stop releases the devices. In a recording meeting, fresh background recognizers resume the independently authorized live captions while old callbacks are rejected. Permission cards show observed OS results and keep provider configuration separate. See WORK-0084 and the reliability track for verification boundaries.
+
 ## Screenshot path cleanup — WORK-0082 (2026-11-17)
 
 The screenshot shortcut still enters the renderer WTA action. Typed manual image attachments continue through allowed-path validation, the canonical screenshot scope, pinned routing and outbound image policy. The unused rolling-script/debug helpers and their ephemeral problem state were removed. Existing screenshot queues, shortcut settings and IPC remain available. [Caller and runtime evidence](../scripts/audit/chg20-surface-map.md#work-0082--verified-dead-screenshot-path-and-manual-chat-trial).

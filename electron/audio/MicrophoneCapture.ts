@@ -173,7 +173,9 @@ export class MicrophoneCapture extends EventEmitter {
 
             this.isRecording = true; // Set BEFORE start() to prevent re-entrant calls
 
+            const startedMonitor = this.monitor;
             this.monitor.start((err: Error | null, chunk: Buffer) => {
+                if (this.monitor !== startedMonitor || !this.isRecording) return;
                 // napi v3 ThreadsafeFunction passes (err, arg) format
                 if (err) {
                     console.error('[MicrophoneCapture] Callback error:', err);
@@ -196,6 +198,7 @@ export class MicrophoneCapture extends EventEmitter {
                     this.emit('data', chunk);
                 }
             }, (err: Error | null, _ended: boolean) => {
+                if (this.monitor !== startedMonitor || !this.isRecording) return;
                 // Speech-ended callback from Rust SilenceSuppressor.
                 // _ended is always `true` when fired (Rust only invokes on speech→silence transition).
                 if (err) {
@@ -204,6 +207,7 @@ export class MicrophoneCapture extends EventEmitter {
                 }
                 this.emit('speech_ended');
             }, (err: Error | null, edge: any) => {
+                if (this.monitor !== startedMonitor || !this.isRecording) return;
                 // Joint dual-channel transition (Auto Answer V3, Amendment 1).
                 // Optional third callback; absent consumers cost nothing.
                 if (err) {

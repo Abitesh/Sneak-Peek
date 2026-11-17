@@ -14,77 +14,23 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const sneakPeekInterfaceSource = fs.readFileSync(path.resolve(here, '../SneakPeekInterface.tsx'), 'utf8');
 const topControlBarSource = fs.readFileSync(path.resolve(here, '../TopControlBar.tsx'), 'utf8');
 
-test('Listen actually starts the mic/STT pipeline, expands the overlay, and clears buffers', () => {
-  assert.match(
-    sneakPeekInterfaceSource,
-    /const handleStartListening = \(\) => \{[\s\S]*?setIsManualRecording\(true\);[\s\S]*?setIsExpanded\(true\);[\s\S]*?getMeetingActive\(\)[\s\S]*?ensureListenAudioCapture/,
-    'BUG: Listen must set isManualRecording, force the overlay open (setIsExpanded(true)), verify meeting active, and ensure mic+system capture (ensureListenAudioCapture).',
-  );
-  assert.match(
-    sneakPeekInterfaceSource,
-    /const handleStartListening = \(\) => \{[\s\S]*?setVoiceInput\(''\);[\s\S]*?voiceInputRef\.current = '';[\s\S]*?setManualTranscript\(''\);[\s\S]*?manualTranscriptRef\.current = '';[\s\S]*?interviewerListenRef\.current = '';/,
-    'BUG: Listen must clear user AND interviewer Listen buffers before starting a new turn.',
-  );
+const mainSource = fs.readFileSync(path.resolve(here, '../../../electron/main.ts'), 'utf8');
+const ipcSource = fs.readFileSync(path.resolve(here, '../../../electron/ipcHandlers.ts'), 'utf8');
+
+test('Listen expands the overlay and starts both audio channels under one request id', () => {
+  assert.match(sneakPeekInterfaceSource, /activeListenIdRef.current = id;[\s\S]*clearListenTranscript\(\);[\s\S]*setIsExpanded\(true\);[\s\S]*getMeetingActive\(\)[\s\S]*startListen\(id,/);
+  assert.match(mainSource, /captureChannel\('user', this.microphoneCapture\)/);
+  assert.match(mainSource, /captureChannel\('interviewer', this.systemAudioCapture\)/);
 });
 
-test('Listen ensures system audio capture is running (Ambient AI Chat / failed starts)', () => {
-  assert.match(
-    sneakPeekInterfaceSource,
-    /ensureListenAudioCapture/,
-    'BUG: Listen must call ensureListenAudioCapture so system/loopback starts even when Ambient AI Chat skipped capture at meeting start.',
-  );
-  const mainSource = fs.readFileSync(
-    path.resolve(here, '../../../electron/main.ts'),
-    'utf8',
-  );
-  assert.match(
-    mainSource,
-    /async ensureListenAudioCapture\(\)/,
-    'BUG: main process must expose ensureListenAudioCapture for Listen.',
-  );
-  assert.match(
-    mainSource,
-    /Ambient AI Chat is ON — starting mic\/system capture/,
-    'BUG: Listen must override Ambient AI Chat and start capture when the user explicitly presses Listen.',
-  );
-});
-
-test('Analyze falls back to SessionTracker interviewer lines when Listen buffers are empty', () => {
-  assert.match(
-    sneakPeekInterfaceSource,
-    /getListenWindowTranscript/,
-    'BUG: Analyze must query getListenWindowTranscript when Them/You Listen buffers are empty.',
-  );
-});
-
-test('each Listen turn is timestamp-bounded and opts out of rolling chat context', () => {
-  assert.match(sneakPeekInterfaceSource, /listenStartedAtRef\.current = Date\.now\(\)/);
-  assert.match(sneakPeekInterfaceSource, /getListenWindowTranscript\?\.\(secs, listenStartedAt\)/);
+test('Analyze only uses the current turn result and excludes rolling context', () => {
+  assert.doesNotMatch(sneakPeekInterfaceSource, /getListenWindowTranscript|listenStartedAtRef/);
+  assert.match(sneakPeekInterfaceSource, /onListenTranscript[\s\S]*if \(transcript.id !== activeListenIdRef.current\) return/);
+  assert.match(sneakPeekInterfaceSource, /const transcript = await window.electronAPI.analyzeListen\(id\);[\s\S]*if \(activeListenIdRef.current !== id\) return;/);
+  assert.match(sneakPeekInterfaceSource, /Interviewer: \$\{transcript.interviewer\}/);
   assert.match(sneakPeekInterfaceSource, /\{ skipRollingContext: true \}/);
-
-  const intelligenceManagerSource = fs.readFileSync(
-    path.resolve(here, '../../../electron/IntelligenceManager.ts'),
-    'utf8',
-  );
-  assert.match(intelligenceManagerSource, /getListenWindowRolesSince\(startTimeMs: number\)/);
-  assert.match(intelligenceManagerSource, /Number\(item\.timestamp\) >= cutoff/);
-
-  const ipcSource = fs.readFileSync(path.resolve(here, '../../../electron/ipcHandlers.ts'), 'utf8');
   assert.match(ipcSource, /if \(options\?\.skipRollingContext\) return undefined/);
   assert.match(ipcSource, /if \(!context && !options\?\.skipRollingContext\)/);
-});
-
-test('Listen accumulates system/interviewer audio during a session (other person on the call)', () => {
-  assert.match(
-    sneakPeekInterfaceSource,
-    /isRecordingRef\.current && transcript\.speaker === 'interviewer'/,
-    'BUG: while Listen is active, interviewer (system audio) transcripts must enter Listen-scoped buffers — not only the rolling bar.',
-  );
-  assert.match(
-    sneakPeekInterfaceSource,
-    /Interviewer: \$\{them\}/,
-    'BUG: Analyze must include the other person\'s speech in the question sent to the AI.',
-  );
 });
 
 test('TopControlBar exposes separate Listen and Analyze actions; Answer stays handleWhatToSay', () => {
@@ -98,29 +44,10 @@ test('TopControlBar exposes separate Listen and Analyze actions; Answer stays ha
   assert.match(sneakPeekInterfaceSource, /onAnswer=\{\(\) => void handleWhatToSay\(\)\}/);
 });
 
-test('Analyze auto-stops Listen, finalizes STT, and sends to the AI', () => {
-  assert.match(
-    sneakPeekInterfaceSource,
-    /const handleAnalyzeNow = async \(\) => \{\s*if \(!isManualRecording\) return;/,
-    'BUG: Analyze must no-op unless a Listen session is active.',
-  );
-  assert.match(
-    sneakPeekInterfaceSource,
-    /const handleAnalyzeNow = async \(\) => \{[\s\S]*?setIsManualRecording\(false\);[\s\S]*?finalizeMicSTT/,
-    'BUG: Analyze must stop recording and finalize the mic STT turn.',
-  );
-});
-
-test('finalizeMicSTT flushes BOTH user mic and system/interviewer STT channels', () => {
-  const mainSource = fs.readFileSync(
-    path.resolve(here, '../../../electron/main.ts'),
-    'utf8',
-  );
-  assert.match(
-    mainSource,
-    /finalizeMicSTT\(\)[\s\S]*?googleSTT_User\?\.finalize[\s\S]*?googleSTT\?\.finalize/,
-    'BUG: Analyze finalize must flush system audio STT as well as the user mic, or the other person\'s finals never land in Listen buffers.',
-  );
+test('Stop cancels its Listen turn and Analyze finalizes its own recognizers', () => {
+  assert.match(sneakPeekInterfaceSource, /const handleStopListening[\s\S]*activeListenIdRef.current = null;[\s\S]*stopListen\(id\)/);
+  assert.match(sneakPeekInterfaceSource, /const handleAnalyzeNow[\s\S]*setIsManualRecording\(false\);[\s\S]*analyzeListen\(id\)/);
+  assert.match(mainSource, /public async analyzeListen[\s\S]*session.owner !== owner \|\| session.id !== id[\s\S]*await session.finish\(\)/);
 });
 
 test('the legacy combined toggle (hotkey / phone-bridge / quick-action chip) still dispatches to Listen/Analyze', () => {
@@ -220,34 +147,9 @@ test('Listen preserves arming across the session-reset Listen itself caused', ()
   );
 });
 
-test('Listen does not sleep 400ms before ensureListenAudioCapture', () => {
-  assert.doesNotMatch(
-    handleStartListeningBody,
-    /setTimeout\([^,]+,\s*400\s*\)/,
-    'BUG: the 400ms pause cannot wait out 5–7s audio init; ensureListenAudioCapture must await _audioInitPromise instead.',
-  );
-});
-
-test('Listen warns on !status.mic the same way it warns on !status.system', () => {
-  assert.match(
-    handleStartListeningBody,
-    /!status\.mic[\s\S]*?status\.message[\s\S]*?⚠️ \$\{status\.message\}/,
-    'BUG: handleStartListening must surface status.message when mic capture did not start, not only when !status.system.',
-  );
-});
-
-test('Listen disarms when ensureListenAudioCapture returns !ok', () => {
-  assert.match(
-    handleStartListeningBody,
-    /!status\.ok[\s\S]*?isRecordingRef\.current\s*=\s*false[\s\S]*?setIsManualRecording\(\s*false\s*\)[\s\S]*?setAudioSessionState\(\s*['"]idle['"]\s*\)/,
-    'BUG: if ensureListenAudioCapture fails (!status.ok), disarm Listen so the button is clickable again.',
-  );
-});
-
-test('Listen disarms when startMeeting or ensureListenAudioCapture throws', () => {
-  assert.match(
-    handleStartListeningBody,
-    /catch \(err\) \{[\s\S]*?preserveListenOnResetRef\.current\s*=\s*false[\s\S]*?isRecordingRef\.current\s*=\s*false[\s\S]*?setIsManualRecording\(\s*false\s*\)[\s\S]*?setAudioSessionState\(\s*['"]idle['"]\s*\)/,
-    'BUG: if startMeeting throws (e.g. mic-permission-denied), disarm Listen and drop the preserve flag — otherwise the UI stays on Listening with no capture.',
-  );
+test('Listen starts without artificial delay and reports real start failures', () => {
+  assert.doesNotMatch(handleStartListeningBody, /setTimeout\([^,]+,\s*400\s*\)/);
+  assert.match(handleStartListeningBody, /if \(status.message[\s\S]*setListenStatus\(status.message\)/);
+  assert.match(handleStartListeningBody, /if \(!status.ok\) handleStopListening\(\)/);
+  assert.match(handleStartListeningBody, /catch \{[\s\S]*preserveListenOnResetRef.current = false;[\s\S]*handleStopListening\(\)/);
 });

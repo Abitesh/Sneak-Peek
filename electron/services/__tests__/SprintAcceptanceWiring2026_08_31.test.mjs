@@ -102,18 +102,18 @@ describe('Acceptance step 4: Listen → live transcript → Analyze → auto-sto
     assert.match(handler, /getMeetingActive\(\)/, 'it must check whether a capture session already exists');
     assert.match(handler, /await window\.electronAPI\.startMeeting\(\{/,
       'a non-active session must start a real meeting capture');
-    assert.match(handler, /ensureListenAudioCapture\?\.\(\)/,
+    assert.match(handler, /startListen\(id, inputDeviceId, outputDeviceId\)/,
       'active and newly started sessions must ensure microphone and system capture');
   });
 
   test('handleAnalyzeNow auto-stops the Listen session, finalizes STT, and sends the transcript for an answer', () => {
     assert.match(
       NATIVELY_INTERFACE,
-      /const handleAnalyzeNow = async \(\) => \{\s*if \(!isManualRecording\) return;/,
+      /const handleAnalyzeNow = async \(\) => \{[\s\S]*?if \(!id \|\| !isManualRecording/,
     );
     assert.match(
       NATIVELY_INTERFACE,
-      /const handleAnalyzeNow = async \(\) => \{[\s\S]*?setIsManualRecording\(false\);[\s\S]*?finalizeMicSTT/,
+      /const handleAnalyzeNow = async \(\) => \{[\s\S]*?setIsManualRecording\(false\);[\s\S]*?analyzeListen\(id\)/,
     );
   });
 });

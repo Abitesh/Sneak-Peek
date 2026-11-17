@@ -25,7 +25,7 @@ const ipcSource = fs.readFileSync(path.join(root, 'electron/ipcHandlers.ts'), 'u
 
 function extractMethodBody(src, methodName) {
   const re = new RegExp(
-    `(?:public|private|protected)\\s+(?:async\\s+)?${methodName}\\s*\\([^)]*\\)\\s*(?::\\s*[^{;=]*(?:\\{[^{}]*\\}\\s*)?)?\\s*\\{`,
+    `(?:public|private|protected)\\s+(?:async\\s+)?${methodName}\\s*\\([^\n]*\\)\\s*(?::\\s*[^{;=]*(?:\\{[^{}]*\\}\\s*)?)?\\s*\\{`,
   );
   const m = re.exec(src);
   assert.ok(m, `could not locate ${methodName}`);

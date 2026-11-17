@@ -172,7 +172,7 @@ function extractBracedBlock(src, startOffset) {
 
 const fnBody = extractFunctionBody(
   source,
-  String.raw`private\s+async\s+setupSystemAudioPipeline\s*\(\s*\)\s*:\s*Promise<void>\s*\{`,
+  String.raw`private\s+async\s+setupSystemAudioPipeline\s*\([^\n]*\)\s*:\s*Promise<void>\s*\{`,
 );
 
 // Locate the `if (screenCapability.effectiveDenied) { ... }` block and

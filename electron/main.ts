@@ -764,9 +764,8 @@ async function ensureMacMicrophoneAccess(context: string): Promise<boolean> {
  const currentStatus = systemPreferences.getMediaAccessStatus('microphone');
  console.log(`[Main] macOS microphone permission before ${context}: ${currentStatus}`);
 
- if (currentStatus === 'granted') {
- return true;
- }
+ if (currentStatus === 'granted') return true;
+ if (currentStatus !== 'not-determined') return false;
 
  const granted = await systemPreferences.askForMediaAccess('microphone');
  console.log(
@@ -1031,7 +1030,9 @@ function formatPermissionMessage(reason: PermissionReason, extra?: { device?: st
  return 'System audio is arriving silent. Toggle Sneak-Peek off and on under Privacy & Security  Screen Recording, then restart.';
  case 'mic-denied':
  return isMac
- ? 'Enable Sneak-Peek under Privacy & Security  Microphone, then restart.'
+ ? (app.isPackaged
+   ? 'Enable Sneak-Peek under Privacy & Security  Microphone, then restart.'
+   : 'Check Privacy & Security → Microphone for Electron or the app that launched this development build (such as Terminal or VS Code). If already allowed, relaunch from the same app.')
  : 'Enable Sneak-Peek under Settings  Privacy  Microphone, then restart.';
  case 'mic-zero-fill':
  return isMac
@@ -1187,6 +1188,7 @@ import { ProcessingHelper } from "./ProcessingHelper"
 import { IntelligenceManager } from "./IntelligenceManager"
 import { SystemAudioCapture } from "./audio/SystemAudioCapture"
 import { MicrophoneCapture } from "./audio/MicrophoneCapture"
+import { ListenSession, RecentListenTranscript, type ListenSpeaker } from "./audio/ListenSession"
 import { AudioDevices } from "./audio/AudioDevices"
 import { resolveRequestedInputDevice } from "./audio/audioDeviceSelection.mjs"
 import { loadNativeModule } from "./audio/nativeModuleLoader"
@@ -1216,6 +1218,7 @@ type STTProvider = (GoogleSTT | LocalWhisperSTT | RestSTT | DeepgramStreamingSTT
  setAudioChannelCount?: (count: number) => void;
  setSampleRate?: (rate: number) => void;
  notifySpeechEnded?: () => void;
+ cancel?: () => void;
 };
 
 type ScreenshotWindowMode = 'launcher' | 'overlay';
@@ -3329,7 +3332,7 @@ export class AppState {
  public disposeAutoAnswerForShutdown(): void {
  }
 
- private createSTTProvider(speaker: 'interviewer' | 'user'): STTProvider | null {
+ private createSTTProvider(speaker: 'interviewer' | 'user', listen?: ListenSession): STTProvider | null {
  const { CredentialsManager } = require('./services/CredentialsManager');
  const sttProvider = CredentialsManager.getInstance().getSttProvider();
  const sttLanguage = CredentialsManager.getInstance().getSttLanguage();
@@ -3445,7 +3448,8 @@ export class AppState {
  console.log(`[Main] Using LocalWhisperSTT for ${speaker}, model: ${modelId}`);
  const lws = new LocalWhisperSTT(modelId);
  // Channel label disambiguates the two concurrent instances in latency logs.
- lws.setChannel(speaker === 'interviewer' ? 'system' : 'mic');
+ const channelLabel = speaker === 'interviewer' ? 'system' : 'mic';
+ lws.setChannel(listen ? `${channelLabel}-listen-${listen.id}` : channelLabel);
  stt = lws as any;
  } else {
  stt = new GoogleSTT(speaker);
@@ -3467,6 +3471,19 @@ export class AppState {
  : stt instanceof SneakPeekProSTT ? 'natively'
  : stt instanceof GoogleSTT ? 'google'
  : sttProvider;
+
+ if (listen) {
+ if (effectiveSttId !== sttProvider) return null; // Do not silently substitute an unconfigured recognizer.
+ // Manual Listen has private, turn-scoped output. Do not enter the meeting
+ // transcript, automatic answers, indexing or the background status stream.
+ stt.on('transcript', segment => listen.accept({ speaker, text: segment.text, final: segment.isFinal }));
+ stt.on('error', () => {
+ if (this.manualListen === listen) {
+ this.sendListenEvent(listen.owner, 'listen-capture-error', { id: listen.id, kind: 'stt' });
+ }
+ });
+ return stt;
+ }
 
  // Speaker diarization on the MEETING-AUDIO channel (2026-08-25). That
  // channel can carry several voices — an interviewer plus a colleague, or a
@@ -3491,13 +3508,15 @@ export class AppState {
  // simply never emit it — the quiet window remains the floor.
  if (speaker === 'interviewer') {
  (stt as any).on?.('endpoint', (ev: { type: 'speech_final' | 'utterance_end'; confidence?: number }) => {
- if (!this._autoAnswerEnabled) return;
+ if (!this._autoAnswerEnabled || this.manualListen || !ownsMeetingSpeech()) return;
  this.simpleAutoAnswer.onProviderEndpoint();
  });
  }
 
+ const ownsMeetingSpeech = () => (speaker === 'user' ? this.googleSTT_User : this.googleSTT) === stt;
  // Wire Transcript Events
  stt.on('transcript', (segment: { text: string, isFinal: boolean, confidence: number, speakerId?: string }) => {
+ if (!ownsMeetingSpeech() || this.manualListen) return;
  // Accept transcripts while a meeting is active OR while we're draining
  // trailing finals after Stop. `_isDraining` covers the ~250 ms grace
  // window between Stop click and STT socket close so the user's last
@@ -3565,6 +3584,9 @@ export class AppState {
  };
  // Display-only send, partial-throttled (finals pass through immediately).
  // The answer path above (handleTranscript / RAG feed) is unaffected.
+ if (this.isMeetingActive && !this._ambientChatEnabled) {
+ this.recentListenTranscript.add({ speaker, text: segment.text, final: segment.isFinal });
+ }
  this.sendThrottledTranscript(payload);
 
  // Feed final recruiter (system audio) transcripts to the premium
@@ -3599,6 +3621,7 @@ export class AppState {
  let _lastState: 'connected' | 'reconnecting' | 'failed' | 'awaiting-audio' = 'awaiting-audio';
 
  stt.on('error', (err: Error) => {
+ if (!ownsMeetingSpeech()) return;
  // Google streamingRecognize's 10s silence timeout closes the stream
  // with gRPC code 11 ("Audio Timeout Error"). GoogleSTT already
  // swallows this case before it reaches us, but other providers may
@@ -3677,7 +3700,7 @@ export class AppState {
  // Track successful transcripts — resets consecutive error counter
  // Broadcasts 'connected' whenever we recover from reconnecting/failed
  stt.on('transcript', (segment: { text: string, isFinal: boolean, confidence: number }) => {
- if (segment.isFinal) {
+ if (segment.isFinal && ownsMeetingSpeech() && !this.manualListen) {
  _consecutiveErrors = 0; // Success — reset counter
  if (_lastState !== 'connected') {
  _lastState = 'connected';
@@ -3957,7 +3980,8 @@ export class AppState {
  if (chunkCount <= 3 || chunkCount % 500 === 0) {
  console.log(`${prefix} \u2192 write() called with ${chunk.length}B${allZeros ? ' (ALL ZEROS)' : ' (real audio)'}`);
  }
- this.googleSTT?.write(chunk);
+ if (this.manualListen) this.manualListen.write('interviewer', chunk, capture.getSampleRate());
+ else if (!this._ambientChatEnabled) this.googleSTT?.write(chunk);
  // Smart Turn ring buffer (256 KB, interviewer channel only). Cheap
  // int16 copy; skipped entirely while Auto Answer is off.
  }
@@ -3970,7 +3994,8 @@ export class AppState {
  });
  capture.on('speech_ended', () => {
  if (this.systemAudioCapture === capture) {
- this.googleSTT?.notifySpeechEnded?.();
+ if (this.manualListen) this.manualListen.speechEnded('interviewer');
+ else if (!this._ambientChatEnabled) this.googleSTT?.notifySpeechEnded?.();
  }
  });
  capture.on('speech_edge', (edge: SpeechEdge) => {
@@ -4069,7 +4094,7 @@ export class AppState {
  // never the hardware name — which is why the name check alone missed
  // AirPods). Checked once per capture (hfpDegradationChecked), after open.
  // Darwin-only: Windows BT mics don't exhibit this exact rate collapse.
- if (!hfpDegradationChecked && process.platform === 'darwin' && this.microphoneCapture === capture) {
+ if (!this._ambientChatEnabled && !hfpDegradationChecked && process.platform === 'darwin' && this.microphoneCapture === capture) {
  hfpDegradationChecked = true;
  try {
  const nativeRate = capture.getNativeSampleRate?.() ?? 0;
@@ -4149,7 +4174,8 @@ export class AppState {
  // path (F-102): only the capture that owns this.microphoneCapture may
  // feed the user STT socket.
  if (this.microphoneCapture === capture) {
- this.googleSTT_User?.write(chunk);
+ if (this.manualListen) this.manualListen.write('user', chunk, capture.getSampleRate());
+ else if (!this._ambientChatEnabled) this.googleSTT_User?.write(chunk);
  }
  });
  capture.on('sample_rate_changed', (rate: number) => {
@@ -4160,7 +4186,8 @@ export class AppState {
  });
  capture.on('speech_ended', () => {
  if (this.microphoneCapture === capture) {
- this.googleSTT_User?.notifySpeechEnded?.();
+ if (this.manualListen) this.manualListen.speechEnded('user');
+ else if (!this._ambientChatEnabled) this.googleSTT_User?.notifySpeechEnded?.();
  }
  });
  capture.on('speech_edge', (edge: SpeechEdge) => {
@@ -4169,7 +4196,7 @@ export class AppState {
  this.setupMicRecoveryHandler();
  }
 
- private async setupSystemAudioPipeline(): Promise<void> {
+ private async setupSystemAudioPipeline(captureOnly = false, isCurrent = () => true): Promise<void> {
  // REMOVED EARLY RETURN: if (this.systemAudioCapture && this.microphoneCapture) return; // Already initialized
 
  try {
@@ -4185,6 +4212,7 @@ export class AppState {
  // silently zero-fill with no banner — the exact pattern the audit
  // identified for "permissions granted (then revoked), no transcription."
  const screenCapability = await resolveMacScreenCaptureCapability('system audio pipeline setup');
+ if (!isCurrent()) return;
 
  if (screenCapability.effectiveDenied) {
  const message = screenCapability.message ?? formatPermissionMessage('screen-recording-denied');
@@ -4253,7 +4281,7 @@ export class AppState {
  // B3: same defense for mic ctor throws (USB device disappears on open,
  // exclusive-mode steal). Outer try/catch only logged; user got no banner.
  try {
- this.microphoneCapture = new MicrophoneCapture();
+ this.microphoneCapture = new MicrophoneCapture(captureOnly ? this._lastRequestedInputDeviceId : undefined);
  this.wireMicCapture(this.microphoneCapture);
  } catch (capErr) {
  console.error('[Main] MicrophoneCapture construction failed:', capErr);
@@ -4268,6 +4296,8 @@ export class AppState {
  });
  }
  }
+
+ if (captureOnly) return;
 
  // 2. Initialize STT Services if missing
  // STT init wraps each createSTTProvider in its own try/catch so a single
@@ -4388,6 +4418,10 @@ export class AppState {
  * ~500ms — a small price for guaranteed recovery.
  */
  public async restartCapturesAfterResume(): Promise<void> {
+ this.cancelListenCapture(undefined, undefined, true, false);
+ this.recentListenTranscript.clear();
+ await this.listenCaptureBarrier;
+ if (this._ambientChatEnabled) return;
  if (!this.isMeetingActive) {
  console.log('[Main] System resume — no active meeting, nothing to restart.');
  return;
@@ -4749,6 +4783,9 @@ export class AppState {
  }
 
  private async reconfigureAudio(inputDeviceId?: string | null, outputDeviceId?: string | null): Promise<void> {
+ this.cancelListenCapture(undefined, undefined, true, false);
+ this.recentListenTranscript.clear();
+ await this.listenCaptureBarrier;
  console.log(`[Main] Reconfiguring Audio: Input=${inputDeviceId}, Output=${outputDeviceId}`);
 
  // PERF: skip the entire destroy+recreate cycle when neither device changed
@@ -5128,6 +5165,9 @@ export class AppState {
  }
 
  private async _doReconfigureSttProvider(): Promise<void> {
+ this.cancelListenCapture(undefined, undefined, true, false);
+ this.recentListenTranscript.clear();
+ await this.listenCaptureBarrier;
  console.log('[Main] Reconfiguring STT Provider...');
 
  // Settings Audio-tab meters can hold WASAPI exclusive / the CoreAudio
@@ -5165,7 +5205,7 @@ export class AppState {
  // Outside a meeting, defer pipeline creation to startMeeting() so we never
  // eagerly construct a MicrophoneCapture (which calls build_input_stream on
  // macOS and immediately triggers the orange mic indicator even without .play()).
- if (this.isMeetingActive) {
+ if (this.isMeetingActive && !this._ambientChatEnabled) {
  await this.setupSystemAudioPipeline();
  // Per-channel isolated start (F-105); mic first for HAL ordering.
  this.startCaptureChannels('reconfigureSttProvider');
@@ -5198,6 +5238,14 @@ export class AppState {
  if (!this.systemAudioCapture) return;
 
  this.systemAudioCapture.on('error', async (err: Error) => {
+ if (this._ambientChatEnabled) {
+ // The scoped path reports its own failure and leaves capture off
+ // until the user explicitly retries. Never recover into meeting STT.
+ const active = this.manualListen;
+ if (active) this.sendListenEvent(active.owner, 'listen-capture-error', { id: active.id, kind: 'system' });
+ return;
+ }
+
  const recoveryMeetingGeneration = this._meetingGeneration;
  const isRecoveryCurrentMeeting = () => this.isMeetingActive && this._meetingGeneration === recoveryMeetingGeneration;
  if (!isRecoveryCurrentMeeting()) return; // Only attempt recovery during active meetings
@@ -5588,6 +5636,14 @@ export class AppState {
  if (!this.microphoneCapture) return;
 
  this.microphoneCapture.on('error', async (err: Error) => {
+ if (this._ambientChatEnabled) {
+ // The scoped path reports its own failure and leaves capture off
+ // until the user explicitly retries. Never recover into meeting STT.
+ const active = this.manualListen;
+ if (active) this.sendListenEvent(active.owner, 'listen-capture-error', { id: active.id, kind: 'microphone' });
+ return;
+ }
+
  // Guard with both live isMeetingActive and the meeting generation. The
  // live flag drops errors after Stop, while the generation check prevents
  // an old meeting's delayed recovery timer from restarting the mic after a
@@ -6037,111 +6093,174 @@ export class AppState {
  }
  }
 
- public finalizeMicSTT(): void {
- // Listen  Analyze needs BOTH channels flushed: user mic (what you said)
- // and system/loopback (what the other person said on the call). End-meeting
- // already finalizes both; Analyze used to finalize mic only, so interviewer
- // finals never landed in the Listen buffers before the question was built.
- if (this.googleSTT_User?.finalize) {
- console.log('[Main] Finalizing user mic STT');
- this.googleSTT_User.finalize();
+ private manualListen: ListenSession | null = null;
+ private readonly recentListenTranscript = new RecentListenTranscript();
+ private listenCaptureBarrier: Promise<void> = Promise.resolve();
+ private listenPermissionWatch: NodeJS.Timeout | null = null;
+
+ public watchListenSurface(owner: number): boolean {
+ if (!this.ownsListenSurface(owner)) return false;
+ const overlay = this.windowHelper.getOverlayWindow()!;
+ if (!overlay.isVisible()) return false;
+ if (!this.listenWatchedWindows.has(overlay)) {
+ this.listenWatchedWindows.add(overlay);
+ const cancel = () => this.cancelListenCapture(owner);
+ overlay.on('hide', cancel);
+ overlay.webContents.on('render-process-gone', cancel);
+ overlay.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+ if (!isInPlace && isMainFrame) cancel();
+ });
+ overlay.webContents.once('destroyed', cancel);
  }
- if (this.googleSTT?.finalize) {
- console.log('[Main] Finalizing system/interviewer STT');
- this.googleSTT.finalize();
- }
+ return true;
  }
 
- /**
- * Listen explicitly needs mic + system audio even when Ambient AI Chat left
- * capture off for the meeting, or when system capture failed to start.
- * Idempotent: safe to call every Listen press.
- */
- public async ensureListenAudioCapture(): Promise<{
- ok: boolean;
- meetingActive: boolean;
- mic: boolean;
- system: boolean;
- ambientChatEnabled: boolean;
- screenDenied: boolean;
- sameDevice: string | null;
- message?: string;
- }> {
- const ambientChatEnabled = this._ambientChatEnabled;
- const out = {
- ok: false,
- meetingActive: this.isMeetingActive,
- mic: false,
- system: false,
- ambientChatEnabled,
- screenDenied: false,
- sameDevice: null as string | null,
- message: undefined as string | undefined,
- };
+ private readonly listenWatchedWindows = new WeakSet<BrowserWindow>();
 
- if (!this.isMeetingActive) {
- out.message = 'Start a meeting first, then press Listen.';
- return out;
+ public ownsListenSurface(owner: number): boolean {
+ const overlay = this.windowHelper.getOverlayWindow();
+ return !!overlay && !overlay.isDestroyed() && overlay.webContents.id === owner;
  }
 
- let screenDenied = false;
- if (process.platform === 'darwin') {
+ private sendListenEvent(owner: number, channel: string, payload: unknown): void {
+ if (this.ownsListenSurface(owner)) this.sendToWindow(this.windowHelper.getOverlayWindow(), channel, payload);
+ }
+
+ private watchListenPermission(): void {
+ if (process.platform !== 'darwin' || this.listenPermissionWatch) return;
+ this.listenPermissionWatch = setInterval(() => {
+ const active = this.manualListen;
+ if (!active) return;
+ const owner = active.owner;
  try {
- const cap = await resolveMacScreenCaptureCapability('listen ensure capture');
- screenDenied = !!cap.effectiveDenied;
- out.screenDenied = screenDenied;
- if (screenDenied) {
- const message = cap.message ?? formatPermissionMessage('screen-recording-denied');
- out.message = message;
- this.sendSystemAudioPermissionDenied(
- message,
- cap.titleKey ?? permissionTitleKey('screen-recording-denied'),
- );
+ if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return;
+ } catch { /* no permission evidence means stop capture */ }
+ this.sendListenEvent(owner, 'listen-capture-error', { id: active.id, kind: 'permission' });
+ this.cancelListenCapture(owner, active.id, true, false);
+ }, 1_000);
+ this.listenPermissionWatch.unref();
  }
+
+ public cancelListenCapture(owner?: number, id?: string, notify = true, resumeMeetingSpeech = true): void {
+ const active = this.manualListen;
+ if (!active || (owner !== undefined && active.owner !== owner) || (id !== undefined && active.id !== id)) return;
+ this.manualListen = null;
+ active.cancel();
+ this.recentListenTranscript.clear();
+ this.clearTranscriptThrottle();
+ if (notify) this.sendListenEvent(active.owner, 'listen-session-ended', active.id);
+ if (this.listenPermissionWatch) clearInterval(this.listenPermissionWatch);
+ this.listenPermissionWatch = null;
+ if (!this._ambientChatEnabled) {
+ // Before Listen, the meeting recognizers could have buffered a partial
+ // result. Retire them before reopening the rolling transcript window.
+ const oldRecognizers = [this.googleSTT, this.googleSTT_User];
+ const hadBackground = oldRecognizers.some(Boolean);
+ this.googleSTT = this.googleSTT_User = null;
+ for (const recognizer of oldRecognizers) {
+ if (!recognizer) continue;
+ try { if (recognizer.cancel) recognizer.cancel(); else recognizer.stop(); } catch { /* closing is best effort */ }
+ }
+ this._micSttRateApplied = this._sysSttRateApplied = false;
+ if (resumeMeetingSpeech && hadBackground && this.isMeetingActive && this._listenAudioActive) {
+ for (const speaker of ['user', 'interviewer'] as const) {
+ const capture = speaker === 'user' ? this.microphoneCapture : this.systemAudioCapture;
+ if (!capture) continue;
+ try {
+ const recognizer = this.createSTTProvider(speaker);
+ if (speaker === 'user') this.googleSTT_User = recognizer;
+ else this.googleSTT = recognizer;
+ recognizer?.setSampleRate(capture.getSampleRate());
+ recognizer?.start();
  } catch {
- /* probe failure — continue and try to start capture */
+ this.sendListenEvent(active.owner, 'listen-capture-error', { kind: 'stt' });
  }
+ }
+ }
+ return;
  }
 
+ this._listenAudioActive = false;
+ // Detach before native teardown can deliver callbacks. The next Listen
+ // waits for both wrappers to release their native devices.
+ const mic = this.microphoneCapture;
+ const system = this.systemAudioCapture;
+ this.microphoneCapture = null;
+ this.systemAudioCapture = null;
+ (mic as any)?.__disarmStuckWatchdog?.();
+ (system as any)?.__disarmStuckWatchdog?.();
+ this.listenCaptureBarrier = Promise.allSettled([this.listenCaptureBarrier, mic?.destroy(), system?.destroy()])
+   .then(() => undefined);
+ }
+
+ public async startListen(owner: number, id: string, inputDeviceId?: string, outputDeviceId?: string) {
+ if (!this.getIsMeetingActive()) return { ok: false, message: 'Start a meeting first, then press Listen.' };
+ if (this.manualListen) return { ok: false, message: 'Stop the current Listen turn first.' };
+ const recent = this.recentListenTranscript.take();
+ this.clearTranscriptThrottle();
+ const session = new ListenSession(id, owner, event => this.sendListenEvent(owner, 'listen-transcript', { ...event, id }), recent);
+ this.manualListen = session;
+ const isCurrent = () => this.manualListen === session && this.getIsMeetingActive();
+ const fail = (message?: string) => {
+ if (this.manualListen === session) this.cancelListenCapture(owner, id);
+ return { ok: false, message };
+ };
+ const captureChannel = (speaker: ListenSpeaker, capture: MicrophoneCapture | SystemAudioCapture | null) => {
+ if (!capture) return false;
  try {
+ const stt = this.createSTTProvider(speaker, session);
+ if (!stt) return false;
+ capture.start();
+ const rate = capture.getSampleRate();
+ session.add(speaker, stt, rate);
+ return true;
+ } catch {
+ this.sendListenEvent(owner, 'listen-capture-error', { id, kind: speaker === 'user' ? 'microphone' : 'system' });
+ return false;
+ }
+ };
+ try {
+ await this.listenCaptureBarrier;
+ if (!isCurrent()) return fail();
+ if (!(await ensureMacMicrophoneAccess('Listen'))) return fail(formatPermissionMessage('mic-denied'));
+ if (!isCurrent()) return fail();
+ this.watchListenPermission();
  this.stopAudioTest();
- if (this._audioInitPromise) {
- await this._audioInitPromise;
+ if (this._audioInitPromise) await this._audioInitPromise;
+ if (!isCurrent()) return fail();
+ const { CredentialsManager } = require('./services/CredentialsManager');
+ if (CredentialsManager.getInstance().getSttProvider() === 'none') {
+ return fail('Choose a transcription provider in Audio Settings before listening.');
  }
- // Ambient AI Chat skips capture at meeting start. Listen is an explicit
- // request for audio — build the pipeline now without flipping the setting.
- if (!this.microphoneCapture || !this.systemAudioCapture || !this.googleSTT || !this.googleSTT_User) {
- if (ambientChatEnabled) {
- console.warn('[Main] Listen requested while Ambient AI Chat is ON — starting mic/system capture for this session.');
+ if (this._ambientChatEnabled) {
+ this._lastRequestedInputDeviceId = this.normalizeDeviceId(inputDeviceId);
+ this._lastRequestedOutputDeviceId = this.normalizeDeviceId(outputDeviceId);
+ if (!this.microphoneCapture) {
+ this.microphoneCapture = new MicrophoneCapture(this._lastRequestedInputDeviceId);
+ this.wireMicCapture(this.microphoneCapture, '(Listen)');
  }
- await this.setupSystemAudioPipeline();
  }
- const started = this.startCaptureChannels('ensureListenAudioCapture');
- out.mic = started.mic;
- out.system = started.system;
- if (started.mic || started.system) {
+ await this.setupSystemAudioPipeline(true, isCurrent);
+ if (!isCurrent()) return fail();
+ const mic = captureChannel('user', this.microphoneCapture);
+ const system = captureChannel('interviewer', this.systemAudioCapture);
+ if (!mic && !system) return fail('Listen could not start. Check the microphone and speech-to-text settings.');
  this._listenAudioActive = true;
- }
- } catch (err) {
- console.error('[Main] ensureListenAudioCapture failed:', err);
- out.message = (err as Error)?.message || 'Failed to start Listen audio capture.';
- }
-
- out.ok = out.mic || out.system;
-
- if (process.platform === 'darwin' && out.system) {
- out.sameDevice = this.detectSameInputOutputDevice() ?? null;
- if (out.sameDevice && !out.message) {
- out.message = formatPermissionMessage('mac-same-device-input-output', { device: out.sameDevice });
+ return { ok: true, mic, system, recent, message: !mic
+   ? 'Microphone capture did not start. Check the selected input in Audio Settings.'
+   : !system ? 'Microphone is on. System audio is unavailable. Check the output and screen recording permission.' : undefined };
+ } catch {
+ return fail('Listen could not start. Check Audio Settings and try again.');
  }
  }
 
- if (!out.system && !out.message) {
- out.message = screenDenied
- ? undefined
- : 'System audio is not capturing the other person. Grant Screen Recording to Sneak-Peek, and play call audio through speakers or headphones (not a virtual cable Sneak-Peek cannot tap).';
- }
- return out;
+ public async analyzeListen(owner: number, id: string) {
+ const session = this.manualListen;
+ if (!session || session.owner !== owner || session.id !== id) return null;
+ const transcript = await session.finish();
+ if (this.manualListen !== session) return null;
+ this.cancelListenCapture(owner, id, false);
+ return transcript;
  }
 
  /**
@@ -6226,6 +6345,7 @@ export class AppState {
  }
 
  private async startMeetingTransition(metadata?: any): Promise<void> {
+ this.recentListenTranscript.clear();
  console.log('[Main] Starting Meeting...', metadata);
  this.stopAudioTest();
  this._listenAudioActive = false;
@@ -6536,6 +6656,9 @@ export class AppState {
  }
 
  private async endMeetingTransition(): Promise<void> {
+ this.cancelListenCapture(undefined, undefined, true, false);
+ this.recentListenTranscript.clear();
+ await this.listenCaptureBarrier;
  this._listenAudioActive = false;
 
  // Idempotency guard: a double-click on Stop, or a Stop racing with a
@@ -8003,6 +8126,10 @@ export class AppState {
  }
 
  public setAmbientChatEnabled(enabled: boolean): void {
+ if (enabled !== this._ambientChatEnabled) {
+ this.cancelListenCapture(undefined, undefined, true, false);
+ this.recentListenTranscript.clear();
+ }
  this._ambientChatEnabled = enabled;
  SettingsManager.getInstance().set('ambientChatEnabled', enabled);
  console.log(`[AppState] ambientChatEnabled set to ${enabled}`);

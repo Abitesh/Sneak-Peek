@@ -37,59 +37,23 @@ function extractMethodBody(methodName) {
   return mainSource.slice(start, i - 1);
 }
 
-const ensureBody = sliceUntilNextMethod(
-  'public async ensureListenAudioCapture(',
-  'private startCaptureChannels(',
-);
+const listenBody = sliceUntilNextMethod('public async startListen(', 'public async analyzeListen(');
 const startMeetingBody = extractMethodBody('startMeetingTransition');
 
-test('ensureListenAudioCapture awaits _audioInitPromise before touching captures', () => {
-  const awaitIdx = ensureBody.search(/await\s+this\._audioInitPromise/);
-  const setupIdx = ensureBody.search(/setupSystemAudioPipeline/);
-  const startIdx = ensureBody.search(/startCaptureChannels/);
-  assert.ok(awaitIdx >= 0, 'BUG: ensureListenAudioCapture must await this._audioInitPromise (Listen can race deferred 5–7s meeting audio init).');
-  assert.ok(setupIdx >= 0, 'sanity: ensureListenAudioCapture still builds the pipeline when objects are missing.');
-  assert.ok(startIdx >= 0, 'sanity: ensureListenAudioCapture still starts capture channels.');
-  assert.ok(
-    awaitIdx < setupIdx && awaitIdx < startIdx,
-    'BUG: await _audioInitPromise must run before setupSystemAudioPipeline / startCaptureChannels.',
-  );
+test('ordinary Listen waits for in-flight setup and rechecks ownership before opening capture', () => {
+  const wait = listenBody.indexOf('await this._audioInitPromise');
+  const setup = listenBody.indexOf('await this.setupSystemAudioPipeline(true, isCurrent)');
+  assert.ok(wait >= 0 && setup > wait);
+  assert.match(listenBody.slice(wait, setup), /if \(!isCurrent\(\)\) return fail/);
+  assert.match(listenBody.slice(setup), /if \(!isCurrent\(\)\) return fail/);
 });
 
-test('ensureListenAudioCapture reports mic/system from startCaptureChannels, not object presence', () => {
-  assert.match(
-    ensureBody,
-    /const\s+started\s*=\s*this\.startCaptureChannels\(\s*['"]ensureListenAudioCapture['"]\s*\)/,
-    'BUG: capture the startCaptureChannels return value — object existence is not start success (F-105).',
-  );
-  assert.match(
-    ensureBody,
-    /out\.mic\s*=\s*started\.mic/,
-    'BUG: out.mic must come from startCaptureChannels().mic, not microphoneCapture/STT object presence.',
-  );
-  assert.match(
-    ensureBody,
-    /out\.system\s*=\s*started\.system/,
-    'BUG: out.system must come from startCaptureChannels().system, not systemAudioCapture/STT object presence.',
-  );
-  assert.doesNotMatch(
-    ensureBody,
-    /out\.mic\s*=\s*!!\(\s*this\.microphoneCapture/,
-    'BUG: object-presence out.mic lies when start() failed.',
-  );
-  assert.doesNotMatch(
-    ensureBody,
-    /out\.system\s*=\s*!!\(\s*this\.systemAudioCapture/,
-    'BUG: object-presence out.system lies when start() failed.',
-  );
-});
-
-test('ensureListenAudioCapture sets _listenAudioActive when a channel started', () => {
-  assert.match(
-    ensureBody,
-    /started\.(mic|system)[\s\S]*this\._listenAudioActive\s*=\s*true/,
-    'BUG: Listen ensure must set _listenAudioActive true when started.mic || started.system so resume/recovery/reconfigure call start().',
-  );
+test('Listen reports success from channel starts and recognizer readiness', () => {
+  assert.match(listenBody, /capture.start\(\)[\s\S]*session.add\(speaker, stt, rate\)/);
+  assert.match(listenBody, /mic = captureChannel\('user', this.microphoneCapture\)/);
+  assert.match(listenBody, /system = captureChannel\('interviewer', this.systemAudioCapture\)/);
+  assert.match(listenBody, /if \(!mic && !system\) return fail/);
+  assert.match(listenBody, /this._listenAudioActive = true;[\s\S]*return \{ ok: true, mic, system/);
 });
 
 test('startMeeting sets _listenAudioActive true after capture start, not on Ambient Chat skip', () => {

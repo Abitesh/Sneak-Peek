@@ -193,13 +193,13 @@ function findCatchAfter(body, precedingMatcher) {
 // Pre-flight: extract the function body once. Many assertions reuse it.
 const fnBody = extractFunctionBody(
   source,
-  String.raw`private\s+async\s+setupSystemAudioPipeline\s*\(\s*\)\s*:\s*Promise<void>\s*\{`,
+  String.raw`private\s+async\s+setupSystemAudioPipeline\s*\([^\n]*\)\s*:\s*Promise<void>\s*\{`,
 );
 
 describe('B3: setupSystemAudioPipeline construction guards', () => {
   it('1. setupSystemAudioPipeline function exists in electron/main.ts', () => {
     assert.ok(
-      /private\s+async\s+setupSystemAudioPipeline\s*\(\s*\)\s*:\s*Promise<void>\s*\{/.test(source),
+      /private\s+async\s+setupSystemAudioPipeline\s*\([^\n]*\)\s*:\s*Promise<void>\s*\{/.test(source),
       'BUG: setupSystemAudioPipeline signature not found. ' +
         'If you renamed or restructured the function, update this test to match — ' +
         'the construction-guard regression contract still applies.',

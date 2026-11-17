@@ -1,5 +1,15 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0084 / TASK-0007 — current direction (2026-11-18)
+
+[Roadmap 2.0](../ROADMAP.md) is active and [Roadmap v1](../ROADMAP-v1.md) is archived. The November 17 proposal approval note is superseded. CHG-21/22 were retired as active gates with open work reassigned. V2-01 can begin through the existing canonical request, context and provider contracts.
+
+For audio, use a normal authorized meeting with a configured STT provider. The overlay shows Them and You and Listen automatically includes the recent caption window. Ambient AI Chat still starts audio only on Listen. The isolated desktop passed the caption-to-Analyze and stale-result regressions. Owner confirmed Stop → Listen separation on the preceding revision. macOS granted both permissions in the actual process during troubleshooting. Next real check: let the other speaker say a short question, click Listen, confirm it appears, then Analyze and test a new question after Stop. ERR-113's original intermittent silence, physical timing, Windows and other external checks remain open. Evidence: /Users/abitesh/Downloads/Sneak-Peek-WORK0084.vRqFB6.
+
+## WORK-0083 / TASK-0006 — Roadmap 2.0 proposal (2026-11-17)
+
+Main was clean at 181cccc4. Product audit and proposal: /Users/abitesh/Downloads/Sneak-Peek-Roadmap-2.0.fo16xZ/Roadmap-2.0.md. Fresh isolated macOS renderer run passed 15 product scenarios plus Listen/Analyze and STOP. New ERR-115/116 track toolbar clipping and conflicting microphone/transcription status. Existing CHG-21/22 acceptance remains open at WORK-0082 scope. The roadmap and production tree were untouched. The owner approved V2-01 and retired the predecessor gate in WORK-0084.
+
 ## WORK-0082 / TASK-0004 and TASK-0005 (2026-11-17)
 
 Main `0f18dcbc` was clean at intake. **C21-AC1 local PASS. C21-AC2 open. CHG-22 In progress, full C22-AC1/C22-AC2 open.** [Production timing matrix](../scripts/audit/chg21-quality-evaluation.md#work-0082--production-acceptance-matrix-and-matched-renderer-checks) and [candidate deletion audit](../scripts/audit/chg20-surface-map.md#work-0082--verified-dead-screenshot-path-and-manual-chat-trial). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0082.dlEgYk`.

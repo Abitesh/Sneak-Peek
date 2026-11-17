@@ -90,6 +90,7 @@ export class OpenAIStreamingSTT extends EventEmitter {
 
     // Lifecycle
     private isActive     = false;
+    private restUploadAbort: AbortController | null = null;
     private isConnecting = false;
     private shouldReconnect = false;
 
@@ -232,6 +233,12 @@ export class OpenAIStreamingSTT extends EventEmitter {
 
         this.mode = 'ws';
         this._connectWs();
+    }
+
+    public cancel(): void {
+        this.restUploadAbort?.abort();
+        this._closeWs(false);
+        this.stop();
     }
 
     public stop(): void {
@@ -981,9 +988,12 @@ export class OpenAIStreamingSTT extends EventEmitter {
         const pcm16k = this._resamplePcm16(rawPcm, REST_SAMPLE_RATE);
         const wavBuffer = this._addWavHeader(pcm16k, REST_SAMPLE_RATE);
         this.restIsUploading = true;
+        const upload = new AbortController();
+        this.restUploadAbort = upload;
 
         try {
-            const transcript = await this._restUpload(wavBuffer);
+            const transcript = await this._restUpload(wavBuffer, upload.signal);
+            if (upload.signal.aborted) return;
             if (transcript && transcript.trim().length > 0) {
                 console.log(`[OpenAIStreaming][REST] Transcript received`, { length: transcript.trim().length });
                 this.emit('transcript', {
@@ -993,9 +1003,11 @@ export class OpenAIStreamingSTT extends EventEmitter {
                 });
             }
         } catch (err) {
+            if (upload.signal.aborted) return;
             console.error('[OpenAIStreaming][REST] Upload error:', err);
             this.emit('error', err instanceof Error ? err : new Error(String(err)));
         } finally {
+            this.restUploadAbort = null;
             this.restIsUploading = false;
             if (this.restFlushPending) {
                 this.restFlushPending = false;
@@ -1004,7 +1016,7 @@ export class OpenAIStreamingSTT extends EventEmitter {
         }
     }
 
-    private async _restUpload(wavBuffer: Buffer): Promise<string> {
+    private async _restUpload(wavBuffer: Buffer, signal: AbortSignal): Promise<string> {
         const form = new FormData();
         form.append('file', wavBuffer, {
             filename:    'audio.wav',
@@ -1022,6 +1034,7 @@ export class OpenAIStreamingSTT extends EventEmitter {
                 Authorization: `Bearer ${this.apiKey}`,
                 ...form.getHeaders(),
             },
+            signal,
             timeout: 30_000,
         });
 

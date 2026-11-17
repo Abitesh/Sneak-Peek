@@ -68,22 +68,22 @@ test('startMeetingTransition calls stopAudioTest before constructing meeting Mic
   );
 });
 
-test('ensureListenAudioCapture calls stopAudioTest before setupSystemAudioPipeline', () => {
+test('startListen calls stopAudioTest before setupSystemAudioPipeline', () => {
   // Return type is Promise<{ ... }> — brace-scanning extractMethodBody would
   // treat the type literal as the body (same helper as ListenAudioInitContract).
   const body = scrubNonCode(sliceUntilNextMethod(
-    'public async ensureListenAudioCapture(',
-    'private startCaptureChannels(',
+    'public async startListen(',
+    'public async analyzeListen(',
   ));
   const stopIdx = body.search(/this\.stopAudioTest\s*\(/);
   assert.ok(
     stopIdx >= 0,
-    'BUG: ensureListenAudioCapture must call this.stopAudioTest() before opening meeting captures (Listen can start capture while Settings meters still hold the mic)',
+    'BUG: startListen must call this.stopAudioTest() before opening meeting captures (Listen can start capture while Settings meters still hold the mic)',
   );
   const setupIdx = body.search(/this\.setupSystemAudioPipeline\s*\(/);
-  assert.ok(setupIdx >= 0, 'sanity: ensureListenAudioCapture still calls setupSystemAudioPipeline');
+  assert.ok(setupIdx >= 0, 'sanity: startListen still calls setupSystemAudioPipeline');
   assert.ok(
     stopIdx < setupIdx,
-    `BUG: stopAudioTest must run before setupSystemAudioPipeline in ensureListenAudioCapture (stopIdx=${stopIdx}, setupIdx=${setupIdx})`,
+    `BUG: stopAudioTest must run before setupSystemAudioPipeline in startListen (stopIdx=${stopIdx}, setupIdx=${setupIdx})`,
   );
 });

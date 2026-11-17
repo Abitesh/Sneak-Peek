@@ -8,7 +8,7 @@
 // Windows: shows a simple instruction notice (OS handles permissions at first use).
 //
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, Monitor, Mic, Settings } from 'lucide-react';
 import sneakPeekIcon from '../../../assets/icon.png';
@@ -116,16 +116,19 @@ export const PermissionsToaster: React.FC<Props> = ({ isOpen, onDismiss }) => {
   const rule = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)';
   const glass = isLight ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.06)';
 
+  const permissionCheck = useRef(0);
   const refreshStatus = useCallback(async () => {
+    const check = ++permissionCheck.current;
     try {
       const p = await window.electronAPI?.checkPermissions?.();
-      if (!p) return;
+      if (!p || check !== permissionCheck.current) return;
       setPlatform(p.platform);
       setMicStatus(p.microphone as PermStatus);
       setScrStatus(p.screen     as PermStatus);
     } catch {
-      setMicStatus('not-determined');
-      setScrStatus('not-determined');
+      if (check !== permissionCheck.current) return;
+      setMicStatus('unknown');
+      setScrStatus('unknown');
     }
   }, []);
 
@@ -145,7 +148,7 @@ export const PermissionsToaster: React.FC<Props> = ({ isOpen, onDismiss }) => {
 
   const handleMicToggle = async () => {
     if (micStatus === 'granted') {
-      setMicStatus('denied');
+      await refreshStatus();
       return;
     }
     // CR-03: this used to assume the request SUCCEEDED and set 'granted'
@@ -168,14 +171,8 @@ export const PermissionsToaster: React.FC<Props> = ({ isOpen, onDismiss }) => {
   };
 
   const handleScrToggle = () => {
-    if (scrStatus === 'granted') {
-      setScrStatus('denied');
-    } else {
-      if (platform === 'darwin') {
-        window.electronAPI?.openExternal?.('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-      }
-      setScrStatus('granted');
-    }
+    if (scrStatus !== 'granted') openScreenSettings();
+    else void refreshStatus();
   };
 
   const openScreenSettings = () => {

@@ -1,5 +1,17 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0007 / WORK-0084 — Audio reliability and adoption (2026-11-18)
+
+**Roadmap 2.0 adopted. V2-01 Planned and ready for independent implementation.** WORK-0083 / TASK-0006 was approved on November 18. Historical CHG-21/22 criteria are archived and their open evidence is transferred in [Roadmap 2.0](../ROADMAP.md). ERR-102/104/110 → V2-05. ERR-112 external follow-ups → V2-04. ERR-115 → V2-03. ERR-114 → maintenance. ERR-113 and physical speech/permissions/device coverage → microphone reliability. Windows, paired phone, hosted/credentialed and release checks remain independent.
+
+**Audio changes Implemented, unverified for physical two-speaker lead-in.** Owner confirmed Stop → Listen excluded the previous transcription before the final captions revision. The rebuilt isolated desktop verified both pre-click speakers, the interviewer question carried through Analyze, fresh sender/request and recognizer ownership, Stop/restart, grant/denial/revocation fixture, no PCM replay and a final visible answer. Real development app logs separately confirmed microphone/screen granted, native microphone opening and 16 kHz delivery. A real repetition with two speakers and the final captions build is still needed. Evidence: /Users/abitesh/Downloads/Sneak-Peek-WORK0084.vRqFB6.
+
+## TASK-0006 / WORK-0083 — Product audit and Roadmap 2.0 proposal (2026-11-17)
+
+**Proposal approved on November 18 in WORK-0084. V2 implementation Planned.** Report: /Users/abitesh/Downloads/Sneak-Peek-Roadmap-2.0.fo16xZ/Roadmap-2.0.md. The proposed first product slice is Coding / DSA, CS Fundamentals, and Resume & Projects using the canonical pipeline. Roadmap 2.0 now owns active criteria. The original CHG-23 ordering is archived.
+
+**Evidence:** macOS isolated renderer, existing development builds, synthetic STT and deterministic transport. 15 product scenarios and Listen/Analyze and STOP passed. ERR-115 and ERR-116 record reproduced UI issues. TASK-0004 and TASK-0005 retain their previous dispositions. The approved V2-01 slice is the next independent product milestone.
+
 ## WORK-0082 / TASK-0004 and TASK-0005 / CHG-21 and CHG-22 (2026-11-17)
 
 **CHG-21 Implemented, unverified. C21-AC1 PASS in authorized local scope. C21-AC2 open.** Applied the owner-approved production timing matrix. Real rendered local timing confirmed the cold-start miss, a prepared first-visible outlier and a slower resident Listen case. ERR-104 remains open. The latest Listen completion also reproduced the definition problem in ERR-110. ERR-102 did not recur in the repeated global batch. Retain its earlier failure evidence and repeatability requirement. [Timing and quality evidence](../scripts/audit/chg21-quality-evaluation.md#work-0082--production-acceptance-matrix-and-matched-renderer-checks).

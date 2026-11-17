@@ -1,5 +1,27 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-118 — App permission controls can disagree with macOS grants (2026-11-18)
+
+WORK-0084 / TASK-0007. Owner screenshot showed enabled macOS Screen & System Audio Recording for Electron and microphone access for launch hosts. The running development Electron process independently reported both grants, opened the real microphone and forwarded 16 kHz PCM. No system reset or permission change is justified by that evidence. The compact permissions card writes synthetic granted/denied states on user clicks. A grant warning can also remain visible after a later successful check. Keep those UI issues separate from physical silence and STT availability.
+
+**WORK-0084:** Both onboarding cards use refreshed OS results and reject out-of-order checks. The compact card no longer simulates permission toggles. The overlay rechecks permission warnings and keeps hardware/recognizer issues separate. Actual process-level grants were observed. A post-relaunch owner confirmation of the warning UI is pending.
+
+## ERR-117 — Listen after Stop can accept old transcription (2026-11-18)
+
+WORK-0084 / TASK-0007 / Reliability track. Owner reported stale text after Stop → Listen. Source inspection confirmed Stop called the same finalization IPC as Analyze, kept meeting-wide STT running, and the renderer used an unscoped recording flag to accept subsequent callbacks. Analyze could also consult meeting-level history by callback time rather than Listen ownership. The planned correction is fresh provider/request ownership and distinct Stop and Analyze boundaries. Owner confirmed the immediate Stop → Listen reproduction no longer inherits the old turn. WORK-0084 rebuilt desktop proof also verified old recognizer, wrong sender and queued renderer result rejection. Physical two-speaker lead-in on the final revision remains pending.
+
+## ERR-115 — Overlay toolbar clips the right-hand model control (2026-11-17)
+
+WORK-0083 / TASK-0006. Reproduced on macOS in the installed development renderer with the isolated profile and synthetic transport. The default overlay screenshot shows only the left edge of the top model control. The lower model picker and composer remain visible. TopControlBar uses a single horizontal scroll row with nonshrinking controls, inside a deliberately fixed-width overlay. The reported whole-window and top-edge failures still need reproduction on the original display setup.
+
+**Status: Not fixed.** Capture logical bounds, display work area and control rectangles on affected configurations. Verify that core controls are reachable without horizontal scrolling at supported sizes and that compact/expanded layout changes preserve STOP, focus and composer access. Synthetic screenshot: /Users/abitesh/Downloads/Sneak-Peek-Roadmap-2.0.fo16xZ/overlay.png.
+
+## ERR-116 — Microphone and transcription banners disagree (2026-11-17)
+
+WORK-0083 / TASK-0006. The same isolated launch forced macOS media permission denial and configured no STT provider. The renderer displayed Microphone Blocked and a separate Transcription Not Configured notice whose copy says the microphone is ready. The STT banner is independently gated and its copy is unconditional. This finding concerns UI state and does not establish the original physical silence cause in ERR-113.
+
+**WORK-0084:** Removed the false microphone-ready text from the STT configuration banner. The rebuilt disposable renderer passed permission denial, grant and revocation with configuration distinguished. Actual hardware/device repeat remains in TASK-0007.
+
 ## ERR-114 — Whole manual-chat legacy deletion invalidates source-based checks (2026-11-17)
 
 WORK-0082 / TASK-0005 / CHG-22. A trial removed only the unreachable portion of the registered manual handler (96 AST statements after an always-true terminal block) while preserving the canonical route, sender ownership and setup catch. The explicit IPC/ProcessingHelper reference sweep failed 142 of 1677 tests. The same sweep on the baseline failed 7 of 1677. These failures include layout pins and assertions for earlier security, evidence, cancellation and provider behavior. Runtime reachability and test migration are separate proofs. Restore the manual trial before delivering the independent screenshot cleanup. Classify the failures by test and remap each applicable invariant to the canonical owner before deleting the whole branch. The broader sweep includes nonstandard suites and fixtures; the usual regression commands remain required.

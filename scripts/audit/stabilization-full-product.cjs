@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const { app, BrowserWindow, safeStorage, systemPreferences, desktopCapturer, dialog } = require('electron');
 const root = path.resolve(__dirname, '../..');
 const temp = process.env.SNEAK_PEEK_ACCEPTANCE_ROOT;
@@ -164,7 +165,8 @@ app.whenReady().then(async () => {
   overlay.webContents.setBackgroundThrottling(false);
   const overlayJs = code => overlay.webContents.executeJavaScript(code);
   const toolbarClick = title => overlayJs(`(() => {
-    const button = document.querySelector('[data-top-control-bar] button[title=' + CSS.escape(${JSON.stringify(title)}) + ']');
+    const value = CSS.escape(${JSON.stringify(title)});
+    const button = document.querySelector('[data-top-control-bar] button[title=' + value + '], [data-top-control-bar] button[aria-label=' + value + ']');
     if (!button || button.disabled) return false;
     button.click();
     return true;
@@ -178,11 +180,59 @@ app.whenReady().then(async () => {
   const since = (end, start) => Math.round(marks[end] - marks[start]);
   state.getIsMeetingActive = () => true;
   state.startMeeting = async () => { throw new Error('Native meeting start is disabled in fixture'); };
-  state.ensureListenAudioCapture = async () => {
-    mark('ready');
-    return { ok: true, mic: true, system: true };
+  // Keep production AppState lifecycle, IPC and renderer intact. Substitute
+  // permissions, native PCM sources and recognizer transport on this isolated profile.
+  state._ambientChatEnabled = true;
+  let permission = 'denied';
+  let grantOnRequest = false;
+  systemPreferences.getMediaAccessStatus = () => permission;
+  systemPreferences.askForMediaAccess = async () => {
+    if (grantOnRequest) permission = 'granted';
+    return permission === 'granted';
   };
-  state.finalizeMicSTT = () => mark('finalizeInvoked');
+  const providers = [];
+  class FixtureCapture extends EventEmitter {
+    running = false;
+    getSampleRate() { return 16_000; }
+    getNativeSampleRate() { return 48_000; }
+    start() { if (!this.running) { this.running = true; this.emit('start'); } }
+    async destroy() { this.running = false; this.emit('stop'); this.removeAllListeners(); }
+  }
+  const primeCaptures = () => {
+    if (!state.microphoneCapture) {
+      state.microphoneCapture = new FixtureCapture();
+      state.wireMicCapture(state.microphoneCapture, '(fixture)');
+    }
+    if (!state.systemAudioCapture) {
+      state.systemAudioCapture = new FixtureCapture();
+      state.wireSystemCapture(state.systemAudioCapture, '(fixture)');
+    }
+  };
+  state.setupSystemAudioPipeline = async () => { primeCaptures(); };
+  const createProvider = state.createSTTProvider.bind(state);
+  state.createSTTProvider = (speaker, listen) => {
+    const recognizer = createProvider(speaker, listen);
+    if (!recognizer) return null;
+    const record = { id: listen?.id ?? null, speaker, recognizer, writes: [], starts: 0, cancels: 0 };
+    providers.push(record);
+    recognizer.start = () => { record.starts++; if (listen) mark('ready'); };
+    recognizer.write = pcm => record.writes.push({ bytes: pcm.length, first: pcm.readInt16LE(0) });
+    recognizer.finalize = () => { if (record.finishText) emit(record, record.finishText); };
+    recognizer.cancel = () => { record.cancels++; };
+    return recognizer;
+  };
+  const emit = (record, text) => record.recognizer.emit('transcript', { text, isFinal: true, confidence: 1 });
+  const analyzeListen = state.analyzeListen.bind(state);
+  state.analyzeListen = (...args) => { mark('finalizeInvoked'); return analyzeListen(...args); };
+  const selectStt = async provider => {
+    await overlayJs(`window.electronAPI.setSttProvider(${JSON.stringify(provider)})`);
+    assert.equal(await overlayJs('window.electronAPI.getSttProvider()'), provider);
+  };
+  const syntheticPcm = (samples, value) => {
+    const buffer = Buffer.alloc(samples * 2);
+    for (let i = 0; i < samples; i++) buffer.writeInt16LE(value, i * 2);
+    return buffer;
+  };
   const interviewer = 'How does a bounded queue work?';
   const user = 'Use a tiny example.';
   const listenStart = 'A bounded queue only accepts items while space remains.';
@@ -254,13 +304,98 @@ app.whenReady().then(async () => {
         window.electronAPI.onGeminiStreamError((error, meta) => window.__chg21Events.push({kind:'error',id:meta?.streamId}))
       ]; void 0;`);
     await toolbarClick('Expand toolbar');
+    assert.doesNotMatch(await overlayJs('document.body.innerText'), /Microphone is ready/);
+    const ipcStart = () => overlayJs('window.electronAPI.startListen(crypto.randomUUID())');
+    assert.match((await ipcStart()).message, /microphone/i);
+    assert.equal(providers.length, 0);
+    permission = 'not-determined';
+    grantOnRequest = true;
+    await selectStt('none');
+    assert.match((await ipcStart()).message, /Choose a transcription provider/);
+    assert.equal(permission, 'granted');
+    assert.equal(providers.length, 0);
+    await selectStt('local-whisper');
+    // Ordinary meeting capture supplies text before Listen. Ambient above
+    // had no background traffic, and typed/manual STT still works there.
+    state._ambientChatEnabled = false;
+    state.isMeetingActive = true;
+    state._listenAudioActive = true;
+    primeCaptures();
+    state.googleSTT_User = state.createSTTProvider('user');
+    state.googleSTT = state.createSTTProvider('interviewer');
+    const oldBackground = providers.filter(item => !item.id);
+    oldBackground.forEach(record => record.recognizer.start());
+    const previousQuestion = 'A question from the preceding Listen turn';
+    emit(oldBackground.find(item => item.speaker === 'interviewer'), previousQuestion);
+    emit(oldBackground.find(item => item.speaker === 'user'), 'A live microphone caption');
+    const captions = () => overlayJs(`document.querySelector('[data-speaker-captions]')?.innerText ?? ''`);
+    await waitFor(async () => {
+      const text = await captions();
+      return text.includes(previousQuestion) && text.includes('A live microphone caption');
+    });
+    assert.ok(await toolbarClick('Start listening'));
+    await waitFor(() => state.manualListen && providers.filter(item => item.id === state.manualListen.id).length === 2);
+    const previous = providers.find(item => item.id && item.speaker === 'user');
+    await waitFor(async () => (await captions()).includes(previousQuestion));
+    state.microphoneCapture.emit('data', syntheticPcm(320, 330));
+    assert.deepEqual(previous.writes, [{ bytes: 640, first: 330 }], 'lead-in reuses text, never replays PCM');
+    assert.ok(await toolbarClick('Stop current answer'));
+    await waitFor(() => previous.cancels === 1 && state.manualListen === null);
+    emit(oldBackground[0], 'old background callback must not reappear');
+    await paint();
+    assert.doesNotMatch(await captions(), /old background callback|preceding Listen turn/);
+
+    // Permission can disappear with a turn active. Test the production watchdog
+    // in Ambient mode so teardown must release the injected capture handles.
+    state._ambientChatEnabled = true;
+    state.isMeetingActive = false;
+    primeCaptures();
+    assert.ok(await toolbarClick('Start listening'));
+    await waitFor(() => state.manualListen && providers.some(item => item.id === state.manualListen.id));
+    const revokedId = state.manualListen.id;
+    permission = 'denied';
+    await waitFor(() => state.manualListen === null, 4_000);
+    assert.ok(providers.filter(item => item.id === revokedId).every(item => item.cancels === 1));
+    assert.equal(state.microphoneCapture, null);
+    permission = 'granted';
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      primeCaptures();
+      assert.ok(await toolbarClick('Start listening'));
+      await waitFor(() => state.manualListen && providers.at(-1).id === state.manualListen.id);
+      const id = state.manualListen.id;
+      assert.ok(await toolbarClick('Stop current answer'));
+      await waitFor(() => !state.manualListen);
+      assert.ok(providers.filter(item => item.id === id).every(item => item.cancels === 1));
+    }
+
     const readsBefore = reads.length;
+    state._ambientChatEnabled = false;
+    state.isMeetingActive = true;
+    state._listenAudioActive = true;
+    primeCaptures();
+    state.googleSTT = state.createSTTProvider('interviewer');
+    state.googleSTT_User = state.createSTTProvider('user');
+    const currentBackground = providers.at(-2);
+    emit(currentBackground, interviewer);
+    await waitFor(async () => (await captions()).includes(interviewer));
     mark('listen');
     assert.ok(await toolbarClick('Start listening'));
-    await waitFor(() => marks.ready);
-    for (const [speaker, text] of [['interviewer', interviewer], ['user', user]]) {
-      overlay.webContents.send('native-audio-transcript', { speaker, text, final: true });
-    }
+    await waitFor(() => state.manualListen && providers.at(-1).id === state.manualListen.id);
+    const activeId = state.manualListen.id;
+    await win.webContents.executeJavaScript(`window.electronAPI.stopListen(${JSON.stringify(activeId)})`);
+    assert.equal(state.manualListen.id, activeId);
+    emit(previous, 'stopped transcript must not reappear');
+    overlay.webContents.send('listen-transcript', { id: previous.id, speaker: 'user', text: 'old renderer delivery', final: true });
+    const current = providers.filter(item => item.id === activeId);
+    assert.ok(current.every(item => item.writes.length === 0), 'normal Listen starts without pre-roll');
+    emit(current.find(item => item.speaker === 'user'), user);
+    await paint();
+    assert.equal(await visible('stopped transcript must not reappear'), false);
+    assert.equal(await visible('old renderer delivery'), false);
+    results.microphoneLifecycle = { status: 'PASS', permissions: 'denied, granted, revoked (fixture)',
+      leadIn: 'two visible speakers before Listen, no PCM replay', rapidCycles: 3, staleCallbacksRejected: true, wrongSenderRejected: true,
+      limitation: 'Injected PCM and deterministic recognizers, not physical microphone or live STT' };
     await waitFor(async () => await visible(interviewer) && await visible(user));
     mark('transcriptVisible');
     mark('analyze');
@@ -322,8 +457,8 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(temp,'listen-analyze.png'),(await overlay.webContents.capturePage()).toPNG());
     results.listenAnalyze = { status: 'PASS', timings, events: listenEvents,
       model: localModel, selectedModelResident, selectedPromptTier, answer: delivered,
-      limitation: localModel ? 'Synthetic final audio-transcript events and capture/finalization; real selected loopback model'
-        : 'Synthetic final audio-transcript events, capture/finalization fixture and deterministic model transport' };
+      limitation: localModel ? 'Synthetic PCM and recognizers with production Listen lifecycle; real selected loopback answer model'
+        : 'Synthetic recognizer events with a pre-click interviewer caption and live post-click mic text; deterministic answer transport' };
     fs.writeFileSync(path.join(temp,'chg21-lifecycle.json'), JSON.stringify(results, null, 2));
 
     restoreSelection();
@@ -333,7 +468,7 @@ app.whenReady().then(async () => {
     overlay.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
     await waitFor(() => visible(stopText));
     mark('stopClick');
-    assert.ok(await toolbarClick('Stop the current answer'));
+    assert.ok(await toolbarClick('Stop current answer'));
     await waitFor(() => marks.stopped);
     release();
     await waitFor(() => marks.lateAttempt);
