@@ -5,6 +5,7 @@ import { SneakPeekIntelligenceEngine } from './SneakPeekIntelligenceEngine';
 import { RetrievalCoordinator, createRetrievalCapability } from './RetrievalCoordinator';
 import { createCanonicalRagRetrievalCapability } from './CanonicalRagRetrievalAdapter';
 import { streamCanonicalProvider } from './GenerationController';
+import { LIVE_PROVIDER_FIRST_USEFUL_HARD_TIMEOUT_MS } from '../../llm/liveDeadlines';
 import { conversationActionDataScopes } from './ConversationAction';
 import type { ContextSource } from './ContextTypes';
 import type { ProviderDataScope, ProviderRouteOptions } from '../../llm/ProviderRouter';
@@ -346,6 +347,8 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
           finalPrompt: prompt.finalPrompt,
           route,
           abortSignal: request.cancellationSignal,
+          cloudFirstTokenTimeoutMs: request.surface === 'manual-chat' && !imagePaths?.length
+            ? LIVE_PROVIDER_FIRST_USEFUL_HARD_TIMEOUT_MS : undefined,
           imagePaths,
           thinkingBudget: request.responseShape?.detailed ? 1024 : 0,
           lifecycle,

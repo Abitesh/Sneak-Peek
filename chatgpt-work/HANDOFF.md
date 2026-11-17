@@ -1,5 +1,21 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0081 / TASK-0004 / CHG-21 (2026-11-17)
+
+**C21-AC1 PASS in the authorized local scope. C21-AC2 open. CHG-22 Blocked.** Main is `3205976e`; the owner's 29 staged paths were preserved. WORK-0081 is unstaged. [Current evaluation](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17) and [read-only cleanup audit](../scripts/audit/chg20-surface-map.md#work-0081--read-only-chg-22-caller-audit). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0081.IBZV8O`.
+
+Manual chat now uses the exact verified fallback model. Gemini still returned 503. A real greeting and DBMS answer succeeded without a saved model change. Physical speech reached 16 kHz STT and rendered Analyze after macOS microphone permission was granted. ERR-113's original silence cause is open. Repeat physical STT-to-paint and approved rendered cold/resident workloads against 2000/6000 ms, and keep the external checks and historical answer misses explicit. Preserve credential controls, capture, RAG storage, IPC ownership and model commitment; keep CHG-22 read-only until affected predecessor gates clear.
+
+## WORK-0080 / TASK-0004 / CHG-21 (2026-11-17)
+
+**C21-AC1 PASS in the authorized local scope. C21-AC2 open. CHG-22 Blocked.** Main remains at `3205976e`. The original 21 staged paths were preserved byte for byte. WORK-0080 is unstaged. Do not reapply either set of edits. [Evaluation, measurements and reproduction](../scripts/audit/chg21-quality-evaluation.md#work-0080--meeting-attribution-model-residency-and-desktop-timing-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0080.C2uoKO`.
+
+Single-record meeting attribution is corrected. Preserve the verified global renderer request owner, explicit language pins, active-turn residency, selected provider and source scopes. The next open engineering check is to repeat the two timing budgets with a suitable approved local model configuration while retaining complete and factually correct responses. The latest warm Listen/Analyze miss spent roughly 4.1 s in prefill and 6.4 s in decoding. Preserve the failed rendered single-output omission and the Listen answers when comparing candidates. Physical STT, Windows desktop, paired Phone Mirror and credentialed text/vision remain external. Copilot Ask completed a source review and its ownership finding was reproduced and fixed. C22-AC1 and C22-AC2 have no acceptance evidence because the dependency gate remains open.
+
+## WORK-0079 / TASK-0004 / CHG-21 (2026-11-17)
+
+**C21-AC1 PASS for the authorized local scope. C21-AC2 open. CHG-22 Blocked.** The current main checkout is based on `3205976e` with the WORK-0079 edits left unstaged. All required local builds/typechecks, four suites, 63 focused checks and both disposable desktop suites passed. Preserve the tested exact project/portfolio, screenshot, global attribution and STOP behavior. The remaining P0 check is cold-start and rendered first useful text at or below 2 s while retaining the 6 s complete visible answer. Use an approved live STT/input and real-model setup for the full Listen/Analyze journey and record applicable Windows, handset and text/vision coverage. If independent Copilot review is available, reconcile line-level findings. [Evaluation and reproduction](../scripts/audit/chg21-quality-evaluation.md#work-0079--acceptance-evidence-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0079.cgAvl4`.
+
 ## WORK-0078 / TASK-0004 / CHG-21 (2026-11-17)
 
 **Implemented, unverified.** Follow-up permissions/continuity, multilingual OCR, scoped meeting retrieval, attribution, and real rendered timing coverage improved. The final local core suites and desktop smoke passed. C21-AC1 local PASS. C21-AC2 open for factual review, repeated latency and real STT-to-render timing. CHG-22 has not begun. See the [evaluation and exact checklist](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.

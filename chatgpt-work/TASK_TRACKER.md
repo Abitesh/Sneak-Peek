@@ -1,5 +1,21 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0081 / TASK-0004 / CHG-21 (2026-11-17)
+
+**Implemented, unverified. C21-AC1 PASS in the authorized local scope. C21-AC2 open.** ERR-112 repaired and verified on actual manual chat. ERR-113 had one successful physical microphone → STT → Analyze → final renderer run after macOS granted access. The original silence cause is unproven. Kept the saved Gemini selection, existing fallback authorization and first-token rules. Five typechecks, both builds, local asset validation, four core suites, focused routing/commitment regressions and isolated two-launch macOS desktop passed. Two fresh frozen workloads scored 26/26 factually and 25/26 on the unchanged rubric. [Commands and evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
+**Next acceptance checks:** Repeat currently supported rendered local workloads with unloaded versus resident model readiness, and measure physical speech/STT through final paint end to end. Preserve both latency limits and previous quality failures. Recheck ambiguous meeting completeness (ERR-102), latency (ERR-104) and Listen answer precision (ERR-110). Run applicable Windows desktop, paired Phone Mirror and credentialed vision/model coverage in authorized environments. Hosted Build Smoke, installed/signing checks and separately scoped provider or service work retain their original statuses.
+
+**CHG-22 Blocked.** Read-only [caller audit](../scripts/audit/chg20-surface-map.md#work-0081--read-only-chg-22-caller-audit) started. C22-AC1 and C22-AC2 are open. Complete the affected predecessor gates, then verify importers, IPC, runtime ownership, migration and behavior before candidate removal.
+
+## WORK-0080 / TASK-0004 / CHG-21 (2026-11-17)
+
+**Implemented, unverified. C21-AC1 PASS for authorized local scope. C21-AC2 open.** Single-record unsupported attribution corrected, 26/26 independently read facts across the frozen repeated workload. Bounded local-model preload, faster overlay dispatch, Auto-language correction and global request ownership verified in their scoped tests. The most recent prepared real global p95 was 2263 ms with final paint within 3706 ms. The unprepared global request reached 7058 ms final and the last warm real-model Listen/Analyze fixture reached 11010 ms. Also retained one earlier missed multi-meeting attribution and imprecise Listen examples. Physical STT and applicable operating-system, handset and credentialed provider checks are open. **CHG-22 Blocked.** Keep all prior work and verify the remaining workload before removing legacy code. [Evaluation and exact checks](../scripts/audit/chg21-quality-evaluation.md#work-0080--meeting-attribution-model-residency-and-desktop-timing-2026-11-17).
+
+## WORK-0079 / TASK-0004 / CHG-21 (2026-11-17)
+
+**Implemented, unverified. C21-AC1 PASS for authorized local scope; C21-AC2 open.** Scoped project continuity, old-project snapshot exclusion, portfolio allowlists, typed image continuity, multilingual correctness and global attribution passed their focused and desktop reproductions. See ERR-045 and ERR-102–108. Final broad suites and 63 focused tests passed. Warm first-text p95 1.558–1.596 s; cold p95 2.104–2.368 s; rendered global first-visible p95 2.904 s. Physical STT, the applicable release matrix and an independently retrieved review are open. **CHG-22 Blocked; C22-AC1/C22-AC2 not tested.** Evidence and history reconciliation: [WORK-0079 evaluation](../scripts/audit/chg21-quality-evaluation.md#work-0079--acceptance-evidence-2026-11-17).
+
 ## WORK-0078 / TASK-0004 / CHG-21 (2026-11-17)
 
 **Implemented, unverified.** Follow-up permissions/continuity, multilingual OCR, scoped meeting retrieval, attribution, and real rendered timing coverage improved. The final local core suites and desktop smoke passed. C21-AC1 local PASS. C21-AC2 open for factual review, repeated latency and real STT-to-render timing. CHG-22 has not begun. See the [evaluation and exact checklist](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.
@@ -247,9 +263,9 @@ After each change, complete its relevant checks, record the commands/results, an
 | BUG-001 | In progress — provider fixes + durable-save acknowledgement implemented; live verification pending | ERR-001, ERR-010–014, FEAT-005 / WORK-0008/0009 | Apply WORK-0009 after WORK-0008, save/restart/recheck a provider key, then retest Claude/NVIDIA/LiteLLM and model availability. |
 | BUG-002 | Implemented, unverified — scoped profile defects repaired | ERR-002, FEAT-008 / WORK-0026 | Profile 24/24 and actual synthetic personal/PDF engine pipeline pass; owner full-product symptom still needs acceptance. |
 | BUG-003 | Planned | ERR-003 | Reproduce clean install/package/installed-app failure separately from intelligence migration. |
-| BUG-004 | In progress — full suite remains red | ERR-004 / ERR-008 / WORK-0026 | Fresh Mac `npm test`: 8,702 pass, 157 fail, 67 skipped. Identical 157 failing identities to previous WORK-0026; zero new/13 absent versus WORK-0025. Remaining roots not all classified; smoke is not resolved. |
+| BUG-004 | In progress — local suites green, hosted verification open | ERR-004 / ERR-008 / ERR-060–064 / WORK-0079 | Current macOS `npm test`: 9034 pass, zero failures, 67 skips. Historical red counts belong to older snapshots. Verify each applicable clean hosted runner separately. |
 | BUG-005 | Implemented, unverified — Router/readiness repair and isolated diagnostic | ERR-009 / ERR-015/018 / WORK-0011 | Runtime-config tests and Hindsight focused tests pass; actual server unavailable on localhost and paid live diagnostic intentionally not run. Verify Router, DB, retain/recall with permitted isolated bank. |
-| QA-001 | Planned | CHG-14/17/21 | Verify engine test discovery; explicitly execute engine tests after prerequisites and approval. |
+| QA-001 | Verified, test discovery | CHG-14/17/21 / WORK-0079 | Current `test:intelligence` explicitly runs the engine glob. The compiled suite reported 2192 passed and nine TODO. |
 
 ## WORK-0019 verification checkpoint — 2026-11-04
 
@@ -337,10 +353,10 @@ All Changes 1–17 remain unverified pending their criteria and relevant platfor
 | CHG-15 | Not assessed | ROADMAP CHG-15 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-16 | Not assessed | ROADMAP CHG-16 | Reconcile historical implementation/evidence; do not reimplement blindly. |
 | CHG-18 | Implemented, unverified for broader acceptance | ROADMAP CHG-18 / WORK-0026 | Combined implementation was owner-authorized; scoped engine/IPC and desktop tests pass, but full acceptance/cutover criteria are not all verified. Do not mark planned or fully accepted based on CHG-19. |
-| CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 not started; ERR-060 separate. |
+| CHG-19 | Verified — scoped cancellation cleanup | ROADMAP CHG-19 / TASK-0002 / WORK-0046 | C19-AC1 PASS; C19-AC2 PASS: actual isolated meeting/global Escape/X, sender isolation, real IPC supersession, repeated Enter guard, same-profile relaunch and final Git review. See scripts/audit/CHG19-FINAL-ACCEPTANCE.md. CHG-20 is tracked separately; ERR-060 remains a CI issue. |
 | CHG-20 | Verified | ROADMAP CHG-20 / TASK-0003 / WORK-0077 | C20-AC1 and C20-AC2 PASS. |
-| CHG-21 | Implemented, unverified | ROADMAP CHG-21 / TASK-0004 / WORK-0078 | Current local regression and real rendered smoke passed. Quality and latency acceptance remain open. |
-| CHG-22 | Planned | ROADMAP CHG-22 | Wait for predecessor acceptance; do not start by deleting legacy code. |
+| CHG-21 | Implemented, unverified | ROADMAP CHG-21 / TASK-0004 / WORK-0080 | Local C21-AC1 passes. C21-AC2 requires stable rendered quality and latency plus physical STT and applicable external verification. |
+| CHG-22 | Blocked | ROADMAP CHG-22 | Complete C21-AC2 and verify affected predecessor responsibilities before any deletion. |
 | FEAT-001 | Planned | ROADMAP FEAT-001 | Separate explicitly approved audio/UI integration task; do not rewrite capture during CHG-17. |
 | FEAT-002 | Planned | ROADMAP FEAT-002 | Performance target; depends on transcript handoff, retrieval, provider health and agreed output bounds. |
 | FEAT-003 | Planned | ROADMAP FEAT-003 | UI/context task after stable source-boundary integration. |

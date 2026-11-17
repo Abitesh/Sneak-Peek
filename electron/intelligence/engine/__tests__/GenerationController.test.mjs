@@ -166,3 +166,94 @@ test('unavailable providers are skipped by the generation controller', async () 
   assert.deepEqual(calls, ['gemini_flash']);
   assert.equal(outcome.committedProvider, 'gemini_flash');
 });
+
+
+test('terminal diagnostics distinguish outage and quota without exporting response contents', async t => {
+  const logs = t.mock.method(console, 'warn', () => {});
+  const controller = new GenerationController({
+    async *streamFinalPrompt(provider) {
+      const status = provider === 'gemini_flash' ? 503 : 429;
+      const vendorMessage = status === 429 ? 'Daily quota exhausted: private token canary' : 'private prompt and token canary';
+      throw Object.assign(new Error(vendorMessage), { status });
+    },
+  });
+  const { stream, outcome } = controller.stream({
+    requestId: 'sanitized-failure',
+    finalPrompt: 'private test input',
+    route: route({ preferredProvider: 'gemini_flash', allowedProviders: ['gemini_flash', 'groq'] }),
+  });
+  assert.equal(await collect(stream), '');
+  assert.equal(outcome.status, 'failed');
+  assert.match(outcome.error, /Gemini .*503.*groq .*429.*quota/i);
+  assert.equal(outcome.lifecycle.history.at(-1).reason, outcome.error);
+  assert.doesNotMatch(JSON.stringify([outcome, logs.mock.calls.map(c => c.arguments)]), /canary|private test input/);
+});
+
+
+test('a cloud attempt that never opens is bounded and falls back once without late output', async () => {
+  const calls = [];
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  const controller = new GenerationController({
+    async *streamFinalPrompt(provider, _model, _prompt, options) {
+      calls.push({ provider, signal: options.abortSignal });
+      if (provider === 'gemini_flash') {
+        await held;
+        yield 'late primary output';
+      } else yield 'verified fallback output';
+    },
+  });
+  const { stream, outcome } = controller.stream({
+    requestId: 'bounded-first-token',
+    finalPrompt: 'test prompt',
+    route: route({ preferredProvider: 'gemini_flash', allowedProviders: ['gemini_flash', 'groq'] }),
+    cloudFirstTokenTimeoutMs: 15,
+  });
+  try {
+    assert.equal(await collect(stream), 'verified fallback output');
+    assert.equal(outcome.committedProvider, 'groq');
+    assert.equal(calls[0].signal.aborted, true);
+    assert.match(outcome.attempts[0].error, /timed out/i);
+  } finally { release(); }
+});
+
+test('the first-token deadline does not truncate an already committed stream', async () => {
+  let signal;
+  const controller = new GenerationController({
+    async *streamFinalPrompt(_provider, _model, _prompt, options) {
+      signal = options.abortSignal;
+      yield 'partial ';
+      await new Promise(resolve => setTimeout(resolve, 25));
+      yield 'completion';
+    },
+  });
+  const { stream, outcome } = controller.stream({
+    requestId: 'committed-first-token',
+    finalPrompt: 'test prompt',
+    route: route({ maxAttempts: 1 }),
+    cloudFirstTokenTimeoutMs: 10,
+  });
+  assert.equal(await collect(stream), 'partial completion');
+  assert.equal(outcome.status, 'completed');
+  assert.equal(signal.aborted, false);
+});
+
+
+test('a temporary 429 describes rate limiting and makes only one permitted request', async () => {
+  const calls = [];
+  const controller = new GenerationController({
+    async *streamFinalPrompt(provider) {
+      calls.push(provider);
+      throw Object.assign(new Error('requests per minute exceeded'), { status: 429 });
+    },
+  });
+  const { stream, outcome } = controller.stream({
+    requestId: 'one-rate-limited-attempt',
+    finalPrompt: 'test prompt',
+    route: route({ preferredProvider: 'gemini_flash', allowedProviders: ['gemini_flash'] }),
+  });
+  assert.equal(await collect(stream), '');
+  assert.match(outcome.error, /rate-limited/);
+  assert.doesNotMatch(outcome.error, /exhausted quota/);
+  assert.deepEqual(calls, ['gemini_flash']);
+});

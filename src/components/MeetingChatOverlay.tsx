@@ -226,7 +226,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
             setChatState('opening');
             const timer = setTimeout(() => {
                 submitQuestion(initialQuery);
-            }, 100);
+            }, 0);
             return () => clearTimeout(timer);
         }
     }, [isOpen, initialQuery]);
@@ -306,8 +306,6 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
         let activeCleanups: Array<() => void> = [];
 
         try {
-            // Add typing indicator delay (200ms) - makes the AI feel "thoughtful"
-            await new Promise(resolve => setTimeout(resolve, 200));
             if (!isCurrent()) return;
 
             // Create assistant message placeholder

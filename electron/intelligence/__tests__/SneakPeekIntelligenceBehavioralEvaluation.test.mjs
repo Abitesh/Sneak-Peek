@@ -43,6 +43,8 @@ function makeRequest(message, overrides = {}) {
       content: message,
     },
     recentConversation: overrides.recentConversation ?? [],
+    sessionSnapshot: overrides.sessionSnapshot,
+    answerContext: overrides.answerContext,
     transcriptContext: overrides.transcriptContext,
     manualQuestion: overrides.manualQuestion,
     screenContext: overrides.screenContext,
@@ -519,8 +521,95 @@ test('meeting grounding retains raw timestamps internally and only exposes usabl
       assert.match(result.prompt.finalPrompt, /At 00:42 Morgan confirmed violet leases/);
       assert.match(result.prompt.finalPrompt, /<meeting_title>Synthetic meeting<\/meeting_title>/);
       assert.match(result.prompt.finalPrompt, /<speaker>Morgan<\/speaker>/);
+      assert.match(result.prompt.finalPrompt, /Cite speakers only for what they reported/);
+      assert.match(result.prompt.finalPrompt, /Give a reason only when requested and supported by the meeting text/);
+      assert.match(result.prompt.finalPrompt, /report all matching meetings/);
+      assert.match(result.prompt.finalPrompt, /Omit meetings that do not match/);
       assert.doesNotMatch(result.prompt.finalPrompt, /Selected by ContextPlan/);
       assert.doesNotMatch(result.prompt.finalPrompt, /timestampStart|42000/);
     },
+  });
+});
+
+test('global search keeps identical facts attributable to distinct meetings', async () => {
+  const source = 'meeting_transcript';
+  await runBehaviorCase({
+    message: 'According to the meetings, which one approved the rehearsal?',
+    expectedIntent: 'document-question',
+    requiredSources: [source],
+    capabilities: [calls => createRetrievalCapability(source, async ({ query }) => {
+      calls.push({ source, query });
+      return { items: ['North', 'South'].map((title, index) => ({
+        id: `rehearsal-${index}`,
+        source,
+        score: index === 0 ? 1 : 0.5,
+        content: 'The team approved the rehearsal.',
+        metadata: { sourceId: title, documentName: title, authority: 'evidence' },
+      })) };
+    })],
+    overrides: { surface: 'global-rag', retrievalScope: { kind: 'global-meetings' } },
+    assertResult: ({ result, retrievalCalls }) => {
+      assert.equal(retrievalCalls.length, 1);
+      assert.equal(result.prompt.includedEvidenceIds.length, 2);
+      assert.deepEqual(result.evidencePack.items.map(item => item.score.final), [1, 0.5]);
+      assert.match(result.prompt.finalPrompt, /<meeting_title>North<\/meeting_title>/);
+      assert.match(result.prompt.finalPrompt, /<meeting_title>South<\/meeting_title>/);
+      assert.doesNotMatch(result.prompt.finalPrompt, /<confidence>|<relevance>/);
+      assert.match(result.prompt.finalPrompt, /<\/evidence>\s*<meeting_answer>/);
+      assert.match(result.prompt.finalPrompt, /give its reason if requested and supported by that meeting/);
+    },
+  });
+});
+
+test('an exact or empty project scope excludes prior untyped project answers', async () => {
+  const foreign = 'old synthetic project fact that must not be sent';
+  for (const projectSourceIds of [['selected-file'], []]) {
+    await runBehaviorCase({
+      message: 'Why did you use Redis in Linkship?',
+      expectedIntent: 'project-question',
+      requiredSources: ['recent_conversation', 'project_knowledge'],
+      overrides: {
+        activeContext: { projectName: 'Linkship', projectSourceIds },
+        sessionSnapshot: `Assistant: ${foreign}`,
+      },
+      assertResult: ({ result }) => {
+        assert.ok(!result.prompt.finalPrompt.includes(foreign));
+        assert.ok(!result.prompt.includedSections.includes('session_snapshot'));
+      },
+    });
+  }
+});
+
+test('authorized image continuity survives an empty inferred project lookup', async () => {
+  await runBehaviorCase({
+    message: 'Describe the synthetic image',
+    expectedIntent: 'general-question',
+    requiredSources: [],
+    overrides: {
+      activeContext: { projectName: 'synthetic image', projectSourceIds: [] },
+      screenContext: { imagePaths: ['synthetic.png'] },
+      sessionSnapshot: 'User: confirm the circular object on screen',
+      answerContext: { referenceSourceIds: [], personalSourceIds: [] },
+    },
+    assertResult: ({ result }) => {
+      assert.ok(result.contextPlan.requiredSources.includes('screen'));
+      assert.match(result.prompt.finalPrompt, /<session_snapshot[^>]*>\s*User: confirm the circular object on screen/);
+    },
+  });
+});
+
+test('generic interview preparation does not request a meeting transcript', async () => {
+  await runBehaviorCase({
+    message: 'How should I explain process scheduling in an interview?',
+    expectedIntent: 'general-question',
+    assertResult: ({ result }) => {
+      assert.ok(!result.contextPlan.requiredSources.includes('meeting_transcript'));
+      assert.doesNotMatch(result.prompt.finalPrompt, /document-specific evidence was not found/);
+    },
+  });
+  await runBehaviorCase({
+    message: 'What did the interviewer say in the interview?',
+    expectedIntent: 'meeting-question',
+    requiredSources: ['meeting_transcript'],
   });
 });

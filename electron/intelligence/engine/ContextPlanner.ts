@@ -1,4 +1,4 @@
-import { resolveExplicitSourceRequests } from '../context-os/explicitSourceSwitch';
+import { isProjectOnlyProfileRequest, resolveExplicitSourceRequests } from '../context-os/explicitSourceSwitch';
 import { resolveTurnSourceDecision } from '../../llm/turnSourceDecision';
 import { planResolvedTurn } from '../../context-intelligence/orchestration/orchestrator';
 import { resolveModeIdOrWarn, resolveModePolicy } from '../../context-intelligence/policies/mode-policy-registry';
@@ -163,8 +163,11 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   // Broad portfolio questions can use either current project-tagged files or
   // an explicitly allowed resume, including when the user uploaded *only*
   // a resume. Neither inventory alone authorizes unrelated My Files.
+  const broadPortfolio = isBroadCandidateProjectsQuestion(understanding.question);
   const authorizedPortfolioResume = request.contextPermissions.files
     && (request.activeContext?.resumeSourceIds?.length ?? 0) > 0;
+  const useActivePortfolioResume = broadPortfolio && !authorizedPortfolioResume
+    && request.contextPermissions.profile && request.activeContext?.hasResume === true;
   if (request.imageAnalysis) {
     if (request.contextPermissions.screen && request.screenContext?.imagePaths?.length) require('screen');
     if (request.contextPermissions.conversation && request.imageConversationSnapshot?.trim()) require('recent_conversation');
@@ -193,11 +196,11 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       require('meeting_transcript');
     }
     rationale.push('Live answer uses only the authorized speech window.');
-  } else if (isBroadCandidateProjectsQuestion(understanding.question)
-    && (request.contextPermissions.project || authorizedPortfolioResume)) {
+  } else if (broadPortfolio && (request.contextPermissions.project || authorizedPortfolioResume || useActivePortfolioResume)) {
     require('recent_conversation');
     if (request.contextPermissions.project) require('project_knowledge');
     if (authorizedPortfolioResume) require('my_files');
+    if (useActivePortfolioResume) require('profile');
     require('rag');
     rationale.push('Portfolio overview uses project-tagged documents and/or explicitly authorized résumé file IDs.');
   } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : understanding.intent) {
@@ -321,8 +324,9 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     // résumé facts such as "I have used Redis" from overriding the actual
     // Linkship implementation evidence.
     if (required.has('project_knowledge')
-      || (isBroadCandidateProjectsQuestion(understanding.question) && authorizedPortfolioResume && required.has('my_files'))) {
+      || (broadPortfolio && authorizedPortfolioResume && required.has('my_files'))) {
       for (const source of ['personal_knowledge', 'profile', 'structured_knowledge'] as ContextSource[]) {
+        if (source === 'profile' && useActivePortfolioResume) continue;
         required.delete(source);
         optional.delete(source);
         forbidden.add(source);
@@ -352,12 +356,16 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     const snapshot = request.answerContext;
     const active = request.activeContext;
     if (active?.modeSourceContract) {
+      const hasScopedProjectFiles = request.contextPermissions.project
+        && Boolean(active.projectName && active.projectSourceIds?.length)
+        && isProjectOnlyProfileRequest(understanding.question);
       sourceDecision = resolveTurnSourceDecision({
         sourceContract: active.modeSourceContract,
         explicitRequests: resolveExplicitSourceRequests(understanding.question),
         availability: {
           hasReferenceFiles: snapshot.referenceSourceIds.length > 0,
           hasProfileFacts: active.hasResume === true,
+          hasScopedProjectFiles,
           hasJobDescription: active.hasJobDescription === true,
           hasLiveTranscript: request.contextPermissions.transcript,
           hasMeetingRag: false,
@@ -506,6 +514,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       },
     }) : undefined;
     const sourceTypes = decision.retrievalPlan.sourceTypes.filter(source => {
+      if (useActivePortfolioResume && source !== 'RESUME') return false;
       if (!profileTypes.includes(source)) return false;
       if (!sourceDecision) return true;
       if (sourceDecision.outcome === 'explicit_denied' || sourceDecision.outcome === 'source_unavailable') return false;

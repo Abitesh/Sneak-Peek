@@ -73,6 +73,8 @@ type RequestedSource = Exclude<ExplicitSourceSwitch, null>;
 export interface TurnSourceAvailability {
   hasReferenceFiles: boolean;
   hasProfileFacts: boolean;
+  /** An explicit project-only ask has a current, authorized project-ID scope. */
+  hasScopedProjectFiles?: boolean;
   hasJobDescription: boolean;
   hasLiveTranscript: boolean;
   hasMeetingRag: boolean;
@@ -321,7 +323,7 @@ export function resolveTurnSourceDecision(input: {
     }
     if (
       (source === 'reference_files' && !input.availability.hasReferenceFiles)
-      || (source === 'profile' && !input.availability.hasProfileFacts)
+      || (source === 'profile' && !input.availability.hasProfileFacts && !input.availability.hasScopedProjectFiles)
       || (source === 'job_description' && !input.availability.hasJobDescription)
       || (source === 'transcript' && !input.availability.hasLiveTranscript)
     ) {
@@ -346,8 +348,9 @@ export function resolveTurnSourceDecision(input: {
       allowed.push('reference_files');
       required.push('reference_files');
     } else if (source === 'profile') {
-      allowed.push(...profileKinds());
-      required.push(...profileKinds());
+      const kinds: TurnEvidenceKind[] = input.availability.hasScopedProjectFiles ? ['projects'] : profileKinds();
+      allowed.push(...kinds);
+      required.push(...kinds);
     } else if (source === 'job_description') {
       allowed.push('profile_jd');
       required.push('profile_jd');

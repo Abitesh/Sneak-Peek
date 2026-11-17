@@ -1,5 +1,5 @@
 // Opt-in full-product acceptance entry, launched only by the sandboxed runner.
-// Normal application startup is unchanged. No real credentials/provider/capture.
+// Normal application startup is unchanged. No credentials or physical capture.
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -7,7 +7,7 @@ const { app, BrowserWindow, safeStorage, systemPreferences, desktopCapturer, dia
 const root = path.resolve(__dirname, '../..');
 const temp = process.env.SNEAK_PEEK_ACCEPTANCE_ROOT;
 if (!temp || !fs.existsSync(path.join(temp, 'sandbox.sb'))) throw new Error('Use the sandboxed acceptance runner');
-const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT']);
+const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG21_LOCAL_OLLAMA']);
 for (const key of Object.keys(process.env)) if (!keep.has(key)) delete process.env[key];
 for (const key of ['appData','userData','sessionData','logs','crashDumps','documents','downloads','desktop','temp']) {
   const dir = path.join(temp, key); fs.mkdirSync(dir, { recursive: true }); app.setPath(key, dir);
@@ -52,6 +52,7 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(temp,'controls.json'), JSON.stringify(await win.webContents.executeJavaScript('Array.from(document.querySelectorAll("input,textarea,button")).map(e=>({tag:e.tagName,placeholder:e.getAttribute("placeholder"),text:e.innerText,label:e.getAttribute("aria-label"),title:e.getAttribute("title")}))'),null,2));
   const state=AppState.getInstance();
   const helper=state.processingHelper.getLLMHelper();
+  const productionTransport = helper.streamFinalPrompt.bind(helper);
   const requests=[];
   helper.getSneakPeekGenerationRouteOptions=()=>({capability:'stream_chat', preferredProvider:'groq', allowedProviders:['groq'], availability:{hasGroq:true}, models:{groq:'synthetic-offline'},maxAttempts:1});
   helper.streamFinalPrompt=async function*(_provider,_model,prompt){
@@ -93,6 +94,12 @@ app.whenReady().then(async () => {
   const decoy = await win.webContents.executeJavaScript('window.electronAPI.personalFilesPickAndIngest()');
   assert.equal(decoy.success, true, JSON.stringify(decoy));
   const scenarios=[];
+  async function clearRenderedConversation(lastAnswer) {
+    overlay.webContents.send('session-reset');
+    await waitFor(() => overlay.webContents.executeJavaScript(`!document.body.innerText.includes(${JSON.stringify(lastAnswer)})`));
+    const cleared = await overlay.webContents.executeJavaScript('window.electronAPI.clearChatContext()');
+    assert.equal(cleared.success, true, JSON.stringify(cleared));
+  }
   async function ask(question,expected,excluded){
     const before=reads.length, pbefore=requests.length, start=performance.now();
     await overlay.webContents.executeJavaScript(`window.__acceptanceEvents=[];window.__acceptanceOff=[window.electronAPI.onGeminiStreamToken((t,m)=>window.__acceptanceEvents.push({type:'token',t,m,at:performance.now()})),window.electronAPI.onGeminiStreamDone(d=>window.__acceptanceEvents.push({type:'done',d,at:performance.now()})),window.electronAPI.onGeminiStreamError(e=>window.__acceptanceEvents.push({type:'error',e}))];document.querySelector('[data-testid="overlay-chat-input"]').focus()`);
@@ -119,8 +126,7 @@ app.whenReady().then(async () => {
   await ask('Tell me about Linkship.',/violet job leases/,/amber rate counters/);
   await ask('Why is Redis used in your project?',/violet job leases/,/amber rate counters/);
   await ask('Why did Linkship Legacy use Redis?',/amber rate counters/,/violet job leases/);
-  const cleared=await overlay.webContents.executeJavaScript('window.electronAPI.clearChatContext()');
-  assert.equal(cleared.success,true,JSON.stringify(cleared));
+  await clearRenderedConversation(scenarios.at(-1).answer);
   await ask('Why is Redis used in your project?',null,/violet job leases|amber rate counters/);
   for(const q of ['What is DBMS?','What is Redis?','Explain the singleton design pattern.','Give me its code.','Write binary search in Python.']){
     await ask(q,null,/violet job leases|amber rate counters/);assert.equal(scenarios.at(-1).reads.length,0);
@@ -140,8 +146,7 @@ app.whenReady().then(async () => {
   const ingested=await win.webContents.executeJavaScript(`window.electronAPI.profileUploadResume(${JSON.stringify(selected.filePath)})`);
   assert.equal(ingested.success,true,JSON.stringify(ingested));
   assert.equal((await win.webContents.executeJavaScript('window.electronAPI.profileSetMode(true)')).success,true);
-  const clearedBeforeProfile=await overlay.webContents.executeJavaScript('window.electronAPI.clearChatContext()');
-  assert.equal(clearedBeforeProfile.success,true,JSON.stringify(clearedBeforeProfile));
+  await clearRenderedConversation(scenarios.at(-1).answer);
   for(const [q,expected] of [['Tell me about yourself.',/Violet Example/],['What skills do I have?',/TypeScript/],['Explain my internship.',/orchid leases/],['What certifications do I have?',/Violet Database Certificate/]])await ask(q,expected,/amber rate counters|violet job leases|forbidden-general-file-canary/);
   await ask('What projects have I built?', /orchid leases/, /forbidden-general-file-canary/);
   assert.match(scenarios.at(-1).answer, /violet job leases/);
@@ -151,6 +156,204 @@ app.whenReady().then(async () => {
   const retrievedIds = [...new Set(portfolioReads.flatMap(read => read.result.results.map(item => item.source.id)))].sort();
   assert.deepEqual(retrievedIds, files.map(file => file.id).sort(), 'portfolio project evidence must have original authorized IDs');
   fs.writeFileSync(path.join(temp,'answer.png'),(await overlay.webContents.capturePage()).toPNG());
+
+  // Drive the real toolbar and preload using synthetic final transcript events.
+  // Its audio entry points are stubbed in this disposable run, so this covers
+  // the transcript handoff and rendering, without timing physical capture/STT.
+  await clearRenderedConversation(scenarios.at(-1).answer);
+  overlay.webContents.setBackgroundThrottling(false);
+  const overlayJs = code => overlay.webContents.executeJavaScript(code);
+  const toolbarClick = title => overlayJs(`(() => {
+    const button = document.querySelector('[data-top-control-bar] button[title=' + CSS.escape(${JSON.stringify(title)}) + ']');
+    if (!button || button.disabled) return false;
+    button.click();
+    return true;
+  })()`);
+  const visible = text => overlayJs(`document.body.innerText.includes(${JSON.stringify(text)})`);
+  const paint = () => overlayJs('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const results = {};
+  const timings = {};
+  const marks = {};
+  const mark = key => { marks[key] = performance.now(); };
+  const since = (end, start) => Math.round(marks[end] - marks[start]);
+  state.getIsMeetingActive = () => true;
+  state.startMeeting = async () => { throw new Error('Native meeting start is disabled in fixture'); };
+  state.ensureListenAudioCapture = async () => {
+    mark('ready');
+    return { ok: true, mic: true, system: true };
+  };
+  state.finalizeMicSTT = () => mark('finalizeInvoked');
+  const interviewer = 'How does a bounded queue work?';
+  const user = 'Use a tiny example.';
+  const listenStart = 'A bounded queue only accepts items while space remains.';
+  const listenAnswer = listenStart + ' For example, a two-slot queue refuses a third item until one leaves.';
+  const localModel = process.env.CHG21_LOCAL_OLLAMA === '1' ? 'llama3.2:3b' : null;
+  const previousSelection = { route: helper.getSneakPeekGenerationRouteOptions, url: helper.ollamaUrl, tier: helper.getPromptTier };
+  const restoreSelection = () => {
+    helper.getSneakPeekGenerationRouteOptions = previousSelection.route;
+    helper.ollamaUrl = previousSelection.url;
+    helper.getPromptTier = previousSelection.tier;
+  };
+  let selectedModelResident;
+  let selectedPromptTier;
+  const stopText = 'Synthetic output before toolbar STOP.';
+  const lateText = 'Synthetic late output must never be shown.';
+  let release;
+  const parked = new Promise(resolve => { release = resolve; });
+  helper.streamFinalPrompt = async function* (provider, model, prompt, options) {
+    if (prompt.includes('toolbar cancellation fixture')) {
+      options.abortSignal.addEventListener('abort', () => mark('stopped'), { once: true });
+      yield stopText;
+      await parked;
+      mark('lateAttempt');
+      yield lateText;
+      return;
+    }
+    assert.ok(prompt.includes(interviewer) && prompt.includes(user), 'both finalized Listen speakers reach the canonical prompt');
+    mark('providerStart');
+    if (localModel) {
+      assert.equal(provider, 'ollama');
+      assert.equal(model, localModel);
+      fs.writeFileSync(path.join(temp, 'listen-provider-prompt.txt'), prompt);
+      let produced = '';
+      for await (const token of productionTransport(provider, model, prompt, options)) {
+        produced += token;
+        if (!marks.providerUseful && produced.trim().length >= 5) mark('providerUseful');
+        yield token;
+      }
+    } else {
+      mark('providerUseful');
+      yield listenStart;
+      await new Promise(resolve => setTimeout(resolve, 90));
+      yield listenAnswer.slice(listenStart.length);
+    }
+    mark('providerDone');
+  };
+  try {
+    if (localModel) {
+      helper.ollamaUrl = 'http://127.0.0.1:11436';
+      // Exercise the production tier decision for the same binding that
+      // streams the answer. Keep startup mode-section compilers offline.
+      const selected = Object.assign(Object.create(Object.getPrototypeOf(helper)), {
+        useOllama: true, ollamaModel: localModel,
+      });
+      selectedPromptTier = selected.getPromptTier();
+      helper.getPromptTier = () => selectedPromptTier;
+      helper.getSneakPeekGenerationRouteOptions = () => ({
+        capability: 'stream_chat', preferredProvider: 'ollama', allowedProviders: ['ollama'],
+        availability: { hasOllama: true }, models: { ollama: localModel }, maxAttempts: 1,
+      });
+      const response = await fetch(helper.ollamaUrl + '/api/ps', { signal: AbortSignal.timeout(2000) });
+      assert.ok(response.ok);
+      selectedModelResident = (await response.json()).models.some(entry => entry.name === localModel);
+    }
+    await overlayJs(`window.__chg21Events = [];
+      window.__chg21Off = [
+        window.electronAPI.onGeminiStreamToken((text, meta) => window.__chg21Events.push({kind:'token',text,id:meta?.streamId})),
+        window.electronAPI.onGeminiStreamDone(meta => window.__chg21Events.push({kind:'done',id:meta?.streamId})),
+        window.electronAPI.onGeminiStreamError((error, meta) => window.__chg21Events.push({kind:'error',id:meta?.streamId}))
+      ]; void 0;`);
+    await toolbarClick('Expand toolbar');
+    const readsBefore = reads.length;
+    mark('listen');
+    assert.ok(await toolbarClick('Start listening'));
+    await waitFor(() => marks.ready);
+    for (const [speaker, text] of [['interviewer', interviewer], ['user', user]]) {
+      overlay.webContents.send('native-audio-transcript', { speaker, text, final: true });
+    }
+    await waitFor(async () => await visible(interviewer) && await visible(user));
+    mark('transcriptVisible');
+    mark('analyze');
+    assert.ok(await toolbarClick('Stop listening and get an answer'));
+    const answerEvents = () => overlayJs('window.__chg21Events.slice()');
+    const answerText = events => events.filter(event => event.kind === 'token').map(event => event.text).join('').trim();
+    const plainAnswer = text => text.replace(/\*\*|__/g, '').replace(/\s+/g, ' ').trim();
+    const visibleAnswer = text => overlayJs(`document.body.innerText.replace(/\\s+/g, ' ').includes(${JSON.stringify(plainAnswer(text))})`);
+    if (localModel) {
+      await waitFor(async () => {
+        const prefix = plainAnswer(answerText(await answerEvents())).slice(0, 5);
+        return prefix.length >= 5 && await overlayJs(`Array.from(document.querySelectorAll('.ai-response-card')).some(card => {
+          const { top, bottom } = card.getBoundingClientRect();
+          if (bottom <= 0 || top >= innerHeight || getComputedStyle(card).visibility !== 'visible') return false;
+          const firstWord = card.querySelector('.reveal-word');
+          if (firstWord && Number(getComputedStyle(firstWord).opacity) < 0.1) return false;
+          return card.innerText.trim().startsWith(${JSON.stringify(prefix)});
+        })`);
+      });
+      await paint();
+    } else {
+      await waitFor(() => visible(listenStart));
+    }
+    mark('firstVisible');
+    await waitFor(() => marks.providerDone);
+    const listenEvents = await waitFor(async () => {
+      const events = await answerEvents();
+      return events.some(event => event.kind === 'done') && events;
+    });
+    const delivered = answerText(listenEvents);
+    if (localModel) {
+      fs.writeFileSync(path.join(temp, 'listen-provider-answer.txt'), delivered);
+      assert.match(delivered, /queue/i);
+      assert.match(delivered, /capacity|fixed|limit|full|space/i);
+      assert.doesNotMatch(delivered, /\[\[GIST\]\]|\$412/);
+      await waitFor(() => visibleAnswer(delivered));
+    } else {
+      await waitFor(() => visible(listenAnswer));
+    }
+    // Text can be in the DOM while the per-word fade and blur still conceal it.
+    await waitFor(() => overlayJs(`Array.from(document.querySelectorAll('.reveal-word')).every(word => {
+      const style = getComputedStyle(word);
+      return Number(style.opacity) >= 0.99 && ['blur(0px)', 'none'].includes(style.filter);
+    })`), 5000);
+    await paint();
+    mark('finalVisible');
+    assert.equal(listenEvents.filter(event => event.kind === 'done').length, 1);
+    assert.ok(listenEvents.every(event => event.kind !== 'error'));
+    assert.equal(new Set(listenEvents.map(event => event.id)).size, 1);
+    assert.equal(reads.length, readsBefore, 'general Listen question does not read private documents');
+    timings.listenToFixtureReadinessMs = since('ready', 'listen');
+    timings.listenToFinalTranscriptVisibleMs = since('transcriptVisible', 'listen');
+    timings.analyzeToFinalizeIpcMs = since('finalizeInvoked', 'analyze');
+    timings.analyzeToProviderMs = since('providerStart', 'analyze');
+    timings.providerToUsefulTextMs = since('providerUseful', 'providerStart');
+    timings.analyzeToFirstVisibleMs = since('firstVisible', 'analyze');
+    timings.analyzeToFinalPaintMs = since('finalVisible', 'analyze');
+    timings.providerDoneToFinalPaintMs = since('finalVisible', 'providerDone');
+    fs.writeFileSync(path.join(temp,'listen-analyze.png'),(await overlay.webContents.capturePage()).toPNG());
+    results.listenAnalyze = { status: 'PASS', timings, events: listenEvents,
+      model: localModel, selectedModelResident, selectedPromptTier, answer: delivered,
+      limitation: localModel ? 'Synthetic final audio-transcript events and capture/finalization; real selected loopback model'
+        : 'Synthetic final audio-transcript events, capture/finalization fixture and deterministic model transport' };
+    fs.writeFileSync(path.join(temp,'chg21-lifecycle.json'), JSON.stringify(results, null, 2));
+
+    restoreSelection();
+    await overlayJs(`window.__chg21Events.length = 0; document.querySelector('[data-testid="overlay-chat-input"]').focus()`);
+    await overlay.webContents.insertText('Explain the toolbar cancellation fixture.');
+    overlay.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+    overlay.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+    await waitFor(() => visible(stopText));
+    mark('stopClick');
+    assert.ok(await toolbarClick('Stop the current answer'));
+    await waitFor(() => marks.stopped);
+    release();
+    await waitFor(() => marks.lateAttempt);
+    const stopButtonSettled = () => overlayJs(`document.querySelector('[aria-label="Stop current answer"]')?.disabled === true`);
+    await waitFor(stopButtonSettled);
+    await paint();
+    mark('stopPaint');
+    const stopEvents = await overlayJs('window.__chg21Events.slice()');
+    assert.deepEqual(stopEvents.map(event => event.kind), ['token']);
+    assert.equal(stopEvents[0].text.trim(), stopText);
+    assert.equal(await visible(lateText), false);
+    fs.writeFileSync(path.join(temp,'toolbar-stop.png'),(await overlay.webContents.capturePage()).toPNG());
+    results.toolbarStop = { status: 'PASS', clickToProviderAbortMs: since('stopped', 'stopClick'),
+      clickToSettledPaintMs: since('stopPaint', 'stopClick'), lateAttempted: true, lateVisible: false, events: stopEvents };
+    fs.writeFileSync(path.join(temp,'chg21-lifecycle.json'), JSON.stringify(results, null, 2));
+  } finally {
+    restoreSelection();
+    release();
+    await overlayJs('window.__chg21Off?.forEach(off => off()); void 0;');
+  }
   console.log('ACCEPTANCE_PASS',JSON.stringify({scenarios:scenarios.length,temp}));
   app.quit();
 }).catch(e=>{fs.writeFileSync(path.join(temp,'failure.txt'),e.stack);console.error('ACCEPTANCE_FAILED',e.stack);app.exit(1);});

@@ -6,9 +6,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const [outputArg, build = 'dist-electron', endpoint = 'http://127.0.0.1:11435', model = 'llama3.2:3b', mode] = process.argv.slice(2);
-assert.ok(mode === undefined || mode === '--extended');
-assert.ok(outputArg, 'Usage: chg21-quality-evaluation.mjs OUTPUT.json [BUILD_DIR] [LOOPBACK_URL] [MODEL]');
+const [outputArg, build = 'dist-electron', endpoint = 'http://127.0.0.1:11435', model = 'llama3.2:3b', ...flags] = process.argv.slice(2);
+assert.ok(outputArg && flags.every(flag => ['--extended', '--cold-start', '--preload-start'].includes(flag)),
+  'Usage: chg21-quality-evaluation.mjs OUTPUT.json [BUILD_DIR] [LOOPBACK_URL] [MODEL] [--extended] [--cold-start | --preload-start]');
 const url = new URL(endpoint);
 assert.equal(url.protocol, 'http:');
 assert.equal(url.hostname, '127.0.0.1');
@@ -42,7 +42,7 @@ const cases = [
   { id: 'repeat-general', q: 'What is a mutex? Answer in one sentence.', must: [/one|single|mutual exclusion/i, /lock|thread|exclusive/i] },
   { id: 'long-completed-exchange', q: 'Why did we choose that queue?', completedHistory: true, must: [/priorit|urgent/i] },
 ];
-if (mode === '--extended') cases.push(
+if (flags.includes('--extended')) cases.push(
   { id: 'es-stack-versus-queue', q: 'En español, compara una pila y una cola FIFO en dos frases.', must: [/últim|ultimo/i, /primer/i], forbid: [/cola de prioridad/i] },
   { id: 'fr-cache-false-premise', q: 'En français, est-ce que LRU retire toujours le dernier élément consulté ? Réponds en une phrase.', must: [/\bnon\b|ne .*pas/i, /moins|plus ancien/i] },
   { id: 'missing-referent', surface: 'follow-up', q: 'Why did we choose that option? Ask for the missing context in one question.', must: [/\?/, /option|choice/i] },
@@ -69,21 +69,50 @@ async function post(payload, abortSignal) {
 const tags = await (await fetch(url.origin + '/api/tags', { signal: AbortSignal.timeout(2000) })).json();
 const modelDigest = tags.models.find(entry => entry.name === model)?.digest;
 assert.ok(modelDigest, 'Requested model must already be installed');
-const warm = await post({ messages: [{ role: 'user', content: 'Say ready.' }], stream: false, options: { ...options, num_predict: 4 } }, AbortSignal.timeout(60_000));
-await warm.json();
+const coldStart = flags.includes('--cold-start');
+const preloadStart = flags.includes('--preload-start');
+assert.ok(!(coldStart && preloadStart), 'Select one startup model state');
+const resident = async () => {
+  const response = await fetch(url.origin + '/api/ps', { signal: AbortSignal.timeout(2000) });
+  assert.ok(response.ok, 'Ollama residency probe failed');
+  return (await response.json()).models.find(entry => entry.name === model);
+};
+let preload = null;
+if (coldStart || preloadStart) {
+  const unloaded = await (await post({ messages: [], stream: false, keep_alive: 0 }, AbortSignal.timeout(60_000))).json();
+  assert.equal(unloaded.done_reason, 'unload');
+  assert.equal(await resident(), undefined, 'Requested model must be unloaded first');
+}
+if (preloadStart) {
+  const { LLMHelper } = await import(pathToFileURL(resolve(build, 'electron/LLMHelper.js')).href);
+  // Invoke the application method without creating a provider or loading credentials.
+  const helper = Object.assign(Object.create(LLMHelper.prototype), {
+    useOllama: true, ollamaModel: model, ollamaUrl: url.origin,
+  });
+  const started = performance.now();
+  await helper.prewarmPromptCache();
+  const elapsedMs = Math.round(performance.now() - started);
+  const loaded = await resident();
+  assert.ok(loaded, 'The content-free preload must make the selected model resident');
+  preload = { elapsedMs, residentBytes: loaded.size, residentVramBytes: loaded.size_vram, expiresAt: loaded.expires_at };
+} else if (!coldStart) {
+  await (await post({ messages: [{ role: 'user', content: 'Say ready.' }], stream: false,
+    options: { ...options, num_predict: 4 } }, AbortSignal.timeout(60_000))).json();
+}
 const rows = [];
 for (const fixture of cases) {
   const { id, q } = fixture;
   const started = performance.now();
   let firstUsefulMs;
   let retrievalMs = 0;
+  let planningFinished;
+  let retrievalFinished;
   let providerStarted;
   let providerStats;
   let attempts = 0;
   const calls = [];
   let sentPrompt;
-  const engine = new SneakPeekIntelligenceEngine({
-    retrievalCoordinator: new RetrievalCoordinator({ capabilities: [
+  const retrievalCoordinator = new RetrievalCoordinator({ capabilities: [
       ...['project_knowledge', 'my_files', 'profile', 'personal_knowledge', 'meeting_transcript', 'screen'].map(source => ({
         source,
         async retrieve() {
@@ -97,7 +126,18 @@ for (const fixture of cases) {
           return { items };
         },
       })),
-    ] }),
+  ] });
+  const retrieve = retrievalCoordinator.retrieve.bind(retrievalCoordinator);
+  retrievalCoordinator.retrieve = async (...args) => {
+    planningFinished = performance.now();
+    try {
+      return await retrieve(...args);
+    } finally {
+      retrievalFinished = performance.now();
+    }
+  };
+  const engine = new SneakPeekIntelligenceEngine({
+    retrievalCoordinator,
     generationPort: {
       stream: ({ request, prompt, lifecycle }) => streamCanonicalProvider({
         async *streamFinalPrompt(provider, selectedModel, text, { abortSignal } = {}) {
@@ -158,6 +198,7 @@ for (const fixture of cases) {
       text: 'We chose it to process urgent repair jobs before routine maintenance.',
       finalized: true, generationStatus: 'completed', requestSequence: 21 });
   }
+  const planningStarted = performance.now();
   const run = engine.prepareAndStream(request);
   let answer = '';
   for await (const chunk of run.stream) {
@@ -179,7 +220,13 @@ for (const fixture of cases) {
   rows.push({ id, intent: result.intent, selected: result.contextPlan.requiredSources, result: result.streamLifecycle.status,
     attempts, calls, noDuplicate, promptIntegrity, evidenceGap, expectedGap: fixture.gap ?? null,
     evidenceCount: result.prompt.includedEvidenceIds.length, promptBytes: Buffer.byteLength(sentPrompt ?? ''),
-    firstUsefulMs: Math.round(firstUsefulMs ?? finalMs), finalMs: Math.round(finalMs), retrievalMs,
+    firstUsefulMs: firstUsefulMs === undefined ? null : Math.round(firstUsefulMs), finalMs: Math.round(finalMs), retrievalMs,
+    modelState: rows.length === 0 && (coldStart || preloadStart)
+      ? coldStart ? 'unloaded at run start' : 'preloaded before action'
+      : 'warm workload',
+    planningMs: planningFinished - planningStarted,
+    scopedRetrievalMs: retrievalFinished - planningFinished,
+    evidenceAndPromptAssemblyMs: providerStarted - retrievalFinished,
     preProviderMs: providerStarted === undefined ? null : Math.round(providerStarted - started),
     ...providerStats, acceptedAnswer, missing, forbidden,
     ...(fixture.source === 'meeting_transcript' && { rawTimestampQuoted: /42[,.\s]?000/.test(answer) }),
@@ -187,8 +234,9 @@ for (const fixture of cases) {
   console.error(id, acceptedAnswer ? 'rubric PASS' : 'rubric FAIL', Math.round(finalMs) + 'ms');
 }
 const report = {
-  model, modelDigest, options, build: basename(build), platform: process.platform, arch: process.arch,
+  model, modelDigest, options, coldStart, preload, build: basename(build), platform: process.platform, arch: process.arch,
   engineDigest: createHash('sha256').update(readFileSync(resolve(compiled, 'SneakPeekIntelligenceEngine.js'))).digest('hex'),
+  promptAssemblerDigest: createHash('sha256').update(readFileSync(resolve(compiled, 'PromptAssembler.js'))).digest('hex'),
   thresholds: { answerRubricMin: 0.9, firstUsefulMsP95Max: 2000, allUsefulFinalMsMax: 6000, falseFactsOrCanaryMax: 0,
     delivery: 'one committed completion, no duplicate source calls, explicit gap instruction where marked' },
   rows,

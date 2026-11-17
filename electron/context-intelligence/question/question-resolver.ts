@@ -297,7 +297,9 @@ function heuristicIntent(text: string, input: UnderstandTurnInput, classificatio
   if (CODING_CUE.test(q)) return 'coding-request';
   if (SCREEN_CUE.test(q) && input.hasScreenContext) return 'screen-question';
   if (DOCUMENT_CUE.test(q)) return 'document-question';
-  if (MEETING_CUE.test(q)) return 'meeting-question';
+  // Generic interview preparation describes how to present an answer.
+  // Definite interview, interviewer and transcript cues still select evidence.
+  if (MEETING_CUE.test(q.replace(/\bin an interview\b/gi, ''))) return 'meeting-question';
   if (PROJECT_CUE.test(q)) return 'project-question';
   if (PERSONAL_CUE.test(q)) return 'personal-question';
   if (STATEMENT_RESPONSE_CUE.test(q)) return 'conversational-response';

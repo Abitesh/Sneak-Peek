@@ -1348,17 +1348,26 @@ if (true as boolean) {
       hasJobDescription = Boolean(orchestrator?.activeJD?.structured_data);
     } catch { /* profile unavailable */ }
     const profileAvailable = hasResume || hasJobDescription;
-    const personalFiles = (() => {
-      try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); }
+    const personalFiles = ((): import('./personalKnowledge/PersonalKnowledgeManager').PersonalFileRecord[] => {
+      try {
+        const { getPersonalKnowledgeManager } = require('./personalKnowledge') as typeof import('./personalKnowledge');
+        return getPersonalKnowledgeManager().listFiles();
+      }
       catch { return []; }
     })();
     const personalFilesAvailable = personalFiles.length > 0;
     const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
-    const scopedConversationTurns = getRecentConversationTurns(nativeSessionId, 12);
+    const scopedConversationTurns = options?.skipRollingContext ? [] : getRecentConversationTurns(nativeSessionId, 12);
     const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles, scopedConversationTurns, nativeCurrentTurn.id);
     const projectFilesAvailable = projectScope.projectAvailable;
     const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
-    const resumeSourceIds = isBroadCandidateProjectsQuestion(String(message || ''))
+    const broadPortfolio = isBroadCandidateProjectsQuestion(String(message || ''));
+    const { isProjectOnlyProfileRequest, resolveExplicitSourceRequests } = require('./intelligence/context-os/explicitSourceSwitch') as typeof import('./intelligence/context-os/explicitSourceSwitch');
+    const requestsProfile = broadPortfolio && resolveExplicitSourceRequests(String(message || '')).includes('profile');
+    const portfolioProjectIds = broadPortfolio && (!requestsProfile || isProjectOnlyProfileRequest(String(message || '')))
+      ? personalFiles.filter(file => file.fileType === 'project').map(file => file.id).filter(Boolean)
+      : undefined;
+    const resumeSourceIds = broadPortfolio
       ? personalFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
       : undefined;
     const meetingId = String(
@@ -1397,7 +1406,7 @@ if (true as boolean) {
         hasJobDescription,
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
-        projectSourceIds: projectScope.selectedFileIds,
+        projectSourceIds: projectScope.selectedFileIds ?? portfolioProjectIds,
         resumeSourceIds,
         projectName: projectScope.namedProject,
       },
@@ -1486,6 +1495,9 @@ if (true as boolean) {
         requestId,
         stages: sneakPeekResult.diagnostics.pipelineStages,
         lifecycle: run.lifecycle.state,
+        provider: sneakPeekResult.providerAttempt.provider,
+        providerFirstTokenMs: sneakPeekResult.streamLifecycle.firstTokenAt != null && sneakPeekResult.streamLifecycle.startedAt != null
+          ? sneakPeekResult.streamLifecycle.firstTokenAt - sneakPeekResult.streamLifecycle.startedAt : undefined,
         evidenceCount: sneakPeekResult.evidencePack.items.length,
         includedEvidenceCount: sneakPeekResult.prompt.includedEvidenceIds?.length ?? 0,
         retrieval: sneakPeekResult.diagnostics.retrieval?.map(({ source, status, itemCount, includedCount, retrievalBackend, fallbackReason }) => ({
@@ -7450,10 +7462,7 @@ return { success: false, error: status.message };
 }
 const llmHelper = appState.processingHelper.getLLMHelper();
 await llmHelper.switchToOllama(model, url);
-// Warm + pin the local model off the hot path so the FIRST live question
-// doesn't pay the cold weight-load tax (8-12s for a 7-9B model) that would
-// otherwise blow the live first-token deadline. Fire-and-forget; never
-// blocks the switch. prewarmPromptCache itself no-ops for non-Ollama.
+// Load the selected local model off the hot path with a bounded residency.
 if (llmHelper.isUsingOllama()) {
 llmHelper.prewarmPromptCache().catch((_e: any): void => {});
 }
@@ -10032,9 +10041,7 @@ const curlProviders = cm.getCurlProviders();
 const legacyProviders = cm.getCustomProviders() || [];
 const allProviders = [...curlProviders, ...legacyProviders];
 llmHelper.setModel(modelId, allProviders);
-// If the user just selected a local Ollama model, warm + pin it now (off the
-// hot path) so the first live question doesn't cold-load it and miss the
-// first-token deadline. Fire-and-forget; no-ops for non-Ollama models.
+// Let the selected local model load while the user prepares the next request.
 if (llmHelper.isUsingOllama()) {
 llmHelper.prewarmPromptCache().catch((_e: any): void => {});
 }
@@ -10059,8 +10066,7 @@ const curlProviders = cm.getCurlProviders();
 const legacyProviders = cm.getCustomProviders() || [];
 const allProviders = [...curlProviders, ...legacyProviders];
 llmHelper.setModel(modelId, allProviders);
-// Warm + pin a newly-selected local Ollama model off the hot path (see
-// set-model / switch-to-ollama). Fire-and-forget; no-ops for non-Ollama.
+// Apply the same background local load as the session model selector.
 if (llmHelper.isUsingOllama()) {
 llmHelper.prewarmPromptCache().catch((_e: any): void => {});
 }

@@ -147,20 +147,17 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatWindowRef = useRef<HTMLDivElement>(null);
-    // Synchronous busy guard for submitQuestion. `chatState` alone isn't
-    // enough: it's React state, so two calls fired in quick succession (e.g.
-    // repeated Enter presses on the footer input) can both read it before a
-    // re-render lands, both pass the guard, and both register their own
-    // onRAGStreamChunk/onRAGStreamComplete listeners against the ONE shared
-    // streamBuffer — each call's `streamBuffer.reset()` then clobbers
-    // whatever the other call had already buffered, so the eventual
-    // completion can render empty. A ref updates immediately, no batching.
-    const submitInFlightRef = useRef(false);
+    // A finalizer may only release the stream and busy flag it owns.
+    const submitInFlightRef = useRef<symbol | null>(null);
+    const handleClose = useCallback(() => {
+        submitInFlightRef.current = null;
+        onClose();
+    }, [onClose]);
 
     useEffect(() => {
         if (!isOpen) {
+            submitInFlightRef.current = null;
             void window.electronAPI?.ragCancelQuery?.({ global: true, clearContext: true });
-            submitInFlightRef.current = false;
         }
     }, [isOpen]);
 
@@ -169,7 +166,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
         if (isOpen && initialQuery && messages.length === 0) {
             const timer = setTimeout(() => {
                 submitQuestion(initialQuery);
-            }, 100);
+            }, 0);
             return () => clearTimeout(timer);
         }
     }, [isOpen, initialQuery]);
@@ -186,19 +183,19 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
-                onClose();
+                handleClose();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    }, [isOpen, handleClose]);
 
     // Click outside handler
     const handleBackdropClick = useCallback((e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
-            onClose();
+            handleClose();
         }
-    }, [onClose]);
+    }, [handleClose]);
 
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && query.trim()) {
@@ -211,7 +208,9 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
     // Submit question using global RAG
     const submitQuestion = useCallback(async (question: string) => {
         if (!question.trim() || submitInFlightRef.current) return;
-        submitInFlightRef.current = true;
+        const request = Symbol();
+        submitInFlightRef.current = request;
+        const isCurrent = () => submitInFlightRef.current === request;
 
         const userMessage: Message = {
             id: genMessageId(),
@@ -238,9 +237,6 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
         let activeCleanups: Array<() => void> = [];
 
         try {
-            // Add typing indicator delay (200ms) - makes the AI feel "thoughtful"
-            await new Promise(resolve => setTimeout(resolve, 200));
-
             // Create assistant message placeholder
             setMessages(prev => [...prev, {
                 id: assistantMessageId,
@@ -260,9 +256,10 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
             // different-class queries can genuinely be in flight together.
             const isGlobal = (d: any) => d?.global === true;
             const tokenCleanup = window.electronAPI?.onRAGStreamChunk((data: { chunk: string }) => {
-                if (!isGlobal(data)) return;
+                if (!isCurrent() || !isGlobal(data)) return;
                 setChatState('streaming_response');
                 streamBuffer.appendToken(data.chunk, (content) => {
+                    if (!isCurrent()) return;
                     setMessages(prev => prev.map(msg =>
                         msg.id === assistantMessageId
                             ? { ...msg, content }
@@ -272,7 +269,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
             });
 
             const doneCleanup = window.electronAPI?.onRAGStreamComplete((data?: any) => {
-                if (data && !isGlobal(data)) return;   // F-122
+                if (!isCurrent() || !isGlobal(data)) return;
                 // The stream can legitimately complete with zero chunks (e.g. a
                 // short non-question like "hi" fed through the strict RAG-grounding
                 // prompt can make the model return an empty/degenerate completion).
@@ -293,7 +290,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
             });
 
             const errorCleanup = window.electronAPI?.onRAGStreamError((data: { error: string }) => {
-                if (!isGlobal(data)) return;   // F-122
+                if (!isCurrent() || !isGlobal(data)) return;
                 console.error('[GlobalChat] RAG stream error:', data.error);
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
                 setErrorMessage("Couldn't get a response. Please try again.");
@@ -318,6 +315,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                     ? await withTimeout(call, RAG_QUERY_CLIENT_TIMEOUT_MS, 'ragQueryGlobal')
                     : undefined;
             } catch (timeoutErr) {
+                if (!isCurrent()) return;
                 void window.electronAPI?.ragCancelQuery?.({ global: true });
                 console.error('[GlobalChat] ragQueryGlobal client-side timeout:', timeoutErr);
                 // Tear down the RAG listeners we just registered — the main
@@ -339,13 +337,14 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 return;
             }
 
-            if (!result || result.fallback) {
+            if (isCurrent() && (!result || result.fallback)) {
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
                 setErrorMessage("Meeting search is unavailable. Check your AI provider settings and try again.");
                 setChatState('error');
             }
 
         } catch (error) {
+            if (!isCurrent()) return;
             console.error('[GlobalChat] Error:', error);
             setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
             setErrorMessage("Something went wrong. Please try again.");
@@ -357,15 +356,18 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
             // subsequent submitQuestion (no user-message push, no response).
             activeCleanups.forEach(fn => fn());
             activeCleanups = [];
-            setChatState(prev => (prev === 'error' ? prev : 'idle'));
-            streamBuffer.reset();
-            submitInFlightRef.current = false;
+            if (isCurrent()) {
+                setChatState(prev => (prev === 'error' ? prev : 'idle'));
+                streamBuffer.reset();
+                submitInFlightRef.current = null;
+            }
         }
     }, []);
 
     return (
         <AnimatePresence
             onExitComplete={() => {
+                if (submitInFlightRef.current) return;
                 setChatState('idle');
                 setMessages([]);
                 setErrorMessage(null);
@@ -409,7 +411,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                                 <span className="text-[13px] font-medium">Search all meetings</span>
                             </div>
                             <button
-                                onClick={onClose}
+                                onClick={handleClose}
                                 className="p-2 transition-colors group"
                             >
                                 <X size={16} className="text-text-tertiary group-hover:text-red-500 group-hover:drop-shadow-[0_0_8px_rgba(239,68,68,0.5)] transition-all duration-300" />

@@ -1,142 +1,129 @@
-// electron/services/__tests__/PrewarmPromptCache.test.mjs
-// Verifies the prewarm guard/routing logic in LLMHelper.prewarmPromptCache:
-//   - dedupes per (model|prompt) so repeat activations are free
-//   - skips when cloud disabled and not Ollama
-//   - routes to exactly one provider warmer based on the active model
-//   - never throws (best-effort) even if the warmer rejects
-// Replicates the decision logic; does NOT make real API calls.
-// Run: node --test electron/services/__tests__/PrewarmPromptCache.test.mjs
-
-import { test, describe } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { LLMHelper } from '../../../dist-electron/electron/LLMHelper.js';
 
-// Mirrors the routing in LLMHelper.prewarmPromptCache. Returns the provider that
-// would be warmed (or 'skip'), and records dedupe state. Pure — no network.
-function makePrewarmer({ isLocalOnlyMode = false, useOllama = false, model = 'gemini-3.1-flash', clients = {}, warmImpl, ollamaKeepAlive = '30m' } = {}) {
-  const prewarmedKeys = new Set();
-  // Mirrors LLMHelper.ollamaKeepAlive: "30m" by default, set to -1 (pinned) once a
-  // warm succeeds, reset to "30m" by releaseOllamaPin on switch-away.
-  const state = { ollamaKeepAlive };
-  // These mirror the real predicates in LLMHelper (isGeminiModel/isClaudeModel/
-  // isOpenAiModel/isGroqModel) exactly, so fixtures classify the same way prod does.
-  const isGemini = m => m.toLowerCase().startsWith('gemini');
-  const isClaude = m => m.toLowerCase().startsWith('claude') || m.toLowerCase().includes('claude-');
-  const isOpenAi = m => { const x = m.toLowerCase(); return x.startsWith('gpt-') || x.startsWith('o1') || x.startsWith('o3') || x.startsWith('o4') || x.startsWith('chatgpt'); };
-  const isGroq = m => m.includes('llama') || m.includes('groq') || m.includes('mixtral') || m.includes('gemma');
+const localMetadata = {
+  details: { format: 'gguf', quantization_level: 'Q4_K_M' },
+  capabilities: ['completion'],
+};
 
-  return {
-    prewarmedKeys,
-    state,
-    async prewarm() {
-      if (isLocalOnlyMode && !useOllama) return 'skip:local-only';
-      const staticPrompt = 'HARD_SYSTEM_PROMPT_BODY_static_prefix';
-      const activeModel = useOllama ? 'ollama-model' : model;
-      const key = `${activeModel}|${createHash('sha1').update(staticPrompt).digest('hex')}`;
-      // Dedup EXCEPT for an Ollama model that is no longer pinned (switched away and
-      // back): re-warm + re-pin so the model is resident again. Mirrors LLMHelper.
-      const ollamaNeedsRepin = useOllama && state.ollamaKeepAlive !== -1;
-      if (prewarmedKeys.has(key) && !ollamaNeedsRepin) return 'skip:deduped';
-      prewarmedKeys.add(key);
-
-      const run = async (provider) => {
-        try {
-          if (warmImpl) await warmImpl(provider);
-          if (provider === 'ollama') state.ollamaKeepAlive = -1; // pin on successful warm
-          return provider;
-        } catch {
-          return provider; // best-effort — errors swallowed, provider still "attempted"
-        }
-      };
-
-      if (!useOllama && isGemini(model) && clients.gemini) return run('gemini');
-      if (!useOllama && isClaude(model) && clients.claude) return run('claude');
-      if (!useOllama && isOpenAi(model) && clients.openai) return run('openai');
-      if (!useOllama && isGroq(model) && clients.groq) return run('groq');
-      if (useOllama) return run('ollama');
-      return 'skip:server-side';
-    },
-  };
+function helperWith(overrides) {
+  return Object.assign(Object.create(LLMHelper.prototype), {
+    _prewarmedKeys: new Set(),
+    getPromptTier: () => 'tiny',
+    resolveLocalSystemPrompt: prompt => prompt,
+    injectLanguageInstruction: prompt => prompt,
+    ...overrides,
+  });
 }
 
-describe('prewarm: provider routing', () => {
-  test('routes to Gemini explicit cache for a Gemini model', async () => {
-    const p = makePrewarmer({ model: 'gemini-3.1-flash', clients: { gemini: true } });
-    assert.strictEqual(await p.prewarm(), 'gemini');
+for (const [provider, model, field, method] of [
+  ['gemini', 'gemini-3.1-flash', 'client', 'geminiPromptCache'],
+  ['claude', 'claude-opus-4-8', 'claudeClient', 'streamWithClaude'],
+  ['openai', 'gpt-4.1', 'openaiClient', 'streamWithOpenai'],
+  ['groq', 'llama-3.3-70b', 'groqClient', 'streamWithGroq'],
+]) {
+  test(`routes to ${provider} and deduplicates the prompt cache warmer`, async () => {
+    let calls = 0;
+    const helper = helperWith({
+      currentModelId: model,
+      [field]: {},
+      [method]: provider === 'gemini'
+        ? { getOrCreate: async () => { calls++; } }
+        : async function* () { calls++; yield 'ready'; },
+    });
+    await helper.prewarmPromptCache();
+    await helper.prewarmPromptCache();
+    assert.equal(calls, 1);
   });
+}
 
-  test('routes to Claude for a Claude model', async () => {
-    const p = makePrewarmer({ model: 'claude-opus-4-8', clients: { claude: true } });
-    assert.strictEqual(await p.prewarm(), 'claude');
+test('local-only, server-side and unavailable cloud models skip and warm failures stay best-effort', async () => {
+  let calls = 0;
+  const helper = helperWith({
+    currentModelId: 'claude-opus-4-8',
+    isLocalOnlyMode: true,
+    claudeClient: {},
+    streamWithClaude: async function* () { calls++; throw new Error('fixture'); },
   });
-
-  test('routes to OpenAI for a GPT model', async () => {
-    const p = makePrewarmer({ model: 'gpt-4.1', clients: { openai: true } });
-    assert.strictEqual(await p.prewarm(), 'openai');
-  });
-
-  test('routes to Groq for a llama model', async () => {
-    const p = makePrewarmer({ model: 'llama-3.3-70b', clients: { groq: true } });
-    assert.strictEqual(await p.prewarm(), 'groq');
-  });
-
-  test('routes to Ollama when useOllama is set (ignores cloud model id)', async () => {
-    const p = makePrewarmer({ useOllama: true, model: 'gemini-3.1-flash', clients: { gemini: true } });
-    assert.strictEqual(await p.prewarm(), 'ollama');
-  });
-
-  test('skips server-side providers (Sneak-Peek/custom) with no client-side cache', async () => {
-    const p = makePrewarmer({ model: 'natively', clients: {} });
-    assert.strictEqual(await p.prewarm(), 'skip:server-side');
-  });
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 0);
+  helper.isLocalOnlyMode = false;
+  helper.currentModelId = 'natively';
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 0);
+  helper.currentModelId = 'claude-opus-4-8';
+  helper.claudeClient = null;
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 0);
+  helper.claudeClient = {};
+  helper._prewarmedKeys.clear();
+  await assert.doesNotReject(helper.prewarmPromptCache());
+  assert.equal(calls, 1);
 });
 
-describe('prewarm: guards', () => {
-  test('skips entirely in local-only mode when not Ollama', async () => {
-    const p = makePrewarmer({ isLocalOnlyMode: true, useOllama: false, model: 'claude-opus-4-8', clients: { claude: true } });
-    assert.strictEqual(await p.prewarm(), 'skip:local-only');
+test('local-only Ollama warms only the selected installed model, uses no text and bounds residency', async t => {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ path: new URL(url).pathname, body: JSON.parse(options.body), redirect: options.redirect });
+    return Response.json(url.endsWith('/show') ? localMetadata : { done_reason: 'load' });
   });
+  const helper = helperWith({
+    isLocalOnlyMode: true, useOllama: true, ollamaModel: 'selected:3b', ollamaUrl: 'http://localhost:11434',
+    currentModelId: 'gemini-3.1-flash',
+    getPromptTier: () => { assert.fail('Ollama preload must not construct a prompt'); },
+  });
+  await Promise.all([helper.prewarmPromptCache(), helper.prewarmPromptCache()]);
+  await helper.prewarmPromptCache();
+  assert.deepEqual(calls, [
+    { path: '/api/show', body: { model: 'selected:3b' }, redirect: 'error' },
+    { path: '/api/chat', body: { model: 'selected:3b', messages: [], stream: false, keep_alive: '5m' }, redirect: 'error' },
+  ]);
+  helper.setModel('ollama-other:3b');
+  await helper.prewarmPromptCache();
+  assert.equal(calls.at(-1).body.model, 'other:3b');
+  helper.setModel('gemini');
+  assert.equal(calls.length, 4, 'switch must not send an unload that can race an active turn');
+});
 
-  test('local-only + Ollama still warms Ollama', async () => {
-    const p = makePrewarmer({ isLocalOnlyMode: true, useOllama: true, clients: {} });
-    assert.strictEqual(await p.prewarm(), 'ollama');
+test('host, capability and remote-model guards refuse background loads', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++;
+    return Response.json({ ...localMetadata, remote_host: 'cloud.invalid' });
   });
+  const helper = helperWith({ useOllama: true, ollamaModel: 'selected:3b', ollamaUrl: 'http://example.invalid' });
+  await helper.prewarmPromptCache();
+  helper.ollamaUrl = 'http://127.0.0.1:11434';
+  helper.ollamaModel = 'selected:3b-cloud';
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 0);
+  helper.ollamaModel = 'selected:3b';
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 1, 'only a metadata request for the loopback alias');
+});
 
-  test('dedupes — second call for same model/prompt is a no-op', async () => {
-    const p = makePrewarmer({ model: 'claude-opus-4-8', clients: { claude: true } });
-    assert.strictEqual(await p.prewarm(), 'claude');
-    assert.strictEqual(await p.prewarm(), 'skip:deduped');
-    assert.strictEqual(p.prewarmedKeys.size, 1);
+test('switching models aborts a pending preload and retry survives errors', async t => {
+  let firstSignal;
+  let resolveShow;
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls++;
+    if (calls === 1) {
+      firstSignal = options.signal;
+      return new Promise(resolve => { resolveShow = resolve; });
+    }
+    if (calls === 2) throw new Error('fixture');
+    return Response.json(url.endsWith('/show') ? localMetadata : { done_reason: 'load' });
   });
-
-  test('Ollama re-warms (not deduped) when the model is no longer pinned', async () => {
-    // First warm pins the model (keep_alive -1). A second back-to-back call is a
-    // normal dedup no-op. But after a switch-away resets keep_alive to "30m"
-    // (simulated), a later prewarm MUST re-warm so the model is resident + pinned
-    // again — otherwise the first question pays the cold-load tax.
-    const p = makePrewarmer({ useOllama: true, clients: {} });
-    assert.strictEqual(await p.prewarm(), 'ollama');
-    assert.strictEqual(p.state.ollamaKeepAlive, -1, 'pinned after first warm');
-    assert.strictEqual(await p.prewarm(), 'skip:deduped', 'still pinned → dedup');
-    // Simulate releaseOllamaPin on switch-away:
-    p.state.ollamaKeepAlive = '30m';
-    assert.strictEqual(await p.prewarm(), 'ollama', 'unpinned → re-warm, not deduped');
-    assert.strictEqual(p.state.ollamaKeepAlive, -1, 're-pinned after re-warm');
-  });
-
-  test('best-effort — a throwing warmer does not reject', async () => {
-    const p = makePrewarmer({
-      model: 'claude-opus-4-8',
-      clients: { claude: true },
-      warmImpl: async () => { throw new Error('network down'); },
-    });
-    // Must resolve, not throw
-    assert.strictEqual(await p.prewarm(), 'claude');
-  });
-
-  test('missing client → falls through to server-side skip', async () => {
-    // Claude model but no claude client configured
-    const p = makePrewarmer({ model: 'claude-opus-4-8', clients: {} });
-    assert.strictEqual(await p.prewarm(), 'skip:server-side');
-  });
+  const helper = helperWith({ useOllama: true, ollamaModel: 'selected:3b', ollamaUrl: 'http://127.0.0.1:11434' });
+  const first = helper.prewarmPromptCache();
+  helper.setModel('ollama-other:3b');
+  assert.equal(firstSignal.aborted, true);
+  resolveShow(Response.json(localMetadata));
+  await first;
+  assert.equal(calls, 1);
+  await helper.prewarmPromptCache();
+  await helper.prewarmPromptCache();
+  assert.equal(calls, 4, 'failed model inspection does not prevent a retry');
 });

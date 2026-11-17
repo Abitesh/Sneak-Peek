@@ -717,13 +717,10 @@ export class LLMHelper {
   // see OllamaManager.resolveDefaultOllamaUrl(). Overridden per-instance by
   // the constructor's `ollamaUrl` param when the caller passes one.
   private ollamaUrl: string = require('./services/OllamaManager').resolveDefaultOllamaUrl()
-  // How long Ollama keeps the model resident in RAM after a request (the
-  // `keep_alive` field on /api/chat). Default "30m" so a live session doesn't pay
-  // the multi-second cold-load tax on every turn after a short pause (Ollama's own
-  // default is 5m). prewarmPromptCache() upgrades this to "-1" (pin indefinitely)
-  // once it has warmed the model, and switching away from Ollama unloads it ("0")
-  // so a "-1" pin never strands GBs of weights in RAM for an idle provider.
-  private ollamaKeepAlive: string | number = "30m";
+  // Actual turns keep the existing bounded live-session lease. Background
+  // preloads have their own shorter lease and never pin the model.
+  private readonly ollamaKeepAlive = "30m";
+  private ollamaPrewarm?: { endpoint: string; model: string; controller: AbortController; finishedAt?: number };
   // Best vision-capable Ollama model found among installed models (authoritative
   // via /api/show capabilities, name-heuristic fallback). null = none found yet
   // or not probed. Used so a screenshot uses a vision model even when the
@@ -1830,10 +1827,8 @@ export class LLMHelper {
 
     if (targetModelId.startsWith('ollama-')) {
       const nextOllamaModel = targetModelId.replace('ollama-', '');
-      // Switching between two Ollama models: unload the OLD one if it was pinned so
-      // we don't hold two models resident; the new one re-pins on its next prewarm.
       if (this.useOllama && this.ollamaModel && this.ollamaModel !== nextOllamaModel) {
-        this.releaseOllamaPin(this.ollamaModel);
+        this.cancelOllamaPrewarm();
       }
       this.useOllama = true;
       this.ollamaModel = nextOllamaModel;
@@ -1845,7 +1840,7 @@ export class LLMHelper {
 
     const custom = customProviders.find(p => p.id === targetModelId);
     if (custom) {
-      if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+      if (this.useOllama) this.cancelOllamaPrewarm();
       this.useOllama = false;
       this.customProvider = custom;
       this.activeCurlProvider = null;
@@ -1854,7 +1849,7 @@ export class LLMHelper {
     }
 
     // Standard Cloud Models
-    if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+    if (this.useOllama) this.cancelOllamaPrewarm();
     this.useOllama = false;
     // Keep `this.customProvider = null` — only the ACTIVE selection belongs
     // there. The full list of configured custom providers is preserved in
@@ -2005,7 +2000,7 @@ export class LLMHelper {
   }
 
   public switchToCurl(provider: CurlProvider) {
-    if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+    if (this.useOllama) this.cancelOllamaPrewarm();
     this.useOllama = false;
     this.customProvider = null;
     this.activeCurlProvider = provider;
@@ -2842,15 +2837,13 @@ ANSWER DIRECTLY:`;
    * system prompt. Returning a SUFFIX (rather than a prefix) preserves the
    * static prompt as the cacheable prefix for OpenAI/Groq prefix matching and
    * lets Claude cache_control land on the static block above it.
-   * Returns "" when no instruction is needed (English fixed mode).
+   * Automatic language matching avoids naming sample languages that small
+   * models can echo instead of reading the actual question.
    */
   public buildLanguageInstructionSuffix(): string {
     if (!this.aiResponseLanguage || this.aiResponseLanguage === 'auto') {
       return `\n\n[LANGUAGE INSTRUCTION — HIGHEST PRIORITY]
-Detect the language of the user's most recent message and ALWAYS respond in that exact same language.
-If the user writes in Hindi, respond in Hindi. If in Spanish, respond in Spanish. If in English, respond in English.
-If the language is ambiguous, default to English.
-You may mix scripts naturally (e.g. code stays in English even when the explanation is in another language).
+Answer in the language of the current question or direct request. When the language is unclear, use English. Keep code and identifiers in their original form.
 [END LANGUAGE INSTRUCTION]`;
     }
     // Pinned English is an INSTRUCTION, not the absence of one. This used to
@@ -2972,7 +2965,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
    *     it via geminiPromptCache.getOrCreate() is the biggest single win.
    *   - Claude/OpenAI/Groq/DeepSeek: automatic prefix caching warms on any call
    *     carrying the same static prefix; a minimal request primes it.
-   *   - Ollama: a minimal call loads the model + KV prefix into memory.
+   *   - Ollama: a content-free call loads only the selected local model.
    *   - Sneak-Peek/custom/curl: server-controlled; we skip (no client-side cache).
    *
    * Safety: best-effort and fully swallowed. Never throws, never blocks the
@@ -2982,7 +2975,11 @@ This rule overrides ALL other instructions including formatting, brevity, or out
    */
   public async prewarmPromptCache(): Promise<void> {
     try {
-      if (this.isLocalOnlyMode && !this.useOllama) return;
+      if (this.useOllama) {
+        await this.preloadSelectedOllama();
+        return;
+      }
+      if (this.isLocalOnlyMode) return;
 
       // Warmup uses the tier-appropriate base prompt so the KV cache prefix it primes
       // matches what the live path will actually send (fix: 7B-class models were
@@ -2998,16 +2995,9 @@ This rule overrides ALL other instructions including formatting, brevity, or out
         } catch { return HARD_SYSTEM_PROMPT; }
       })();
       const staticPrompt = this.resolveLocalSystemPrompt(this.injectLanguageInstruction(prewarmBase));
-      const model = this.useOllama ? this.ollamaModel : this.currentModelId;
+      const model = this.currentModelId;
       const key = `${model}|${createHash('sha1').update(staticPrompt).digest('hex')}`;
-      // Dedup so repeated activations are free — EXCEPT for an Ollama model that is
-      // no longer pinned. Switching away from Ollama unloads the model and resets
-      // ollamaKeepAlive to "30m" (releaseOllamaPin); switching back hits this cached
-      // key, so without the pin-state check we'd neither re-load nor re-pin the model
-      // and the first question would pay the cold-load tax again. Re-warming an
-      // already-resident model is cheap (one buffered token), so this is safe.
-      const ollamaNeedsRepin = this.useOllama && this.ollamaKeepAlive !== -1;
-      if (this._prewarmedKeys.has(key) && !ollamaNeedsRepin) return; // already warmed this session
+      if (this._prewarmedKeys.has(key)) return;
       this._prewarmedKeys.add(key);
 
       // Gemini explicit cache — the one with real create() setup cost.
@@ -3018,7 +3008,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
         return;
       }
 
-      // Automatic-prefix providers (Claude/OpenAI/Groq/DeepSeek) + Ollama:
+      // Automatic-prefix providers (Claude/OpenAI/Groq/DeepSeek):
       // fire a minimal request so the static prefix is written to the cache /
       // loaded into the model. Drain a single token then stop.
       const warm = async (gen: AsyncGenerator<string, void, unknown>) => {
@@ -3031,15 +3021,6 @@ This rule overrides ALL other instructions including formatting, brevity, or out
         await warm(this.streamWithOpenai('Hi', staticPrompt) as any).catch((_e: any): void => {});
       } else if (!this.useOllama && this.isGroqModel(this.currentModelId) && this.groqClient) {
         await warm(this.streamWithGroq('Hi', this.currentModelId, staticPrompt)).catch((_e: any): void => {});
-      } else if (this.useOllama) {
-        // Pin the model in RAM indefinitely BEFORE the warm call, so the warming
-        // request itself carries keep_alive:-1 and the model stays resident for the
-        // whole session — no cold-load tax on any later live turn. Released to "0"
-        // (unload) when the user switches away from Ollama (see setModel /
-        // switchToGemini / switchToCustom).
-        this.ollamaKeepAlive = -1;
-        await warm(this.streamWithOllama('Hi', undefined, staticPrompt) as any).catch((_e: any): void => {});
-        console.log(`[LLMHelper] Prewarm: Ollama model ${this.ollamaModel} pinned in memory (keep_alive=-1)`);
       } else {
         // Sneak-Peek / custom / curl — server-side caching, nothing to prime client-side.
         return;
@@ -3969,11 +3950,17 @@ let isMultimodal = !!(imagePaths?.length);
    * nothing that accepts an image — the vision chain must fall through to
    * another provider rather than silently answer text-only.
    */
-  private async createGroqCompletion(request: any, opts?: { signal?: AbortSignal }): Promise<any> {
+  private async createGroqCompletion(
+    request: any, opts?: { signal?: AbortSignal }, allowModelFallback = true,
+  ): Promise<any> {
     if (!this.groqClient) throw new Error("Groq client not initialized");
     if (request && typeof request === 'object') {
       delete request.reasoning_effort;
       delete request.reasoningEffort;
+    }
+    // Canonical generation already has an exact binding and owns fallback.
+    if (!allowModelFallback) {
+      return this.groqClient.chat.completions.create(request, { ...opts, maxRetries: 0 });
     }
     // KNOWN-GONE MEMO (code-review 2026-08-23): after a retirement, every call
     // used to pay a doomed full-payload round trip to the dead model before
@@ -5591,7 +5578,7 @@ let isMultimodal = !!(imagePaths?.length);
       case 'groq':
         providerStream = images
           ? this.streamWithGroqMultimodal(finalPrompt, images, '', abortSignal, model || GROQ_VISION_MODEL)
-          : this.streamWithGroq(finalPrompt, model || GROQ_MODEL, '', abortSignal);
+          : this.streamWithGroq(finalPrompt, model || GROQ_MODEL, '', abortSignal, false);
         break;
       case 'gemini_flash':
         providerStream = this.streamWithGeminiModel(
@@ -6008,9 +5995,10 @@ let isMultimodal = !!(imagePaths?.length);
       if (!clientFor[family]) continue; // no key configured — cannot dispatch
       const providerHealth = health[family];
       if (!providerHealth || providerHealth.status !== 'verified') continue; // not chat-probed by test-llm-connection
-      const bindings = filterChatCapable(providerHealth.models || []);
-      if (bindings.length === 0) continue;
-      candidates.push({ family, modelId: bindings[0].id });
+      const binding = filterChatCapable(providerHealth.models || []).find(model =>
+        model.provider === family && model.source === 'live-probe' && model.capabilities.streaming);
+      if (!binding) continue;
+      candidates.push({ family, modelId: binding.id });
       if (candidates.length >= LLMHelper.MAX_FALLBACK_PROVIDERS - excludeFamilies.size) break;
     }
     return candidates;
@@ -7676,7 +7664,10 @@ let isMultimodal = !!(imagePaths?.length);
    * `userMessage`) so Groq's prefix cache hits across turns. See generateWithGroq
    * for the full rationale. The single-arg form is retained for legacy callers.
    */
-  private async * streamWithGroq(userMessage: string, modelId: string = GROQ_MODEL, systemPrompt?: string, abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithGroq(
+    userMessage: string, modelId: string = GROQ_MODEL, systemPrompt?: string,
+    abortSignal?: AbortSignal, allowModelFallback = true,
+  ): AsyncGenerator<string, void, unknown> {
     if (this.isLocalOnlyMode) throw new Error("Cloud providers disabled in local-only mode");
     if (!this.groqClient) throw new Error("Groq client not initialized");
     this.assertOutboundScopes('groq', userMessage);
@@ -7701,7 +7692,7 @@ let isMultimodal = !!(imagePaths?.length);
     require('./llm/providerPayloadCapture').captureProviderPayload({
       provider: 'groq', classification: 'sdk_request_object_before_serialization', payload: request,
     });
-    const stream = await this.createGroqCompletion(request, { signal: abortSignal });
+    const stream = await this.createGroqCompletion(request, { signal: abortSignal }, allowModelFallback);
 
     try {
       for await (const chunk of stream) {
@@ -8363,9 +8354,7 @@ let isMultimodal = !!(imagePaths?.length);
         model: ollamaModel,
         messages,
         stream: true,
-        // Keep the model resident between turns so we don't re-pay the cold-load
-        // tax (8-12s for a 7-9B model) on every request after a pause. Pinned to
-        // "-1" once prewarm has warmed it; see ollamaKeepAlive.
+        // Keep the model resident between real turns for a bounded interval.
         keep_alive: this.ollamaKeepAlive,
         options: {
           temperature: getModelCapabilities(ollamaModel, true).tier === 'local-small' ? 0.2 : 0.7,
@@ -8644,29 +8633,48 @@ let isMultimodal = !!(imagePaths?.length);
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Release a pinned Ollama model from RAM and reset the session keep-alive to its
-   * default. Called when the user switches the active provider AWAY from Ollama, so
-   * a prior prewarm's keep_alive:-1 pin doesn't strand the model's weights (GBs) in
-   * memory for a provider we're no longer using. Best-effort and fully swallowed —
-   * a failed unload (e.g. Ollama already stopped) must never block a model switch.
-   * `keep_alive: 0` tells Ollama to unload the model immediately after this no-op
-   * request. Captures the model name up front so a concurrent switch can't unload
-   * the wrong one.
-   */
-  private releaseOllamaPin(modelToUnload: string): void {
-    const wasPinned = this.ollamaKeepAlive === -1;
-    this.ollamaKeepAlive = "30m";
-    if (!wasPinned || !modelToUnload) return;
-    // Fire-and-forget: don't make the synchronous switch path await a network call.
-    void fetch(`${this.ollamaUrl}/api/chat`, {
+  private cancelOllamaPrewarm(): void {
+    this.ollamaPrewarm?.controller.abort();
+    this.ollamaPrewarm = undefined;
+  }
+
+  private async preloadSelectedOllama(): Promise<void> {
+    const model = this.ollamaModel;
+    if (!model || /(?:^|[-:])cloud(?:$|:)/i.test(model)) return;
+    const endpoint = new URL(this.getOllamaBaseUrl());
+    if (!['http:', 'https:'].includes(endpoint.protocol) || !['127.0.0.1', '[::1]'].includes(endpoint.hostname)
+      || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) return;
+    const base = endpoint.href.replace(/\/+$/, '');
+    const previous = this.ollamaPrewarm;
+    if (previous?.endpoint === base && previous.model === model
+      && (previous.finishedAt === undefined || performance.now() - previous.finishedAt < 30_000)) return;
+
+    this.cancelOllamaPrewarm();
+    const request = { endpoint: base, model, controller: new AbortController(), finishedAt: undefined as number | undefined };
+    this.ollamaPrewarm = request;
+    const options = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: modelToUnload, messages: [], keep_alive: 0 }),
-      signal: AbortSignal.timeout(5_000),
-    }).then(() => {
-      console.log(`[LLMHelper] Released Ollama pin: ${modelToUnload} unloaded from memory`);
-    }).catch(() => { /* unload is best-effort */ });
+      redirect: 'error' as const,
+      signal: AbortSignal.any([request.controller.signal, AbortSignal.timeout(8_000)]),
+    };
+    try {
+      const show = await fetch(`${base}/api/show`, { ...options, body: JSON.stringify({ model }) });
+      if (!show.ok) return;
+      const metadata = await show.json();
+      // Only warm a locally installed completion model. In particular, an
+      // Ollama cloud alias may be reachable through the same loopback daemon.
+      if (metadata.remote_host || metadata.remote_model || !metadata.details?.format
+        || !metadata.details?.quantization_level || !metadata.capabilities?.includes('completion')) return;
+      options.signal.throwIfAborted();
+      const response = await fetch(`${base}/api/chat`, {
+        ...options,
+        body: JSON.stringify({ model, messages: [], stream: false, keep_alive: '5m' }),
+      });
+      if (response.ok && (await response.json()).done_reason === 'load') request.finishedAt = performance.now();
+    } finally {
+      if (this.ollamaPrewarm === request && request.finishedAt === undefined) this.ollamaPrewarm = undefined;
+    }
   }
 
   public isUsingOllama(): boolean {
@@ -9678,13 +9686,8 @@ let isMultimodal = !!(imagePaths?.length);
   }
 
   public async switchToOllama(model?: string, url?: string): Promise<void> {
-    // Switching to a DIFFERENT Ollama model (or host): unload the old pinned model
-    // so we don't keep two models resident. The new model re-pins on next prewarm.
-    if (this.useOllama && this.ollamaModel && (model ? model !== this.ollamaModel : false)) {
-      this.releaseOllamaPin(this.ollamaModel);
-    } else if (this.useOllama && url && url !== this.ollamaUrl) {
-      // Changing host: the pin lived on the old host; just reset the local flag.
-      this.ollamaKeepAlive = "30m";
+    if (this.useOllama && ((model && model !== this.ollamaModel) || (url && url !== this.ollamaUrl))) {
+      this.cancelOllamaPrewarm();
     }
     this.useOllama = true;
     if (url) this.ollamaUrl = url;
@@ -9717,7 +9720,7 @@ let isMultimodal = !!(imagePaths?.length);
       if (!trimmed) {
         this.apiKey = null;
         this.client = null;
-        if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+        if (this.useOllama) this.cancelOllamaPrewarm();
         this.useOllama = false;
         this.customProvider = null;
         return;
@@ -9731,14 +9734,14 @@ let isMultimodal = !!(imagePaths?.length);
       throw new Error("No Gemini API key provided and no existing client");
     }
 
-    if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+    if (this.useOllama) this.cancelOllamaPrewarm();
     this.useOllama = false;
     this.customProvider = null;
     // console.log(`[LLMHelper] Switched to Gemini: ${this.geminiModel}`);
   }
 
   public async switchToCustom(provider: CustomProvider): Promise<void> {
-    if (this.useOllama) this.releaseOllamaPin(this.ollamaModel);
+    if (this.useOllama) this.cancelOllamaPrewarm();
     this.customProvider = provider;
     this.useOllama = false;
     this.client = null;

@@ -11,8 +11,11 @@ if (process.platform !== 'darwin') throw new Error('macOS Seatbelt required');
 const args = process.argv.slice(2);
 const localOllama = args.includes('--local-ollama');
 if (localOllama) args.splice(args.indexOf('--local-ollama'), 1);
+const preload = args.includes('--preload');
+if (preload) args.splice(args.indexOf('--preload'), 1);
+assert.ok(!preload || localOllama, '--preload requires --local-ollama');
 assert.ok(args.length === 0 || (args.length === 2 && args[0] === '--repo'),
-  'Usage: node scripts/audit/run-chg20-desktop-acceptance.mjs [--repo /absolute/repository] [--local-ollama]');
+  'Usage: node scripts/audit/run-chg20-desktop-acceptance.mjs [--repo /absolute/repository] [--local-ollama [--preload]]');
 const root = fs.realpathSync(args[1] ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 assert.equal(fs.realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim()), root,
   'The root must be the repository itself, not a parent directory');
@@ -76,7 +79,7 @@ try {
     const log = fs.openSync(path.join(evidence, `${phase}.log`), 'w');
     const code = await new Promise((resolve, reject) => {
       const child = spawn('/usr/bin/sandbox-exec', ['-f', path.join(evidence, 'sandbox.sb'), path.join(root, 'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'), path.join(root, 'scripts/audit/chg19-desktop-acceptance.cjs')], {
-        cwd: evidence, env: { ...env, SNEAK_PEEK_ACCEPTANCE_ROOT: evidence, CHG19_PHASE: phase, CHG21_LOCAL_OLLAMA: localOllama ? '1' : '0' }, stdio: ['ignore', log, log],
+        cwd: evidence, env: { ...env, SNEAK_PEEK_ACCEPTANCE_ROOT: evidence, CHG19_PHASE: phase, CHG21_LOCAL_OLLAMA: localOllama ? '1' : '0', CHG21_PRELOAD: preload ? '1' : '0' }, stdio: ['ignore', log, log],
       });
       let forceTimer;
       const timer = setTimeout(() => { child.kill('SIGTERM'); forceTimer = setTimeout(() => child.kill('SIGKILL'), 5000); }, 150000);

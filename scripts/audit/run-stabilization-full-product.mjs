@@ -1,10 +1,13 @@
-// Explicit opt-in macOS acceptance. No installation, credentials, or live calls.
+// Explicit opt-in macOS acceptance. No installation, credentials or remote calls.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 if (process.platform !== 'darwin') throw new Error('macOS Seatbelt required; do not run unsandboxed');
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== '--local-ollama')) throw new Error('Usage: run-stabilization-full-product.mjs [--local-ollama]');
+const localOllama = args.includes('--local-ollama');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'sneak-stabilization-'));
 const q=JSON.stringify;
@@ -12,6 +15,7 @@ fs.writeFileSync(path.join(temp,'sandbox.sb'), `(version 1)
 (allow default)
 (deny network*)
 (allow network* (local unix-socket) (remote unix-socket))
+${localOllama ? '(allow network-outbound (remote ip "localhost:11436"))' : ''}
 (deny file-read* (subpath ${q(os.homedir())}))
 (allow file-read* (subpath ${q(root)}))
 (deny file-read* (regex #"[.]env"))
@@ -23,6 +27,7 @@ fs.writeFileSync(path.join(temp,'sandbox.sb'), `(version 1)
 `);
 const env=Object.fromEntries(['PATH','HOME','USER','LOGNAME','SHELL','TMPDIR','LANG','LC_ALL','__CF_USER_TEXT_ENCODING','DISPLAY','XPC_FLAGS','XPC_SERVICE_NAME'].filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]]));
 env.SNEAK_PEEK_ACCEPTANCE_ROOT=temp;
+env.CHG21_LOCAL_OLLAMA=localOllama ? '1' : '0';
 console.log(`Evidence directory: ${temp}`);
 const log=fs.openSync(path.join(temp,'application.log'),'w');
 const child=spawn('/usr/bin/sandbox-exec',['-f',path.join(temp,'sandbox.sb'),path.join(root,'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'),path.join(root,'scripts/audit/stabilization-full-product.cjs')],{cwd:temp,env,stdio:['ignore',log,log]});

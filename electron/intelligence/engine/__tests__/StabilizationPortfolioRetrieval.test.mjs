@@ -51,6 +51,22 @@ test('no project files preserves candidate profile/knowledge fallback', () => {
   assert.ok(!context.requiredSources.includes('project_knowledge'));
 });
 
+test('an authorized portfolio can use exact tagged project IDs and the active résumé as separate factual sources', () => {
+  const context = plan('What projects have I built?', {
+    contextPermissions: { ...permissions, profile: true },
+    answerContext: { referenceSourceIds: [], personalSourceIds: ['project-1', 'unrelated'],
+      profileDocuments: [{ sourceType: 'RESUME', sourceId: 'imported-resume' }] },
+    activeContext: { projectSourceIds: ['project-1'], hasResume: true,
+      modeSourceContract: { sourceAuthority: 'ask_if_ambiguous', allowedExplicitSwitches: ['profile'] } },
+  });
+  assert.deepEqual(context.sourceIds.project_knowledge, ['project-1']);
+  assert.ok(context.requiredSources.includes('project_knowledge'));
+  assert.ok(context.requiredSources.includes('profile'));
+  assert.ok(!context.requiredSources.includes('personal_knowledge'));
+  assert.ok(!context.requiredSources.includes('my_files'));
+  assert.deepEqual(context.profileRead.retrievalPlan.sourceTypes, ['RESUME']);
+});
+
 test('named single-project and general questions must never fetch the resume scope', () => {
   for (const question of ['Why did you use Redis in Linkship?', 'Tell me about Linkship in detail.', 'What is DBMS?',
     'Explain your project architecture', 'Explain Linkship architecture']) {

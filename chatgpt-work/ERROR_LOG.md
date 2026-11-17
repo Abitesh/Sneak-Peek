@@ -1,8 +1,75 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-112 — Owner's saved provider route fails before first token (2026-11-17)
+
+WORK-0081 / TASK-0004. Owner observed both a greeting and a general technical question fail in the real app. Requested route reported `gemini_flash` and `maxAttempts: 3`. Determine actual configured/eligible attempts, transport and response classification, then verify with synthetic questions in the owner's selected route. Provider response data and credentials must stay private.
+
+**WORK-0081: Verified resolved for the application's fallback and error-delivery defect.** Real Gemini 3.5 Flash requests returned HTTP 503. The alternative returned HTTP 400 or a status-less SDK error in the instrumented baseline. Exact original Groq rejection parameter is unknown. Source confirmed that the candidate builder used the first catalog model regardless of the live probe and canonical Groq could switch models inside transport. The corrected path uses the exact verified streaming binding, avoids an internal retry/model ladder and bounds each supported hosted text attempt before first output. Real greeting and DBMS questions completed after repair while the saved Gemini model stayed selected. Direct Gemini availability is still external. Sanitized failures distinguish auth, quota/rate limiting, request rejection, unavailable model and timeouts. See the [production evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
+## ERR-113 — Owner's microphone feeds near-zero PCM before speech recognition (2026-11-17)
+
+WORK-0081 / TASK-0004. Owner reported zero-filled chunks over 12 s, RMS 0.00 and no transcript. Distinguish macOS input level, permission and launch identity, device selection, DSP/capture, STT and the renderer handoff. A zero-fill warning supplies a symptom; TCC denial, device mute and capture defects remain hypotheses. The owner has authorized the ordinary macOS/real-app test flow.
+
+**WORK-0081: Intermittent or environment-dependent; successful live verification, original cause open.** After macOS granted access, the user spoke the test question in the normal app. The native input was nonzero, STT processed at 16 kHz, the transcript appeared, and Analyze reached a correct final answer. The initial zero-filled signal did not recur during that spoken trial. An idle warning and a separate Analyze without a verified speech input do not establish capture failure. No native or STT code was changed. Physical repeatability and STT-to-paint timing remain open. See the [production evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
+## WORK-0081 — CHG-21 issue reconciliation
+
+- ERR-102 and ERR-110 remain open at their prior real-model completeness and precision scope. The two frozen model evaluations and the successful physical bounded-queue turn exercise different scenarios from the failed rendered trials.
+- ERR-104 remains open. Model loading was 3824 ms on the genuinely unloaded first case, which reached first useful text in 4567 ms. Earlier visible cold-global and resident Listen overruns remain recorded. Physical STT-to-paint is still unmeasured.
+- ERR-103's scoped factual correction and ERR-111's scoped request-ownership correction retain their verified dispositions. Fresh factual and desktop repeats support those dispositions. The French rubric mismatch is retained.
+- The WORK-0079 historical reconciliation and WORK-0080 dispositions still govern older open records. Current suites reaffirm the exercised source scopes and lifecycle checks, including ERR-076, while hosted Build Smoke, installed/native behavior, live Hindsight, Windows GUI, paired Phone Mirror and untested external provider scopes remain separate. Successful verified Groq text fallback gives partial credentialed coverage for the owner profile only.
+
+## ERR-111 — Rendered repeated-Enter completion was not observed in one desktop run (2026-11-17)
+
+WORK-0080 / TASK-0004. The later prepared rebuild completed all five model search observations. In the following repeated-Enter scenario, it issued one request, sent both expected chunks and one completion, and returned success. The fixture never saw the second chunk's text in the renderer. The two earlier two-launch runs covered the same repeated-Enter behavior successfully. Add failure-only renderer state and event capture and repeat before attributing this to app lifecycle or the fixture. Independent Copilot Ask identified a separate source-proven race: a closed global query's finally block can reset the shared buffer and busy flag after a replacement query starts. Reproduce this exact ordering with the actual renderer callback and mirror the meeting overlay's ownership guard. The connection to the one failed desktop attempt is unproven.
+
+## ERR-110 — Listen/Analyze real-model fixture returned an irrelevant and ungrounded answer (2026-11-17)
+
+WORK-0080 / TASK-0004. Using real renderer controls, two injected finalized English turns asked how a bounded queue works and requested a small example. The compiled selected-model stream returned a repetitive transliterated Hindi description with no capacity constraint. The real-model acceptance failed its capacity assertion. Preserve the exact fixture and failed output. Inspect the final production prompt and how the current Analyze input carries interviewer question, user formatting request, and language. Physical STT was not used.
+
+After shortening the Auto instruction, two real-model rendered runs answered in English. One defined the fixed capacity correctly but omitted the requested tiny example. Another described a limit on the total amount added or removed instead of the number held at once. Both passed keyword assertions. The response planner's example signal does not recognize “use a tiny example”. Verify a small-example response instruction with the captured prompt and the original controls. Keep previous failing artifacts.
+
+## ERR-109 — Opt-in prepared global search stalled behind synthetic startup summaries (2026-11-17)
+
+WORK-0080 / TASK-0004. Production preload succeeded in 2812 ms. The prepared desktop run then timed out before visible text. The harness kept the shared helper's local fallback enabled while startup's synthetic demo-meeting jobs were running. These long summary requests saturated the deterministic single-runner endpoint and the global stream hit its existing stall guard. Isolate the readiness probe from unrelated scheduled demo summaries and retain the failed run separately. Investigate applicability to ordinary app startup before making a production change.
+
+## WORK-0080 continuation of ERR-103 and ERR-104 (2026-11-17)
+
+The fresh WORK-0079 build again attributed a decision's reason to the reporting speaker despite evidence containing only the decision. The global prompt had asked the model to attribute a reason on every match. A freshly unloaded model took 3824 ms to load and 4487 ms to produce the first five characters on the first case, although p95 over the mostly resident workload was 1132 ms. Existing Ollama warmup decodes legacy prompt text and pins weights indefinitely. Both meeting overlays still contain a 100 ms pre-dispatch timer. Record the prompt repair, a bounded content-free selected-model warmup, and dispatch measurements against the existing privacy and lifecycle tests.
+
+## ERR-108 — Generic interview preparation receives a missing meeting-evidence policy (2026-11-17)
+
+WORK-0079 / TASK-0004. The independent reading of the repeated local-model outputs found a raw rubric pass that conflated recency and frequency. The case asked how to explain a technical concept “in an interview”. Compiled traces classified the generic situation as a meeting fact and added the unrelated missing-evidence instruction. Remove the indefinite interview phrase from that one heuristic's input while preserving the current question and factual interview-transcript routing.
+
+## ERR-107 — Initial project-snapshot guard blocked unrelated image continuity (2026-11-17)
+
+WORK-0079 / TASK-0004. The first two-launch acceptance stopped at the actual image preload stream. A generic image-description prompt has an empty inferred project lookup scope from its “Describe” opener; the narrow image route still needs its explicitly authorized history. Require a selected image and absence of a factual grounding requirement before allowing that snapshot on an empty project scope. Preserve exclusion when the project IDs restrict an actual project request. Keep the original typed attachment and history assertions.
+
+## ERR-106 — Explicit portfolio loses authorized tagged project files (2026-11-17)
+
+WORK-0079 / TASK-0004. After exact-project continuity and the renderer reset check passed, the existing full-product portfolio scenario returned only résumé facts. It planned `project_knowledge` but made no storage read. The active request supplied no project IDs for an explicit portfolio search, and the adapter correctly rejects a missing allowlist. Enumerate the current tagged project IDs for this explicit scope, preserve the adapter's pre-read denial and exact named/empty scope semantics, and use the authorized profile source instead of prior mixed answers for résumé projects.
+
+## ERR-105 — Desktop named-project follow-up requires an unrelated résumé (2026-11-17)
+
+WORK-0079 / TASK-0004. The rendered full-product fixture ingested exact synthetic Linkship and Linkship Legacy files. Both direct Linkship turns retrieved the expected reason. The immediate completed-session question “Why is Redis used in your project?” selected no evidence. The captured provider prompt had `owner="clarify" outcome="source_unavailable"` under the default mixed mode. Canonical source resolution treats the possessive project as a profile-family request but checks only résumé availability, even when the authorized request has exact project IDs. Preserve mode grants and source labels while evaluating a separate project-only availability signal. Prove clear-history, strict-mode, résumé-only and general-CS denial paths.
+
+The second rendered run recovered the exact scoped follow-up and then reopened **ERR-045** at the next sibling switch. The sole authorized evidence item was from Linkship Legacy, but the untyped manual session snapshot still forwarded the older project's reason. The prior fix covered structured conversation rendering. Apply the existing exact/empty project scope exclusion to the untyped snapshot as well, while preserving its authorized use in ordinary conversation and explicit actions.
+
+## ERR-103 — Local factual answers can pass the rubric despite an incorrect definition (2026-11-17)
+
+WORK-0079 / TASK-0004. The WORK-0078 real-model artifacts exhibit an incorrect priority-queue label for FIFO and an incorrect stack/queue comparison. The original FIFO rubric checks for ordering words, so its pass cannot settle factual correctness. The French LRU case also requires reviewing meaning independently of its expected phrases. Reproduce with the unchanged fixtures, assess real answers, and evaluate generic factual guidance without hardcoding definitions or weakening checks.
+
+## ERR-104 — Repeated local response times exceed CHG-21 budgets (2026-11-17)
+
+WORK-0079 / TASK-0004. WORK-0078 reached 2.052 s first-useful p95, a 6.887 s engine response dominated by decode, and 6.268 s action-to-paint for a fully attributed saved-meeting answer. Repeat against the installed model, distinguish warm and cold latency and the stages actually observed, and retain misses. The full Listen/Analyze path remains a separate measurement gap.
+
+Source inspection found an unconditional 200 ms cosmetic pre-dispatch wait in both meeting overlays. The earlier global desktop evidence spent about 307 ms between Enter and IPC. Remove the cosmetic wait while preserving initial-open cancellation, request ownership, and listener installation before IPC. Longer completion misses also occurred during model decoding and need separate measurement.
+
 ## ERR-102 — Global answer loses meeting attribution across two matching records (2026-11-17)
 
 WORK-0078 / TASK-0004. After fixing query pollution, one source read returned both authorized meetings. Across three real-model rendered runs the model reported only one reason with no meeting title. One response misattributed the claim to ContextPlan. The exact titles were buried in serialized internal provenance. Present global meeting title and speaker as concise source fields, keep internal provenance in the evidence pack and instruct the model to report each independently relevant match. The first all-meetings variant removed the saved-meeting fallback provenance marker and dropped citation from the single-meeting model fixture. Keep the single-meeting prompt and fallback markers intact. The first focused check of the narrowed global branch also failed because the test builder discarded retrievalScope. Forward the scope in the fixture and retain the title, speaker, and provenance assertions.
+
+WORK-0079: Putting stronger attribution before the question still produced three incomplete ambiguous answers. Removing model-visible ranking scores alone also omitted the second record. A loopback diagnostic using the actual captured prompt covered both matches when the factual output requirement followed the evidence. Only that variant also retained the narrow answer for the specific question. The implementation keeps ranking and provenance in the evidence pack and keeps identical text separately attributable across different meetings.
 
 ## ERR-100 — Global meeting lookup treats answer formatting as evidence terms (2026-11-17)
 
@@ -950,3 +1017,26 @@ WORK-0075 / TASK-0003. Confirmed source: validateCanonicalAnswer returns null fo
 
 
 **WORK-0078 outcomes:** ERR-097–100 pass focused regressions and final local suites. Screen-injection ERR-101 was corrected for the tested Spanish OCR prompt across final repeats. ERR-102 improves title attribution, with complete explicit plural and specific answers on the rendered matrix, but the ambiguous query still omits a second matching record. This remains open for answer completeness. The model also misdescribed FIFO and missed the first-useful and six-second targets in observed runs. Evidence: `/Users/abitesh/Downloads/Sneak-Peek-WORK0078.oKvPpI`.
+
+## WORK-0079 — Current error dispositions (2026-11-17)
+
+- **ERR-045 / ERR-105–106, verified scoped.** Rendered Linkship first turn, follow-up, sibling switch, cleared session and broad portfolio all passed. The scoped project call used exact IDs and excluded the prior project and the general-file canary. The original ERR-038 owner report remains open for exact request/source correlation.
+- **ERR-102, verified scoped.** All three original ambiguous rendered trials and both control questions returned correctly attributed facts. The compiled duplicate-text regression preserves different meeting IDs and the original scores. The separate single-record model benchmark produced an unsupported clause about the decision's reason. Track this as a remaining factual-quality limitation under ERR-103.
+- **ERR-103, measured scoped improvement.** Spanish and French definitions, the missing-referent check, and source-denial controls retained their assertions. The original French raw wording miss remains visible and passes factual review. The independent answer review found 25/26 correct per final run, including only the single-record wording defect above. Human or independent reviewer sign-off remains separate.
+- **ERR-104, open.** Saved-meeting final paint met 6 s on all five trials. The cold-start benchmark and rendered first text still miss 2 s. The rejected compact and reordered evidence prototypes introduced an attribution omission. Physical STT-to-paint and applicable provider/platform verification remain open.
+- **ERR-107–108, verified scoped.** The compiled tests and two-launch desktop restored authorized image continuity while keeping exact project snapshot exclusion. Generic interview advice now avoids stored-meeting retrieval and correctly describes the concept in final model runs. Explicit interviewer questions still plan meeting evidence.
+- **ERR-049/054/056/057, local evidence refreshed.** Actual overlay Escape/X, completed and reset chat, exact named scope, résumé picker and portfolio passed. **ERR-061** has the committed `fileURLToPath` source correction at `96cfd2ca`, and the three files are in the green local intelligence suite. Windows execution remains distinct. Hosted Build Smoke and the account/native/package tasks retain their own acceptance requirements.
+
+The full historical disposition and skip list are in the [WORK-0079 evaluation](../scripts/audit/chg21-quality-evaluation.md#work-0079--acceptance-evidence-2026-11-17). Reconciliation does not close a historical owner-reported or external symptom without its own evidence.
+
+## WORK-0080 — Current error dispositions (2026-11-17)
+
+- **ERR-103, verified scoped.** The reproduced reason being wrongly attributed to a speaker is gone across the unchanged frozen cases. Factual review improved from 25/26 to 26/26. The raw French wording miss remains documented and the main French answer is factually correct.
+- **ERR-102, reopened for real-model completeness.** One rendered ambiguous result omitted the second matching meeting despite one authorized read supplying both IDs. 24/25 rendered search answers across the measured batches were correct. All five on the final build passed. Keep the miss and the narrower single-result control. Neither scope nor storage provenance was widened.
+- **ERR-104, open.** Genuine unloaded global first text and final paint were 5898 and 7058 ms. Final prepared p95 was 2263 ms. The latest resident Listen renderer showed 4566 ms first text and 11010 ms final paint. The bounded selected-model preload reduces the load on the timed turn. The first unloaded load alone and the resident prefill/decoding costs establish separate bottlenecks. The physical STT transfer still needs measurement.
+- **ERR-109, verified scoped harness correction.** Startup built-in mode sections were compiling through the shared notes fallback in the failed prepared run. The isolated content-free preload no longer changes that fallback's helper selection for the timing fixture. The repeat did not stall behind those fixture jobs. Production note-section scheduling and concurrent workload performance have their own remaining evidence.
+- **ERR-110, partial.** The Auto-language defect was reproduced with three fixed seeds and corrected in two subsequent rendered English evaluations plus the latest rebuild. Precision and requested example quality still vary by sampled answer. The fixed-seed example-guidance prototype had two imprecise definitions and was not shipped. Keep the failed Listen output, the latest timeout-target misses and the supplemental multilingual results.
+- **ERR-111, verified scoped ownership repair.** Copilot identified an old global request resetting its replacement in finally. The actual callback regression was red on WORK-0079 and green after the request owner and scoped completion were enforced. Final two-launch desktop passed the original repeated-Enter, Escape/X, late-output, separate-sender and relaunch checks. The earlier one-off renderer timeout remains a retained unsuccessful attempt. No causal equivalence between that timeout and the reproduced ownership defect was established.
+- **Earlier issues.** The WORK-0079 issue-by-issue ledger still owns older scope and external dispositions. Final local suites and isolated macOS checks reaffirm the exercised project, document, session, meeting and stop paths, including the ERR-076 speech-source regressions. They do not resolve an unmatched owner report, credentialed provider or Hindsight operation, hosted Build Smoke, installed/packaged behavior, Windows GUI, phone hardware or actual STT.
+
+See the [evaluation and scoped criteria](../scripts/audit/chg21-quality-evaluation.md#work-0080--meeting-attribution-model-residency-and-desktop-timing-2026-11-17) and `/Users/abitesh/Downloads/Sneak-Peek-WORK0080.C2uoKO`. C21-AC2 remains open.

@@ -1,5 +1,17 @@
 # Sneak-Peek — project overview and setup
 
+## Manual chat provider recovery — WORK-0081 (2026-11-17)
+
+The canonical pipeline uses the exact streaming model that passed the eligible provider's live connection probe. Canonical Groq text dispatch attempts the pinned model without SDK retry or internal model switching. Supported hosted providers on the ordinary manual text path are bounded to seven seconds per attempt before their first token. The existing authorization and commitment rules govern every transition. Fixed categories and HTTP status explain failures without submitting vendor error bodies to the renderer. [Real-app and regression evidence](../scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
+## Local model and global overlay behavior — WORK-0080 (2026-11-17)
+
+The app can load an already installed selected local Ollama model during applicable startup or before a turn. This sends an empty message list to loopback and uses a bounded lease. The global overlay releases only the request it owns and accepts scoped completion events. Meeting explanations distinguish a reported decision from a supported reason. Auto language derives the response language from the current request without sample-language cues. [Current verification and limitations](../scripts/audit/chg21-quality-evaluation.md#work-0080--meeting-attribution-model-residency-and-desktop-timing-2026-11-17).
+
+## Current intelligence checks — WORK-0079 (2026-11-17)
+
+The canonical engine can ground a completed project follow-up against exact current project IDs independently of résumé availability. Scoped project prompts exclude prior untyped project answers. Global search keeps meeting identities separate even when recorded text is identical. Desktop verification now exercises Analyze and STOP from the actual controls using injected transcript events and a deterministic transport. See the [current evaluation](../scripts/audit/chg21-quality-evaluation.md#work-0079--acceptance-evidence-2026-11-17) for the real-model and synthetic coverage.
+
 ## Current intelligence checks — WORK-0078 (2026-11-17)
 
 The canonical engine now gates stored history before resolving references, uses authorized uncitable snapshots on explicit follow-ups, recognizes selected multilingual screen phrases and separates meeting retrieval terms from formatting instructions. Global search presents meeting title and speaker separately while retaining internal provenance. The isolated desktop harness can measure actual Ollama responses through the rendered global overlay and the production transport using an opt-in loopback policy. See [current evidence](../scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17).

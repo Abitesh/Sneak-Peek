@@ -6378,12 +6378,8 @@ export class AppState {
  this.sendToWindow(this.getWindowHelper().getOverlayWindow(), 'session-reset');
  this.sendToWindow(this.getWindowHelper().getLauncherWindow(), 'session-reset');
 
- // LOCAL-MODEL WARMUP: if the active model is a local Ollama model, warm + pin
- // it now (fire-and-forget) so the cold weight-load (8-12s for a 7-9B model)
- // happens DURING the meeting-start / audio-init window instead of on the user's
- // first live question — where it would otherwise blow the first-token deadline
- // and surface the canned fallback. Cloud models no-op here (prewarm returns
- // fast for non-Ollama), so a cloud session pays nothing. Never blocks start.
+ // Load the selected local model during meeting setup, without sending
+ // transcript or prompt text and without delaying audio initialization.
  try {
  const llmHelper = this.processingHelper.getLLMHelper();
  if (llmHelper?.isUsingOllama?.()) {
@@ -8585,6 +8581,10 @@ async function initializeApp() {
  OllamaManager.getInstance().ensureRunning({
  reason: settingsManager.get('autoStartOllama') === true ? 'auto-start-setting' : 'startup-selected',
  selectedModel: defaultModel,
+ }).then(async (status) => {
+ if (status.health !== 'ready') return;
+ const helper = appState.processingHelper.getLLMHelper();
+ if (helper.isUsingOllama()) await helper.prewarmPromptCache();
  }).catch((err: any) => console.warn('[OllamaManager] Startup ensureRunning failed (non-fatal):', err?.message || err));
  } else {
  OllamaManager.getInstance().skipStartup('Ollama not selected; startup skipped');

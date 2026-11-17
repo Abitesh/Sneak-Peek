@@ -7,11 +7,13 @@ import {
   resolveProjectFileScopeForTurn,
 } from '../../../../dist-electron/electron/intelligence/engine/ProjectFileScope.js';
 import { createCanonicalRagRetrievalCapability } from '../../../../dist-electron/electron/intelligence/engine/CanonicalRagRetrievalAdapter.js';
+import { planContext } from '../../../../dist-electron/electron/intelligence/engine/ContextPlanner.js';
 import {
   appendConversationTurn,
   clearConversationState,
   getRecentConversationTurns,
 } from '../../../../dist-electron/electron/context-intelligence/question/conversation-state-store.js';
+import { understandTurn } from '../../../../dist-electron/electron/context-intelligence/question/question-resolver.js';
 
 const files = [
   { id: 'linkship-a', fileType: 'project', fileName: 'Linkship Architecture.pdf' },
@@ -80,6 +82,40 @@ test('CHG-17: no completed immediate predecessor, failed answer, and competing r
     assert.equal(result.projectAvailable, false);
     assert.equal(result.unresolvedReference, true);
   }
+});
+
+test('a scoped project follow-up can use exact project IDs without granting résumé access', () => {
+  const scope = followup();
+  const mixed = { sourceAuthority: 'ask_if_ambiguous', allowedExplicitSwitches: ['profile'] };
+  const strict = { sourceAuthority: 'reference_files_only', defaultOwner: 'reference_files', allowedExplicitSwitches: [] };
+  const plan = (question, modeSourceContract = mixed, project = true, projectSourceIds = scope.selectedFileIds) =>
+    planContext({
+      understanding: understandTurn({ manualQuestion: question }),
+      request: {
+        requestId: 'scoped-project-followup',
+        sessionId: 'same-session',
+        surface: 'manual-chat',
+        answerContext: { referenceSourceIds: [], personalSourceIds: files.map(file => file.id) },
+        activeContext: { projectName: scope.namedProject, projectSourceIds, modeSourceContract },
+        contextPermissions: { project, profile: false, files: true, conversation: true, generalKnowledge: true },
+      },
+    });
+  const resolved = plan(currentQuestion);
+  assert.equal(resolved.sourceDecision.outcome, 'explicit_granted');
+  assert.deepEqual(resolved.sourceDecision.allowedEvidenceKinds, ['projects']);
+  assert.ok(resolved.requiredSources.includes('project_knowledge'));
+  assert.ok(!resolved.requiredSources.includes('profile'));
+  assert.deepEqual(resolved.sourceIds.project_knowledge, ['linkship-a', 'linkship-b']);
+  for (const blocked of [
+    plan(currentQuestion, strict),
+    plan(currentQuestion, mixed, false),
+    plan(currentQuestion, mixed, true, []),
+    plan('According to my résumé, why is Redis used in your project?'),
+  ]) {
+    assert.ok(['source_unavailable', 'explicit_denied'].includes(blocked.sourceDecision.outcome));
+    assert.ok(!blocked.requiredSources.includes('project_knowledge'));
+  }
+  assert.ok(!plan('What is a mutex?').requiredSources.includes('project_knowledge'));
 });
 
 test('CHG-17: formerly authorized Linkship file removed before follow-up cannot broaden retrieval', () => {

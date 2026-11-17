@@ -55,7 +55,7 @@ describe('buildLanguageInstructionSuffix — pinned language is always an instru
     const auto = suffixFor('auto');
     assert.notEqual(english, auto);
     assert.match(auto, /LANGUAGE INSTRUCTION/, 'auto keeps its mirror-the-speaker block');
-    assert.doesNotMatch(english, /Detect the language of the user/,
+    assert.doesNotMatch(english, /Answer in the language of the current question/,
       'English must not tell the model to mirror the speaker');
   });
 
@@ -75,7 +75,11 @@ describe('buildLanguageInstructionSuffix — pinned language is always an instru
 
   test('auto and unset both mirror the speaker', () => {
     for (const value of ['auto', '', undefined, null]) {
-      assert.match(suffixFor(value), /LANGUAGE INSTRUCTION/);
+      const out = suffixFor(value);
+      assert.match(out, /LANGUAGE INSTRUCTION/);
+      assert.match(out, /language of the current question or direct request/);
+      assert.match(out, /language is unclear, use English/);
+      assert.doesNotMatch(out, /Hindi|Spanish/);
     }
   });
 });

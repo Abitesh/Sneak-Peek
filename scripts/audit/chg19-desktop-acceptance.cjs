@@ -7,7 +7,7 @@ const { app, BrowserWindow, safeStorage, systemPreferences, desktopCapturer, dia
 const root = path.resolve(__dirname, '../..');
 const temp = process.env.SNEAK_PEEK_ACCEPTANCE_ROOT;
 if (!temp || !fs.existsSync(path.join(temp, 'sandbox.sb'))) throw new Error('Use the sandboxed acceptance runner');
-const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG19_PHASE', 'CHG21_LOCAL_OLLAMA']);
+const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG19_PHASE', 'CHG21_LOCAL_OLLAMA', 'CHG21_PRELOAD']);
 for (const key of Object.keys(process.env)) if (!keep.has(key)) delete process.env[key];
 for (const key of ['appData','userData','sessionData','logs','crashDumps','documents','downloads','desktop','temp']) {
   const dir = path.join(temp, key); fs.mkdirSync(dir, { recursive: true }); app.setPath(key, dir);
@@ -467,6 +467,26 @@ app.whenReady().then(async () => {
       const model = 'llama3.2:3b';
       try {
         helper.ollamaUrl = 'http://127.0.0.1:11436';
+        const preload = process.env.CHG21_PRELOAD === '1';
+        const residency = async () => {
+          const response = await fetch(helper.ollamaUrl + '/api/ps', { signal: AbortSignal.timeout(2000) });
+          assert.ok(response.ok, 'Ollama residency probe failed');
+          return (await response.json()).models.find(entry => entry.name === model);
+        };
+        let preloadMs = null;
+        if (preload) {
+          const loadedBefore = await residency();
+          // Other startup jobs use the shared helper. Give the preload only
+          // the selected model and endpoint needed by its production method.
+          const preloader = Object.assign(Object.create(Object.getPrototypeOf(helper)), {
+            useOllama: true, ollamaModel: model, ollamaUrl: helper.ollamaUrl,
+          });
+          const started = performance.now();
+          await preloader.prewarmPromptCache();
+          preloadMs = Math.round(performance.now() - started);
+          assert.ok(await residency(), 'selected model resident before UI trigger');
+          report.localModelPreload = { elapsedMs: preloadMs, previouslyResident: Boolean(loadedBefore) };
+        }
         helper.getSneakPeekGenerationRouteOptions = () => ({
           capability: 'stream_chat', preferredProvider: 'ollama', allowedProviders: ['ollama'],
           availability: { hasOllama: true }, models: { ollama: model }, maxAttempts: 1,
@@ -480,8 +500,14 @@ app.whenReady().then(async () => {
           row.providerStartedAt = performance.now();
           row.prompt = prompt;
           row.providerCalls = (row.providerCalls ?? 0) + 1;
+          let text = '';
           for await (const token of productionStream(provider, selected, prompt, options)) {
-            if (row.providerFirstAt === undefined && token.trim()) row.providerFirstAt = performance.now();
+            const at = performance.now();
+            if (row.providerFirstAt === undefined && token.trim()) row.providerFirstAt = at;
+            if (row.providerUsefulAt === undefined) {
+              text += token;
+              if (text.trim().length >= 5) row.providerUsefulAt = at;
+            }
             yield token;
           }
           row.providerFinishedAt = performance.now();
@@ -513,15 +539,32 @@ app.whenReady().then(async () => {
             'local-model global retrieval and dispatch');
           const observedText = () => js(`(() => {
             const copy = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Copy message');
-            if (copy) return copy.parentElement.firstElementChild.textContent.trim();
-            return Array.from(document.querySelectorAll('.items-start.mb-6 > div')).map(e=>e.textContent.trim()).filter(Boolean).at(-1) ?? '';
+            const element = copy ? copy.parentElement.firstElementChild
+              : Array.from(document.querySelectorAll('.items-start.mb-6 > div')).filter(e => e.textContent.trim()).at(-1);
+            if (!element) return '';
+            for (let current = element; current; current = current.parentElement) {
+              const { visibility, display, opacity } = getComputedStyle(current);
+              if (visibility !== 'visible' || display === 'none' || Number(opacity) < 0.1) return '';
+            }
+            const { top, bottom, left, right } = element.getBoundingClientRect();
+            if (bottom <= 0 || top >= innerHeight || right <= 0 || left >= innerWidth) return '';
+            return element.innerText.trim();
           })()`);
-          const firstVisibleAt = await waitFor(async () => (await observedText()).length >= 5 && performance.now(), 'first visible local-model text');
+          await waitFor(async () => (await observedText()).length >= 5, 'first useful local-model text visible');
+          await paint();
+          const firstVisibleAt = performance.now();
           await waitFor(() => row.settledAt, 'local-model global settled');
           const own = events.filter(event => event.requestId === row.requestId);
           assert.equal(own.filter(event => event.channel === 'rag:stream-complete').length, 1);
           assert.equal(own.filter(event => event.channel === 'rag:stream-error').length, 0);
-          const generated = own.filter(event => event.channel === 'rag:stream-chunk').map(event => event.payload.chunk).join('').trim();
+          const chunks = own.filter(event => event.channel === 'rag:stream-chunk');
+          const generated = chunks.map(event => event.payload.chunk).join('').trim();
+          let accumulated = '';
+          const usefulChunk = chunks.find(event => {
+            accumulated += event.payload.chunk;
+            return accumulated.trim().length >= 5;
+          });
+          assert.ok(usefulChunk, 'useful answer must reach the renderer transport');
           assert.ok(generated, 'the local provider must generate an answer');
           await waitFor(async () => (await observedText()) === generated, 'full local-model answer visible and matching the stream');
           await paint();
@@ -536,7 +579,8 @@ app.whenReady().then(async () => {
             promptBytes: Buffer.byteLength(row.prompt),
             triggerToIpcMs: mark(row.at), retrievalMs: Math.round(sourceReads[0].finishedAt - sourceReads[0].startedAt),
             triggerToProviderMs: mark(row.providerStartedAt), providerFirstMs: Math.round(row.providerFirstAt - row.providerStartedAt),
-            firstVisibleMs: mark(firstVisibleAt), providerDoneMs: mark(row.providerFinishedAt), finalVisibleMs: mark(finalVisibleAt),
+            providerUsefulMs: Math.round(row.providerUsefulAt - row.providerStartedAt),
+            firstUsefulIpcMs: mark(usefulChunk.at), firstVisibleMs: mark(firstVisibleAt), providerDoneMs: mark(row.providerFinishedAt), finalVisibleMs: mark(finalVisibleAt),
             stt: 'not applicable to saved meeting search', attempts: row.providerCalls,
             screenshot: await screenshot('local-global-' + trial) });
           save();
@@ -660,5 +704,26 @@ app.whenReady().then(async () => {
   }
   report.rendererEvents = await js('window.__chg19Events');
   report.status = 'PASS'; save(); app.quit();
-}).catch(error => { report.status = 'FAIL'; report.error = error.stack; save(); console.error(error.stack); app.exit(1); });
+}).catch(async error => {
+  report.status = 'FAIL';
+  report.error = error.stack;
+  save();
+  const launcher = windows.find(win => !win.isDestroyed() && /window=launcher/.test(win.webContents.getURL()));
+  if (launcher) {
+    try {
+      report.failureRenderer = await Promise.race([
+        launcher.webContents.executeJavaScript(`({
+          events: window.__chg19Events, text: document.body.innerText, visibility: document.visibilityState,
+          focused: document.hasFocus(), focusedPlaceholder: document.activeElement?.getAttribute('placeholder')
+        })`),
+        sleep(1500).then(() => null),
+      ]);
+      save();
+    } catch (probeError) {
+      console.error('Renderer failure probe:', probeError.message);
+    }
+  }
+  console.error(error.stack);
+  app.exit(1);
+});
 setTimeout(() => { report.status = 'FAIL'; report.error = 'Desktop acceptance exceeded 120 seconds'; save(); app.exit(1); }, 120000).unref();

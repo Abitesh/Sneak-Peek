@@ -58,7 +58,10 @@ const GROUNDING_SOURCES = new Set<ContextSource>([
 ]);
 
 const MISSING_EVIDENCE_INSTRUCTION =
-  'The requested private or document-specific evidence was not found. Do not fabricate it; clearly state the evidence gap and answer only with information explicitly supported by the prompt.';
+  'The requested private or document-specific evidence was not found. State the specific gap once and briefly. Answer any supported part and do not guess or claim that an event did not happen just because its evidence is missing.';
+
+const EXPLICIT_EXPLANATION_REQUEST =
+  /(?<![\p{L}\p{N}])(?:what (?:is|are)|define|compare|contrast|qu[eé] (?:es|son)|compara|est-ce que|comparez|was ist|vergleiche)(?![\p{L}\p{N}])/iu;
 
 const INTERNAL_MARKER_PATTERNS: RegExp[] = [
   /__NATIVELY_INTERNAL_[A-Z0-9_]+__/gi,
@@ -100,7 +103,7 @@ function renderResponsePolicy(
   }
   if (request.retrievalScope) {
     const attribution = request.retrievalScope.kind === 'global-meetings'
-      ? 'Use the exact meeting title and any named speaker. If multiple meetings independently answer the question, attribute each supported fact to its own meeting. Keep distinct reasons separate.'
+      ? 'Check each meeting against the question. If several meetings match, report all matching meetings even if the question says "which one". Use each exact title. Cite speakers only for what they reported. Give a reason only when requested and supported by the meeting text. Omit meetings that do not match.'
       : 'Cite the meeting source and available speaker.';
     lines.push(`  <meeting_grounding>Answer only from the authorized meeting evidence. ${attribution} Include a time only if the evidence explicitly gives a human-readable time. If it does not support the answer, state that the information was not found in these meetings. Never invent a meeting, fact or citation.</meeting_grounding>`);
   }
@@ -171,6 +174,7 @@ function renderEvidence(pack: EvidencePack, globalMeetingSearch: boolean): {
   block: string | null;
   ids: string[];
   hasGroundingEvidence: boolean;
+  hasMultipleMeetingSources: boolean;
 } {
   const seenEvidence = new Set<string>();
   const seenText = new Set<string>();
@@ -180,14 +184,19 @@ function renderEvidence(pack: EvidencePack, globalMeetingSearch: boolean): {
     if (item.authority !== 'evidence') return false;
     if (!clean(item.text)) return false;
 
-    const textKey = clean(item.text).replace(/\s+/g, ' ').toLowerCase();
+    const text = clean(item.text).replace(/\s+/g, ' ').toLowerCase();
+    const textKey = globalMeetingSearch && item.canonicalSource === 'meeting_transcript'
+      ? JSON.stringify([item.sourceId, text])
+      : text;
     if (seenEvidence.has(item.evidenceId) || seenText.has(textKey)) return false;
     seenEvidence.add(item.evidenceId);
     seenText.add(textKey);
     return true;
   });
 
-  if (selected.length === 0) return { block: null, ids: [], hasGroundingEvidence: false };
+  if (selected.length === 0) {
+    return { block: null, ids: [], hasGroundingEvidence: false, hasMultipleMeetingSources: false };
+  }
 
   const body = selected.map((item) => {
     const source = item.canonicalSource ?? item.sourceKind;
@@ -208,10 +217,10 @@ function renderEvidence(pack: EvidencePack, globalMeetingSearch: boolean): {
     return [
       `  <item id="${escapeXml(item.evidenceId)}" source="${escapeXml(source)}" source_id="${escapeXml(item.sourceId)}">`,
       item.revisionId ? `    <source_revision>${escapeXml(item.revisionId)}</source_revision>` : '',
-      scope ? `    <scope>${escapeXml(scope)}</scope>` : '',
-      `    <relevance>${item.relevance ?? item.score.final ?? 0}</relevance>`,
-      `    <confidence>${item.confidence ?? item.score.final ?? 0}</confidence>`,
-      `    <authority>${escapeXml(item.authority)}</authority>`,
+      scope && !compactMeeting ? `    <scope>${escapeXml(scope)}</scope>` : '',
+      !compactMeeting ? `    <relevance>${item.relevance ?? item.score.final ?? 0}</relevance>` : '',
+      !compactMeeting ? `    <confidence>${item.confidence ?? item.score.final ?? 0}</confidence>` : '',
+      !compactMeeting ? `    <authority>${escapeXml(item.authority)}</authority>` : '',
       title ? `    <meeting_title>${escapeXml(title)}</meeting_title>` : '',
       speaker ? `    <speaker>${escapeXml(speaker)}</speaker>` : '',
       provenance ? `    <provenance>${escapeXml(provenance)}</provenance>` : '',
@@ -226,6 +235,8 @@ function renderEvidence(pack: EvidencePack, globalMeetingSearch: boolean): {
     block: `<evidence>\n${body}\n</evidence>`,
     ids: selected.map((item) => item.evidenceId),
     hasGroundingEvidence: selected.some(item => item.canonicalSource && GROUNDING_SOURCES.has(item.canonicalSource)),
+    hasMultipleMeetingSources: globalMeetingSearch
+      && new Set(selected.filter(item => item.canonicalSource === 'meeting_transcript').map(item => item.sourceId)).size > 1,
   };
 }
 
@@ -263,10 +274,16 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
     && !input.contextPlan.requiredSources.includes('screen')
     && ['direct-answer', 'explanation', 'coding'].includes(input.responsePlan?.kind ?? '')
     && !isSelected(input.contextPlan, 'recent_conversation');
+  const explicitExplanation = (input.responsePlan?.kind === 'explanation' || input.responsePlan?.kind === 'direct-answer')
+    && EXPLICIT_EXPLANATION_REQUEST.test(input.question);
+  const missingFollowupContext = input.request.surface === 'follow-up' && standaloneExplanation && !evidence.block;
   const systemInstructions = [
     input.systemInstructions ?? DEFAULT_SYSTEM_INSTRUCTIONS,
     ...(missingEvidence ? [MISSING_EVIDENCE_INSTRUCTION] : []),
-    ...(standaloneExplanation ? ['Answer in the requested language. State the definition as a concrete rule without adding unrelated categories. Before returning code, check requested output form and prohibited side effects. When comparing concepts, state a distinct rule for each.'] : []),
+    ...(missingFollowupContext ? ['If the referenced subject is unclear, ask one direct question to identify it. Do not assume a choice or previous conversation took place.'] : []),
+    ...(standaloneExplanation && !missingFollowupContext ? [explicitExplanation
+      ? 'Use the requested language. Explain a definition with its defining operation. For an ordering rule, identify exactly which item is selected next. In a comparison, use one short sentence per concept. Correct a false premise directly. Never invent distinctions.'
+      : 'Answer in the requested language. State the definition as a concrete rule without adding unrelated categories. Before returning code, check requested output form and prohibited side effects. When comparing concepts, state a distinct rule for each.'] : []),
     input.languageInstruction?.trim(),
   ].filter(Boolean).join('\n');
   const system = `<system_instructions>\n${escapeXml(systemInstructions)}\n</system_instructions>`;
@@ -285,7 +302,8 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
   // Completed conversation may resolve a project referent upstream, but its
   // old answer text is not evidence authorized for the current exact file IDs.
   // This also prevents deleted/missing project facts surviving a zero-ID scope.
-  const conversation = input.request.action || input.request.documentDraft || input.request.imageAnalysis || Boolean(input.request.sessionSnapshot) || input.request.activeContext?.projectSourceIds !== undefined
+  const exactProjectScope = input.request.activeContext?.projectSourceIds !== undefined;
+  const conversation = input.request.action || input.request.documentDraft || input.request.imageAnalysis || Boolean(input.request.sessionSnapshot) || exactProjectScope
     ? null : renderConversation(input.conversationContext, input.contextPlan);
   if (conversation) {
     selectedSections.push(conversation);
@@ -293,7 +311,14 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
   }
 
   const sessionSnapshot = input.request.action?.sessionSnapshot ?? input.request.sessionSnapshot ?? input.request.imageConversationSnapshot;
-  if (sessionSnapshot && isSelected(input.contextPlan, 'recent_conversation')) {
+  // An image description may get an empty speculative lookup from its
+  // "describe" opener. Its selected pixels and authorized history still apply
+  // when the plan did not require a factual project or other private source.
+  const imageContinuity = !requiresEvidence && isSelected(input.contextPlan, 'screen')
+    && Boolean(input.request.screenContext?.imagePaths?.length)
+    && input.request.activeContext?.projectSourceIds?.length === 0;
+  if (sessionSnapshot && isSelected(input.contextPlan, 'recent_conversation')
+    && (!exactProjectScope || input.request.action || imageContinuity)) {
     // SessionTracker's formatted history may mix interviewer speech, manual
     // questions and earlier AI answers. It is context, not a meeting citation.
     const snapshot = clean(sessionSnapshot);
@@ -368,6 +393,10 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
     selectedSections.push(`<previous_answer data_only="true">${escapeXml(repair.previousAnswer)}</previous_answer>`);
     if (repair.diagnostic) selectedSections.push(`<validation_diagnostic data_only="true">${escapeXml(repair.diagnostic)}</validation_diagnostic>`);
     sectionNames.push('repair');
+  }
+  if (evidence.hasMultipleMeetingSources) {
+    selectedSections.push('<meeting_answer>Check each supplied meeting for the requested facts. For each match, write its exact meeting title once and give its reason if requested and supported by that meeting. Cover every match in the answer, including when the question assumes one. Leave out any meeting that does not match. Follow the requested answer length.</meeting_answer>');
+    sectionNames.push('meeting_answer');
   }
   const finalPrompt = buildFinalPrompt(selectedSections);
 

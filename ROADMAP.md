@@ -4,7 +4,9 @@ Updated: 2026-11-01. Owner-defined scope plus proposed acceptance criteria. Edit
 
 ## Current focus and truth boundary
 
-**Current work: CHG-17, owner-reported in progress.** The linked repository is [Abitesh/Sneak-Peek](https://github.com/Abitesh/Sneak-Peek). The inspected public main commit is `6837a7a5d1eaa2531c878f05bb4f873c23af3859` with a Change 16 subject. The owner's ongoing local changes were not available. Changes 1–16 have historical implementation indicators but are **Not assessed**, not automatically complete. No application checks were run for this documentation pack.
+**Current work: CHG-21, TASK-0004 / WORK-0081.** C21-AC1 passes for authorized local checks. C21-AC2 is open. CHG-22 has a read-only caller audit and is gated for implementation. The current local baseline is main `3205976e` plus owner-staged and unstaged work. [Current evaluation](scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
+**Historical baseline (2026-11-01): CHG-17, owner-reported in progress.** The linked repository is [Abitesh/Sneak-Peek](https://github.com/Abitesh/Sneak-Peek). The inspected public main commit is `6837a7a5d1eaa2531c878f05bb4f873c23af3859` with a Change 16 subject. The owner's ongoing local changes were not available. Changes 1–16 have historical implementation indicators but are **Not assessed**, not automatically complete. No application checks were run for this documentation pack.
 
 Source: owner's current message and `Changes-roadmap.rtf`, supplied 2026-11-01. The complete supplied 22-change roadmap is retained as an owner-source appendix below. It is a plan, not a record of verified behavior. Historical internal names in that appendix are preserved for traceability, not instructions to bypass the rebranding/legal gate.
 
@@ -54,8 +56,8 @@ Statuses in this table are the initial 2026-11-01 baseline only; TASK_TRACKER.md
 | CHG-18 | Legacy meeting/global RAG answer paths | Planned | CHG-17 verified; preserve CHG-15 behavior. |
 | CHG-19 | Duplicated responsibility cleanup | Verified (scoped cancellation cleanup) | C19-AC1/C19-AC2 PASS; WORK-0046 isolated desktop evidence. Active compatibility retained. |
 | CHG-20 | One primary intelligence pipeline | Verified | C20-AC1 and C20-AC2 PASS. See WORK-0077 and the surface map. |
-| CHG-21 | Final intelligence quality/regression pass | Implemented, unverified | WORK-0078. Local regression passed. Repeated model quality and full desktop latency still need acceptance. |
-| CHG-22 | Final verified-dead architecture deletion | Planned | CHG-01–21 verified for affected responsibilities. |
+| CHG-21 | Final intelligence quality/regression pass | Implemented, unverified | WORK-0081. Local C21-AC1 passed. Real chat and one physical Analyze journey succeeded. C21-AC2 remains open for repeatable rendered quality, latency, and applicable external verification. |
+| CHG-22 | Final verified-dead architecture deletion | Blocked | CHG-01–21 verified for affected responsibilities. C21-AC2 remains open. |
 | CHG-23 | Dedicated Coding, CS Fundamentals, and Resume & Projects modes | Planned — owner-approved future scope | CHG-22 verified; coordinate FEAT-003/004, preserve existing Technical Interview. |
 
 ## Change acceptance contracts
@@ -299,6 +301,12 @@ Gate: CHG-20; packaging work requires separate authorization.
 
 **WORK-0078 (2026-11-17).** C21-AC1 passes for the authorized local scope. C21-AC2 remains open. The original 17-case raw rubric passed in all three final repeats, but review still finds a Spanish factual error. One first-useful p95 was 2.052 s. Real rendered global search correctly attributed both meetings on an explicit plural question, but its complete answer took 6.268 s. The live Listen/Analyze timing and supported external environments remain unverified. See the [current evaluation](scripts/audit/chg21-quality-evaluation.md#work-0078--repeated-local-model-and-rendered-acceptance-2026-11-17). CHG-22 is gated.
 
+**WORK-0079 (2026-11-17).** C21-AC1 passes for the authorized macOS scope. All five final model runs scored 25/26 by factual review and 25/26 by the unchanged raw rubric, with different failing cases. Warm p95 was 1.558–1.596 s. The two cold-start runs reached 2.104 and 2.368 s p95, and three rendered global requests exceeded 2 s to first visible text. All five global answers were factually correct and fully rendered in 3.488–5.242 s. Live STT-to-answer timing and the applicable external checks remain open. **C21-AC2 open; CHG-22 blocked.** See [commands, defect reconciliation and evidence](scripts/audit/chg21-quality-evaluation.md#work-0079--acceptance-evidence-2026-11-17).
+
+**WORK-0080 (2026-11-17).** C21-AC1 PASS for the authorized local checks. The repeated frozen cases scored 26/26 in factual review. The last prepared global run reached 2263 ms first-visible p95. A fully unloaded global answer needed 7058 ms and a resident real-model Listen/Analyze answer with injected transcripts needed 11010 ms. Preserve the earlier rendered multi-meeting and factual misses. Physical STT and the applicable external coverage remain open. **C21-AC2 open. CHG-22 remains blocked.** See [measured evidence and remaining checks](scripts/audit/chg21-quality-evaluation.md#work-0080--meeting-attribution-model-residency-and-desktop-timing-2026-11-17).
+
+**WORK-0081 (2026-11-17).** C21-AC1 PASS for authorized local checks. The normal macOS app completed both formerly failing manual questions through the existing verified Groq fallback while Gemini remained selected. A physical microphone and STT test reached a correct rendered Analyze answer after macOS granted access. Two fresh fixed workloads scored 26/26 by factual review and 25/26 by the unchanged raw rubric. A genuinely unloaded first useful response took 4567 ms, including 3824 ms model loading. The corresponding preloaded first case took 783 ms after 873 ms of separately measured preparation. **C21-AC2 stays open.** Measure genuinely unloaded, resident, cloud-fallback and physical STT-to-paint paths separately and publish each result. Prior rendered and model-variance misses remain in scope. The 2000 ms first-useful p95 and 6000 ms final-visible budget are unchanged. [Evidence and exact remaining checks](scripts/audit/chg21-quality-evaluation.md#work-0081--production-chat-recovery-and-physical-microphone-2026-11-17).
+
 ### CHG-22 — Final verified-dead architecture deletion
 
 Goal: Clean up only after all earlier gates.
@@ -309,6 +317,8 @@ Gate: CHG-01–21 verified for affected responsibilities.
 
 - C22-AC1: For every module: importer/symbol search, test/compile/build/runtime evidence, migration impact and final diff reviewed; no lost behavior or data.
 - C22-AC2: Required automated and manual verification recorded; protected boundaries unchanged; diff and tracking records reviewed.
+
+**Blocked (WORK-0081).** Initial [read-only caller audit](scripts/audit/chg20-surface-map.md#work-0081--read-only-chg-22-caller-audit) recorded removal candidates and active compatibility. C22-AC1 and C22-AC2 remain open. Implementation requires verified acceptance of affected earlier responsibilities, including C21-AC2.
 
 ### CHG-23 — Dedicated Coding, CS Fundamentals, and Resume & Projects modes (post-roadmap)
 

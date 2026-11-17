@@ -62,7 +62,7 @@ function setCredentials({ disabled = [], health = {} } = {}) {
 }
 
 function verifiedHealth(family, modelId) {
-  return { status: 'verified', authOk: true, lastProbeAt: Date.now(), models: [bindingFromModelId(modelId, family)] };
+  return { status: 'verified', authOk: true, lastProbeAt: Date.now(), models: [bindingFromModelId(modelId, family, { source: 'live-probe' })] };
 }
 
 /**
@@ -257,4 +257,36 @@ describe('no false "no provider available" when a verified alternative exists', 
     assert.equal(captured.length, 0, 'nothing should have been dispatched');
     assert.match(error.message, /No AI provider/, 'the error must be the actionable noProviderAvailableMessage, not a generic crash');
   });
+});
+
+
+test('canonical fallback uses the exact tested binding rather than the first catalog row', () => {
+  const preset = bindingFromModelId('groq/compound', 'groq', { source: 'preset' });
+  const proven = bindingFromModelId('qwen/qwen3.8-27b', 'groq', { source: 'live-probe' });
+  const groq = verifiedHealth('groq', proven.id);
+  const h = Object.create(LLMHelper.prototype);
+  h.currentModelId = 'gemini-3.5-flash';
+  h._client = {};
+  h._groqClient = {};
+  h.isCodexAvailable = () => false;
+  h.getSelectedCodexCliModel = () => undefined;
+  setCredentials({ health: { groq: { ...groq, models: [preset, proven] } } });
+  const route = h.getSneakPeekGenerationRouteOptions([], false, { verifiedFallbacks: true });
+  assert.deepEqual(route.allowedProviders, ['gemini_flash', 'groq']);
+  assert.equal(route.models.groq, proven.id);
+  assert.equal(route.models.geminiFlash, 'gemini-3.5-flash');
+  setCredentials({ health: { groq: { ...groq, models: [preset] } } });
+  assert.deepEqual(h.getSneakPeekGenerationRouteOptions([], false, { verifiedFallbacks: true }).allowedProviders, ['gemini_flash']);
+});
+
+test('a canonical Groq request does not retry or substitute a missing model', async () => {
+  const h = Object.create(LLMHelper.prototype);
+  const calls = [];
+  h._groqClient = { chat: { completions: { create: async (request, options) => {
+    calls.push({ model: request.model, maxRetries: options.maxRetries });
+    throw Object.assign(new Error('model not found'), { status: 404 });
+  } } } };
+  setCredentials();
+  await assert.rejects(h.createGroqCompletion({ model: 'qwen/qwen3.8-27b' }, {}, false), /model not found/);
+  assert.deepEqual(calls, [{ model: 'qwen/qwen3.8-27b', maxRetries: 0 }]);
 });

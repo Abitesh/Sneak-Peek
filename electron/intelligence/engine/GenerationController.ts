@@ -14,6 +14,7 @@ import {
   type ProviderAttempt,
   type ProviderRouteOptions,
 } from '../../llm/ProviderRouter';
+import { classifyProviderError } from '../../llm/providerErrorClassifier';
 
 export interface ProviderGenerationTransport {
   streamFinalPrompt(
@@ -125,10 +126,59 @@ export interface GenerationAttemptRecord {
   error?: string;
 }
 
+function describeProviderFailure(error: unknown): { detail: string; status?: number } {
+  const response = error as {
+    status?: unknown; statusCode?: unknown; response?: { status?: unknown };
+    cause?: unknown; name?: unknown; message?: unknown; code?: unknown;
+  } | null;
+  const rawStatus = response?.status ?? response?.statusCode ?? response?.response?.status;
+  const status = typeof rawStatus === 'string' && /^\d{3}$/.test(rawStatus) ? Number(rawStatus) : rawStatus;
+  const http = typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599 ? status : undefined;
+
+  // The vendor body and error chain may contain credentials, provider URLs or
+  // prompt contents. Only fixed descriptions and an HTTP status leave here.
+  const vendorMessage = typeof response?.message === 'string' ? response.message : '';
+  const dailyQuota = /insufficient_quota|perday|per day|daily.{0,30}(?:limit|quota)|monthly.{0,30}(?:limit|quota)|\b(?:TPD|RPD)\b|(?:billing|credits?).{0,30}(?:limit|exhaust)/i;
+  let detail: string;
+  if (response?.name === 'ProviderScopeError' || response?.name === 'VisionPolicyError') {
+    detail = 'The provider is blocked by the current data scope or screenshot privacy settings.';
+  } else if (response?.name === 'ProviderDisabledError') {
+    detail = 'This provider is disabled in AI Providers.';
+  } else if (http === 400) {
+    const unsupported = /not supported|unsupported|unknown parameter|unrecognized/i.test(vendorMessage);
+    detail = unsupported ? 'The selected model does not support a request parameter.' : 'The provider rejected the request parameters.';
+  } else if (http === 401 || http === 403) detail = 'Check the provider credential and its model access.';
+  else if (http === 429) {
+    detail = response?.code === 'insufficient_quota' || dailyQuota.test(vendorMessage)
+      ? 'The provider reports exhausted quota. Check usage and quota reset.'
+      : 'The provider rate-limited the request. Wait before retrying and check usage limits.';
+  } else if (http === 503) detail = 'The provider is temporarily unavailable or overloaded.';
+  else if (http === 404) detail = 'The selected model or provider endpoint is unavailable.';
+  else if (http === 402) detail = 'The provider account requires billing or credits.';
+  else {
+    const { kind } = classifyProviderError(error);
+    const causes = kind === 'server_error' && response?.cause ? classifyProviderError(response.cause).kind : kind;
+    switch (causes) {
+      case 'auth': detail = 'Check the provider credential and its model access.'; break;
+      case 'rate_limit': detail = 'The provider reported a rate limit or exhausted quota.'; break;
+      case 'overloaded': detail = 'The provider is temporarily overloaded.'; break;
+      case 'timeout': detail = 'The provider request timed out.'; break;
+      case 'network': detail = 'The provider could not be reached. Check the connection.'; break;
+      default: detail = 'The provider request failed.'; break;
+    }
+  }
+  return { detail, status: http };
+}
+
+const CLOUD_TEXT_PROVIDERS = new Set<ProviderAttempt['provider']>([
+  'gemini_flash', 'gemini_pro', 'groq', 'openai', 'claude', 'deepseek',
+]);
+
 export interface GenerationRequest {
   requestId: string;
   finalPrompt: string;
   route: ProviderRouteOptions;
+  cloudFirstTokenTimeoutMs?: number;
   abortSignal?: AbortSignal;
   thinkingBudget?: number;
   imagePaths?: readonly string[];
@@ -259,6 +309,15 @@ export class GenerationController {
 
       let committed = false;
       let emitted = false;
+      const firstTokenTimeoutMs = request.cloudFirstTokenTimeoutMs;
+      const deadline = firstTokenTimeoutMs && CLOUD_TEXT_PROVIDERS.has(attempt.provider)
+        ? new AbortController() : undefined;
+      const timer = deadline ? setTimeout(() => {
+        deadline.abort(new Error('Provider first-token deadline exceeded.'));
+      }, firstTokenTimeoutMs) : undefined;
+      const attemptSignal = deadline
+        ? request.abortSignal ? AbortSignal.any([request.abortSignal, deadline.signal]) : deadline.signal
+        : request.abortSignal;
 
       try {
         const providerStream = this.transport.streamFinalPrompt(
@@ -266,13 +325,13 @@ export class GenerationController {
           attempt.model,
           request.finalPrompt,
           {
-            abortSignal: request.abortSignal,
+            abortSignal: attemptSignal,
             thinkingBudget: request.thinkingBudget,
             imagePaths: request.imagePaths,
           },
         );
 
-        for await (const chunk of consumeUntilAborted(providerStream, request.abortSignal)) {
+        for await (const chunk of consumeUntilAborted(providerStream, attemptSignal)) {
           if (request.abortSignal?.aborted) {
             lifecycle.cancel('aborted while consuming provider stream');
             outcome.lifecycle = lifecycle.snapshot;
@@ -286,6 +345,7 @@ export class GenerationController {
           if (!chunk) continue;
 
           if (!emitted) {
+            clearTimeout(timer);
             emitted = true;
             const firstTokenAt = Date.now();
             record.firstTokenAt = firstTokenAt;
@@ -319,6 +379,8 @@ export class GenerationController {
           return;
         }
 
+        if (deadline?.signal.aborted) throw deadline.signal.reason;
+
         record.status = 'succeeded';
         record.endedAt = Date.now();
         if (lifecycle.state === 'COMMITTED') lifecycle.transition('COMPLETED', 'provider stream completed');
@@ -327,9 +389,7 @@ export class GenerationController {
         outcome.status = 'completed';
         outcome.endedAt = record.endedAt;
         return;
-      } catch (error: any) {
-        const message = error?.message ? String(error.message) : String(error);
-        record.error = message.slice(0, 500);
+      } catch (error: unknown) {
         record.endedAt = Date.now();
 
         if (request.abortSignal?.aborted) {
@@ -341,15 +401,25 @@ export class GenerationController {
           return;
         }
 
+        const { detail, status } = describeProviderFailure(deadline?.signal.aborted ? deadline.signal.reason : error);
+        const providerLabel = attempt.provider === 'gemini_flash' || attempt.provider === 'gemini_pro'
+          ? 'Gemini' : attempt.provider;
+        const message = `${providerLabel}${status ? ` (HTTP ${status})` : ''}: ${detail}`;
+        record.error = message;
+        console.warn('[GenerationController] Provider attempt failed', {
+          provider: attempt.provider, status, reason: detail, elapsedMs: record.endedAt - record.startedAt,
+          phase: committed ? 'after-first-token' : 'before-first-token',
+        });
+
         if (committed || emitted) {
           // A provider that has already emitted visible output is committed.
           // Do NOT append another provider's full answer after a post-commit
           // failure. The caller receives the partial stream as-is.
           record.status = 'failed';
           outcome.status = 'failed';
-          lifecycle.fail(`provider ${attempt.provider} failed after commit`);
+          outcome.error = `Provider failed after commit. ${message}`;
+          lifecycle.fail(outcome.error);
           outcome.lifecycle = lifecycle.snapshot;
-          outcome.error = `Provider ${attempt.provider} failed after commit: ${message}`.slice(0, 700);
           outcome.endedAt = Date.now();
           return;
         }
@@ -357,15 +427,16 @@ export class GenerationController {
         // Failure before first token: this provider never committed, so the
         // controller may safely try the next provider selected by the router.
         record.status = 'failed';
-        continue;
+      } finally {
+        clearTimeout(timer);
       }
     }
 
-    lifecycle.fail('all selected providers failed before first token');
+    outcome.error = outcome.attempts.map(attempt => attempt.error).filter(Boolean).join(' ')
+      || 'All selected providers failed before first token.';
+    lifecycle.fail(outcome.error);
     outcome.lifecycle = lifecycle.snapshot;
     outcome.status = 'failed';
-    outcome.error = outcome.attempts[outcome.attempts.length - 1]?.error
-      ?? 'All selected providers failed before first token.';
     outcome.endedAt = Date.now();
   }
 }

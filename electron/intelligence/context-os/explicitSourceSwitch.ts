@@ -56,6 +56,12 @@ const TRANSCRIPT_RE =
 
 type RequestedSource = Exclude<ExplicitSourceSwitch, null>;
 
+/** An exact project request must not substitute for a separately requested profile fact. */
+export function isProjectOnlyProfileRequest(question: string): boolean {
+  const q = question.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return PROFILE_RE.test(q) && !PROFILE_RE.test(q.replace(/\b(?:projects?|portfolio)\b/gi, ' '));
+}
+
 /**
  * Lossless multi-request resolver. Returns every independently-named source
  * the user's question requests so a comparison turn ("compare my résumé
