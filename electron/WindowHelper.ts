@@ -579,7 +579,7 @@ export class WindowHelper {
               : path.resolve(__dirname, '../../assets/icons/win/icon.ico');
           }
           return app.isPackaged
-            ? path.join(process.resourcesPath, 'icon.png')
+            ? path.join(process.resourcesPath, 'assets', 'icon.png')
             : path.resolve(__dirname, '../../assets/icon.png');
         }
 

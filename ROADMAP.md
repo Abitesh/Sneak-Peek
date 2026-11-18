@@ -25,6 +25,10 @@
 | Speech-to-answer performance | Measure physical speech end → finalized transcript → Analyze → first and final visible answer. Record model readiness, retrieval, dispatch, network or inference, render and cancellation stages. Use approved content and scopes. |
 | Other critical reliability | Track toolbar clipping under V2-03, provider recovery under V2-04, and factual, attribution and latency misses under V2-05. Native or platform work that needs external verification remains explicitly open. |
 
+## Application icon refresh — TASK-0008
+
+The owner supplied the official icon for macOS, Windows and Linux. Verify the generated multi-resolution assets, runtime paths and actual Apple Silicon application bundle. Windows and Linux installed appearance remain platform checks.
+
 ## V2-01 — Dedicated Answer Modes
 
 **First product milestone · Planned.** Give each new mode a stable identity and explicit context policy using the existing mode registry, settings, ContextPlanner, RetrievalCoordinator and ResponsePlanner. Coding / DSA and CS Fundamentals use the selected model and permitted turn input with zero private retrieval. Resume & Projects attempts scoped, authorized retrieval each turn, including follow-ups, and reports missing support honestly. Preserve General and Technical Interview’s existing mixed behavior and saved settings.

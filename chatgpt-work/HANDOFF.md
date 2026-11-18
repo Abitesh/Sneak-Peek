@@ -1,5 +1,9 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0085 / TASK-0008 — Application icon (2026-11-18)
+
+The supplied icon now backs the three platform assets and packaged macOS resource. Apple Silicon directory packaging and NSWorkspace icon rendering were verified. Windows/Linux installed visuals remain untested. V2-01 remains planned. See WORK-0085 and TASK-0008.
+
 ## WORK-0084 / TASK-0007 — current direction (2026-11-18)
 
 [Roadmap 2.0](../ROADMAP.md) is active and [Roadmap v1](../ROADMAP-v1.md) is archived. The November 17 proposal approval note is superseded. CHG-21/22 were retired as active gates with open work reassigned. V2-01 can begin through the existing canonical request, context and provider contracts.

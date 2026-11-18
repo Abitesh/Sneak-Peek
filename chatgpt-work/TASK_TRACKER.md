@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0008 / WORK-0085 — Official application icon (2026-11-18)
+
+**Implemented, unverified on Windows/Linux installations.** Owner-supplied transparent artwork generated macOS ICNS, Windows ICO and Linux PNG resources. The Apple Silicon directory package and macOS Finder icon representation were inspected. Relevant builds, Electron typecheck and both source/packaged asset verification passed. Windows/Linux installers and visual appearance remain untested. No app installation performed.
+
 ## TASK-0007 / WORK-0084 — Audio reliability and adoption (2026-11-18)
 
 **Roadmap 2.0 adopted. V2-01 Planned and ready for independent implementation.** WORK-0083 / TASK-0006 was approved on November 18. Historical CHG-21/22 criteria are archived and their open evidence is transferred in [Roadmap 2.0](../ROADMAP.md). ERR-102/104/110 → V2-05. ERR-112 external follow-ups → V2-04. ERR-115 → V2-03. ERR-114 → maintenance. ERR-113 and physical speech/permissions/device coverage → microphone reliability. Windows, paired phone, hosted/credentialed and release checks remain independent.

@@ -1,5 +1,11 @@
 # Sneak-Peek — agent work log
 
+## WORK-0085 / TASK-0008 — Official application icon (2026-11-18)
+
+Generated assets/sneak-peek.icns, assets/icon.icns, assets/icons/mac/icon.icns, assets/icons/win/icon.ico, assets/icon.png, assets/icon-512.png and assets/icons/png/icon_{16,32,64,128,256,512,1024}x*.png from the supplied image with aspect ratio and alpha. Fixed WindowHelper's unknown-disguise Linux packaged fallback to the existing assets/icon.png location. Existing tray template, disguise icons and installer background remain separately functional. Updated ROADMAP.md, TASK_TRACKER.md and HANDOFF.md.
+
+Verified alpha and dimensions, ICNS iconutil round-trip (10 standard representations), ICO (16, 24, 32, 48, 64, 128, 256), npm run build, npm run build:electron, npm run typecheck:electron and source/packaged verify:packaged-local-assets. Packaged an isolated Apple Silicon directory application with electron-builder and compared its Info.plist and icon SHA-256 to the source. NSWorkspace rendered the packaged app icon with the supplied image. Packaging ran the existing beforePack native rebuild; restored Electron ABI with scripts/rebuild-native-electron.js. No install, Windows/Linux package or signed/notarized release verification. The packaging log contains npm extraneous dependency warnings and builder reports identity null; do not treat the directory test as a signed release.
+
 ## WORK-0084 / TASK-0007 — Listen lifecycle, live captions and Roadmap 2.0 (2026-11-18)
 
 Owner approved V2 and retired the old global gates. Archived v1 byte-for-byte as ROADMAP-v1.md and adopted ROADMAP.md. Preserved old WORK/ERR evidence and transfers. Updated local ignored AGENTS.md, PROJECT_OVERVIEW.md, PROJECT_TREE.txt, TASK_TRACKER.md, ERROR_LOG.md and HANDOFF.md.
