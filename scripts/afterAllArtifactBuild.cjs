@@ -50,7 +50,7 @@ const crypto = require('crypto');
 const { notarytoolSubmitWithRetry } = require('./lib/notary-transient.cjs');
 const { stapleWithRetry } = require('./staple-with-retry');
 
-const VOLNAME = 'Natively';
+const VOLNAME = 'Sneak-Peek';
 const BACKGROUND = path.resolve(__dirname, '..', 'assets', 'dmg-background.png');
 const VOLICON = path.resolve(__dirname, '..', 'assets', 'sneak-peek.icns');
 
@@ -207,7 +207,7 @@ function verifyZipManifest(outDir) {
  */
 function buildStyledDmg({ appPath, outDmg, identity }) {
   // Stage ONLY the .app in an isolated temp dir so create-dmg's window contains
-  // exactly [Natively.app, Applications-droplink] and nothing stray.
+  // exactly [Sneak-Peek.app, Applications-droplink] and nothing stray.
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-dmg-'));
   const stagedApp = path.join(stage, path.basename(appPath));
   execFileSync('ditto', [appPath, stagedApp], { stdio: 'inherit' }); // ditto preserves signatures

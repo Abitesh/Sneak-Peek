@@ -1,5 +1,9 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-124 — Release and update destinations point to an unrelated project (2026-11-18)
+
+WORK-0088 / TASK-0011. Owner identified old GitHub publisher and a hard-coded Drive destination. Source review confirms updater metadata, release notes, manual update links, release gate and uploader need reconciliation. Configured owner repository throughout the update and release paths, removed the default Drive folder, and added fixture coverage. The installed release retains its existing metadata until rebuilt. A published update and signed release are unverified. **Implemented, unverified for release.**
+
 ## ERR-123 — Nemotron test failure can strand the full Electron suite (2026-11-18)
 
 WORK-0087 / TASK-0010. A full-suite retry exceeded a real dual-channel fixture's 20-second inference deadline. Promise.all resumed the ordered teardown test while the other channel still owned a temporary listener. The first teardown assertion failed before releasing channel A. The next test waited indefinitely for channel B to be the last release. Terminated only the stranded test worker after confirming its identity. The fixture now waits for both transcript promises to settle, uses timed worker-exit events and cancels its real STT instances during teardown. The inference deadline and cross-channel assertions are preserved. The focused real-model suite passed 5/5 and the final full macOS Electron suite passed. **Verified locally.**

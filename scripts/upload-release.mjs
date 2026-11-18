@@ -1,46 +1,11 @@
 #!/usr/bin/env node
 // scripts/upload-release.mjs
 //
-// Auto-upload the signed .dmg produced by `npm run dist:signed` to the
-// natively release Google Drive folder, via the existing `rclone` remote
-// named `gdrive:`.
-//
-// WHY RCLONE (not the Drive REST API): the project already has a configured
-// rclone OAuth token for `gdrive:` (verified via `rclone config userinfo`).
-// Re-using it means no new credentials in source, no browser auth on every
-// build, and the same access-control surface the team already audits.
-//
-// WHICH FILE:
-//   electron-builder's signed config (`electron-builder.signed.cjs`) builds
-//   only the `zip` target with electron-builder, then scripts/afterAllArtifactBuild.cjs
-//   rebuilds the styled .dmg from the pristine signed .app and writes the
-//   final artifact to either `dist/` or `release/` (depending on whether
-//   `output: "release"` from package.json is respected by the signed path).
-//   We search both — no hard-coded path — so the script works for either.
-//
-// TARGET FOLDER (Google Drive):
-//   id  : 18efvri8m_JBwuVdD3AxrCG8QZ_SbghSn
-//   name: "natively 2.8.1 beta 1"  (this may evolve per release)
-//   The remote is personal OAuth for evinjohnignatious@gmail.com — the folder
-//   must be shared (editor) with that exact email. rclone accesses it via
-//   the curly-brace folder-id syntax: `gdrive:{18efvri8m_JBwuVdD3AxrCG8QZ_SbghSn}/`.
-//
-// GOTCHA (verified 2026-07-08):
-//   `rclone lsf "gdrive:{folderid}"` returns "directory not found" BEFORE any
-//   file has been written to the folder, even when the folder is owned by the
-//   same OAuth account and reachable via the Drive REST API directly. The
-//   copy itself succeeds silently and a follow-up `lsf` then lists the
-//   uploaded files — so the test path (`rclone copy` + immediate `lsf`) is
-//   the real verification, not the pre-upload listing.
-//
-// SKIP ESCAPE HATCHES:
-//   NATIVELY_SKIP_RELEASE_UPLOAD=1  → exit 0 silently (local dev / CI dry-runs)
-//   NATIVELY_SKIP_RELEASE_UPLOAD=prompt  → ask before uploading (default in TTY)
-//
-// Usage:
-//   node scripts/upload-release.mjs                       # upload current version
-//   NATIVELY_SKIP_RELEASE_UPLOAD=1 node scripts/upload-release.mjs
-//   NATIVELY_RELEASE_VERSION=2.8.0 node scripts/upload-release.mjs  # explicit override
+// Upload release DMGs to an explicitly configured Google Drive folder.
+// Configure GDRIVE_FOLDER_ID and verify the gdrive: account before use.
+// SNEAK_PEEK_SKIP_RELEASE_UPLOAD=1 skips the upload.
+// SNEAK_PEEK_RELEASE_VERSION overrides the package version.
+// Historical NATIVELY_ variables remain accepted for existing automation.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
-const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || '1z-qmuddJ8SiKyepCd4OprJPds5tWkXGb';
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
 // Drive's rclone backend needs the folder id passed via `--drive-root-folder-id`
 // when the destination path itself starts with `/` (i.e. rooted). The curly-brace
 // path syntax (`gdrive:{folderid}/`) is ambiguous: if a sibling folder whose
@@ -80,26 +45,20 @@ function fail(msg, code = 1) {
 
 // 1. Resolve version: env override > package.json
 const pkg = readJson(path.join(repoRoot, 'package.json'));
-const version = (process.env.NATIVELY_RELEASE_VERSION || pkg.version || '').replace(/^v/, '');
+const version = (process.env.SNEAK_PEEK_RELEASE_VERSION || process.env.NATIVELY_RELEASE_VERSION || pkg.version || '').replace(/^v/, '');
 if (!/^\d+\.\d+\.\d+(-\w+(\.\d+)?)?$/.test(version)) {
-  fail(`could not resolve a valid version (got "${version}"). Set NATIVELY_RELEASE_VERSION or fix package.json#version.`);
+  fail(`could not resolve a valid version (got "${version}"). Set SNEAK_PEEK_RELEASE_VERSION or fix package.json#version.`);
 }
 console.log(`[upload-release] version = ${version}`);
 
 // 2. Find the signed .dmg — search both dist/ and release/ (electron-builder's
 //    `output` setting + afterAllArtifactBuild's path resolution vary by build).
-//    We build a regex because:
-//      (a) `productName` may be missing from package.json (live: only `name:"natively"`)
-//      (b) scripts/afterAllArtifactBuild.cjs hardcodes VOLNAME='Natively' so the
-//          actual filename casing is "Natively-…", not always matching productName
-//      (c) multiple architectures can ship side-by-side (universal / arm64 / x64)
-const productName = pkg.productName || pkg.name || 'natively';
+//    Match the product name used by Electron Builder for all supported macOS architectures.
+const productName = pkg.build?.productName || pkg.productName || pkg.name || 'Sneak-Peek';
+const escapedName = productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const dmgRegexes = [
-  new RegExp(`^Natively-${version.replace(/\./g, '\\.')}\\.dmg$`, 'i'),
-  new RegExp(`^Natively-${version.replace(/\./g, '\\.')}-arm64\\.dmg$`, 'i'),
-  new RegExp(`^Natively-${version.replace(/\./g, '\\.')}-x64\\.dmg$`, 'i'),
-  new RegExp(`^${productName}-Setup-${version.replace(/\./g, '\\.')}\\.dmg$`, 'i'),
-  new RegExp(`^${productName}-Setup-${version.replace(/\./g, '\\.')}-arm64\\.dmg$`, 'i'),
+  new RegExp(`^${escapedName}(?:-Setup)?-${escapedVersion}(?:-(?:arm64|x64))?\\.dmg$`, 'i'),
 ];
 const searchDirs = ['dist', 'release'].map((d) => path.join(repoRoot, d));
 
@@ -133,16 +92,19 @@ for (const d of uniqueDmgs) {
 }
 
 // 3. Skip if requested
-if (process.env.NATIVELY_SKIP_RELEASE_UPLOAD === '1') {
-  console.log('[upload-release] NATIVELY_SKIP_RELEASE_UPLOAD=1 — skipping upload.');
+const skipUpload = process.env.SNEAK_PEEK_SKIP_RELEASE_UPLOAD ?? process.env.NATIVELY_SKIP_RELEASE_UPLOAD;
+if (skipUpload === '1') {
+  console.log('[upload-release] release upload skipped.');
   process.exit(0);
 }
 
+if (!GDRIVE_FOLDER_ID) fail('Set GDRIVE_FOLDER_ID to your verified release folder before uploading.');
+
 // 4. Confirm in interactive mode (TTY) — auto-upload only if -y / CI / explicit yes
 const autoYes =
-  process.env.NATIVELY_SKIP_RELEASE_UPLOAD !== 'prompt' &&
+  skipUpload !== 'prompt' &&
   (process.env.CI === 'true' || process.env.CI === '1' || !process.stdin.isTTY || process.argv.includes('-y'));
-if (process.env.NATIVELY_SKIP_RELEASE_UPLOAD !== 'prompt' && !autoYes && process.stdin.isTTY) {
+if (skipUpload !== 'prompt' && !autoYes && process.stdin.isTTY) {
   console.log(`[upload-release] about to upload ${uniqueDmgs.length} file(s) to Google Drive folder`);
   console.log(`              ${GDRIVE_REMOTE}`);
   console.log('              (re-run with -y or set CI=1 to skip this prompt)');
@@ -173,7 +135,7 @@ try {
 }
 
 // 6. Upload each .dmg. Use `copyto` (not `copy`) so the destination filename
-//    matches the source — preserves `Natively-2.8.1.dmg` / `-arm64.dmg` exactly,
+//    matches the source — preserves release filenames exactly,
 //    which is what latest-mac.yml expects for auto-updater sanity.
 //    `--drive-root-folder-id` scopes the destination to the real target folder
 //    and bypasses any sibling folder whose name happens to look like a path.

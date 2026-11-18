@@ -1,5 +1,11 @@
 # Sneak-Peek — agent work log
 
+## WORK-0088 / TASK-0011 — Release destination and branding (2026-11-18)
+
+Baseline main at 4a89bde0, clean. ERR-124 identified the old release feed, release-notes repository, manual download URL and hard-coded Drive folder. Updated package.json, electron/update/ReleaseNotesManager.ts and its test, src/components/UpdateBanner.tsx, electron/lib/nativeArch.{mjs,cjs}, scripts/release-gate.mjs, scripts/afterAllArtifactBuild.cjs and scripts/upload-release.mjs. GitHub points to Abitesh/Sneak-Peek. Manual downloads use the release page. Styled signed DMG name follows Sneak-Peek. Drive upload requires GDRIVE_FOLDER_ID; installer discovery follows build.productName. Removed old external links from SettingsOverlay and HelpSettings and stopped the inherited install ping in electron/main.ts. Updated comments in .env.example, native-module/Cargo.toml and electron-builder.signed.cjs. Added scripts/__tests__/release-destination.test.mjs. Roadmap, error log, task tracker and handoff updated.
+
+Verification: npm run build and npm run build:electron passed; typecheck:ts7 and typecheck:electron passed; release notes and install-ping focused Electron tests passed 3/3; release destination tests passed 2/2; prior npm run test:scripts passed 101/101 before adding the two dedicated tests. No signed build, upload, or hosted update was attempted. Legacy audio relay endpoints remain active for the existing provider. Existing persisted keys, configuration and crate identifiers are preserved pending a tested migration. Install ping utility remains available for install IDs but is no longer invoked at startup. Evidence: ~/Downloads/sneak-peek-work-0088-renderer-build.log.
+
 ## WORK-0087 / TASK-0010 — macOS CI cleanup and desktop reliability (2026-11-18)
 
 **Baseline:** `main` at `920d0686`, initially clean. Build Smoke #32 macOS failed only the shared-directory count. Focused unmodified test passed 14/14. Unmodified local full run passed 9,044 of 9,111 with 67 skips. Reproduced the old assertion with a second process creating a same-prefix directory between snapshots. Both runs' own directories were removed. The original CI run did not log directory ownership. Build Smoke #33 on committed HEAD passed on macOS (9,027 pass, 82 skipped). Windows #33 logged 8,965 pass, 24 fail, 92 skipped despite an advisory green step.

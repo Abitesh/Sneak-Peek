@@ -23,7 +23,7 @@
  *
  * DMG: electron-builder's own DMG-creation corrupts the embedded app signature
  *   (Apple notary log: "The signature of the binary is invalid" on the inner
- *   Natively executable). So we build ONLY the `zip` target with electron-builder
+ *   Sneak-Peek executable). So we build ONLY the `zip` target with electron-builder
  *   (zip preserves signatures + is the auto-updater artifact), and the
  *   afterAllArtifactBuild hook rebuilds the styled DMGs from the pristine signed
  *   .app via create-dmg, then notarizes + staples them. See scripts/afterAllArtifactBuild.cjs.

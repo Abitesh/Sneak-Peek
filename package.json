@@ -245,8 +245,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "Natively-AI-assistant",
-        "repo": "natively-cluely-ai-assistant",
+        "owner": "Abitesh",
+        "repo": "Sneak-Peek",
         "releaseType": "release"
       }
     ],

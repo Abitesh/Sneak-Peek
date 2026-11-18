@@ -1,5 +1,9 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0088 / TASK-0011 — Release ownership (2026-11-18)
+
+Update configuration and links now target Abitesh/Sneak-Peek. Drive uploads require an explicit folder and no inherited install ping runs at startup. See TASK-0011 and ERR-124. A rebuilt release must be inspected for its generated app-update.yml and tested against an actual authorized release. Legacy speech relay endpoints remain for the current STT provider; plan a replacement before disabling them. Existing storage keys and signing identifiers require compatible migration.
+
 ## WORK-0087 / TASK-0010 — CI and desktop reliability (2026-11-18)
 
 Start with [TASK-0010](TASK_TRACKER.md#task-0010--work-0087--macos-ci-cleanup-and-desktop-reliability-2026-11-18) and ERR-121–123. The installed ARM64 app starts independently from Applications and streams a controlled system-audio tone into its meter through Default Speakers. The app reported a granted microphone query and a separate denied screen capture query. The owner reported the app appears to work. The fresh ARM64 app and its mounted DMG passed bundle and launch checks. Final local Electron test result was 9,051 pass, 0 fail and 67 skipped. Isolated desktop Listen/Analyze, STOP, supersession and relaunch passed. The local subprocess and Windows fixture fixes remain unstaged. Evidence is under `/Users/abitesh/Downloads/sneak-peek-work-0087`. Verify the new patch on the hosted matrix once publication is authorized. Keep Windows GUI and physical speech/standalone screenshot acceptance separate.

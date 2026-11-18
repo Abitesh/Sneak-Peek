@@ -151,12 +151,12 @@ check('update-available handler is gated by isRealUpgrade', () => {
   }
 });
 
-// 7. release manifest pre-flight: release/ dir shouldn't contain a Natively.app
+// 7. release manifest pre-flight: release/ dir shouldn't contain a Sneak-Peek.app
 //    whose app-update.yml points at a channel other than "latest".
 check('packaged app-update.yml has provider=github + releaseType=release', () => {
   const candidates = [
-    path.join(repoRoot, 'release', 'mac', 'Natively.app', 'Contents', 'Resources', 'app-update.yml'),
-    path.join(repoRoot, 'release', 'mac-arm64', 'Natively.app', 'Contents', 'Resources', 'app-update.yml'),
+    path.join(repoRoot, 'release', 'mac', 'Sneak-Peek.app', 'Contents', 'Resources', 'app-update.yml'),
+    path.join(repoRoot, 'release', 'mac-arm64', 'Sneak-Peek.app', 'Contents', 'Resources', 'app-update.yml'),
   ];
   let found = false;
   for (const f of candidates) {
@@ -166,18 +166,18 @@ check('packaged app-update.yml has provider=github + releaseType=release', () =>
     if (!/provider:\s*github/.test(text)) {
       throw new Error(`${f}: provider is not github:\n${text}`);
     }
-    if (!/owner:\s*Natively-AI-assistant/.test(text)) {
-      throw new Error(`${f}: owner is not Natively-AI-assistant:\n${text}`);
+    if (!/owner:\s*Abitesh/.test(text)) {
+      throw new Error(`${f}: owner is not Abitesh:\n${text}`);
     }
-    if (!/repo:\s*natively-cluely-ai-assistant/.test(text)) {
-      throw new Error(`${f}: repo is not natively-cluely-ai-assistant:\n${text}`);
+    if (!/repo:\s*Sneak-Peek/.test(text)) {
+      throw new Error(`${f}: repo is not Sneak-Peek:\n${text}`);
     }
     if (!/releaseType:\s*release/.test(text)) {
       throw new Error(`${f}: releaseType is not "release":\n${text}`);
     }
   }
   if (!found) {
-    console.log('    skipped (no packaged Natively.app found in release/)');
+    console.log('    skipped (no packaged Sneak-Peek.app found in release/)');
   }
 });
 

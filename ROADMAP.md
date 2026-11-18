@@ -37,6 +37,10 @@ Prove that the two-slot local code runner closes subprocess output and removes e
 
 Keep startup and capture verification separate from fixture compatibility. Confirm portable Windows capture fixtures reach their assertions, report the actual Windows Electron result even when its job remains advisory, and bound the real-model test's teardown so a failed fixture cannot stall the matrix. Record installed macOS and new ARM64 bundle results separately from isolated screen and STT regression tests. WORK-0087 verified the local full macOS suite, fresh ARM64 startup and the installed Core Audio meter on Default Speakers. The patched hosted matrix, physical speech, separate screen grant and Windows GUI remain open.
 
+## Release ownership and branding — TASK-0011
+
+Configure update metadata, release notes, manual download links and release validation for Abitesh/Sneak-Peek. Require an explicitly configured and verified destination for Drive upload. Preserve existing settings and signing compatibility. Verify built updater metadata and a real release when available. Audit separately the existing speech relay and other service dependencies before replacement.
+
 ## Application icon refresh — TASK-0008
 
 The owner supplied the official icon for macOS, Windows and Linux. Verify the generated multi-resolution assets, runtime paths and actual Apple Silicon application bundle. Windows and Linux installed appearance remain platform checks.

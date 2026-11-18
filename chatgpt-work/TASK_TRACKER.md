@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0011 / WORK-0088 — Release ownership and branding (2026-11-18)
+
+**Implemented, unverified for published updates.** Release configuration and links target Abitesh/Sneak-Peek. Release uploader requires an explicit Drive folder. Removed obsolete external links and disabled the inherited install ping at startup. Typechecks, renderer/Electron builds, release fixture and script tests passed. A freshly packaged app and actual signed release/update remain unverified. Existing legacy speech relay endpoints and compatibility identifiers need an independent migration to satisfy the owner's broader request without breaking STT or user data.
+
 ## TASK-0010 / WORK-0087 — macOS CI cleanup and desktop reliability (2026-11-18)
 
 **Verified locally on macOS; implemented, unverified on the patched hosted matrix.** ERR-121 checks exact temporary-directory ownership and reports cleanup failure. Two four-worker runs passed 80/80 each with a shared temp root. ERR-122 fixes four Windows capture fixtures that failed to import, with 10 local assertions passing. ERR-123 bounds real-model test teardown, with 5/5 focused passes. Final full macOS Electron suite passed 9,051 with 0 failures and 67 skips. Fresh ARM64 bundle and mounted DMG passed strict signature, framework, runtime asset and launch checks. Disposable desktop acceptance passed Listen/Analyze, fresh Listen, STOP, supersession and relaunch. See WORK-0087 for commands and evidence.
