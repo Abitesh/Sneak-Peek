@@ -6,6 +6,9 @@
 // the exact firstMissingPositive bug class (wrong logic) is caught.
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test, describe } from 'node:test';
 import {
   runCase,
@@ -131,15 +134,92 @@ def f(x):
     assert.equal(r.status, 'error', 'inf is not valid JSON → honest error, never a coerced pass');
   });
 
-  maybe('temp dirs are cleaned up after a run (no leak)', async () => {
-    const fs = await import('node:fs');
-    const os = await import('node:os');
-    const before = fs.readdirSync(os.tmpdir()).filter(d => d.startsWith('natively-verify-')).length;
-    await runCase('python', 'def f(x):\n    return x', 'f', tc([1], 1));
-    await runCase('python', 'def f(x):\n    while True: pass', 'f', tc([1], 1)); // timeout path
-    const after = fs.readdirSync(os.tmpdir()).filter(d => d.startsWith('natively-verify-')).length;
-    assert.ok(after <= before, `temp dirs leaked: before=${before} after=${after}`);
+  const trackDirectories = (t, onCreate = () => {}) => {
+    const make = fs.mkdtempSync;
+    const dirs = [];
+    t.mock.method(fs, 'mkdtempSync', (prefix, ...options) => {
+      const dir = make(prefix, ...options);
+      if (path.basename(prefix) === 'natively-verify-') {
+        dirs.push(dir);
+        onCreate(dir);
+      }
+      return dir;
+    });
+    return dirs;
+  };
+
+  const assertRemoved = (dirs, count = 1) => {
+    assert.equal(dirs.length, count, 'observe each directory actually allocated by the runner');
+    for (const dir of dirs) assert.equal(fs.existsSync(dir), false, `owned directory was not removed: ${path.basename(dir)}`);
+  };
+
+  for (const [name, body, expectedStatus, error] of [
+    ['success', 'return x', 'pass', null],
+    ['runtime error', 'raise ValueError("fixture error")', 'error', /fixture error/],
+    ['timeout', 'while True: pass', 'error', /timed out/],
+    ['output overflow', 'while True: print("x" * 8192)', 'error', /output limit exceeded/],
+  ]) {
+    test(`removes its own directory after ${name}`, { skip: !havePy }, async t => {
+      const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-verify-'));
+      t.after(() => fs.rmdirSync(foreign));
+      const dirs = trackDirectories(t);
+      const result = await runCase('python', `def f(x):\n    ${body}`, 'f', tc([1], 1));
+      assert.equal(result.status, expectedStatus, result.error);
+      if (error) assert.match(result.error, error);
+      assertRemoved(dirs);
+      assert.equal(fs.existsSync(foreign), true, 'another owner’s same-prefix directory is outside the cleanup scope');
+    });
+  }
+
+  test('cancels queued work and removes both in-flight directories', { skip: !havePy }, async t => {
+    const allocated = Promise.withResolvers();
+    const dirs = trackDirectories(t, () => { if (dirs.length === 2) allocated.resolve(); });
+    const running = new AbortController();
+    const queued = new AbortController();
+    const run = signal => runCase('python', 'def f(x):\n    while True: pass', 'f', tc([1], 1), undefined, signal);
+    const cases = [run(running.signal), run(running.signal), run(queued.signal)];
+    await allocated.promise;
+    queued.abort();
+    assert.match((await cases[2]).error, /cancelled/);
+    // The two slots still belong to the first two requests.
+    assert.equal(dirs.filter(dir => fs.existsSync(dir)).length, 2);
+    running.abort();
+    for (const outcome of await Promise.all(cases)) assert.match(outcome.error, /cancelled/);
+    assertRemoved(dirs, 2);
   });
+
+  test('reports cleanup failure and releases its run slot', { skip: !havePy }, async t => {
+    const dirs = trackDirectories(t);
+    const remove = fs.promises.rm;
+    t.after(async () => {
+      for (const dir of dirs) await remove(dir, { force: true, recursive: true });
+    });
+    t.mock.method(fs.promises, 'rm', async (dir, options) => {
+      if (dir === dirs[0]) throw Object.assign(new Error('injected cleanup error'), { code: 'EACCES' });
+      await remove(dir, options);
+    });
+    const run = () => runCase('python', 'def f(x):\n    return x', 'f', tc([1], 1));
+    const failedCleanup = await run();
+    assert.equal(failedCleanup.status, 'error');
+    assert.match(failedCleanup.error, /temporary directory cleanup failed \(EACCES\)/);
+    const results = await Promise.all([run(), run()]);
+    for (const result of results) assert.equal(result.status, 'pass', result.error);
+    assertRemoved(dirs.slice(1), 2);
+  });
+
+  test('normal exit reaps a child holding its stdout and stderr pipes', {
+    skip: !havePy || process.platform === 'win32',
+  }, async t => {
+    const dirs = trackDirectories(t);
+    const code = `import subprocess, sys
+def f(x):
+    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    return x`;
+    const result = await runCase('python', code, 'f', tc([1], 1));
+    assert.equal(result.status, 'pass', result.error);
+    assertRemoved(dirs);
+  });
+
 });
 
 describe('localRunner — javascript (real execution)', async () => {

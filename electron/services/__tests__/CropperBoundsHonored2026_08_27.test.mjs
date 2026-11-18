@@ -23,11 +23,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const COMPILED = path.resolve(__dirname, '../../../dist-electron/electron/CropperWindowHelper.js');
 
 // The exact layout from the user's log: a 2560x1600 @150% primary (1707x1067
 // DIP) with a 1920x1080 @100% secondary above-right. Combined virtual desktop
@@ -59,7 +54,7 @@ Module._load = function patched(request) {
   return origLoad.apply(this, arguments);
 };
 
-const { CropperWindowHelper, buildCropperWindowSettings } = await import(COMPILED);
+const { CropperWindowHelper, buildCropperWindowSettings } = await import('../../../dist-electron/electron/CropperWindowHelper.js');
 
 // --- platform gate on enableLargerThanScreen -------------------------------
 

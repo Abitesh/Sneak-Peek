@@ -14,11 +14,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const COMPILED = path.resolve(__dirname, '../../../dist-electron/electron/CropperWindowHelper.js');
 
 let displays = [{ bounds: { x: 0, y: 0, width: 1440, height: 900 } }];
 const fakeElectron = {
@@ -39,7 +34,7 @@ Module._load = function patched(request) {
   return origLoad.apply(this, arguments);
 };
 
-const { CropperWindowHelper } = await import(COMPILED);
+const { CropperWindowHelper } = await import('../../../dist-electron/electron/CropperWindowHelper.js');
 
 test('showCropper re-fits a reused window to the current display arrangement', async () => {
   const helper = new CropperWindowHelper();

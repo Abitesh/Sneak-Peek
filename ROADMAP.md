@@ -31,6 +31,12 @@ Prevent ARM64 startup crashes caused by incomplete disk images (ERR-119). Size t
 
 **ERR-120.** Keep startup permission checks passive. Persist dismissal of the setup guide across launches. Check microphone, screen capture and system audio separately. Verify that an eligible Core Audio fallback can be attempted under the OS System Audio Recording grant when the separate screen check is denied. The Audio settings meter must exercise the selected route. Record any macOS reauthorization required for a new locally signed build.
 
+## Desktop CI and subprocess reliability — TASK-0010
+
+Prove that the two-slot local code runner closes subprocess output and removes each owned temporary directory on success, execution error, timeout, output overflow and cancellation. Treat cleanup failure as a reported execution error. Keep the test independent of other processes' temporary directories and exercise parallel workers without reducing the CI matrix.
+
+Keep startup and capture verification separate from fixture compatibility. Confirm portable Windows capture fixtures reach their assertions, report the actual Windows Electron result even when its job remains advisory, and bound the real-model test's teardown so a failed fixture cannot stall the matrix. Record installed macOS and new ARM64 bundle results separately from isolated screen and STT regression tests. WORK-0087 verified the local full macOS suite, fresh ARM64 startup and the installed Core Audio meter on Default Speakers. The patched hosted matrix, physical speech, separate screen grant and Windows GUI remain open.
+
 ## Application icon refresh — TASK-0008
 
 The owner supplied the official icon for macOS, Windows and Linux. Verify the generated multi-resolution assets, runtime paths and actual Apple Silicon application bundle. Windows and Linux installed appearance remain platform checks.

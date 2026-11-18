@@ -93,7 +93,7 @@ export interface Verdict {
   passed: boolean;
   /** true when nothing could be executed (unsupported lang, no runtime, no spec). */
   skipped: boolean;
-  skipReason?: 'no_spec' | 'no_code' | 'unsupported_language' | 'runtime_unavailable' | 'scope_denied';
+  skipReason?: 'no_spec' | 'no_code' | 'unsupported_language' | 'runtime_unavailable' | 'scope_denied' | 'cancelled';
   language?: VerifyLanguage;
   backend?: ExecutionBackend;
   results: RunResult[];

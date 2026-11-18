@@ -1,5 +1,9 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0087 / TASK-0010 — CI and desktop reliability (2026-11-18)
+
+Start with [TASK-0010](TASK_TRACKER.md#task-0010--work-0087--macos-ci-cleanup-and-desktop-reliability-2026-11-18) and ERR-121–123. The installed ARM64 app starts independently from Applications and streams a controlled system-audio tone into its meter through Default Speakers. The app reported a granted microphone query and a separate denied screen capture query. The owner reported the app appears to work. The fresh ARM64 app and its mounted DMG passed bundle and launch checks. Final local Electron test result was 9,051 pass, 0 fail and 67 skipped. Isolated desktop Listen/Analyze, STOP, supersession and relaunch passed. The local subprocess and Windows fixture fixes remain unstaged. Evidence is under `/Users/abitesh/Downloads/sneak-peek-work-0087`. Verify the new patch on the hosted matrix once publication is authorized. Keep Windows GUI and physical speech/standalone screenshot acceptance separate.
+
 ## WORK-0085 / TASK-0008 — Application icon (2026-11-18)
 
 The supplied icon now backs the three platform assets and packaged macOS resource. Apple Silicon directory packaging and NSWorkspace icon rendering were verified. Windows/Linux installed visuals remain untested. V2-01 remains planned. See WORK-0085 and TASK-0008.

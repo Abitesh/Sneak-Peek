@@ -1,5 +1,11 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0010 / WORK-0087 — macOS CI cleanup and desktop reliability (2026-11-18)
+
+**Verified locally on macOS; implemented, unverified on the patched hosted matrix.** ERR-121 checks exact temporary-directory ownership and reports cleanup failure. Two four-worker runs passed 80/80 each with a shared temp root. ERR-122 fixes four Windows capture fixtures that failed to import, with 10 local assertions passing. ERR-123 bounds real-model test teardown, with 5/5 focused passes. Final full macOS Electron suite passed 9,051 with 0 failures and 67 skips. Fresh ARM64 bundle and mounted DMG passed strict signature, framework, runtime asset and launch checks. Disposable desktop acceptance passed Listen/Analyze, fresh Listen, STOP, supersession and relaunch. See WORK-0087 for commands and evidence.
+
+Installed arm64 app opened from Applications, its microphone permission query returned granted, and the Audio settings System Audio meter moved from 0 to 11 during a controlled external tone on Default Speakers. The owner separately reported the app appears to work. This covers the measured Core Audio path. macOS still reports standalone screen capture denied for this installed identity. Physical Listen/STT, permission changes and the Windows GUI remain open.
+
 ## TASK-0009 / WORK-0086 — macOS installer, media permissions and branding (2026-11-18)
 
 **In progress.** [ERR-119](ERROR_LOG.md#err-119--installed-arm64-app-fails-before-electron-starts-2026-11-18) installer repair is verified on the owner's ARM64 macOS. [ERR-120](ERROR_LOG.md#err-120--installed-app-repeats-permissions-setup-and-marks-system-audio-unavailable-2026-11-18) media permission and route fixes are implemented. The About card removal was observed in Applications. Final rebuild, installed verification and physical audio evidence are separate checks. The original broken app is backed up under Downloads. The owner requested an unchanged LICENSE file for their own drafting. Preserve required legal origin notices and functional legacy storage/update compatibility.

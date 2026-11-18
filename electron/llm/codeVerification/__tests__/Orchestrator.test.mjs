@@ -31,6 +31,27 @@ describe('verifyCodingAnswer — verdicts via fake runner', () => {
     assert.ok(events.includes('code_verify_passed'));
   });
 
+  test('request cancellation reaches the runner and prevents further cases and correction', async () => {
+    const controller = new AbortController();
+    let runs = 0;
+    const out = await verifyCodingAnswer({
+      answer: answerWithSpec('def f(x): return x', 'f', 'python',
+        '[{"input":[1],"expected":1},{"input":[2],"expected":2}]'),
+      signal: controller.signal,
+      runCase: async (_language, _code, _entry, tc, _hints, signal) => {
+        assert.equal(signal, controller.signal);
+        runs++;
+        controller.abort();
+        return { case: tc, status: 'error', stdout: '', error: 'verification cancelled', ms: 1 };
+      },
+      languageAvailable: async () => true,
+      correct: async () => { assert.fail('cancelled verification must not use the model'); },
+    });
+    assert.equal(runs, 1);
+    assert.equal(out.verdict.skipReason, 'cancelled');
+    assert.equal(out.corrected, undefined);
+  });
+
   test('fail with no corrector → failed verdict, no correction attempted', async () => {
     const out = await verifyCodingAnswer({
       answer: answerWithSpec('def f(x): return x+1'),

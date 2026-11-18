@@ -67,9 +67,9 @@ Module._load = function patchedLoad(request) {
 };
 
 const { SneakPeekProSTT } = await import(
-    path.join(repoRoot, 'dist-electron/electron/audio/SneakPeekProSTT.js'));
+    '../../../dist-electron/electron/audio/SneakPeekProSTT.js');
 const { MeetingLifecycleQueue } = await import(
-    path.join(repoRoot, 'dist-electron/electron/audio/meetingLifecycleQueue.js'));
+    '../../../dist-electron/electron/audio/meetingLifecycleQueue.js');
 
 const settle = (ms) => new Promise(r => setTimeout(r, ms));
 

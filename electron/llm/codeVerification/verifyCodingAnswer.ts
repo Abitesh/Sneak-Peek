@@ -24,9 +24,9 @@ export type CorrectionFn = (repairPrompt: string) => Promise<string>;
 export interface StructHints { argTypes?: ('value' | 'list' | 'tree')[]; retType?: 'value' | 'list' | 'tree'; }
 
 /** Injected runner (defaults to the real local sandbox; fakes used in tests). */
-export type RunCaseFn = (lang: VerifyLanguage, code: string, entry: string, tc: TestCase, hints?: StructHints) => Promise<RunResult>;
+export type RunCaseFn = (lang: VerifyLanguage, code: string, entry: string, tc: TestCase, hints?: StructHints, signal?: AbortSignal) => Promise<RunResult>;
 /** Injected SQL runner (query + schema/seeds/expected → RunResult). */
-export type RunSqlFn = (query: string, spec: SqlSpec) => Promise<RunResult>;
+export type RunSqlFn = (query: string, spec: SqlSpec, signal?: AbortSignal) => Promise<RunResult>;
 
 export interface VerifyCodingOptions {
   /** The full answer markdown (may still contain the <verification_spec>). */
@@ -37,6 +37,8 @@ export interface VerifyCodingOptions {
   screenText?: string;
   /** Called to regenerate corrected code on failure. Omit to skip correction. */
   correct?: CorrectionFn;
+  /** Owning answer request. Aborting stops queued and running local verification. */
+  signal?: AbortSignal;
   /** Test-only override of the executor. */
   runCase?: RunCaseFn;
   /** Test-only override of the SQL executor. */
@@ -53,12 +55,14 @@ const emptyVerdict = (skipReason: NonNullable<Verdict['skipReason']>, language?:
 
 /** Run all cases, short-circuiting the verdict shape. */
 const executeAll = async (
-  language: VerifyLanguage, code: string, entry: string, cases: TestCase[], run: RunCaseFn, hints?: StructHints,
+  language: VerifyLanguage, code: string, entry: string, cases: TestCase[], run: RunCaseFn, hints?: StructHints, signal?: AbortSignal,
 ): Promise<Verdict> => {
   const results: RunResult[] = [];
   for (const tc of cases) {
-    results.push(await run(language, code, entry, tc, hints));
+    if (signal?.aborted) return emptyVerdict('cancelled', language);
+    results.push(await run(language, code, entry, tc, hints, signal));
   }
+  if (signal?.aborted) return emptyVerdict('cancelled', language);
   const firstFailure = results.find(r => r.status !== 'pass');
   const passedCount = results.filter(r => r.status === 'pass').length;
   return {
@@ -110,6 +114,7 @@ Fix the query to produce EXACTLY the expected rows. Keep the same six-section co
  * a successful correction, warning flag otherwise.
  */
 export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<VerificationOutcome> => {
+  if (opts.signal?.aborted) return { verdict: emptyVerdict('cancelled') };
   const run = opts.runCase ?? defaultRunCase;
   const runSql = opts.runSql ?? defaultRunSql;
   const langAvailable = opts.languageAvailable ?? defaultLangAvailable;
@@ -164,7 +169,8 @@ export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<Ver
       }
       emit('tests_extracted', { count: 1, language: 'sql', rows: spec.sql.expected.length });
       const t0sql = nowMs();
-      const sqlResult = await runSql(codeBlock.code, spec.sql);
+      const sqlResult = await runSql(codeBlock.code, spec.sql, opts.signal);
+      if (opts.signal?.aborted) return { verdict: emptyVerdict('cancelled', language) };
       emit('code_executed', { language: 'sql', backend: 'local', ms: nowMs() - t0sql, status: sqlResult.status });
       const sqlVerdict: Verdict = {
         passed: sqlResult.status === 'pass',
@@ -183,12 +189,14 @@ export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<Ver
       let correctedSqlAnswer = '';
       try { correctedSqlAnswer = await opts.correct(sqlRepair); }
       catch (e: any) { emit('code_correction_error', { message: String(e?.message || e).slice(0, 120) }); return { verdict: sqlVerdict }; }
+      if (opts.signal?.aborted) return { verdict: emptyVerdict('cancelled', language) };
       if (!correctedSqlAnswer.trim()) return { verdict: sqlVerdict };
       const reCode = extractCodeBlock(correctedSqlAnswer);
       const reSpec = extractVerificationSpec(correctedSqlAnswer).spec;
       let reOk = false;
       if (reCode.code && reSpec?.sql) {
-        const reRes = await runSql(reCode.code, reSpec.sql);
+        const reRes = await runSql(reCode.code, reSpec.sql, opts.signal);
+        if (opts.signal?.aborted) return { verdict: emptyVerdict('cancelled', language) };
         reOk = reRes.status === 'pass';
         emit('code_correction_reverified', { passed: reOk });
       }
@@ -238,7 +246,8 @@ export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<Ver
     const hints: StructHints = { argTypes: spec?.argTypes, retType: spec?.retType };
 
     const t0 = nowMs();
-    let verdict = await executeAll(language, codeBlock.code, entry, cases, run, hints);
+    const verdict = await executeAll(language, codeBlock.code, entry, cases, run, hints, opts.signal);
+    if (verdict.skipReason === 'cancelled') return { verdict };
     emit('code_executed', { language, backend: 'local', ms: nowMs() - t0, total: verdict.total, passed: verdict.passedCount });
 
     if (verdict.passed) {
@@ -260,6 +269,7 @@ export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<Ver
       emit('code_correction_error', { message: String(e?.message || e).slice(0, 120) });
       return { verdict };
     }
+    if (opts.signal?.aborted) return { verdict: emptyVerdict('cancelled', language) };
     if (!correctedAnswer || !correctedAnswer.trim()) return { verdict };
 
     // Re-verify the corrected code against the SAME cases.
@@ -270,7 +280,8 @@ export const verifyCodingAnswer = async (opts: VerifyCodingOptions): Promise<Ver
     if (correctedCode.code) {
       // Prefer the corrected spec's hints if it re-declared them, else reuse.
       const reHints: StructHints = { argTypes: correctedSpec.spec?.argTypes ?? hints.argTypes, retType: correctedSpec.spec?.retType ?? hints.retType };
-      const reVerdict = await executeAll(language, correctedCode.code, correctedEntry, cases, run, reHints);
+      const reVerdict = await executeAll(language, correctedCode.code, correctedEntry, cases, run, reHints, opts.signal);
+      if (reVerdict.skipReason === 'cancelled') return { verdict: reVerdict };
       reVerifiedPassed = reVerdict.passed;
       emit('code_correction_reverified', { passed: reVerifiedPassed, total: reVerdict.total });
     }

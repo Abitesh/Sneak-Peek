@@ -6273,6 +6273,7 @@ const { stripVerificationSpec } = await import('./llm/codingContract');
 const outcome = await verifyCodingAnswer({
 answer: verifyTarget,
 question: message,
+signal: myController?.signal,
 correct: async (repairPrompt: string) => {
 // Background coding-correction (post-answer). Deadline-guarded
 // so a stalled provider can't leave a hung background task. 7s

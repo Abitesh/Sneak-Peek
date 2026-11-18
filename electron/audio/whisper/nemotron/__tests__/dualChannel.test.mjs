@@ -74,6 +74,7 @@
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -264,6 +265,8 @@ describe('Dual-channel Nemotron: real worker + real registry', {
   });
 
   after(() => {
+    sttA?.cancel();
+    sttB?.cancel();
     onnxConfig.__resetOnnxGateForTests();
     registry.__resetSharedNemotronWorkerForTests();
   });
@@ -344,7 +347,12 @@ describe('Dual-channel Nemotron: real worker + real registry', {
     // (or vice versa).
     const pEn = transcribeAndWait(channelA.worker, 'test-mic', 'en-task', pcmEn);
     const pDe = transcribeAndWait(channelB.worker, 'test-system', 'de-task', pcmDe);
-    const [textEn, textDe] = await Promise.all([pEn, pDe]);
+    // Let both listener owners settle before the next ordered teardown test.
+    const [en, de] = await Promise.allSettled([pEn, pDe]);
+    if (en.status === 'rejected') throw en.reason;
+    if (de.status === 'rejected') throw de.reason;
+    const textEn = en.value;
+    const textDe = de.value;
 
     const lowerEn = textEn.trim().toLowerCase();
     const lowerDe = textDe.trim().toLowerCase();
@@ -467,16 +475,9 @@ describe('Dual-channel Nemotron: real worker + real registry', {
 
   test('refcount: releasing the LAST channel (via the real stop() path) actually terminates the worker and frees the ONNX slot', async () => {
     const worker = channelB.worker;
-    let exited = false;
-    worker.once('exit', () => { exited = true; });
-
+    const exited = once(worker, 'exit', { signal: AbortSignal.timeout(15000) });
     sttB.stop(); // real production teardown path, same as channel A above
-
-    await new Promise((resolve) => {
-      const check = () => (exited ? resolve() : setImmediate(check));
-      check();
-    });
-    assert.ok(exited, 'the shared worker must actually exit once the last channel releases it');
+    await exited; // requires real termination after the production 5-second grace
     assert.equal(sttB.worker, null);
 
     const sem = readOnnxSemaphore();
@@ -518,12 +519,9 @@ describe('Dual-channel Nemotron: real worker + real registry', {
     // entirely, is a faithful stand-in for a real native ONNX/worker crash
     // from the outside: neither LocalWhisperSTT instance nor the registry
     // asked for this.
-    crashChannelA.worker.terminate();
-
-    await new Promise((resolve) => {
-      const check = () => (aSawExit && bSawExit ? resolve() : setImmediate(check));
-      check();
-    });
+    const crashed = once(crashChannelA.worker, 'exit', { signal: AbortSignal.timeout(15000) });
+    void crashChannelA.worker.terminate();
+    await crashed;
     assert.ok(aSawExit && bSawExit, 'both channels\' own listeners on the shared worker must see the crash');
 
     // Give the registry's own listener (attached once at cold-start,
@@ -543,11 +541,10 @@ describe('Dual-channel Nemotron: real worker + real registry', {
       new Promise((_, reject) => setTimeout(() => reject(new Error('acquireSharedNemotronWorker did not recover after a crash — stale registry state')), 15000)),
     ]);
     assert.notEqual(recovered.worker, crashChannelA.worker, 'the recovered worker must be a genuinely NEW Worker instance, not the dead one');
+    const recoveredExit = once(recovered.worker, 'exit', { signal: AbortSignal.timeout(15000) });
     recovered.release();
-    await new Promise((resolve) => {
-      const check = () => (readOnnxSemaphore().inFlightHigh === 0 ? resolve() : setImmediate(check));
-      check();
-    });
+    await recoveredExit;
+    assert.equal(readOnnxSemaphore().inFlightHigh, 0, 'the recovered worker must free its slot on release');
   });
 });
 
