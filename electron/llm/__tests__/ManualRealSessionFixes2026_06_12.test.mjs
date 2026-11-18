@@ -58,8 +58,8 @@ describe('P2: identity probe routing', () => {
             ['are you chatgpt?', /AI assistant/i],
             ['what is natively?', /AI assistant/i],
             ['what model are you?', /AI assistant/i],
-            ['who built natively?', /app team behind this project/i],
-            ['who made you', /app team behind this project/i],
+            ['who built natively?', /See About in Sneak-Peek for project attribution/i],
+            ['who made you', /See About in Sneak-Peek for project attribution/i],
         ];
         for (const [q, re] of cases) {
             const d = resolveIdentityProbe(q, true);

@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0009 / WORK-0086 — macOS installer, media permissions and branding (2026-11-18)
+
+**In progress.** [ERR-119](ERROR_LOG.md#err-119--installed-arm64-app-fails-before-electron-starts-2026-11-18) installer repair is verified on the owner's ARM64 macOS. [ERR-120](ERROR_LOG.md#err-120--installed-app-repeats-permissions-setup-and-marks-system-audio-unavailable-2026-11-18) media permission and route fixes are implemented. The About card removal was observed in Applications. Final rebuild, installed verification and physical audio evidence are separate checks. The original broken app is backed up under Downloads. The owner requested an unchanged LICENSE file for their own drafting. Preserve required legal origin notices and functional legacy storage/update compatibility.
+
 ## TASK-0008 / WORK-0085 — Official application icon (2026-11-18)
 
 **Implemented, unverified on Windows/Linux installations.** Owner-supplied transparent artwork generated macOS ICNS, Windows ICO and Linux PNG resources. The Apple Silicon directory package and macOS Finder icon representation were inspected. Relevant builds, Electron typecheck and both source/packaged asset verification passed. Windows/Linux installers and visual appearance remain untested. No app installation performed.

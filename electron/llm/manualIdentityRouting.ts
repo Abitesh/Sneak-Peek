@@ -50,7 +50,7 @@ export function resolveIdentityProbe(message: string, profileReady: boolean): Id
   if (typeof message !== 'string' || !message.trim()) return { kind: 'none' };
 
   if (CREATOR_PROBE_RE.test(message)) {
-    return { kind: 'assistant_reply', reply: 'I was developed by the app team behind this project.' };
+    return { kind: 'assistant_reply', reply: 'See About in Sneak-Peek for project attribution.' };
   }
   if (ASSISTANT_META_PROBE_RE.test(message)) {
     return { kind: 'assistant_reply', reply: "I'm your AI assistant for this app." };

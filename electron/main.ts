@@ -15,6 +15,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { SystemAudioHealthClassifier } from "./audio/systemAudioHealthClassifier.mjs"
+import { needsScreenRecordingForSystemAudio } from "./audio/macSystemAudioPermission.mjs"
 import { FatalMainProcessCoordinator } from "./utils/fatalMainProcess"
 import { MeetingLifecycleQueue, type MeetingLifecycleState } from "./audio/meetingLifecycleQueue"
 import { autoUpdater } from "electron-updater"
@@ -786,11 +787,8 @@ async function ensureMacMicrophoneAccess(context: string): Promise<boolean> {
  * If the permission is 'denied', we cannot re-prompt; the user must re-enable
  * manually in System Settings  Privacy & Security  Screen Recording.
  *
- * Returns false only when the permission is explicitly 'denied'. All other
- * statuses ('granted', 'not-determined', 'restricted') return true because:
- * - 'granted': already allowed — nothing to do.
- * - 'not-determined': macOS will show the dialog when SCK/CoreAudio tap runs.
- * - 'restricted': managed device policy — nothing we can do programmatically.
+ * This is a screen capability check. The default macOS audio backend can
+ * fall back to a Core Audio process tap with a separate OS permission.
  */
 type MacScreenCaptureStatus = 'granted' | 'denied' | 'not-determined' | 'restricted';
 
@@ -879,8 +877,19 @@ function getMacScreenCaptureStatus(): MacScreenCaptureStatus {
  }
 }
 
-async function resolveMacScreenCaptureCapability(context: string, options?: { bypassCache?: boolean }): Promise<MacScreenCaptureCapability> {
+async function resolveMacScreenCaptureCapability(context: string, options?: {
+ bypassCache?: boolean;
+ outputDeviceId?: string | null;
+ screenKitRequired?: boolean;
+}): Promise<MacScreenCaptureCapability> {
  const isMac = process.platform === 'darwin';
+ if (isMac && !options?.screenKitRequired &&
+     !needsScreenRecordingForSystemAudio(os.release(), options?.outputDeviceId)) {
+ // The normal capture path owns the ScreenCaptureKit → Core Audio fallback.
+ // A screen grant says nothing about whether the OS will authorize its tap.
+ clearSystemAudioPermissionWarning();
+ return { status: getMacScreenCaptureStatus(), capturable: true, effectiveDenied: false, sourceCount: 0 };
+ }
 
  // Check cache first (unless explicitly bypassed)
  if (!options?.bypassCache && screenCapabilityCache) {
@@ -1308,7 +1317,7 @@ import { CredentialsManager } from "./services/CredentialsManager"
 import { SettingsManager } from "./services/SettingsManager"
 import { PhoneMirrorService, shouldStartPhoneMirrorOnBoot } from "./services/PhoneMirrorService"
 import { describePageCaptureFallback, describeDoubleCaptureFailure, PAGE_CAPTURE_FALLBACK_CHANNEL, PAGE_CAPTURE_STARTED_CHANNEL } from "./services/pageCaptureFallback"
-import { setVerboseLoggingFlag } from "./verboseLog"
+import { isVerboseLogging, setVerboseLoggingFlag } from "./verboseLog"
 import { ReleaseNotesManager } from "./update/ReleaseNotesManager"
 import { OllamaManager } from './services/OllamaManager'
 import { ProviderStatusRegistry } from './services/ProviderStatusRegistry'
@@ -1492,7 +1501,7 @@ export class AppState {
  const settingsManager = SettingsManager.getInstance();
  this.isUndetectable = settingsManager.get('isUndetectable') ?? false;
  this.disguiseMode = normalizeDisguiseMode(settingsManager.get('disguiseMode'));
- this._verboseLogging = settingsManager.get('verboseLogging') ?? true;
+ this._verboseLogging = settingsManager.get('verboseLogging') ?? isVerboseLogging();
  setVerboseLoggingFlag(this._verboseLogging);
  this._ambientChatEnabled = settingsManager.get('ambientChatEnabled') ?? false;
  this._autoAnswerEnabled = settingsManager.get('autoAnswerEnabled') ?? false;
@@ -3825,7 +3834,7 @@ export class AppState {
  // the correct banner when the silence is explained by a lost grant.
  // Probe failure or a healthy grant keeps the log-only behavior.
  if (decision.reason === 'sustained-zero-valued-silence' && process.platform === 'darwin') {
- void resolveMacScreenCaptureCapability('sustained zero-fill diagnosis', { bypassCache: true })
+ void resolveMacScreenCaptureCapability('sustained zero-fill diagnosis', { bypassCache: true, screenKitRequired: true })
  .then((cap) => {
  if (!cap.effectiveDenied) {
  // The CoreAudio tap is alive but its buffers are continuously zero-valued.
@@ -3845,6 +3854,8 @@ export class AppState {
  }
  return;
  }
+ // A failed screen probe cannot diagnose a Core Audio tap.
+ if (!needsScreenRecordingForSystemAudio(os.release(), this._lastRequestedOutputDeviceId) && !this._systemAudioPreferSckRecovery) return;
  if (this.systemAudioCapture !== capture) return; // capture replaced mid-probe
  if (!this.isMeetingActive) return;
  const msg = formatPermissionMessage('mac-screen-recording-revoked-rebuild');
@@ -4513,7 +4524,7 @@ export class AppState {
  this.systemAudioCapture = null;
  }
  try {
- const screenCapability = await resolveMacScreenCaptureCapability('resume capture restart');
+ const screenCapability = await resolveMacScreenCaptureCapability('resume capture restart', { outputDeviceId: this._lastRequestedOutputDeviceId });
  if (screenCapability.effectiveDenied) {
  this.sendSystemAudioPermissionDenied(
  screenCapability.message ?? formatPermissionMessage('screen-recording-denied'),
@@ -4951,7 +4962,7 @@ export class AppState {
  await oldSystemAudioCapture.destroy();
  }
 
- const screenCapability = await resolveMacScreenCaptureCapability('audio reconfigure');
+ const screenCapability = await resolveMacScreenCaptureCapability('audio reconfigure', { outputDeviceId: wantedOutput });
  if (screenCapability.effectiveDenied) {
  const message = screenCapability.message ?? formatPermissionMessage('screen-recording-denied');
  console.warn('[Main] Skipping SystemAudioCapture reconfigure — Screen Recording permission denied. Meeting will run mic-only.');
@@ -5334,7 +5345,7 @@ export class AppState {
  : this._lastRequestedOutputDeviceId;
  await oldCapture?.destroy();
 
- const screenCapability = await resolveMacScreenCaptureCapability('system audio recovery');
+ const screenCapability = await resolveMacScreenCaptureCapability('system audio recovery', { outputDeviceId: recoveryDeviceId });
  if (!isRecoveryCurrentMeeting()) {
  return;
  }
@@ -5831,7 +5842,7 @@ export class AppState {
  }
 
 
- public async startAudioTest(deviceId?: string): Promise<void> {
+ public async startAudioTest(deviceId?: string, outputDeviceId?: string): Promise<void> {
  // P2-12: guard against two concurrent calls both passing the async permission check
  // before either has created a capture — the second call would orphan the first capture.
  if (this._audioTestStarting) return;
@@ -5848,7 +5859,7 @@ export class AppState {
  }
  this._audioTestStarting = true;
  try {
- await this._startAudioTestImpl(deviceId);
+ await this._startAudioTestImpl(deviceId, outputDeviceId);
  } finally {
  this._audioTestStarting = false;
  }
@@ -5879,7 +5890,7 @@ export class AppState {
  // (which owns the CoreAudio tap) is debounced.
  private _audioTestSystemProbeTimer: NodeJS.Timeout | null = null;
 
- private async _startAudioTestImpl(deviceId?: string): Promise<void> {
+ private async _startAudioTestImpl(deviceId?: string, outputDeviceId?: string): Promise<void> {
  console.log(`[Main] Starting Audio Test on device: ${deviceId || 'default'}`);
  this.stopAudioTest(); // Stop any existing test (also bumps _audioTestEpoch)
  // UX4 hardening: snapshot epoch BEFORE the system-audio probe's awaited
@@ -5981,7 +5992,7 @@ export class AppState {
  // test. The renderer renders the system-level bar greyed-out + a
  // permission-denied notice if the screen capture probe couldn't start.
  try {
- const screenCapability = await resolveMacScreenCaptureCapability('audio test');
+ const screenCapability = await resolveMacScreenCaptureCapability('audio test', { outputDeviceId });
  // UX4 hardening: bail if a stopAudioTest fired during the await.
  // Constructing+starting a SystemAudioCapture after stop would orphan
  // the capture with no shutdown path.
@@ -6019,7 +6030,7 @@ export class AppState {
  return;
  }
  try {
- this.audioTestSystemCapture = new SystemAudioCapture();
+ this.audioTestSystemCapture = new SystemAudioCapture(outputDeviceId);
  attachSystemTestListeners(this.audioTestSystemCapture);
  // INVARIANT: SystemAudioCapture.start() MUST remain synchronous (its
  // native CoreAudio init runs on a background thread and start()
@@ -6398,14 +6409,9 @@ export class AppState {
  throw err;
  }
 
- // Check Screen Recording permission required for system audio capture
- // (CoreAudio Global Process Tap + ScreenCaptureKit both need this).
- // NOTE: The 'not-determined' TCC dialog is triggered once at app startup
- // (in initializeApp) so it never pops up mid-meeting here. We only act on
- // explicit 'denied' — in that case warn the user but let the meeting continue
- // with microphone-only transcription.
+ // Screen Recording is a precondition only when the selected audio path requires it.
  if (process.platform === 'darwin') {
- const screenCapability = await resolveMacScreenCaptureCapability('meeting start');
+ const screenCapability = await resolveMacScreenCaptureCapability('meeting start', { outputDeviceId: metadata?.audio?.outputDeviceId });
  console.log(`[Main] macOS screen recording permission status: ${screenCapability.status}; capturable=${screenCapability.capturable}; sources=${screenCapability.sourceCount}`);
  if (screenCapability.effectiveDenied) {
  // Permission was explicitly denied — warn the user via the UI but do NOT
@@ -6418,8 +6424,7 @@ export class AppState {
  // NOTE: Do NOT call shell.openExternal() here — it hijacks focus on every meeting
  // start. The UI banner (system-audio-permission-denied IPC event) handles this.
  }
- // 'not-determined': Handled at startup. SCK/CoreAudio will trigger the TCC
- // dialog itself when it first attempts to access screen content.
+ // The selected backend requests its own permission when capture starts.
  }
  }
 
@@ -9095,83 +9100,13 @@ if (process.env.THINKING_MATRIX === '1') {
  console.warn('[LeakTest] NATIVELY_DISABLE_PHONE_MIRROR=1  PhoneMirror WS server NOT started this run');
  }
 
- // One-time macOS screen recording permission prompt.
- //
- // We must fire this AFTER createWindow() so that:
- // 1. The Sneak-Peek launcher window is visible and focused when the TCC dialog
- // appears — macOS anchors the dialog to the frontmost app window on Ventura+.
- // Without a visible window the dialog can appear behind other apps (Sequoia).
- // 2. In stealth/undetectable mode the dock icon is hidden, but the window is
- // still visible — the dialog still has a surface to attach to.
- //
- // The 800ms delay lets the launcher's ready-to-show animation complete so the
- // window is fully composited before the system sheet appears above it.
- //
- // TCC caches the decision permanently after the first response — this block
- // runs exactly ONCE on the first launch of each unique packaged binary.
- // On every subsequent launch the status is 'granted' or 'denied', and we skip.
+ // Observe permissions on startup without starting a screen recording
+ // probe or showing a permission prompt. Ask when the user uses capture.
  if (process.platform === 'darwin') {
- setTimeout(async () => {
- try {
- const screenStatus = systemPreferences.getMediaAccessStatus('screen');
- console.log(`[Init] Screen recording permission status at startup: ${screenStatus}`);
-
- if (isDevTccBypassEnabled()) {
- // B5: Legacy dev bypass — see isDevTccBypassEnabled() docstring.
- // Without the env var, dev users get the same startup TCC flow as
- // production so production bugs are reproducible locally.
- console.log('[Init] Dev TCC bypass enabled — skipping startup screen-recording check');
- return;
- }
-
- if (screenStatus === 'not-determined') {
- // First launch: trigger the one-time TCC dialog by making a minimal
- // desktopCapturer call. macOS will show the permission sheet anchored
- // to our window. The user's response is stored permanently in the TCC
- // database — we do NOT check status immediately after because the dialog
- // is still open; the status will be read correctly next time `startMeeting`
- // is called (which is the correct gate for system audio access).
- console.log('[Init] Screen recording not-determined — showing one-time TCC dialog...');
- try {
- await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } });
- } catch (e) {
- // On some Electron builds getSources throws when permission is pending —
- // that's fine; the TCC dialog has still been triggered.
- console.log('[Init] getSources threw (expected during TCC pending state):', (e as Error).message);
- }
- // NOTE: Do NOT read afterStatus here — TCC response is async (dialog still open).
- // startMeeting() reads the status when the user actually tries to use audio.
-
- } else if (screenStatus === 'denied' && !appState.getAmbientChatEnabled()) {
- // Ambient AI Chat (Settings > General) means meetings never capture
- // system audio at all, so a denied Screen Recording grant is moot —
- // skip the banner rather than warning about a capability the app
- // isn't going to use.
- const screenCapability = await resolveMacScreenCaptureCapability('startup permission check');
- if (screenCapability.effectiveDenied) {
- // Returning user who previously denied — show the banner immediately at startup
- // so they know system audio won't work before they even start a meeting.
- console.warn('[Init] Screen recording was previously denied — notifying UI banner.');
- appState.sendSystemAudioPermissionDenied(
- screenCapability.message ?? formatPermissionMessage('screen-recording-denied'),
- screenCapability.titleKey ?? permissionTitleKey('screen-recording-denied'),
- );
- }
- } else {
- // 'granted' or 'restricted' — nothing to do for screen recording.
- console.log(`[Init] Screen recording permission already resolved: ${screenStatus}`);
- }
-
- // UX1: also check Microphone permission at startup. The existing
- // screen-recording check above gave returning users with a denied
- // grant immediate feedback; do the same for the mic so users know
- // before they start a meeting that audio capture is blocked.
- // Symmetric to the screen-recording branch above.
+ setTimeout(() => {
  try {
  const micStatus = systemPreferences.getMediaAccessStatus('microphone');
  console.log(`[Init] Microphone permission status at startup: ${micStatus}`);
- // Ambient AI Chat never touches the mic either — see the
- // screen-recording branch above for why these banners are skipped.
  if (appState.getAmbientChatEnabled()) {
  // skip — no banner
  } else if (micStatus === 'denied') {
@@ -9198,11 +9133,8 @@ if (process.env.THINKING_MATRIX === '1') {
  }
  // 'granted' or 'not-determined' — no banner. 'not-determined' is
  // resolved at first meeting start via ensureMacMicrophoneAccess.
- } catch (micErr) {
- console.warn('[Init] Startup microphone permission check failed:', micErr);
- }
  } catch (e) {
- console.warn('[Init] Startup screen recording permission check failed:', e);
+ console.warn('[Init] Startup microphone permission check failed:', e);
  }
  }, 800);
  }

@@ -1,7 +1,7 @@
 // electron/llm/__tests__/IdentityGuard.test.mjs
 //
 // Regression tests for S454 sub-issue 2: creator-identity leakage in voice
-// modes (model outputs "I'm Evin John..." as the speaker's self-introduction).
+// modes (model copies the app identity into the speaker's self-introduction).
 //
 // The guard lives in two places:
 //   1. tinyPrompts.ts → TINY_CORE (composed into every tiny mode)
@@ -26,7 +26,8 @@ const full = await import(pathToFileURL(fullPath).href);
 const GUARD_MARKERS = [
   'IDENTITY GUARD',
   '"Sneak-Peek"',
-  '"Evin John"',
+  "speaker's",
+  "speaker's real name is not in grounded context, open WITHOUT a name",
   'NEVER',
 ];
 
@@ -50,11 +51,7 @@ describe('IdentityGuard — TINY_CORE carries the name-claim guard', () => {
     });
   }
 
-  test('TINY_CORE explicitly forbids "I\'m Evin John" / "I\'m Sneak-Peek"', () => {
-    assert.ok(
-      /I'm Evin John/i.test(tiny.TINY_CORE),
-      'TINY_CORE must call out the literal "I\'m Evin John" anti-pattern',
-    );
+  test('TINY_CORE explicitly forbids using the app name as the speaker', () => {
     assert.ok(
       /I'm Sneak-Peek/i.test(tiny.TINY_CORE),
       'TINY_CORE must call out the literal "I\'m Sneak-Peek" anti-pattern',
@@ -78,7 +75,7 @@ describe('IdentityGuard — every first-person tiny prompt inherits the guard', 
 describe('IdentityGuard — full-tier prompts.ts retains the rule', () => {
   test('UNIVERSAL_WHAT_TO_ANSWER_PROMPT contains the name-confusion rule', () => {
     assert.ok(
-      /names "Sneak-Peek" and "Evin John" describe ONLY this assistant/.test(
+      /name "Sneak-Peek" describes ONLY this assistant\. It is NEVER the user's name/.test(
         full.UNIVERSAL_WHAT_TO_ANSWER_PROMPT,
       ),
       'full-tier prompt must retain explicit name-confusion rule',
@@ -87,8 +84,15 @@ describe('IdentityGuard — full-tier prompts.ts retains the rule', () => {
 
   test('CUSTOM_ANSWER_PROMPT keeps the creator-question response phrasing', () => {
     assert.ok(
-      /"I was developed by Evin John\."/.test(full.CUSTOM_ANSWER_PROMPT),
+      /"See About in Sneak-Peek for project attribution\."/.test(full.CUSTOM_ANSWER_PROMPT),
       'CUSTOM_ANSWER_PROMPT must keep the canonical creator-question response',
     );
   });
+});
+
+test('production identity prompts do not promote the former personal profile', () => {
+  for (const prompt of [tiny.TINY_CORE, full.UNIVERSAL_WHAT_TO_ANSWER_PROMPT, full.CUSTOM_ANSWER_PROMPT]) {
+    assert.doesNotMatch(prompt, /Evin John/);
+    assert.match(prompt, /See About in Sneak-Peek for project attribution/);
+  }
 });

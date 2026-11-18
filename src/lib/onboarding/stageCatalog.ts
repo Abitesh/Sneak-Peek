@@ -47,22 +47,19 @@ export const STAGE_ORDER: ToasterId[] = [
 
 export const STAGES: StageConfig[] = [
   // ──────────────────────────────────────────────────────────────
-  // 1. Permissions — first launch OR returning mac user with revoked TCC
+  // 1. Permissions — user-dismissable first launch guidance
   // ──────────────────────────────────────────────────────────────
   {
     id: 'permissions',
     order: 1,
-    onceEver: false, // can re-fire if mac TCC is denied
+    onceEver: true,
     triggers: {
       requiresHomepageMounted: true,
       requiresHomepageDuration: 2_000,
       requiresForeground: true,
       requiresMeetingInactive: true,
     },
-    skipWhen: (s) =>
-      // Skip if fully resolved
-      (s.permsShown && !s.macTCCBlocked),
-    reEligibility: (s) => s.macTCCBlocked,
+    skipWhen: (s) => s.permsShown,
   },
 
   // ──────────────────────────────────────────────────────────────

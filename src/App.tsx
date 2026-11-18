@@ -469,6 +469,7 @@ useEffect(() => {
             // 4. permsShown
             if (flags.permsShown) {
               try { localStorage.setItem('natively_perms_shown_v1', '1'); } catch {}
+              if (isLauncherWindow || isDefault) setOrchestratorUserState({ permsShown: true });
             } else {
               try {
                 const localSeen = localStorage.getItem('natively_perms_shown_v1') === '1';
@@ -500,7 +501,7 @@ useEffect(() => {
     // ── Onboarding orchestrator — push user-state patches ─────
     // The orchestrator owns scheduling; we just feed it the latest user state.
     if (isLauncherWindow || isDefault) {
-      // Permissions state — first launch vs returning mac with revoked TCC.
+      // Keep permission guidance out of the way when access is already granted.
       const permsShown = localStorage.getItem('natively_perms_shown_v1') === '1';
       const seenModes = localStorage.getItem('natively_seen_modes_onboarding_v5') === 'true';
       const seenProfile = localStorage.getItem('natively_seen_profile_onboarding_v1') === 'true';
@@ -512,7 +513,8 @@ useEffect(() => {
             const blocked = (s?: string) => s === 'denied' || s === 'restricted';
             const macTCCBlocked = p?.platform === 'darwin' && (blocked(p.microphone) || blocked(p.screen));
             setOrchestratorUserState({
-              permsShown,
+              permsShown: permsShown || localStorage.getItem('natively_perms_shown_v1') === '1' ||
+                (p?.microphone === 'granted' && p?.screen === 'granted'),
               macTCCBlocked,
               seenModesOnboarding: seenModes,
               seenProfileOnboarding: seenProfile,

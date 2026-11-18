@@ -10,8 +10,8 @@
 // "user launches the app and it dies" class of crashes that leave only a
 // short stack. The persisted setting `verboseLogging` still wins at
 // AppState construction time, so a user who explicitly turns it off stays
-// off. Env override NATIVELY_VERBOSE_LOGGING=0 also disables it.
-let _verbose = !process.env.NATIVELY_VERBOSE_LOGGING || process.env.NATIVELY_VERBOSE_LOGGING !== '0';
+// off. SNEAK_PEEK_VERBOSE_LOGGING=0 disables it when no saved preference is set.
+let _verbose = process.env.SNEAK_PEEK_VERBOSE_LOGGING !== '0';
 
 export const isVerboseLogging = (): boolean => _verbose;
 export const setVerboseLoggingFlag = (enabled: boolean): void => {

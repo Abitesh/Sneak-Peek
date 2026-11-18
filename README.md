@@ -139,12 +139,12 @@ The initial dependency setup may also prepare native modules and download requir
 ### Build for macOS Apple Silicon
 
 ```bash
-npm run app:build -- --mac --arm64
+npm run app:build -- --mac dmg --arm64 --publish never
+node scripts/verify-macos-bundle.cjs release/Sneak-Peek-2.8.7-arm64.dmg arm64 --launch
+open release/Sneak-Peek-2.8.7-arm64.dmg
 ```
 
-The generated application and installer files are written to the `release/` directory.
-
-Open the ARM64 DMG and install Sneak-Peek into Applications.
+The build checks the unpacked application and the app inside the installer. The separate launch check opens the mounted app with a temporary profile. After it passes, drag Sneak-Peek into Applications.
 
 This local build is intended for development and personal testing; public distribution requires separate licensing and release checks.
 
@@ -187,16 +187,10 @@ Audio capture, transcription, screenshots, and document access should be used on
 
 Users remain responsible for reviewing AI-generated information and respecting applicable meeting, interview, workplace, and privacy rules.
 
-## Maintainer
-
-Maintained by [Abitesh](https://github.com/Abitesh).
-
 Project repository: https://github.com/Abitesh/Sneak-Peek
 
 ## License and Attribution
 
 Please review [LICENSE](LICENSE) for the applicable personal-use, modification, distribution, and attribution requirements.
-
-This project is based on Natively, originally developed by Natively AI Private Limited.
 
 All applicable copyright and attribution notices must remain intact.

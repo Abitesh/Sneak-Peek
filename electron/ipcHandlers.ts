@@ -3,7 +3,7 @@ import { createAnswerExecution } from './intelligence/engine/AnswerExecution';
 import { createPrimaryManualSneakPeekEngine } from './intelligence/engine/CanonicalRuntime';
 // ipcHandlers.ts
 import * as crypto from 'crypto';
-import { app, BrowserWindow, dialog, desktopCapturer, ipcMain, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from 'electron';
 import { micSettingsUri } from '../src/lib/micPermissionPolicy.mjs';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -10095,8 +10095,8 @@ return AudioDevices.getInputDevices();
 safeHandle('get-output-devices', async () => {
 return AudioDevices.getOutputDevices();
 });
-safeHandle('start-audio-test', async (event, deviceId?: string) => {
-await appState.startAudioTest(deviceId);
+safeHandle('start-audio-test', async (_event, deviceId?: string, outputDeviceId?: string) => {
+await appState.startAudioTest(deviceId, outputDeviceId);
 return { success: true };
 });
 safeHandle('stop-audio-test', async () => {
@@ -12466,43 +12466,7 @@ const readPermission = (kind: 'microphone' | 'screen'): string => {
 try { return systemPreferences.getMediaAccessStatus(kind) || 'unknown'; }
 catch { return 'unknown'; }
 };
-const mic = readPermission('microphone');
-const rawScreen = readPermission('screen');
-// macOS reports the Screen Recording grant unreliably via
-// getMediaAccessStatus('screen'): a genuinely-granted permission is
-// frequently surfaced as 'denied' / 'not-determined' until the process is
-// relaunched. Trusting that raw string produces a false "TCC blocked"
-// signal that makes the onboarding orchestrator (stageCatalog.ts
-// reEligibility) re-raise the permissions toaster forever and defeats the
-// dismiss button. When the raw status is anything other than 'granted',
-// fall back to a capture probe (the same signal main.ts's
-// resolveMacScreenCaptureCapability trusts) — if we can enumerate screen
-// sources, the permission is effectively granted.
-let screen = rawScreen;
-if (rawScreen !== 'granted' && rawScreen !== 'restricted') {
-try {
-// desktopCapturer.getSources can block indefinitely on TCC (see
-// main.ts:448 + resolveMacScreenCaptureCapability, which wraps the
-// same probe in a 5 s timeout). This handler is awaited on the
-// launcher render path (App.tsx checkPermissions().then(...)), so an
-// un-bounded hang would freeze the onboarding user-state feed. Race
-// the probe against a 5 s deadline and treat a timeout as not-granted.
-const sources = await Promise.race([
-desktopCapturer.getSources({
-types: ['screen'],
-thumbnailSize: { width: 1, height: 1 },
-}),
-new Promise<never>((_, reject) =>
-setTimeout(() => reject(new Error('screen-capture-probe-timeout')), 5000),
-),
-]);
-const capturable = sources.some((s) => s.id.startsWith('screen:'));
-if (capturable) screen = 'granted';
-} catch {
-// Probe failed or timed out — keep the raw status (treat as not-granted).
-}
-}
-return { microphone: mic, screen, platform: 'darwin' };
+return { microphone: readPermission('microphone'), screen: readPermission('screen'), platform: 'darwin' };
 }
 // F-706: Windows 10/11 DOES expose a queryable microphone privacy state —
 // Electron's own typings document getMediaAccessStatus('microphone') as

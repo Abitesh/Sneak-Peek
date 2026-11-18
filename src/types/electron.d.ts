@@ -353,7 +353,7 @@ onSuggestionProcessingStart: (callback: () => void) => () => void
 onSuggestionError: (callback: (error: { error: string }) => void) => () => void
 generateSuggestion: (context: string, lastQuestion: string) => Promise<{ suggestion: string }>
 getInputDevices: () => Promise<Array<{ id: string; name: string }>>
-getOutputDevices: () => Promise<Array<{ id: string; name: string }>>
+getOutputDevices: () => Promise<Array<{ id: string; name: string; isDefault?: boolean }>>
 setRecognitionLanguage: (key: string) => Promise<{ success: boolean; error?: string }>
 getAiResponseLanguages: () => Promise<Array<{ label: string; code: string }>>
 setAiResponseLanguage: (language: string) => Promise<{ success: boolean; error?: string }>
@@ -554,7 +554,7 @@ extractEmailsFromTranscript: (transcript: Array<{ text: string }>) => Promise<st
 getCalendarAttendees: (eventId: string) => Promise<Array<{ email: string; name: string }>>;
 openMailto: (params: { to: string; subject: string; body: string }) => Promise<{ success: boolean; error?: string }>;
 // Audio Test
-startAudioTest: (deviceId?: string) => Promise<{ success: boolean }>;
+startAudioTest: (deviceId?: string, outputDeviceId?: string) => Promise<{ success: boolean }>;
 stopAudioTest: () => Promise<{ success: boolean }>;
 onAudioTestLevel: (callback: (level: number) => void) => () => void;
 // UX4: parallel system-audio probe — level + error events emitted during

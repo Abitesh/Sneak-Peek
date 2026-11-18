@@ -34,15 +34,14 @@ export const STAGES = [
   {
     id: 'permissions',
     order: 1,
-    onceEver: false,
+    onceEver: true,
     triggers: {
       requiresHomepageMounted: true,
       requiresHomepageDuration: 2000,
       requiresForeground: true,
       requiresMeetingInactive: true,
     },
-    skipWhen: (s) => (s.permsShown && !s.macTCCBlocked),
-    reEligibility: (s) => s.macTCCBlocked,
+    skipWhen: (s) => s.permsShown,
   },
   {
     id: 'browser_extension',

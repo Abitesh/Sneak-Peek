@@ -1270,6 +1270,7 @@
 │   │   │   ├── CurlProviderPayloadValidation.test.mjs
 │   │   │   ├── DeepgramStabilityTimerTracked.test.mjs
 │   │   │   ├── DefaultOutputWatcherEpoch.test.mjs
+│   │   │   ├── MacSystemAudioPermission.test.mjs
 │   │   │   ├── DefaultOutputWatcherShutdown.test.mjs
 │   │   │   ├── DistilLargeExternalEncoderCpu.test.mjs
 │   │   │   ├── EndMeetingAbortsInFlightInit.test.mjs
@@ -1381,6 +1382,7 @@
 │   │   ├── speechEdge.ts
 │   │   ├── SystemAudioCapture.ts
 │   │   ├── systemAudioHealthClassifier.d.mts
+│   │   ├── macSystemAudioPermission.mjs
 │   │   ├── systemAudioHealthClassifier.mjs
 │   │   ├── whisper
 │   │   │   ├── __tests__
@@ -104360,6 +104362,7 @@
 │   │   ├── mac-arch-packaging.test.mjs
 │   │   ├── notary-preflight.test.mjs
 │   │   ├── notary-transient.test.mjs
+│   │   ├── mac-bundle-verification.test.mjs
 │   │   ├── packaging-config.test.mjs
 │   │   ├── run-with-env.test.mjs
 │   │   └── write-mac-update-manifest.test.mjs
@@ -104600,6 +104603,7 @@
 │   ├── verify-hindsight.mjs
 │   ├── verify-humanized-answers.mjs
 │   ├── verify-native-arch.js
+│   ├── verify-macos-bundle.cjs
 │   ├── verify-packaged-local-assets.mjs
 │   ├── verify-spoken-quality.mjs
 │   ├── verify-sqlite-vec-load.mjs
@@ -104685,7 +104689,6 @@
 │   ├── assets
 │   │   ├── dashboard-preview.png
 │   │   ├── desktopui.webp
-│   │   ├── evin.png
 │   │   ├── hero.mp4
 │   │   ├── hero.webm
 │   │   ├── logo.png
@@ -104784,7 +104787,6 @@
 │   │   ├── SneakPeekLogoMark.tsx
 │   │   ├── StartupSequence.tsx
 │   │   ├── SuggestionOverlay.tsx
-│   │   ├── SupportToaster.tsx
 │   │   ├── TopControlBar.tsx
 │   │   ├── TopSearchPill.tsx
 │   │   ├── trial

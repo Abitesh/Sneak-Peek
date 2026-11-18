@@ -1,4 +1,7 @@
 import { EventEmitter } from 'events';
+import os from 'node:os';
+import { systemPreferences } from 'electron';
+import { shouldAvoidScreenKitForSystemAudio } from './macSystemAudioPermission.mjs';
 import { loadNativeModule } from './nativeModuleLoader';
 import { normalizeSpeechEdge } from './speechEdge';
 
@@ -101,7 +104,18 @@ export class SystemAudioCapture extends EventEmitter {
         if (!this.monitor) {
             console.log('[SystemAudioCapture] Creating native monitor (lazy init)...');
             try {
-                this.monitor = new RustAudioCapture(this.deviceId);
+                let avoidScreenKit = false;
+                if (process.platform === 'darwin') {
+                    let screenStatus = 'unknown';
+                    try {
+                        screenStatus = systemPreferences?.getMediaAccessStatus?.('screen') ?? 'unknown';
+                    } catch {
+                        // A failed screen status query must not block the independent Core Audio tap.
+                    }
+                    avoidScreenKit = shouldAvoidScreenKitForSystemAudio(os.release(), this.deviceId, screenStatus);
+                }
+                this.monitor = new RustAudioCapture(this.deviceId, avoidScreenKit);
+                if (avoidScreenKit) console.log('[SystemAudioCapture] Using Core Audio with its separate OS permission.');
             } catch (e) {
                 console.error('[SystemAudioCapture] Failed to create native monitor:', e);
                 this.emit('error', e);

@@ -110,6 +110,7 @@
     "generateUpdatesFilesForAllChannels": true,
     "appId": "com.electron.meeting-notes",
     "afterPack": "./scripts/ad-hoc-sign.js",
+    "artifactBuildCompleted": "./scripts/verify-macos-bundle.cjs",
     "productName": "Sneak-Peek",
     "files": [
       "dist",
@@ -195,6 +196,9 @@
         "NSAudioCaptureUsageDescription": "Sneak-Peek needs system audio access to transcribe meeting audio."
       }
     },
+    "dmg": {
+      "size": "4g"
+    },
     "win": {
       "target": [
         {
@@ -250,7 +254,7 @@
     "beforePack": "./scripts/rebuild-native-for-target.cjs"
   },
   "keywords": [],
-  "author": "",
+  "author": "Abitesh",
   "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@electron/notarize": "^3.1.1",

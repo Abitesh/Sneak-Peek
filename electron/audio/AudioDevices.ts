@@ -9,6 +9,7 @@ const { getInputDevices, getOutputDevices } = NativeModule || {};
 export interface AudioDevice {
     id: string;
     name: string;
+    isDefault?: boolean;
 }
 
 export class AudioDevices {
@@ -45,7 +46,9 @@ export class AudioDevices {
             // so it reports output buffers and is admitted by
             // list_output_devices(). Probed while a tap was running, it
             // enumerated AHEAD of the real speaker.
-            return filterSelectableDevices(getOutputDevices());
+            const devices: AudioDevice[] = filterSelectableDevices(getOutputDevices());
+            const defaultId = NativeModule?.getDefaultOutputDeviceId?.();
+            return devices.map(device => ({ ...device, isDefault: device.id === defaultId }));
         } catch (e) {
             console.error('[AudioDevices] Failed to get output devices:', e);
             return [];

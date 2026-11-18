@@ -27,7 +27,7 @@ window.addEventListener('unhandledrejection', (event) => {
 // eslint-disable-next-line no-console
 console.log('[renderer] main.tsx evaluating');
 
-const THEME_CACHE_KEY = 'natively_resolved_theme';
+const THEME_CACHE_KEY = 'sneak_peek_resolved_theme';
 const launcherIsolation = new URLSearchParams(window.location.search).get('isolate');
 
 if (launcherIsolation === 'shell') {

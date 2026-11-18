@@ -108,12 +108,12 @@ test('permissions: skipped when perms shown AND no TCC block', () => {
   assert.equal(show('permissions', ctx), false);
 });
 
-test('permissions: re-fires when mac TCC is blocked (returning user)', () => {
+test('permissions: previously dismissed guidance does not re-open on a denied check', () => {
   const ctx = makeCtx({
     userState: { ...DEFAULT_USER_STATE, permsShown: true, macTCCBlocked: true },
     homepageMountedFor: 3_000,
   });
-  assert.equal(show('permissions', ctx), true);
+  assert.equal(show('permissions', ctx), false);
 });
 
 test('permissions: blocked by homepage duration < 2s', () => {

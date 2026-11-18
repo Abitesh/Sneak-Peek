@@ -12,7 +12,7 @@
  *
  * electron-builder packs once per target arch (mac = x64, mac-arm64 = arm64).
  * When you build both arches on an Apple-Silicon Mac, the on-disk binaries are
- * arm64, so the x64 (`Natively.dmg`) pack would embed arm64 binaries and every
+ * arm64, so the Intel pack would embed arm64 binaries and every
  * Intel Mac boots straight into main.ts's nativeArchGate "Architecture
  * mismatch" dialog. electron-builder's default `npmRebuild:true` is *supposed*
  * to rebuild per-arch, but its rebuild derives the arch from `process.arch`

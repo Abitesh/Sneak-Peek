@@ -89,7 +89,7 @@ function getInitializeAppBody() {
 }
 
 // Locate the darwin guard inside initializeApp that wraps the TCC startup
-// handler (the one containing `getMediaAccessStatus('screen')`). Returns
+// handler (the one containing `getMediaAccessStatus('microphone')`). Returns
 // the body of THAT specific `if (process.platform === 'darwin') { ... }`.
 function getStartupDarwinBlockBody(initBody) {
   const guardRe = /if\s*\(\s*process\.platform\s*===\s*['"]darwin['"]\s*\)\s*\{/g;
@@ -97,11 +97,11 @@ function getStartupDarwinBlockBody(initBody) {
   while ((m = guardRe.exec(initBody)) !== null) {
     const openIdx = m.index + m[0].length - 1;
     const block = extractBracedBody(initBody, openIdx);
-    if (block.includes("getMediaAccessStatus('screen')") || block.includes('getMediaAccessStatus("screen")')) {
+    if (/getMediaAccessStatus\(\s*['"]microphone['"]\s*\)/.test(block)) {
       return block;
     }
   }
-  assert.fail('could not locate the startup darwin guard containing the screen TCC check');
+  assert.fail('could not locate the startup darwin guard containing the passive microphone check');
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ describe('UX1: startup mic permission banner (returning-user feedback)', () => {
       darwinBlock,
       /getMediaAccessStatus\(\s*['"]microphone['"]\s*\)/,
       "BUG: the mic permission check must be inside the same `if (process.platform === 'darwin')` " +
-        "block that already houses the screen-recording startup check (UX1).",
+        "block for the passive startup check (UX1).",
     );
     // Negative: must NOT live inside a win32 (or other non-darwin) guard.
     // Scan all win32 guard blocks and assert none of them contain the mic check.
@@ -212,6 +212,12 @@ describe('UX1: startup mic permission banner (returning-user feedback)', () => {
       "BUG: the denied-mic branch must use `formatPermissionMessage('mic-denied')` so the banner " +
         "text matches the rest of the app (single source of truth for permission messaging). UX1.",
     );
+  });
+
+  it('startup reports microphone status without asking to capture a screen', () => {
+    const { body } = getInitializeAppBody();
+    const darwinBlock = getStartupDarwinBlockBody(body);
+    assert.doesNotMatch(darwinBlock, /desktopCapturer\.getSources|askForMediaAccess\s*\(/);
   });
 
   it('the mic check is wrapped in its own try/catch (independent of the outer screen-check try/catch)', () => {

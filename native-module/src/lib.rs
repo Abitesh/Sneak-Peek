@@ -195,12 +195,16 @@ pub struct SystemAudioCapture {
     /// HFP/Bluetooth-degradation detection — distinct from the emitted rate above.
     native_sample_rate: Arc<AtomicU32>,
     device_id: Option<String>,
+    #[cfg(target_os = "macos")]
+    avoid_screen_kit: bool,
 }
 
 #[napi]
 impl SystemAudioCapture {
     #[napi(constructor)]
-    pub fn new(device_id: Option<String>) -> napi::Result<Self> {
+    pub fn new(device_id: Option<String>, avoid_screen_kit: Option<bool>) -> napi::Result<Self> {
+        #[cfg(not(target_os = "macos"))]
+        let _ = avoid_screen_kit;
         println!("[SystemAudioCapture] Created (device: {:?})", device_id);
 
         Ok(SystemAudioCapture {
@@ -212,6 +216,8 @@ impl SystemAudioCapture {
             // background thread reports the real hardware rate.
             native_sample_rate: Arc::new(AtomicU32::new(48000)),
             device_id,
+            #[cfg(target_os = "macos")]
+            avoid_screen_kit: avoid_screen_kit.unwrap_or(false),
         })
     }
 
@@ -252,17 +258,23 @@ impl SystemAudioCapture {
         let sample_rate_shared = self.sample_rate.clone();
         let native_rate_shared = self.native_sample_rate.clone();
         let device_id = self.device_id.clone();
+        #[cfg(target_os = "macos")]
+        let avoid_screen_kit = self.avoid_screen_kit;
+        #[cfg(target_os = "macos")]
+        let open_speaker = move |id| speaker::SpeakerInput::new(id, avoid_screen_kit);
+        #[cfg(not(target_os = "macos"))]
+        let open_speaker = speaker::SpeakerInput::new;
 
         // ALL init + DSP runs in background thread — start() returns INSTANTLY
         println!("[SystemAudioCapture] start() called - spawning background thread for system audio");
         self.capture_thread = Some(thread::spawn(move || {
             // 1. SpeakerInput Init (takes 5-7 seconds — runs OFF main thread)
             println!("[SystemAudioCapture] [LIFECYCLE] Background thread started (system audio capture)");
-            let input = match speaker::SpeakerInput::new(device_id.clone()) {
+            let input = match open_speaker(device_id.clone()) {
                 Ok(i) => i,
                 Err(e) => {
                     println!("[SystemAudioCapture] Init failed: {}. Trying default...", e);
-                    match speaker::SpeakerInput::new(None) {
+                    match open_speaker(None) {
                         Ok(i) => i,
                         Err(e2) => {
                             let msg = format!(

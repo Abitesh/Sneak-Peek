@@ -58,7 +58,7 @@ export declare class StealthKeyboardTap {
 }
 
 export declare class SystemAudioCapture {
-  constructor(deviceId?: string | undefined | null)
+  constructor(deviceId?: string | undefined | null, avoidScreenKit?: boolean | undefined | null)
   /**
    * EMITTED sample rate — the rate of the PCM handed to STT (16000 when the
    * resampler is active). This is what callers must declare to STT providers.

@@ -17,7 +17,6 @@ import { getOrchestrator, type OrchestratorEvent, type UserState } from '../../l
 import type { ToasterId } from '../../lib/onboarding/orchestrator.ts';
 import { PermissionsToaster } from './PermissionsToaster';
 import { BrowserExtensionToaster } from './BrowserExtensionToaster';
-import { SupportToaster } from '../SupportToaster';
 import ReviewPromptHost from '../ReviewPromptHost';
 
 // ─── Event channel ────────────────────────────────────────────────
@@ -71,11 +70,11 @@ export const OrchestratedToasterHost: React.FC = () => {
   const state = useSyncExternalStore(orchSubscribe, orchSnapshot);
   const activeId = state.activeToasterId;
 
-  // Paid-plan/free-trial promotion is disabled in this build. If an old
+  // Upstream promotions and donation prompts are disabled in this build. If an old
   // persisted queue still reaches this stage, skip it after render so the
   // orchestrator can continue normally without showing a trial prompt.
   useEffect(() => {
-    if (activeId === 'trial_promo') orch.markSkipped('trial_promo');
+    if (activeId === 'trial_promo' || activeId === 'support') orch.markSkipped(activeId);
   }, [activeId, orch]);
 
   const onDismiss = (id: ToasterId) => () => orch.markDismissed(id);
@@ -102,17 +101,9 @@ export const OrchestratedToasterHost: React.FC = () => {
         <PermissionsToaster
           isOpen={true}
           onDismiss={() => {
-            // Write the legacy flag so future launches don't re-show on first
-            // launch. Mac TCC revocation is still detected via checkPermissions
-            // and re-triggers via macTCCBlocked user-state.
+            // Preserve dismissal in the profile and update the running launcher.
             try { localStorage.setItem('natively_perms_shown_v1', '1'); } catch {}
             window.electronAPI?.onboardingSetFlag?.('permsShown', true).catch(() => {});
-            // Reflect permsShown in the live orchestrator user-state *now*.
-            // Without this, `permsShown` stays false in-session (it is only
-            // re-read from localStorage on the next App.tsx effect / relaunch),
-            // so stageCatalog's `skipWhen: permsShown && !macTCCBlocked` never
-            // becomes true and the RAF drain loop re-raises this toaster on the
-            // very next frame — making the X button appear to do nothing.
             orch.setUserState({ permsShown: true });
             onDismiss('permissions')();
           }}
@@ -141,19 +132,8 @@ export const OrchestratedToasterHost: React.FC = () => {
       return null;
 
     case 'support':
-      return (
-        <SupportToaster
-          isOpen={true}
-          onDismiss={() => {
-            // Mark the donation toast as shown so DonationManager's
-            // lifetimeShows counter increments and the 21-day cooldown
-            // starts. Without this the support toaster re-fires on every
-            // cold launch past the cooldown threshold.
-            window.electronAPI?.markDonationToastShown?.().catch(() => {});
-            onDismiss('support')();
-          }}
-        />
-      );
+      // The effect above also drains previously persisted donation stages.
+      return null;
 
     case 'ads':
       // The 5 ad toasters are driven by useAdCampaigns.ts which still runs in

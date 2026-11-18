@@ -17,7 +17,7 @@ enum BackendInput {
 }
 
 impl SpeakerInput {
-    pub fn new(device_id: Option<String>) -> Result<Self> {
+    pub fn new(device_id: Option<String>, avoid_screen_kit: bool) -> Result<Self> {
         let force_sck = device_id.as_deref() == Some("sck");
 
         if force_sck {
@@ -25,6 +25,12 @@ impl SpeakerInput {
             let input = sck::SpeakerInput::new(device_id)?;
             return Ok(Self {
                 backend: BackendInput::Sck(input),
+            });
+        }
+
+        if avoid_screen_kit {
+            return Ok(Self {
+                backend: BackendInput::CoreAudio(core_audio::SpeakerInput::new(device_id)?),
             });
         }
 

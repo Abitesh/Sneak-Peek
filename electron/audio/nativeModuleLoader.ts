@@ -63,7 +63,7 @@ export interface NativeModule {
     stop(): void;
     readonly isActive: boolean;
   };
-  SystemAudioCapture: new (deviceId?: string | null) => {
+  SystemAudioCapture: new (deviceId?: string | null, avoidScreenKit?: boolean) => {
     getSampleRate(): number;
     start(callback: (...args: any[]) => any, onSpeechEnded?: (...args: any[]) => any): void;
     stop(): void;

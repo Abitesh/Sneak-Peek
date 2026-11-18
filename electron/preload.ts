@@ -387,7 +387,7 @@ onSuggestionProcessingStart: (callback: () => void) => () => void;
 onSuggestionError: (callback: (error: { error: string }) => void) => () => void;
 generateSuggestion: (context: string, lastQuestion: string) => Promise<{ suggestion: string }>;
 getInputDevices: () => Promise<Array<{ id: string; name: string }>>;
-getOutputDevices: () => Promise<Array<{ id: string; name: string }>>;
+getOutputDevices: () => Promise<Array<{ id: string; name: string; isDefault?: boolean }>>;
 setRecognitionLanguage: (key: string) => Promise<{ success: boolean; error?: string }>;
 getAiResponseLanguages: () => Promise<Array<{ label: string; code: string }>>;
 setAiResponseLanguage: (language: string) => Promise<{ success: boolean; error?: string }>;
@@ -654,7 +654,7 @@ subject: string;
 body: string;
 }) => Promise<{ success: boolean; error?: string }>;
 // Audio Test
-startAudioTest: (deviceId?: string) => Promise<{ success: boolean }>;
+startAudioTest: (deviceId?: string, outputDeviceId?: string) => Promise<{ success: boolean }>;
 stopAudioTest: () => Promise<{ success: boolean }>;
 onAudioTestLevel: (callback: (level: number) => void) => () => void;
 // UX4: parallel system-audio probe  system audio level + error events
@@ -2192,7 +2192,7 @@ getCalendarAttendees: (eventId: string) => ipcRenderer.invoke('get-calendar-atte
 openMailto: (params: { to: string; subject: string; body: string }) =>
 ipcRenderer.invoke('open-mailto', params),
 // Audio Test
-startAudioTest: (deviceId?: string) => ipcRenderer.invoke('start-audio-test', deviceId),
+startAudioTest: (deviceId?: string, outputDeviceId?: string) => ipcRenderer.invoke('start-audio-test', deviceId, outputDeviceId),
 stopAudioTest: () => ipcRenderer.invoke('stop-audio-test'),
 onAudioTestLevel: (callback: (level: number) => void) => {
 const subscription = (_: any, level: number) => callback(level);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 type ResolvedTheme = 'light' | 'dark';
 
-const THEME_CACHE_KEY = 'natively_resolved_theme';
+const THEME_CACHE_KEY = 'sneak_peek_resolved_theme';
 
 const getResolvedTheme = (): ResolvedTheme =>
     document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';

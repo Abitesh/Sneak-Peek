@@ -30,7 +30,7 @@ const FEATURES: FeatureSlide[] = [
     },
 
     {
-        id: 'support_natively',
+        id: 'support_sneak_peek',
         headline: 'Support development',
         subtitle: 'Built openly and sustained by users',
         bullets: [
@@ -39,8 +39,8 @@ const FEATURES: FeatureSlide[] = [
 
         ],
         type: 'support',
-        actionLabel: 'Contribute to development',
-        url: 'https://buymeacoffee.com/evinjohnn'
+        actionLabel: 'View on GitHub',
+        url: 'https://github.com/Abitesh/Sneak-Peek'
     }
 ];
 
@@ -308,7 +308,7 @@ export const FeatureSpotlight: React.FC = () => {
                                                         : (isSupport ? (
                                                             <span className="flex items-center gap-2">
                                                                 <Rocket size={14} className="text-[#1C1C1E]" strokeWidth={2.5} />
-                                                                Fund development
+                                                                {currentFeature.actionLabel}
                                                             </span>
                                                         ) : (currentFeature.actionLabel || 'Mark interest'))
                                                     }

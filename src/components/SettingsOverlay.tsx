@@ -1176,6 +1176,8 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedInput, setSelectedInput] = useState('');
     const [selectedOutput, setSelectedOutput] = useState('');
+    const [defaultOutputId, setDefaultOutputId] = useState('');
+    const [testSoundError, setTestSoundError] = useState<string | null>(null);
     const [micLevel, setMicLevel] = useState(0);
     // System-audio half of the pre-meeting check (UX4). The mic meter alone only
     // proves we can hear the USER; this one proves we are capturing the other
@@ -1659,7 +1661,12 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                     }));
 
                     setInputDevices(formatDevices(inputs));
-                    setOutputDevices(formatDevices(outputs));
+                    const defaultOutput = outputs.find(device => device.isDefault);
+                    setDefaultOutputId(defaultOutput?.id ?? '');
+                    setOutputDevices(formatDevices([
+                        { id: 'default', name: t('Default Speakers') },
+                        ...outputs.filter(device => device.id !== 'default'),
+                    ]));
 
                     // Load saved preferences
                     const savedInput = localStorage.getItem('preferredInputDeviceId');
@@ -1671,11 +1678,8 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                         setSelectedInput(inputs[0].id);
                     }
 
-                    if (savedOutput && outputs.find((d: any) => d.id === savedOutput)) {
-                        setSelectedOutput(savedOutput);
-                    } else if (outputs.length > 0 && !selectedOutput) {
-                        setSelectedOutput(outputs[0].id);
-                    }
+                    setSelectedOutput(savedOutput && outputs.some(device => device.id === savedOutput)
+                        ? savedOutput : 'default');
                 } catch (e) {
                     console.error("Error loading native devices:", e);
                 }
@@ -1769,7 +1773,8 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                 setSystemAudioError(message || 'System audio could not be captured.');
             });
 
-            window.electronAPI?.startAudioTest(selectedInput).catch((error) => {
+            const outputDeviceId = isMac && useExperimentalSck ? 'sck' : selectedOutput;
+            window.electronAPI?.startAudioTest(selectedInput, outputDeviceId).catch((error) => {
                 console.error("Error starting native microphone test:", error);
                 setMicLevel(0);
             });
@@ -1802,7 +1807,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
         // stale level/error from a previous test survives a tab switch.
         setSystemAudioLevel(0);
         setSystemAudioError(null);
-    }, [isOpen, activeTab, selectedInput]);
+    }, [isOpen, activeTab, selectedInput, selectedOutput, isMac, useExperimentalSck]);
 
     return (
         <AnimatePresence>
@@ -3449,7 +3454,9 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="h-1.5 bg-bg-input rounded-full overflow-hidden">
+                                                <div className="h-1.5 bg-bg-input rounded-full overflow-hidden"
+                                                    role="meter" aria-label={t('System Audio Level')}
+                                                    aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(systemAudioLevel)}>
                                                     <div
                                                         className="h-full bg-green-500 transition-all duration-100 ease-out"
                                                         style={{ width: `${systemAudioLevel}%` }}
@@ -3469,50 +3476,55 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                 options={outputDevices}
                                                 onChange={(id) => {
                                                     setSelectedOutput(id);
+                                                    setTestSoundError(null);
                                                     localStorage.setItem('preferredOutputDeviceId', id);
                                                 }}
                                                 placeholder={t("Default Speakers")}
                                             />
+                                            {!useExperimentalSck && selectedOutput !== 'default' && defaultOutputId &&
+                                                selectedOutput !== defaultOutputId && (
+                                                    <p className="text-xs text-text-secondary">
+                                                        System default output is {outputDevices.find(device => device.deviceId === defaultOutputId)?.label}.
+                                                        {' '}If your call uses that device, choose Default Speakers here.
+                                                    </p>
+                                                )}
+                                            {testSoundError && <p role="status" className="text-xs text-text-secondary">{testSoundError}</p>}
+
 
                                             <div className="flex justify-end">
                                                 <button
                                                     onClick={async () => {
+                                                        setTestSoundError(null);
+                                                        let ctx: AudioContext | undefined;
                                                         try {
-                                                            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-                                                            if (!AudioContext) {
-                                                                console.error("Web Audio API not supported");
-                                                                return;
+                                                            ctx = new AudioContext();
+                                                            if (selectedOutput && selectedOutput !== 'default' && selectedOutput !== defaultOutputId) {
+                                                                const label = outputDevices.find(device => device.deviceId === selectedOutput)?.label;
+                                                                const sinks = (await navigator.mediaDevices.enumerateDevices())
+                                                                    .filter(device => device.kind === 'audiooutput' && device.deviceId !== 'default' &&
+                                                                        (device.deviceId === selectedOutput || (!!label && device.label === label)));
+                                                                const sinkContext = ctx as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+                                                                if (sinks.length !== 1 || !sinkContext.setSinkId) {
+                                                                    await ctx.close();
+                                                                    setTestSoundError('Test Sound cannot address that device. Play audio from the call app on the selected output instead.');
+                                                                    return;
+                                                                }
+                                                                await sinkContext.setSinkId(sinks[0].deviceId);
                                                             }
-
-                                                            const ctx = new AudioContext();
-
-                                                            if (ctx.state === 'suspended') {
-                                                                await ctx.resume();
-                                                            }
+                                                            if (ctx.state === 'suspended') await ctx.resume();
 
                                                             const oscillator = ctx.createOscillator();
-                                                            const gainNode = ctx.createGain();
-
-                                                            oscillator.connect(gainNode);
-                                                            gainNode.connect(ctx.destination);
-
-                                                            oscillator.type = 'sine';
-                                                            oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
-                                                            gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-                                                            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.0);
-
-                                                            if (selectedOutput && (ctx as any).setSinkId) {
-                                                                try {
-                                                                    await (ctx as any).setSinkId(selectedOutput);
-                                                                } catch (e) {
-                                                                    console.warn("Error setting sink for AudioContext", e);
-                                                                }
-                                                            }
-
+                                                            const gain = ctx.createGain();
+                                                            oscillator.connect(gain).connect(ctx.destination);
+                                                            oscillator.frequency.value = 523.25;
+                                                            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                                                            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+                                                            oscillator.onended = () => { void ctx?.close().catch(() => {}); };
                                                             oscillator.start();
-                                                            oscillator.stop(ctx.currentTime + 1.0);
-                                                        } catch (e) {
-                                                            console.error("Error playing test sound", e);
+                                                            oscillator.stop(ctx.currentTime + 1);
+                                                        } catch {
+                                                            await ctx?.close().catch(() => {});
+                                                            setTestSoundError('Test Sound could not play on the selected output.');
                                                         }
                                                     }}
                                                     className="text-xs bg-bg-input hover:bg-bg-elevated text-text-primary px-3 py-1.5 rounded-md transition-colors flex items-center gap-2"

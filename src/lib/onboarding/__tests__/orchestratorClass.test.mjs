@@ -213,29 +213,15 @@ test('markDismissed keeps the toaster dismissed for the rest of the session even
   );
 });
 
-test('a fresh session (new orchestrator) DOES re-raise permissions after a prior-session dismiss', () => {
-  // Session 1: dismiss it and confirm the guard holds for the rest of the session.
+test('a fresh session honors a persisted dismissal despite the same denied check', () => {
   const first = raisePermissions();
   first.markDismissed('permissions');
   mockNow += 3_000;
   flushOneFrame();
-  assert.notEqual(
-    first.getSnapshot().activeToasterId,
-    'permissions',
-    'permissions stays down for the rest of session 1',
-  );
+  assert.notEqual(first.getSnapshot().activeToasterId, 'permissions');
 
-  // Session 2: a brand-new instance that HYDRATES the prior session's persisted
-  // state (completed permissions from the session-1 dismiss). Its
-  // dismissedThisSession set is empty (never persisted), and macTCCBlocked is
-  // still true — permissions has onceEver:false + reEligibility(macTCCBlocked),
-  // so persisted completion does not suppress it. The toaster must come back.
   const second = raisePermissions({ preservePersistedState: true });
-  assert.equal(
-    second.getSnapshot().activeToasterId,
-    'permissions',
-    'a fresh session must re-raise the permissions toaster (session guard is not persisted)',
-  );
+  assert.notEqual(second.getSnapshot().activeToasterId, 'permissions');
 });
 
 test('dismissing permissions does NOT wedge other toaster stages', () => {

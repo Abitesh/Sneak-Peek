@@ -1,11 +1,12 @@
 const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { verifyMacBundle } = require('./verify-macos-bundle.cjs');
 
 // ─── Packed native-arch guard ───
 // better-sqlite3 + keytar ship a SINGLE compiled binary each (no per-arch
 // loader), so a build on an Apple-Silicon Mac can silently embed arm64 binaries
-// in the x64 (`Natively.dmg`) pack — every Intel Mac then boots into main.ts's
+// in the Intel pack — every Intel Mac then boots into main.ts's
 // nativeArchGate "Architecture mismatch" dialog. scripts/rebuild-native-for-target.cjs
 // (beforeBuild) rebuilds them for the correct target arch; THIS guard verifies
 // the binaries actually inside the packed .app match the target arch and FAILS
@@ -74,6 +75,7 @@ function verifyPackedArchFamilies(appPath, targetArchName) {
 function ebArchToName(arch) {
     if (arch === 1 || arch === 'x64' || arch === 'x86_64') return 'x64';
     if (arch === 3 || arch === 'arm64' || arch === 'aarch64') return 'arm64';
+    if (arch === 4 || arch === 'universal') return 'universal';
     return String(arch);
 }
 
@@ -127,7 +129,7 @@ function verifyPackedNativeArch(appPath, targetArchName) {
         throw new Error(
             `[Arch Guard] FATAL: packed native binaries do not match the ${targetArchName} target:\n` +
             lines.join('\n') +
-            `\n\nThe ${targetArchName === 'x64' ? 'Intel (Natively.dmg)' : 'Apple-Silicon (Natively-arm64.dmg)'} build would crash on launch. ` +
+            `\n\nThe ${targetArchName === 'x64' ? 'Intel' : 'Apple Silicon'} build would crash on launch. ` +
             `Ensure scripts/rebuild-native-for-target.cjs (build.beforeBuild) is wired and ran for this arch.`
         );
     }
@@ -275,14 +277,15 @@ exports.default = async function (context) {
             if (file.endsWith('.node')) {
                 const nodePath = path.join(unpackedNativeDir, file);
                 console.log(`[Ad-Hoc Signing] Re-signing ${file} with entitlements (post --deep)...`);
-                try {
-                    execSync(`codesign --force ${hardenedOpt}--entitlements "${entitlementsPath}" --sign - "${nodePath}"`, { stdio: 'inherit' });
-                } catch (error) {
-                    console.error(`[Ad-Hoc Signing] Failed to sign ${file}:`, error);
-                }
+                execSync(`codesign --force ${hardenedOpt}--entitlements "${entitlementsPath}" --sign - "${nodePath}"`, { stdio: 'inherit' });
             }
         }
     }
+
+    // The outer seal hashes unpacked native modules. Seal it again after the
+    // final nested signatures without --deep, which would rewrite them.
+    execSync(`codesign --force ${hardenedOpt}--entitlements "${entitlementsPath}" --sign - "${appPath}"`, { stdio: 'inherit' });
+    verifyMacBundle(appPath, targetArchName);
 };
 
 // Exported for scripts/__tests__ — electron-builder only ever calls the default

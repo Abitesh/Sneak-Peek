@@ -110,7 +110,7 @@ test('resolveMacScreenCaptureCapability accepts optional bypassCache parameter',
 
   // Should accept an options parameter with optional bypassCache
   assert.ok(
-    /options\?\s*:\s*\{\s*bypassCache\?\s*:\s*boolean\s*\}/.test(signature),
+    /options\?\s*:\s*\{\s*bypassCache\?\s*:\s*boolean\s*;?[^}]*\}/.test(signature),
     'BUG: resolveMacScreenCaptureCapability should accept optional { bypassCache?: boolean } parameter to force fresh check.',
   );
 });

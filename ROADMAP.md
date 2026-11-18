@@ -25,6 +25,12 @@
 | Speech-to-answer performance | Measure physical speech end → finalized transcript → Analyze → first and final visible answer. Record model readiness, retrieval, dispatch, network or inference, render and cancellation stages. Use approved content and scopes. |
 | Other critical reliability | Track toolbar clipping under V2-03, provider recovery under V2-04, and factual, attribution and latency misses under V2-05. Native or platform work that needs external verification remains explicitly open. |
 
+## macOS installer integrity — TASK-0009
+
+Prevent ARM64 startup crashes caused by incomplete disk images (ERR-119). Size the image staging volume for the bundled runtime and models, finish nested signing before sealing the app, and reject an installer if its mounted bundle fails framework, architecture or strict signature verification. Launch the mounted app with a disposable profile before replacing the installed app. Verify the replacement in Applications and preserve the old bundle for rollback.
+
+**ERR-120.** Keep startup permission checks passive. Persist dismissal of the setup guide across launches. Check microphone, screen capture and system audio separately. Verify that an eligible Core Audio fallback can be attempted under the OS System Audio Recording grant when the separate screen check is denied. The Audio settings meter must exercise the selected route. Record any macOS reauthorization required for a new locally signed build.
+
 ## Application icon refresh — TASK-0008
 
 The owner supplied the official icon for macOS, Windows and Linux. Verify the generated multi-resolution assets, runtime paths and actual Apple Silicon application bundle. Windows and Linux installed appearance remain platform checks.
