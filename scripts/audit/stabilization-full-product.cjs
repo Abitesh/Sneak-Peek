@@ -402,7 +402,7 @@ app.whenReady().then(async () => {
     assert.ok(await toolbarClick('Stop listening and get an answer'));
     const answerEvents = () => overlayJs('window.__chg21Events.slice()');
     const answerText = events => events.filter(event => event.kind === 'token').map(event => event.text).join('').trim();
-    const plainAnswer = text => text.replace(/\*\*|__/g, '').replace(/\s+/g, ' ').trim();
+    const plainAnswer = text => text.replace(/^\s*[*+-]\s+/gm, '').replace(/\*\*|__/g, '').replace(/\s+/g, ' ').trim();
     const visibleAnswer = text => overlayJs(`document.body.innerText.replace(/\\s+/g, ' ').includes(${JSON.stringify(plainAnswer(text))})`);
     if (localModel) {
       await waitFor(async () => {

@@ -839,3 +839,19 @@ test('isMidWordCut: the seam rule, case by case', () => {
   assert.equal(isMidWordCut('exactly this', 'exactly this'), false);
   assert.equal(isMidWordCut('', 'anything'), false);
 });
+
+test('rapid successive asks retain one judge and dispatch per turn, and idle makes no calls', async () => {
+  const h = makeSimple(async () => YES());
+  const questions = ['What is a mutex?', 'How does a semaphore differ?', 'Why use a bounded queue?'];
+  for (const question of questions) {
+    h.state.streaming = false;
+    h.interviewer(question);
+    await h.advance(STABILITY_MS + 100);
+    assert.equal(h.texts().at(-1), question);
+  }
+  assert.equal(h.state.judgeCalls.length, 3);
+  assert.equal(h.state.dispatched.length, 3);
+  await h.advance(60_000);
+  assert.equal(h.state.judgeCalls.length, 3, 'idle must not generate another judge request');
+  assert.equal(h.state.dispatched.length, 3, 'idle must not generate another answer');
+});

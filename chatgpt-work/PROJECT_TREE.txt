@@ -2524,6 +2524,7 @@
 │   │   │   ├── ModeSeminarGroundingProfile.test.mjs
 │   │   │   ├── ModesManager.test.mjs
 │   │   │   ├── ModesManagerPageCountForwarding.test.mjs
+│   │   │   ├── ModeSeedingIdleCost.test.mjs
 │   │   │   ├── ModeSourceContract.test.mjs
 │   │   │   ├── ModeSourceContractCreateThenUpdateBug2026_07_11.test.mjs
 │   │   │   ├── ModeSourceContractOverrideGrant2026_07_14.test.mjs

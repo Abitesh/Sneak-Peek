@@ -199,9 +199,15 @@ export class RetrievalCoordinator {
       return { evidence: { items: [], sufficient: false }, trace };
     }
 
-    const items: SneakPeekEvidenceItem[] = [];
-    for (const source of executedSources) {
-      if (input.cancellationSignal?.aborted) break;
+    const reads = await Promise.allSettled(executedSources.map(async (source) => {
+      const items: SneakPeekEvidenceItem[] = [];
+      const trace: RetrievalDecisionTrace = {
+        decisionId, requestId: input.requestId, query,
+        plannedSources: [source], executedSources: [], skippedSources: [],
+        callCount: 0, sourceOutcomes: [],
+      };
+      const finish = () => ({ items, trace });
+      if (input.cancellationSignal?.aborted) return finish();
 
       // Permissions are an execution boundary, not a retrieval suggestion.
       // Keep the planner's required source visible in the trace, but never
@@ -212,22 +218,22 @@ export class RetrievalCoordinator {
       if (!permitted) {
         trace.skippedSources.push(source);
         trace.sourceOutcomes.push({ source, status: 'denied', itemCount: 0 });
-        continue;
+        return finish();
       }
 
       // The provider consumes these validated attachments directly. No text
       // retrieval or filename-derived evidence can substitute for the pixels.
       if (source === 'screen' && (input.answerContext || input.imageAnalysis || input.action?.kind === 'code-hint' || input.action?.kind === 'brainstorm')
-        && (input.screenContext?.imagePaths?.length || input.screenContext?.text?.trim())) continue;
+        && (input.screenContext?.imagePaths?.length || input.screenContext?.text?.trim())) return finish();
 
       // Email drafting consumes its explicit meeting form, not a stored search.
-      if (source === 'meeting_transcript' && input.documentDraft?.kind === 'follow-up-email') continue;
+      if (source === 'meeting_transcript' && input.documentDraft?.kind === 'follow-up-email') return finish();
 
       if (input.repair) {
         const ids = contextPlan.sourceIds?.[source];
         items.push(...input.repair.evidence.items.filter(item => item.source === source
           && (!ids || ids.includes(String(item.metadata?.sourceId ?? '')))));
-        continue;
+        return finish();
       }
       const capability = this.capabilities.get(source);
       if (!capability) {
@@ -235,7 +241,7 @@ export class RetrievalCoordinator {
         // The plan remains authoritative and the absence is observable.
         trace.skippedSources.push(source);
         trace.sourceOutcomes.push({ source, status: 'unavailable', itemCount: 0 });
-        continue;
+        return finish();
       }
 
       trace.callCount += 1;
@@ -251,15 +257,14 @@ export class RetrievalCoordinator {
         });
       } catch (error) {
         trace.sourceOutcomes.push({ source, status: input.cancellationSignal?.aborted ? 'cancelled' : 'failed', itemCount: 0 });
-        this.onDecision?.(trace);
         // Do not silently convert retrieval errors into empty/successful evidence.
-        throw error;
+        return { ...finish(), error };
       }
       // A superseded read can finish after abort. It must never contribute
       // evidence to the current request, even if the backend ignored signal.
       if (input.cancellationSignal?.aborted) {
         trace.sourceOutcomes.push({ source, status: 'cancelled', itemCount: 0 });
-        break;
+        return finish();
       }
       // A capability cannot smuggle another category or source into this plan.
       const ids = contextPlan.sourceIds?.[source];
@@ -277,7 +282,24 @@ export class RetrievalCoordinator {
           ? { fallbackReason: reason } : {}),
       });
       items.push(...result.items);
+      return finish();
+    }));
+    const items: SneakPeekEvidenceItem[] = [];
+    for (const read of reads) {
+      if (read.status === 'rejected') throw read.reason;
+      trace.executedSources.push(...read.value.trace.executedSources);
+      trace.skippedSources.push(...read.value.trace.skippedSources);
+      trace.sourceOutcomes.push(...read.value.trace.sourceOutcomes);
+      trace.callCount += read.value.trace.callCount;
+      items.push(...read.value.items);
     }
+    const failed = reads.find(read => read.status === 'fulfilled' && 'error' in read.value);
+    if (failed?.status === 'fulfilled' && 'error' in failed.value) {
+      this.onDecision?.(trace);
+      throw failed.value.error;
+    }
+    // Even successful siblings of an aborted read belong to the old request.
+    if (input.cancellationSignal?.aborted) items.length = 0;
 
     const evidence = dedupeEvidence(items);
     this.onDecision?.(trace);

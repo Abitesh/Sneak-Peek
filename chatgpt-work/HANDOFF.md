@@ -1,5 +1,11 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0089 / TASK-0012 — V2-05 (2026-11-20)
+
+V2-05 remains **In progress**. Implemented concurrent authorized retrieval, removal of built-in startup LLM compilation, and a correct Markdown-to-DOM visibility check. Final suites passed 9,053 Electron, 2,200 intelligence, 383 library and 103 scripts tests. Skips/TODOs remain explicit in WORK-0089. All five typechecks and both builds passed. The work is unstaged on cad730c9.
+
+Evidence /Users/abitesh/Downloads/sneak-peek-work-0089 and the updated quality evaluation distinguish controlled retrieval savings, frozen engine timing and actual rendered global/Analyze timing. All 26 frozen answers reviewed correct, but real Listen generated imprecise or incomplete answers. Rejected prompt experiments are retained and their code reverted. ERR-110 is the next production quality priority: repeat precise definitions plus requested examples using supported selected bindings, without hardcoded answers. Measure real rapid-fire speech/STT through paint and broader route/resource coverage before acceptance. No physical speech result was received in this run. Windows and hosted-provider verification remain open. No independent Copilot review was available; a read-only prompt is provided.
+
 ## WORK-0088 / TASK-0011 — Release ownership (2026-11-18)
 
 Update configuration and links now target Abitesh/Sneak-Peek. Drive uploads require an explicit folder and no inherited install ping runs at startup. See TASK-0011 and ERR-124. A rebuilt release must be inspected for its generated app-update.yml and tested against an actual authorized release. Legacy speech relay endpoints remain for the current STT provider; plan a replacement before disabling them. Existing storage keys and signing identifiers require compatible migration.

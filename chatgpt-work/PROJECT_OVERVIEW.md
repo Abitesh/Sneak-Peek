@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## V2-05 retrieval and idle setup (2026-11-20)
+
+The canonical RetrievalCoordinator starts independent planned capabilities concurrently and combines them in canonical source order. Each capability retains the request's source permission, exact source identity and cancellation checks. Results are scoped to one request; no shared evidence cache was added. Built-in/default mode seeding uses stored titles and descriptions without LLM compilation. User-created modes retain section compilation. WORK-0089 records measured scope and the remaining live-quality acceptance gaps.
+
 ## Roadmap 2.0 and live audio ownership (2026-11-18)
 
 [Roadmap 2.0](../ROADMAP.md) is authoritative. [Roadmap v1](../ROADMAP-v1.md) holds CHG-01–23 and their unchanged historical evidence. The product continues on the canonical Intelligence Engine.

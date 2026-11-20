@@ -1,5 +1,11 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0012 / WORK-0089 — V2-05 intelligence quality, speed and cost (2026-11-20)
+
+**In progress.** Scoped fixes ERR-125/126/127 are locally verified. Concurrent retrieval reduced controlled p95 103.3 → 62.2 ms. Built-in startup compiler calls are eliminated, retaining explicit custom compilation. All frozen cohorts reviewed 26/26 correct, raw rubric 25/26. Actual prepared global first-visible p95 1229 ms and max final 2564 ms; final synthetic-STT Analyze 255/1610 ms. Final suites: Electron 9053 pass/67 skip, intelligence 2200 pass/9 TODO, library 383 pass/1 skip, scripts 103 pass. Five typechecks and both builds passed. Exact commands, failed experiments and metrics are in WORK-0089 and the quality evaluation.
+
+**Acceptance remaining.** ERR-110 live factual precision/completeness still fails despite the frozen workload passing. Repeated real rapid-fire and physical STT-to-paint, broader selected/authorized provider timing, resource/battery measurements and Windows GUI remain unverified. No prompt trial was accepted as a quality improvement. No token reduction is claimed. Preserve the failed and incomplete answers and thresholds. Task remains open.
+
 ## TASK-0011 / WORK-0088 — Release ownership and branding (2026-11-18)
 
 **Implemented, unverified for published updates.** Release configuration and links target Abitesh/Sneak-Peek. Release uploader requires an explicit Drive folder. Removed obsolete external links and disabled the inherited install ping at startup. Typechecks, renderer/Electron builds, release fixture and script tests passed. A freshly packaged app and actual signed release/update remain unverified. Existing legacy speech relay endpoints and compatibility identifiers need an independent migration to satisfy the owner's broader request without breaking STT or user data.

@@ -434,7 +434,7 @@ return modes;
 public ensureSeeded(): void {
 const modes = DatabaseManager.getInstance().getModes().map(rowToMode);
 if (!modes.some(m => m.templateType === 'general')) {
-this.createMode({ name: 'General', templateType: 'general' });
+this.createMode({ name: 'General', templateType: 'general' }, false);
 }
 }
 public getActiveMode(): Mode | null {
@@ -616,7 +616,7 @@ for (const t of plan.seed) {
 // to abort every remaining one and leave the session with a
 // partial set until the next launch.
 try {
-const created = this.createMode({ name: BUILTIN_MODE_LABELS[t], templateType: t });
+const created = this.createMode({ name: BUILTIN_MODE_LABELS[t], templateType: t }, false);
 db.setModeBuiltin(created.id, true);
 } catch (e) {
 complete = false;
@@ -642,7 +642,7 @@ public static _resetBuiltinLatchForTest(): void {
 ModesManager.builtinsEnsured = false;
 ModesManager.builtinAttempts = 0;
 }
-public createMode(params: { name: string; templateType: ModeTemplateType }): Mode {
+public createMode(params: { name: string; templateType: ModeTemplateType }, compileSections = true): Mode {
 if (!ModesManager.isKnownTemplateType(params.templateType)) {
 throw new Error(`createMode: unknown templateType ${JSON.stringify(params.templateType)}`);
 }
@@ -669,7 +669,8 @@ sortOrder: i,
 });
 // Compile extraction instructions for all seeded sections in parallel (fire-and-forget,
 // bounded concurrency). Never blocks mode creation / UI.
-this.compileAllSectionsAsync(id);
+// Built-in startup seeding uses the existing title/description extraction fallback.
+if (compileSections) this.compileAllSectionsAsync(id);
 return {
 id,
 name: params.name,

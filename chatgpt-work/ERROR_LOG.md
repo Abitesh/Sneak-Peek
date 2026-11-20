@@ -1,5 +1,17 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-127 — First-launch built-in mode seeding invokes background section generation (2026-11-20)
+
+WORK-0089 / TASK-0012. Isolated desktop startup showed 48 failed Gemini attempt-2 messages before user generation. ensureSeeded/ensureBuiltinModes call createMode, which unconditionally fires compileAllSectionsAsync. Built-in title/description fallback already supports summary extraction. Built-in/default seeding now bypasses compilation; explicit custom creation and editing retain it. Fresh DB regression passed. The final isolated startup has zero matching failed attempt messages versus 48 before, and Listen/STOP still pass. Paid-token savings are unmeasured. **Verified locally.**
+
+## ERR-126 — Rendered Listen completion check compares Markdown markers with plain DOM text (2026-11-20)
+
+WORK-0089 / TASK-0012. Real local generation completed but the desktop harness timed out at visibleAnswer because its normalization retained list '*' markers removed by Markdown rendering. Preserve all words and verify list content without presentation markers. The check now removes Markdown list markers while retaining all answer words and completion/paint checks. Final real-model lifecycle passed. The same answer reproduced ERR-110 factual imprecision, which remains separately judged. **Verified locally for the check correction.**
+
+## ERR-125 — Independent authorized retrieval reads serialize before generation (2026-11-20)
+
+WORK-0089 / TASK-0012 / V2-05. RetrievalCoordinator awaits each planned source before starting the next, even though each receives the same immutable request and plan. Measure parallel execution and retain per-source filtering, trace order, cancellation and failure reporting. Matched 25-trial synthetic I/O comparison showed p95 103.3 → 62.2 ms with identical call/item counts. Regression checks cover ordering, denied categories, exact IDs/revisions, late cancellation and failure trace. Existing ERR-102/104/110 remain acceptance dependencies. **Verified locally for concurrency; V2-05 remains open.**
+
 ## ERR-124 — Release and update destinations point to an unrelated project (2026-11-18)
 
 WORK-0088 / TASK-0011. Owner identified old GitHub publisher and a hard-coded Drive destination. Source review confirms updater metadata, release notes, manual update links, release gate and uploader need reconciliation. Configured owner repository throughout the update and release paths, removed the default Drive folder, and added fixture coverage. The installed release retains its existing metadata until rebuilt. A published update and signed release are unverified. **Implemented, unverified for release.**
