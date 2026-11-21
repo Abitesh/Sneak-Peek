@@ -67,7 +67,7 @@ function fixture({ retrieve, transport, stallTimeoutMs } = {}) {
 test('global IPC transport runs one real canonical retrieval and one engine/provider prompt with compatible events', async () => {
   const f = fixture();
   try {
-    assert.deepEqual(await f.run(), { success: true });
+    assert.deepEqual(await f.run(), { success: true, answer: 'Violet leases [meeting-a].' });
     assert.equal(f.reads.length, 1);
     assert.equal(f.reads[0].sourceType, 'meeting');
     assert.equal(f.reads[0].sourceId, undefined);
@@ -248,7 +248,7 @@ function evaluateProductionIpcEngine(overrides = {}) {
   assert.ok(start >= 0, 'canonical engine factory must be in CanonicalRuntime.ts');
   const code = runtime.slice(start).replace('export function createPrimaryManualSneakPeekEngine(', 'function createPrimaryManualSneakPeekEngine(');
   const context = {
-    console: { log() {}, warn() {} },
+    console: { log() {}, warn() {} }, AbortController, AbortSignal,
     SneakPeekIntelligenceEngine, RetrievalCoordinator, createRetrievalCapability, createCanonicalRagRetrievalCapability,
     conversationActionDataScopes, createHash, readProviderScopePolicy: () => undefined,
     streamCanonicalProvider: (helper, input) => new GenerationController(helper).stream(input).stream,
@@ -295,7 +295,7 @@ test('meeting IPC engine uses only the saved meeting when its scoped index has n
     engine, request, meta: { meetingId: 'meeting-a' }, isCurrent: () => true,
     send: (channel, payload) => events.push({ channel, payload }), settle() {},
   });
-  assert.deepEqual(result, { success: true });
+  assert.deepEqual(result, { success: true, answer: 'Violet leases.' });
   assert.deepEqual(indexedIds, ['meeting-a']);
   assert.deepEqual(savedIds, ['meeting-a']);
   assert.equal(prompts.length, 1);

@@ -22,14 +22,21 @@ export function captureAnswerContext(helper: any, mode: any, question: string, i
     }
   } catch { /* unavailable source inventories grant no IDs */ }
   try {
-    personalSourceIds = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles()
+    const projectManager = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
+    sourceVersions.__projectCatalog = projectManager.catalogVersion();
+    personalSourceIds = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles().filter((file: {id:string}) => projectManager.isSourceAvailable(file.id))
       .map((file: { id: string; updatedAt: string }) => { sourceVersions[String(file.id)] = file.updatedAt; return String(file.id); });
   } catch { /* unavailable */ }
   const profile = buildActiveProfileContext(helper.getKnowledgeOrchestrator?.());
   const profileDocuments: NonNullable<CanonicalAnswerContext['profileDocuments']>[number][] = [];
   for (const [sourceType, doc] of [['RESUME', profile.activeResume], ['JOB_DESCRIPTION', profile.activeJD]] as const) {
     if (doc) profileDocuments.push({ sourceId: String(doc.sourceId), revisionId: doc.documentHash,
-      sourceType, content: JSON.stringify(doc.structured) });
+      sourceType, content: JSON.stringify(sourceType === 'RESUME' ? (() => {
+        const structured = { ...doc.structured } as any;
+        const projectManager = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
+        if (Array.isArray(structured.projects)) structured.projects = structured.projects.filter((project:any) => projectManager.isProjectNameAvailable(String(project.name ?? project.title ?? '')));
+        return structured;
+      })() : doc.structured) });
   }
   return {
     modeInstructions, mode: mode ? { templateType: mode.templateType } : null, sourceVersions,
@@ -57,7 +64,17 @@ export function buildAnswerRequest(input: {
   let files: any[] = [];
   try { files = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles()
     .filter((file: any) => snapshot.personalSourceIds.includes(String(file.id))); } catch { /* fail closed */ }
-  const project = resolveProjectFileScopeForTurn(question, files, (input.history ?? []).map(turn => ({
+  // All entry surfaces use stable project identity/aliases, not the generic
+  // filename of a managed supporting document. Intersect with the frozen
+  // authorized inventory before resolution; an unavailable catalogue fails closed.
+  let descriptors = files;
+  try {
+    const projects = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
+    const linked = projects.linkedSourceIds();
+    descriptors = [...files.filter(file => !linked.has(file.id)),
+      ...projects.descriptors().filter((descriptor: {id:string}) => files.some(file => file.id === descriptor.id))];
+  } catch { descriptors = []; }
+  const project = resolveProjectFileScopeForTurn(question, descriptors, (input.history ?? []).map(turn => ({
     id: turn.id, text: turn.content, role: turn.role, speaker: turn.role,
     timestamp: turn.createdAt ?? 0, source: 'manual' as const, finalized: true, generationStatus: 'completed' as const,
   })), id);

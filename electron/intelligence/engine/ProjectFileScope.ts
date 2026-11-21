@@ -12,6 +12,7 @@ export interface ProjectFileDescriptor {
   fileName?: string;
   fileType?: string;
   projectName?: string;
+  projectId?: string;
 }
 
 export interface ProjectFileScope {
@@ -39,6 +40,7 @@ const NON_PROJECT_NAMES = new Set([
   'code', 'design', 'implementation', 'architecture', 'repository',
   'python', 'javascript', 'typescript', 'java', 'redis', 'sql', 'postgresql',
   'data', 'file', 'document', 'resume', 'api', 'database',
+  'alternatives', 'alternative', 'others', 'other', 'options', 'option', 'frameworks',
   'yourself', 'myself', 'me', 'us', 'you', 'we', 'they', 'he', 'she', 'it',
 ]);
 const DOCUMENT_SUFFIXES = new Set([
@@ -108,10 +110,12 @@ export function resolveProjectFileScope(question: string, allFiles: readonly Pro
   const name = projectNameFromQuestion(question);
   if (!name) return { projectAvailable: projects.length > 0, missingNamedProject: false };
   const target = words(name);
-  const selectedFileIds = projects.filter((file) => {
+  const stableProjects = new Set(projects.filter(file => words(file.projectName ?? '').join(' ') === target.join(' ')).map(file=>file.projectId).filter(Boolean));
+  if (stableProjects.size > 1) return { namedProject:name,projectAvailable:false,selectedFileIds:[],missingNamedProject:true,unresolvedReference:true };
+  const selectedFileIds = [...new Set(projects.filter((file) => {
     const identity = normalizedProjectIdentity(file);
     return identity.length === target.length && identity.every((token, i) => token === target[i]);
-  }).map((file) => String(file.id));
+  }).map((file) => String(file.id)))];
   return {
     namedProject: name,
     projectAvailable: selectedFileIds.length > 0,
@@ -130,6 +134,7 @@ export interface ProjectScopeConversationTurn {
   generationStatus?: string;
   source?: string;
   requestSequence?: number;
+  metadata?: Readonly<Record<string, unknown>>;
 }
 
 function referencesOnePreviousProject(question: string): boolean {
@@ -153,8 +158,9 @@ export function resolveProjectFileScopeForTurn(
   activeProfileProjectNames: readonly string[] = [],
 ): ProjectFileScope {
   const direct = resolveProjectFileScope(question, allFiles);
-  if (direct.namedProject && !direct.missingNamedProject) return direct;
+  if (direct.unresolvedReference || direct.namedProject && !direct.missingNamedProject) return direct;
   const contextual = referencesOnePreviousProject(question)
+    || /^(?:explain (?:the flow|it|that|them)|how (?:does|did) (?:it|that)|why did you choose it|what about (?:the )?database|what alternatives|what was your contribution|how did you implement that)[?.!\s]*$/i.test(question.trim())
     || /\b(?:why\s+(?:did|do)\s+(?:you|we)\s+(?:use|choose|pick)|elaborate|explain\s+(?:it|that)|no[,.]?\s+(?:i|we)\s+(?:meant|asked))\b/i.test(question);
   if (!contextual) return direct;
 
@@ -221,6 +227,12 @@ export function resolveProjectFileScopeForTurn(
       || priorUser.source !== user.source || priorAnswer.source !== user.source
       || priorUser.finalized === false || priorAnswer.finalized === false
       || priorUser.requestSequence !== priorAnswer.requestSequence) return unresolved;
+    // Main-process completed turns carry only the resolved name, never facts or
+    // an authorization grant. Refresh it from the current catalogue each time,
+    // so compacted context can retain identity without reviving a revoked source.
+    const focus = typeof priorUser.metadata?.projectFocusName === 'string'
+      ? words(priorUser.metadata.projectFocusName).join(' ') : undefined;
+    if (focus && identities.includes(focus)) return resolveIdentity(focus);
     const previous = resolveProjectFileScope(priorUser.text, allFiles);
     if (previous.namedProject && !previous.missingNamedProject) return previous;
     if (previous.namedProject && profileNames.includes(previous.namedProject)) return resolveIdentity(previous.namedProject);

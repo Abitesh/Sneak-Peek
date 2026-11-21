@@ -63,6 +63,6 @@ test('Canonical entry enforces skill, image, source and sender guards', () => {
   assert.match(primary, /canonicalSnapshot\.callerInstruction = options\?\.skipSystemPrompt/);
   assert.match(primary, /resolveAppImagePaths\(imagePaths\)/);
   assert.match(primary, /contextPermissions:\s*\{/);
-  assert.match(primary, /profile: profileAvailable && !projectScope\.unresolvedReference/);
+  assert.match(primary, /profile: requestedProjectIds === undefined && profileAvailable && !projectScope\.unresolvedReference/);
   assert.match(primary, /_chatStreamsBySender\.get\(senderId\)\?\.streamId !== myStreamId/);
 });

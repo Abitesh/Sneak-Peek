@@ -12,5 +12,7 @@ export function deterministicChatResponse(request: SneakPeekIntelligenceRequest)
   const pinned = language?.match(/You MUST write every single word of your response in ([^.\n]+)\./i)?.[1];
   if (pinned ? pinned !== 'English' : language && !/Answer in the language of the current question/i.test(language)) return undefined;
   if (request.answerContext?.callerInstruction || request.answerContext?.skill) return undefined;
-  return 'Hi! How can I help?';
+  return /interview/i.test(String(request.answerContext?.mode?.templateType ?? ''))
+    ? 'Hello! It’s nice to meet you. Thank you for taking the time to speak with me.'
+    : 'Hi! How can I help?';
 }

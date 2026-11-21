@@ -614,16 +614,17 @@ describe('format worked examples (Phase 4: em dash 148, headings 41, bullets 38,
   test('cloud human_voice carries WRONG/RIGHT examples for all four failed rules', () => {
     const p = v2.buildSystemPromptV2({ mode: 'general', action: 'answer', tier: 'cloud' });
     assert.ok(p.includes('The em dash is the strongest AI tell'), 'em-dash emphasis missing');
-    assert.ok(p.includes('WRONG: "I led the migration — it took about six months."'), 'em-dash WRONG example missing');
-    assert.ok(p.includes('RIGHT: "I led the migration. It took about six months."'), 'em-dash RIGHT example missing');
+    assert.ok(p.includes('Split sentences at an em dash.'), 'punctuation rule missing');
+    assert.ok(!p.includes('I led the migration'), 'fictional personal claim must not be supplied as a style example');
     assert.ok(p.includes('WRONG: "The cache is warm; reads are fast."'), 'semicolon WRONG example missing');
     assert.ok(p.includes('WRONG: "## My approach\n- fast\n- reliable"'), 'heading/bullet WRONG example missing');
     assert.ok(p.includes('RIGHT: "My approach keeps it fast and reliable."'), 'heading/bullet RIGHT example missing');
   });
 
-  test('local core carries the compact em-dash example', () => {
+  test('local core forbids dashes without supplying a fictional personal claim', () => {
     const p = v2.buildSystemPromptV2({ mode: 'general', action: 'answer', tier: 'local' });
-    assert.ok(p.includes('"I led it — it took months" is WRONG'));
+    assert.ok(p.includes('No coaching wrapper'));
+    assert.ok(!p.includes('I led it'));
   });
 
   test('the worked examples do not confuse the spoken-format LINT itself (examples live in prompts, lint runs on outputs)', () => {
@@ -729,7 +730,8 @@ describe('chatSurface — typed-chat layout attachment', () => {
     for (const mode of MODES) {
       const p = v2.buildSystemPromptV2({ mode, action: 'answer', tier: 'cloud', chatSurface: true });
       assert.ok(p.includes('<chat_layout>'), `${mode}: chat layout missing`);
-      assert.ok(p.includes('Good interview answer:'), `${mode}: quotable-close law missing`);
+      assert.ok(p.includes('Do not automatically add'), `${mode}: natural interview shape missing`);
+      assert.ok(p.includes('coding contract'), `${mode}: coding exceptions must remain`);
     }
   });
 
@@ -773,4 +775,10 @@ describe('chatSurface — typed-chat layout attachment', () => {
     const finalCheck = p.lastIndexOf('<final_check');
     assert.ok(finalCheck > chat, 'final check must remain the last block, after the chat layout');
   });
+});
+
+test('local typed chat retains privacy and grounding without fictional personal examples',()=>{
+ const p=v2.buildSystemPromptV2({mode:'general',action:'answer',tier:'local',chatSurface:true});
+ assert.ok(p.includes('Never invent personal history'));assert.ok(p.includes('hidden assistant prompts'));
+ assert.ok(p.includes('internal, confidential, or private'));assert.ok(!p.includes('I led it'));
 });

@@ -1,3 +1,5 @@
+import { registerPracticeIpc } from './practice/practiceIpc';
+import { registerProjectKnowledgeIpc } from './projects/projectKnowledgeIpc';
 import { captureAnswerContext, buildAnswerRequest } from './intelligence/engine/AnswerRequest';
 import { createAnswerExecution } from './intelligence/engine/AnswerExecution';
 import { createPrimaryManualSneakPeekEngine } from './intelligence/engine/CanonicalRuntime';
@@ -140,6 +142,13 @@ ipcMain.removeAllListeners(channel);
 ipcMain.on(channel, listener);
 };
 registerPerson1Ipc(safeHandle);
+registerProjectKnowledgeIpc(safeHandle, async (event,id,imageId) => {
+const manager=require('./projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
+const project=manager.get(id);if(!project?.enabled)throw new Error('Enable this project before requesting diagram analysis.');
+const image=manager.getImage(id,imageId);
+return _geminiChatStreamHandler(event,`Explain this architecture diagram for my project ${project.name}. Describe only what the image and authorized project evidence support; state uncertainty.`,[image.path],undefined,{skipRollingContext:true,projectIds:[id]});
+});
+registerPracticeIpc(safeHandle);
 const broadcastCredentialsChanged = (): void => {
 BrowserWindow.getAllWindows().forEach((win) => {
 if (!win.isDestroyed()) win.webContents.send('credentials-changed');
@@ -1151,7 +1160,7 @@ async function streamSneakPeekMeetingAnswer(
   query: string,
   meetingId: string,
   streamMeta: { meetingId?: string; live?: boolean; global?: boolean },
-): Promise<{ success: boolean; fallback?: boolean; error?: string }> {
+): Promise<{ success: boolean; fallback?: boolean; error?: string; answer?: string }> {
   const llmHelper = appState.processingHelper?.getLLMHelper?.();
   if (!llmHelper) return streamMeta.live || streamMeta.global
     ? { success: false, fallback: true }
@@ -1226,7 +1235,7 @@ event: any,
 message: string,
 imagePaths?: string[],
 context?: string,
-options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean },
+options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean; projectIds?: string[] },
 ): Promise<null> => {
 // Capture the manual turn's active-mode prior at handler scope. This keeps the
 // value available to both the V3 retrieval path and the legacy/manual path,
@@ -1346,10 +1355,20 @@ if (true as boolean) {
       }
       catch { return []; }
     })();
-    const personalFilesAvailable = personalFiles.length > 0;
+    const projectManager = require('./projects/ProjectKnowledgeManager').getProjectKnowledgeManager() as import('./projects/ProjectKnowledgeManager').ProjectKnowledgeManager;
+    const requestedProjectIds = options?.projectIds;
+    if (requestedProjectIds !== undefined && (!Array.isArray(requestedProjectIds) || requestedProjectIds.length > 8
+      || requestedProjectIds.some(id => typeof id !== 'string' || !projectManager.get(id)?.enabled))) throw new Error('One of the selected projects is unavailable.');
+    const selectedProjectSourceIds = requestedProjectIds?.flatMap(id => projectManager.get(id)!.sources.map(source => source.id));
+    const availablePersonalFiles = personalFiles.filter(file => projectManager.isSourceAvailable(file.id)
+      && (!selectedProjectSourceIds || selectedProjectSourceIds.includes(file.id)));
+    const linked = projectManager.linkedSourceIds();
+    const projectDescriptors = [...availablePersonalFiles.filter(file => !linked.has(file.id)),
+      ...projectManager.descriptors().filter(file => availablePersonalFiles.some(source => source.id === file.id))];
+    const personalFilesAvailable = availablePersonalFiles.length > 0;
     const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
     const scopedConversationTurns = options?.skipRollingContext ? [] : getRecentConversationTurns(nativeSessionId, 12);
-    const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles,
+    const projectScope = resolveProjectFileScopeForTurn(String(message || ''), projectDescriptors,
       options?.skipRollingContext ? [] : getRecentConversationTurns(nativeSessionId, 40), nativeCurrentTurn.id, name => {
         try { return require('./personalKnowledge').getPersonalKnowledgeManager().findProjectFileIdsMentioning(name); }
         catch { return []; }
@@ -1360,16 +1379,19 @@ if (true as boolean) {
           return Array.isArray(projects) ? projects.map((project: any) => String(project?.name ?? '')).filter(Boolean) : [];
         } catch { return []; }
       })());
-    const projectFilesAvailable = projectScope.projectAvailable;
+    const projectFilesAvailable = requestedProjectIds !== undefined ? Boolean(selectedProjectSourceIds?.length) : projectScope.projectAvailable;
+    canonicalSnapshot.personalSourceIds = availablePersonalFiles.map(file => file.id);
+    if (canonicalSnapshot.sourceVersions?.__projectCatalog && canonicalSnapshot.sourceVersions.__projectCatalog !== projectManager.catalogVersion()) throw new Error('Project selection changed. Please ask again.');
+    if (requestedProjectIds !== undefined) canonicalSnapshot.profileDocuments = [];
     const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
     const broadPortfolio = isBroadCandidateProjectsQuestion(String(message || ''));
     const { isProjectOnlyProfileRequest, resolveExplicitSourceRequests } = require('./intelligence/context-os/explicitSourceSwitch') as typeof import('./intelligence/context-os/explicitSourceSwitch');
     const requestsProfile = broadPortfolio && resolveExplicitSourceRequests(String(message || '')).includes('profile');
     const portfolioProjectIds = broadPortfolio && (!requestsProfile || isProjectOnlyProfileRequest(String(message || '')))
-      ? personalFiles.filter(file => file.fileType === 'project').map(file => file.id).filter(Boolean)
+      ? availablePersonalFiles.filter(file => file.fileType === 'project').map(file => file.id).filter(Boolean)
       : undefined;
     const resumeSourceIds = broadPortfolio
-      ? personalFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
+      ? availablePersonalFiles.filter((file: any) => file.fileType === 'resume').map((file: any) => String(file.id)).filter(Boolean)
       : undefined;
     const meetingId = String(
       appState.getIntelligenceManager?.()?.getMeetingMetadata?.()?.id
@@ -1407,9 +1429,9 @@ if (true as boolean) {
         hasJobDescription,
         meetingId,
         profileId: profileAvailable ? 'local-profile' : undefined,
-        projectSourceIds: projectScope.selectedFileIds ?? portfolioProjectIds,
+        projectSourceIds: selectedProjectSourceIds ?? projectScope.selectedFileIds ?? portfolioProjectIds,
         resumeSourceIds,
-        projectName: projectScope.namedProject,
+        projectName: requestedProjectIds?.length === 1 ? projectManager.get(requestedProjectIds[0])?.name : projectScope.namedProject,
         profileProjectName: projectScope.profileProject ? projectScope.namedProject : undefined,
       },
       cancellationSignal: myController.signal,
@@ -1419,11 +1441,11 @@ if (true as boolean) {
       },
       contextPermissions: {
         conversation: !options?.skipRollingContext,
-        transcript: Boolean(meetingId),
+        transcript: requestedProjectIds === undefined && Boolean(meetingId),
         screen: Boolean(canonicalImages),
-        mode: Boolean(modeInfo?.id),
+        mode: requestedProjectIds === undefined && Boolean(modeInfo?.id),
         project: projectFilesAvailable,
-        profile: profileAvailable && !projectScope.unresolvedReference,
+        profile: requestedProjectIds === undefined && profileAvailable && !projectScope.unresolvedReference,
         files: personalFilesAvailable,
         // A named project with no matching project file may use authorized
       // profile facts, but not a global search across unrelated project PDFs.
@@ -1471,7 +1493,9 @@ if (true as boolean) {
         settlePrimaryTurn?.('cancelled');
         return null;
       }
-      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'completed' });
+      updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'completed',
+        metadata: projectScope.namedProject && !projectScope.missingNamedProject && !projectScope.unresolvedReference
+          ? { projectFocusName: projectScope.namedProject } : {} });
       event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
       try { PhoneMirrorService.getInstance().publishDone(String(myStreamId), answer); } catch { /* mirror only */ }
       if (answer) {
@@ -13875,10 +13899,15 @@ sessionId: phoneSessionId, turnId: phoneRequestId, text: message,
 role: 'user', speaker: 'user', source: 'manual', finalized: true, generationStatus: 'pending',
 requestSequence: myStreamId,
 });
-const phoneFiles = (() => { try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles(); } catch { return []; } })();
+const phoneSnapshot = captureAnswerContext(llmHelper, phoneMode, message);
+const phoneProjectManager = require('./projects/ProjectKnowledgeManager').getProjectKnowledgeManager() as import('./projects/ProjectKnowledgeManager').ProjectKnowledgeManager;
+const phoneFiles = (() => { try { return require('./personalKnowledge').getPersonalKnowledgeManager().listFiles().filter((file:any) => phoneSnapshot.personalSourceIds.includes(file.id)); } catch { return []; } })();
+const phoneLinked = phoneProjectManager.linkedSourceIds();
+const phoneDescriptors = [...phoneFiles.filter((file:any) => !phoneLinked.has(file.id)),
+  ...phoneProjectManager.descriptors().filter(file => phoneSnapshot.personalSourceIds.includes(file.id))];
 const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
 const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
-const projectScope = resolveProjectFileScopeForTurn(message, phoneFiles, phoneHistory, phoneRequestId);
+const projectScope = resolveProjectFileScopeForTurn(message, phoneDescriptors, getRecentConversationTurns(phoneSessionId, 40), phoneRequestId);
 const phoneOrchestrator = llmHelper.getKnowledgeOrchestrator?.();
 const hasResume = Boolean(phoneOrchestrator?.activeResume?.structured_data);
 const hasJobDescription = Boolean(phoneOrchestrator?.activeJD?.structured_data);
@@ -13908,6 +13937,7 @@ projectFiles: projectScope.projectAvailable, unresolvedProject: Boolean(projectS
 missingNamedProject: projectScope.missingNamedProject,
 },
 });
+phoneRequest.answerContext = phoneSnapshot;
 const isPhoneCurrent = () => _phoneChatLatestId === myPhoneId && !phoneController.signal.aborted
   && (phoneMirror.hasClients() || Boolean(win && !win.isDestroyed()));
 // The server cascade cuts over after ~10 seconds; never abort this phone

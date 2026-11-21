@@ -116,3 +116,25 @@ test('capability question does not request code or trigger code-shape repair, wh
 test('a pinned non-English instruction mentioning English never takes the greeting fast path',()=>{
  assert.equal(deterministicChatResponse({...baseRequest('Hi'),answerContext:{languageInstruction:'You MUST write every single word of your response in Spanish. Do NOT use English anywhere.'}}),undefined);
 });
+
+test('an exact authorized project-name explanation retrieves its project but an unrelated concept does not',()=>{
+ for(const question of ['Explain Orchid Dispatch.','What is a mutex?']){
+ const request={...baseRequest(question),activeContext:{projectName:'Orchid Dispatch',projectSourceIds:['orchid']},contextPermissions:{...baseRequest(question).contextPermissions,project:true}};
+ const plan=planContext({request,understanding:understandTurn({manualQuestion:question})});
+ assert.equal(plan.requiredSources.includes('project_knowledge'),question.startsWith('Explain'));
+ }
+});
+
+test('compacted followup identity is revalidated from completed-turn metadata, never retained as source authority',()=>{
+ const history=pair('Explain the flow.','The API validates input and runs the documented query.');history[0].metadata={projectFocusName:'Geospatial Dispatch'};
+ assert.deepEqual(scope('What alternatives?',history).selectedFileIds,['geo']);
+ assert.deepEqual(scope('What alternatives?',history,[]).selectedFileIds,[]);
+ assert.equal(scope('What is a mutex?',history).selectedFileIds,undefined);
+ history[1].generationStatus='cancelled';assert.deepEqual(scope('What alternatives?',history).selectedFileIds,[]);
+});
+
+test('a comparison with alternatives is a project followup, not a project named alternatives',()=>{
+ const history=pair('Tell me about Geospatial Dispatch.','The backend uses Spring Boot.');
+ assert.deepEqual(scope('Why did you use Spring Boot instead of alternatives?',history).selectedFileIds,['geo']);
+ assert.deepEqual(scope('Why not other frameworks?',history).selectedFileIds,undefined);
+});

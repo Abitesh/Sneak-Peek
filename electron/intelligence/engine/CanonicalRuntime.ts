@@ -363,11 +363,12 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
             .filter(provider => provider === route.preferredProvider);
           route.maxAttempts = 1;
         }
+        const sourceController = new AbortController();
         const stream = streamCanonicalProvider(llmHelper, {
           requestId: request.requestId,
           finalPrompt: prompt.finalPrompt,
           route,
-          abortSignal: request.cancellationSignal,
+          abortSignal: request.cancellationSignal ? AbortSignal.any([request.cancellationSignal, sourceController.signal]) : sourceController.signal,
           cloudFirstTokenTimeoutMs: request.surface === 'manual-chat' && !imagePaths?.length
             ? LIVE_PROVIDER_FIRST_USEFUL_HARD_TIMEOUT_MS : undefined,
           imagePaths,
@@ -379,7 +380,19 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
           preferredProvider: route.preferredProvider,
           maxAttempts: route.maxAttempts,
         });
-        return stream;
+        const versions = request.answerContext?.sourceVersions;
+        if (!versions) return stream;
+        const manager = require('../../personalKnowledge').getPersonalKnowledgeManager();
+        const projects = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
+        const personalIds = [...new Set(['project_knowledge','my_files','personal_knowledge'].flatMap(source => contextPlan.sourceIds?.[source as ContextSource] ?? []))];
+        const verify = () => {
+          if (versions.__projectCatalog && projects.catalogVersion() !== versions.__projectCatalog) throw new Error('Project selection changed. Ask again using the current projects.');
+          for (const id of personalIds) {
+            const file = manager.getFile(id);
+            if (!file || file.updatedAt !== versions[id] || !projects.isSourceAvailable(id)) throw new Error('Project or document source changed. Ask again.');
+          }
+        };
+        return require('./SourceStreamGuard').guardSourceStream(stream, verify, { signal: request.cancellationSignal, abort: () => sourceController.abort('source-changed') });
       },
     },
   });

@@ -79,7 +79,11 @@ describe('Problem 46: re-index retries on the same embedder-ready lifecycle as m
       /getPersonalKnowledgeManager/,
       'the shared retry entrypoint (boot, Ollama pull, key save) must also retry personal-file extraction repair',
     );
-    assert.match(body, /repairUnreadableIndexes/);
+    assert.match(body, /repairIndexesInBackground/);
+    const repairStart = PERSONAL_KNOWLEDGE_MANAGER.indexOf('async repairIndexesInBackground()');
+    assert.ok(repairStart >= 0);
+    assert.match(PERSONAL_KNOWLEDGE_MANAGER.slice(repairStart, repairStart + 750), /await this\.repairUnreadableIndexes\(\)/,
+      'the background retry owner must actually await unreadable-file repair');
   });
 
   test('repairUnreadableIndexes is public so main.ts can call it', () => {

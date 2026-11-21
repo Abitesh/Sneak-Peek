@@ -1,5 +1,17 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0091 — Verification checkpoint and owner-requested stop (2026-11-21)
+
+TASK-0012 / V2-05 remains **In progress**. TASK-0013 Projects and TASK-0014 text practice/review are **Implemented, unverified** at milestone level. No latency threshold has changed. Focused 48/48 and project/practice 29/29 passed at the recorded checkpoint. Actual disposable macOS UI passes Projects save, revised-source answers, offline drafts, optional canonical feedback, feedback STOP and a second-process relaunch. Model transports in this UI check are explicit fixtures, not live-provider quality evidence. ERR-136–139 cover failed indexing retry, an actual void-write ownership defect, exact project planning and advertised source-file extraction. Further improvements stopped at owner request on 2026-11-21; final wrap evidence is recorded in HANDOFF.md. Evidence: `/Users/abitesh/Downloads/sneak-peek-work-0091`; final counts supersede these checkpoints below when available.
+
+**Wrap evidence:** final focused 138 pass / 0 fail; final library 388 pass / 1 skip; Electron build/typecheck pass. Broad earlier checkpoints 9,056 Electron pass/67 skips, 2,215 intelligence pass/9 TODO and 103 scripts pass. Later prompt experiments were rejected and removed; final full regression and model acceptance remain unverified. Public GitHub 403, authenticated private import, physical speech, hosted/provider and Windows GUI checks stay open. No automatic further work is scheduled.
+
+## TASK-0013 / WORK-0091 — Dedicated Project Knowledge Manager
+**Implemented, unverified.** Approved 2026-11-21. Reuse canonical personal-file sources/revisions for evidence, add project identity/selection metadata and Profile Projects UI, safe bounded public GitHub import, file attachment, reindex, immediate revocation and tests. No second answer engine. Acceptance includes decoy import, source provenance, edited/deleted/disabled projects and real desktop grounding.
+
+## TASK-0014 / WORK-0091 — V2-06 text-first Practice and Session Review
+**Implemented, unverified.** Approved 2026-11-21. Offline deterministic questions, persisted drafts/review, selected project scope and optional canonical AI feedback. No microphone capture or paid idle calls. Verify existing source/session contracts and preserve V2-05 open acceptance.
+
 ## TASK-0012 / WORK-0089 and WORK-0090 — V2-05 intelligence quality, speed and cost (2026-11-20)
 
 **WORK-0090 in progress.** Owner's eight-question real-use sequence exposes ERR-128 project referents, ERR-129 saved-meeting search and ERR-130 summary recovery. Exact-ID conversation focus, saved transcript lexical fallback, request-bound model snapshots, shared model selection and explicit summary recovery are being implemented. Initial protected project regressions 27/27 pass. Full regression, real renderer/provider measurements and factual review remain required; no acceptance threshold changed.

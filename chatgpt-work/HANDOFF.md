@@ -1,5 +1,21 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0091 — Owner-requested wrap-up (2026-11-21)
+
+The owner stopped further improvement work because of limited credits. **Do not reopen the broad investigation or run live evaluations automatically.** Continue from the current local changes only when requested. HEAD remains main `2a0c784d`. The index contains externally staged work; this agent did not stage, commit, reset, stash or push.
+
+Implemented Projects under Profile, stable canonical personal-source integration, public GitHub importer, file/diagram management, edit/reindex/selection/deletion guards, source-file extraction correction, readable My Files text, offline Practice & Review, persisted drafts and optional canonical feedback. WORK-0090 meeting/global answer recovery/model controls and explicit missing-summary recovery remain. A fast-completion blank-answer race was corrected by returning the canonical final answer in the invoke result. No native capture, packaging, credentials, owner documents or installed app were changed in this assignment.
+
+**Acceptance remains open.** TASK-0012 / V2-05 In progress; TASK-0013 Projects and TASK-0014 / V2-06 Implemented, unverified. Public live GitHub import returned 403; private authenticated import is not implemented. Physical speech, Windows GUI, hosted generation and a new packaged-app check were not executed. Real local eight-question checkpoints still contain factual/completeness failures and >6 s responses. Do not call these milestones Verified.
+
+**Verification:** broad checkpoints: 9,056 Electron pass / 67 skipped; 2,215 intelligence pass / 9 TODO; 388 library pass / 1 skip; 103 scripts pass. Desktop two-launch lifecycle and full-product fixtures passed, as did two-launch Projects/Practice/feedback/STOP persistence. These fixtures use controlled generation/embedding transports. Final retained-tree wrap check: Electron build and Electron typecheck passed; focused 138/138 and library 388/388 (1 skip) passed. No full broad rerun after the last narrowly scoped phone/source changes and prompt experiment removal, per owner stop. See CHANGE_LOG and ERROR_LOG, especially ERR-128–143.
+
+**Rejected experiments:** retained logs show speculative compact prompt, provenance compaction, task reordering and a new typed local core did not establish better real answer quality. Those experimental blocks were removed. Retained: bounded conversation/source fixes, natural chat guidance, the explicit punctuation rule replacing a fictional personal example, privacy protections and the exact-project parser repair. No timing thresholds were waived.
+
+Evidence: `/Users/abitesh/Downloads/sneak-peek-work-0091`; preceding WORK-0090 evidence remains separate. Next requested action: inspect this handoff and the saved eight-question outputs, then run a final affected regression/quality acceptance on the retained tree before any further optimization. Do not repeat historical setup repairs or claim prior measurements describe the final retained prompt.
+
+## Historical handoff snapshots
+
 ## WORK-0089 / TASK-0012 — V2-05 (2026-11-20)
 
 V2-05 remains **In progress**. Implemented concurrent authorized retrieval, removal of built-in startup LLM compilation, and a correct Markdown-to-DOM visibility check. Final suites passed 9,053 Electron, 2,200 intelligence, 383 library and 103 scripts tests. Skips/TODOs remain explicit in WORK-0089. All five typechecks and both builds passed. The work is unstaged on cad730c9.

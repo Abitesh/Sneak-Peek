@@ -46,6 +46,23 @@ interface ElectronAPI {
 updateContentDimensions: (dimensions: { width: number; height: number }) => Promise<void>;
 updateContentDimensionsCentered: (dimensions: { width: number; height: number }) => Promise<void>;
 personalFilesPickAndIngest: () => Promise<{ success?: boolean; cancelled?: boolean; file?: any; error?: string }>;
+practiceList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+practiceCreate: (category:string,projectIds:string[]) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceAnswer: (id:string,questionId:string,answer:string,feedback?:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceReview: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceDelete: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceMeetings: () => Promise<{success:boolean;value?:any[];error?:string}>;
+practiceMeetingReview: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsPickImage: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsImagePreview: (id:string,imageId:string) => Promise<{success:boolean;value?:string;error?:string}>;
+projectsAnalyzeImage: (id:string,imageId:string) => Promise<{success:boolean;error?:string}>;
+projectsList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+projectsSave: (input:any) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsImportGitHub: (url:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsSetEnabled: (id:string,enabled:boolean) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsDelete: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsReindex: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsPickFile: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
 personalFilesList: () => Promise<{ success: boolean; files?: any[]; error?: string }>;
 personalFilesDelete: (fileId: string) => Promise<{ success: boolean; error?: string }>;
 personalFilesSearch: (query: string) => Promise<{ success: boolean; results?: any[]; error?: string }>;
@@ -684,7 +701,7 @@ streamGeminiChat: (
 message: string,
 imagePaths?: string[],
 context?: string,
-options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean },
+options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean; projectIds?: string[] },
 ) => Promise<void>;
 onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => () => void;
 onGeminiStreamDone: (callback: (data?: { finalText?: string; streamId?: number; citationMarkers?: Record<string, RagCitationMarker>; text?: string; citations?: Record<string, RagCitationMarker>; ragUsed?: boolean; confidence?: number; sources?: string[] }) => void) => () => void;
@@ -735,13 +752,13 @@ testReleaseFetch: () => Promise<{ success: boolean; error?: string }>;
 ragQueryMeeting: (
 meetingId: string,
 query: string,
-) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>;
+) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>;
 ragQueryLive: (
 query: string,
-) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>;
+) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>;
 ragQueryGlobal: (
 query: string,
-) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>;
+) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>;
 ragCancelQuery: (options: {
 meetingId?: string;
 global?: boolean;
@@ -1183,6 +1200,23 @@ ipcRenderer.invoke('update-content-dimensions', dimensions),
 updateContentDimensionsCentered: (dimensions: { width: number; height: number }) =>
 ipcRenderer.invoke('update-content-dimensions-centered', dimensions),
 personalFilesPickAndIngest: () => ipcRenderer.invoke('personal-files:pick-and-ingest'),
+practiceList: () => ipcRenderer.invoke('practice:list'),
+practiceCreate: (category,ids) => ipcRenderer.invoke('practice:create',category,ids),
+practiceAnswer: (id,q,a,f) => ipcRenderer.invoke('practice:answer',id,q,a,f),
+practiceReview: id => ipcRenderer.invoke('practice:review',id),
+practiceDelete: id => ipcRenderer.invoke('practice:delete',id),
+practiceMeetings: () => ipcRenderer.invoke('practice:meetings'),
+practiceMeetingReview: id => ipcRenderer.invoke('practice:meeting-review',id),
+projectsPickImage: id => ipcRenderer.invoke('projects:pick-image',id),
+projectsImagePreview: (id,imageId) => ipcRenderer.invoke('projects:image-preview',id,imageId),
+projectsAnalyzeImage: (id,imageId) => ipcRenderer.invoke('projects:analyze-image',id,imageId),
+projectsList: () => ipcRenderer.invoke('projects:list'),
+projectsSave: input => ipcRenderer.invoke('projects:save',input),
+projectsImportGitHub: url => ipcRenderer.invoke('projects:import-github',url),
+projectsSetEnabled: (id,enabled) => ipcRenderer.invoke('projects:set-enabled',id,enabled),
+projectsDelete: id => ipcRenderer.invoke('projects:delete',id),
+projectsReindex: id => ipcRenderer.invoke('projects:reindex',id),
+projectsPickFile: id => ipcRenderer.invoke('projects:pick-file',id),
 personalFilesList: () => ipcRenderer.invoke('personal-files:list'),
 personalFilesDelete: (fileId: string) => ipcRenderer.invoke('personal-files:delete', fileId),
 personalFilesSearch: (query: string) => ipcRenderer.invoke('personal-files:search', query),
@@ -2080,7 +2114,7 @@ streamGeminiChat: (
 message: string,
 imagePaths?: string[],
 context?: string,
-options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean },
+options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean; projectIds?: string[] },
 ) => ipcRenderer.invoke('gemini-chat-stream', message, imagePaths, context, options),
 onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => {
 // meta is an optional 2nd arg carrying { streamId } (audit finding #3). Existing

@@ -2,7 +2,7 @@ import type { SneakPeekIntelligenceEngine } from './SneakPeekIntelligenceEngine'
 import type { SneakPeekIntelligenceRequest } from './types';
 
 export interface RagStreamMeta { meetingId?: string; global?: boolean; live?: boolean }
-export interface RagIpcResult { success: boolean; fallback?: boolean; error?: string }
+export interface RagIpcResult { success: boolean; fallback?: boolean; error?: string; answer?: string }
 
 export function ragQueryPrefix(senderId: number, meta: RagStreamMeta): string {
   return `${senderId}:${meta.global ? 'global' : meta.live ? 'live' : `meeting-${encodeURIComponent(meta.meetingId ?? '')}`}:`;
@@ -73,7 +73,7 @@ export async function streamRagEngineAnswer(input: {
           if (!answer.trim()) throw new Error('The provider returned no answer. Please try again.');
           input.settle('completed', answer);
           input.send('rag:stream-complete', { ...input.meta, answer });
-          return { success: true };
+          return { success: true, answer };
         }
         if (run.lifecycle.state === 'CANCELLED') break;
         throw new Error(result.providerAttempt.error || 'Answer generation ended without completion.');

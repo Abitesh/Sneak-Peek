@@ -1,3 +1,4 @@
+import { noteSourceChange } from './SourceChangeEpoch';
 // electron/personalKnowledge/PersonalKnowledgeManager.ts
 //
 // PERSON 1 — persistent user-file knowledge.
@@ -22,7 +23,7 @@ import { shouldWriteLegacyRagChunks } from '../intelligence/intelligenceFlags';
 import { VectorStore } from '../rag/VectorStore';
 import { invalidateIndexAttempt } from '../rag/IndexAttemptRegistry';
 import { withinQueryEmbeddingBudget } from '../rag/QueryEmbeddingBudget';
-import { revokeCanonicalSources } from '../rag/canonical/CanonicalRagStorage';
+import { CanonicalRagStorage, revokeCanonicalSources } from '../rag/canonical/CanonicalRagStorage';
 export type PersonalFileType = 'resume' | 'job_description' | 'project' | 'general';
 const PERSONAL_FILE_TYPES: ReadonlySet<string> = new Set(['resume', 'job_description', 'project', 'general']);
 export interface PersonalFileRecord {
@@ -476,7 +477,7 @@ this.ragManager?.setIndexStatus('personal', id, 'QUEUED');
 this.ragManager?.setIndexStatus('personal', id, 'EXTRACTING');
 let extracted: Awaited<ReturnType<typeof extractSafeDocumentText>>;
 try {
-extracted = await extractSafeDocumentText(resolved);
+extracted = await extractSafeDocumentText(resolved, {allowSourceText: true});
 } catch (error) {
 this.ragManager?.setIndexStatus('personal', id, 'FAILED', { errorCode: 'EXTRACTION_FAILED', errorMessage: error instanceof Error ? error.message : String(error) });
 try { DatabaseManager.getInstance().deleteRagIndexStatus('personal', id); } catch { /* best effort */ }
@@ -492,7 +493,7 @@ try { DatabaseManager.getInstance().deleteRagIndexStatus('personal', id); } catc
 throw new Error('No readable text was found in this file.');
 }
 if (text.length > MAX_EXTRACTED_CHARS) {
-text = text.slice(0, MAX_EXTRACTED_CHARS);
+throw new Error('Extracted text exceeds 1.5 million characters. Split the document into smaller files; no partial index was saved.');
 }
 const now = new Date().toISOString();
 const pageCount = Number((extracted as any).pageCount) || null;
@@ -619,6 +620,52 @@ error: error instanceof Error ? error.message : String(error),
 });
 }
 }
+/** Stable application-owned text source. User originals are never modified. */
+async upsertOwnedProjectText(id: string, name: string, content: string, isCurrent: () => boolean = () => true): Promise<PersonalFileRecord> {
+if (!/^project_[a-f0-9-]+$/.test(id)) throw new Error('Invalid project source identity.');
+const text = String(content).trim();
+if (!text || text.length > MAX_EXTRACTED_CHARS) throw new Error('Project text is empty or too large.');
+const hash = crypto.createHash('sha256').update(id + '\n' + text).digest('hex');
+const existing = this.getFile(id);
+if (existing?.indexStatus === 'done' && (this.db.prepare('SELECT content_hash FROM personal_files WHERE id=?').get(id) as any)?.content_hash === hash) return existing;
+await fs.promises.mkdir(this.storageRoot, {recursive:true});
+const storedPath = path.join(this.storageRoot, id + '.md');
+await fs.promises.writeFile(storedPath, text, {encoding:'utf8',mode:0o600});
+if (!isCurrent()) throw new Error('Project changed during indexing.');
+const now = new Date().toISOString();
+this.db.transaction(() => {
+  if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='rag_documents'").get()) {
+    const storage = new CanonicalRagStorage(this.db);
+    const document = storage.readDocumentBySource('personal', id);
+    if (document) storage.deactivateCurrentRevision(document.id);
+  }
+  this.db.prepare(`INSERT INTO personal_files (id,file_name,file_path,mime_type,size_bytes,content_hash,created_at,updated_at,file_type)
+    VALUES (?,?,?,'text/markdown',?,?,?,?,'project') ON CONFLICT(id) DO UPDATE SET file_name=excluded.file_name,
+    size_bytes=excluded.size_bytes,content_hash=excluded.content_hash,updated_at=excluded.updated_at,file_type='project'`)
+    .run(id,name+'.md',storedPath,Buffer.byteLength(text),hash,existing?.createdAt ?? now,now);
+  this.db.prepare('DELETE FROM personal_file_chunks WHERE file_id=?').run(id);
+  const put=this.db.prepare(`INSERT INTO personal_file_chunks (id,file_id,chunk_index,text,start_char,end_char,page_start,page_end,section,heading,content_type,metadata_json)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+  chunkDocument(text).forEach((chunk,index)=>put.run(makeId('pchunk',id+':'+hash+':'+index),id,index,chunk.text,chunk.startChar,chunk.endChar,
+    chunk.pageStart ?? null,chunk.pageEnd ?? null,chunk.section ?? null,chunk.heading ?? null,chunk.contentType ?? 'text',JSON.stringify(chunk.metadata ?? {})));
+})();
+noteSourceChange();
+if (!isCurrent()) throw new Error('Project changed during indexing.');
+if (this.ragManager) {
+ const result=await this.ragManager.indexDocument({sourceType:'personal',documentId:id,content:text,fileName:name+'.md',metadata:{fileType:'project',projectId:id}});
+ if(result.status!=='ready')throw new Error('Project notes need readable text and a working indexing service.');
+}
+if (!isCurrent()) throw new Error('Project changed during indexing.');
+return this.getFile(id)!;
+}
+async reindexStoredFile(id: string): Promise<void> {
+const file=this.getFile(id);if(!file)throw new Error('Source not found.');
+if(!this.ragManager)throw new Error('Retrieval service is still starting. Try again.');
+this.db.prepare('UPDATE personal_files SET updated_at=? WHERE id=?').run(new Date().toISOString(),id);
+noteSourceChange();
+const result=await this.ragManager.indexDocument({sourceType:'personal',documentId:id,filePath:file.filePath,fileName:file.fileName,metadata:{fileType:file.fileType,mimeType:file.mimeType}});
+if(result.status!=='ready')throw new Error('Source needs readable text or an available indexing service.');
+}
 listFiles(): PersonalFileRecord[] {
 const rows = this.db.prepare(`
 SELECT
@@ -663,6 +710,11 @@ const result = this.db.prepare(
 `UPDATE personal_files SET file_type = ?, updated_at = ? WHERE id = ?`
 ).run(fileType, new Date().toISOString(), id);
 if (result.changes === 0) throw new Error('File not found.');
+if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE name='rag_documents'").get()) {
+ const storage=new CanonicalRagStorage(this.db), document=storage.readDocumentBySource('personal',id);
+ if(document&&!document.deletedAt)storage.updateDocument(document.id,{fileType,metadata:{...document.metadata,fileType}});
+}
+noteSourceChange();
 return this.getFile(id)!;
 }
 // Ids whose chunks still carry unrepaired binary markers (see
@@ -684,7 +736,13 @@ private fileTypeMap(): Map<string, PersonalFileType> {
 const rows = this.db.prepare(`SELECT id, file_type FROM personal_files`).all() as Array<{ id: string; file_type: string }>;
 return new Map(rows.map((r) => [r.id, (PERSONAL_FILE_TYPES.has(r.file_type) ? r.file_type : 'general') as PersonalFileType]));
 }
-deleteFile(id: string): boolean {
+purgeStoredCopy(filePath: string): void {
+if (!path.resolve(filePath).startsWith(path.resolve(this.storageRoot) + path.sep)) return;
+try { fs.unlinkSync(filePath); } catch (error: any) { if(error?.code!=='ENOENT')throw new Error('Search access revoked, but an application-owned file could not be removed.'); }
+}
+deleteFile(id: string, removeOwnedCopy = false): boolean {
+const ownedPath = removeOwnedCopy ? this.getFile(id)?.filePath : undefined;
+noteSourceChange();
 // Invalidate any async embedding run before removing its storage boundary.
 invalidateIndexAttempt('personal', id);
 if (this.vectorStore) this.vectorStore.deletePersonalEmbeddingsForFile(id);
@@ -705,6 +763,7 @@ this.db.prepare(`DELETE FROM rag_index_status WHERE source_type = 'personal' AND
 }
 return this.db.prepare(`DELETE FROM personal_files WHERE id = ?`).run(id);
 })();
+if (ownedPath) this.purgeStoredCopy(ownedPath);
 return result.changes > 0;
 }
 private parseChunkMetadata(value: unknown): Record<string, unknown> {
@@ -1100,10 +1159,10 @@ for (const row of rows) {
 if (this.repairedFileIds.has(`legacy:${row.id}`)) continue;
 this.repairedFileIds.add(`legacy:${row.id}`);
 try {
-const extracted = await extractSafeDocumentText(row.file_path);
+const extracted = await extractSafeDocumentText(row.file_path, {allowSourceText: true});
 let text = normalizeWhitespace(extracted.content);
 if (!text) continue;
-if (text.length > MAX_EXTRACTED_CHARS) text = text.slice(0, MAX_EXTRACTED_CHARS);
+if (text.length > MAX_EXTRACTED_CHARS) throw new Error('Extracted text exceeds 1.5 million characters. Split the document into smaller files; no partial index was saved.');
 const chunks = chunkDocument(text);
 const insert = this.db.prepare(`
 INSERT INTO personal_file_chunks
@@ -1166,7 +1225,7 @@ for (const row of rows) {
 if (this.repairedFileIds.has(row.id)) continue;
 this.repairedFileIds.add(row.id);
 try {
-const extracted = await extractSafeDocumentText(row.file_path);
+const extracted = await extractSafeDocumentText(row.file_path, {allowSourceText: true});
 const text = normalizeWhitespace(extracted.content);
 if (!text) continue;
 const chunks = chunkDocument(text);

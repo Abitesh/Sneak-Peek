@@ -105356,3 +105356,23 @@
 
 9152 directories, 96191 files
 (.venv) abitesh@Abiteshs-MacBook-Air Sneak-Peek % 
+
+
+WORK-0091 current structure additions (2026-11-21). Historical inventory above preserved.
+electron/intelligence/engine/SourceStreamGuard.ts
+electron/personalKnowledge/SourceChangeEpoch.ts
+electron/practice/MeetingReview.ts
+electron/practice/PracticeService.ts
+electron/practice/__tests__/PracticeService.test.mjs
+electron/practice/practiceIpc.ts
+electron/projects/GitHubProjectImporter.ts
+electron/projects/ProjectKnowledgeManager.ts
+electron/projects/ProjectKnowledgeOutline.ts
+electron/projects/__tests__/ProjectKnowledge.test.mjs
+electron/projects/projectKnowledgeIpc.ts
+electron/rag/__tests__/DocumentIndexOwnershipResult.test.mjs
+scripts/audit/project-practice-acceptance.cjs
+scripts/audit/run-project-practice-acceptance.mjs
+src/components/PracticePanel.tsx
+src/components/ProjectsPanel.tsx
+src/types/projects.ts
