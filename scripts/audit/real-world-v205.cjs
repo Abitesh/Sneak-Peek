@@ -83,18 +83,23 @@ app.whenReady().then(async () => {
   assert.equal((await win.webContents.executeJavaScript(`window.electronAPI.profileUploadResume(${JSON.stringify(selected.filePath)})`)).success,true);
   await win.webContents.executeJavaScript('window.electronAPI.profileSetMode(true)');
   const overlay=await waitFor(()=>windows.find(w=>!w.isDestroyed()&&/window=overlay(?:&|$)/.test(w.webContents.getURL())));
-  overlay.show();overlay.webContents.setBackgroundThrottling(false);
+  overlay.show();overlay.focus();overlay.webContents.focus();overlay.webContents.setBackgroundThrottling(false);
   await waitFor(()=>overlay.webContents.executeJavaScript('!!document.querySelector("[data-testid=overlay-chat-input]")'));
   // Ready cohort: load the exact selected model without a content-bearing request.
   const prewarm=await fetch('http://127.0.0.1:11436/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'llama3.2:3b',prompt:'',stream:false,keep_alive:'10m'})});assert.equal(prewarm.ok,true);
+  const {stripDisplayMarkup}=require(path.join(root,'dist-electron/electron/llm/promptSystemV2.js'));
   const questions=['Hi','What is system design? Can you solve any system design problem I give you?','Explain your projects and implementations to someone with no coding knowledge','Explain those projects technically as an interviewer','Please elaborate Geospatial','No, I asked about your Geospatial project','Why did you use Spring Boot instead of alternatives?','What are Spring Boot and OSRM used for in your project?'];
   const results=[];
   const normalize=text=>text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
   for(const question of questions){
     const c=calls.length,r=reads.length;
     await overlay.webContents.executeJavaScript(`(()=>{
-      window.__trial={start:performance.now(),events:[]};window.__trialOff=[window.electronAPI.onGeminiStreamToken((token,meta)=>window.__trial.events.push({type:'token',at:performance.now()})),window.electronAPI.onGeminiStreamDone(data=>window.__trial.events.push({type:'done',data,at:performance.now()})),window.electronAPI.onGeminiStreamError(error=>window.__trial.events.push({type:'error',error,at:performance.now()}))];
-      const old=document.body.innerText;const observer=new MutationObserver(()=>{
+      window.__trial={start:performance.now(),events:[],paints:[]};window.__trialOff=[window.electronAPI.onGeminiStreamToken((token,meta)=>window.__trial.events.push({type:'token',at:performance.now()})),window.electronAPI.onGeminiStreamDone(data=>window.__trial.events.push({type:'done',data,at:performance.now()})),window.electronAPI.onGeminiStreamError(error=>window.__trial.events.push({type:'error',error,at:performance.now()}))];
+      const old=document.body.innerText;let paintPending=false;const observer=new MutationObserver(()=>{
+        if(!paintPending){paintPending=true;requestAnimationFrame(()=>requestAnimationFrame(()=>{paintPending=false;
+          const visible=[...document.querySelectorAll('.ai-response-card')].at(-1)?.innerText?.trim()||'';
+          if(visible&&window.__trial.paints.at(-1)?.text!==visible&&window.__trial.paints.length<240)window.__trial.paints.push({ms:performance.now()-window.__trial.start,text:visible.slice(0,4000)});
+        }));}
         const card=[...document.querySelectorAll('.ai-response-card')].at(-1);const text=card?.innerText?.trim()||'';
         if(!window.__trial.firstVisible && text.length>=12 && !old.includes(text)){requestAnimationFrame(()=>{if(!window.__trial.firstVisible){window.__trial.firstVisible=performance.now();window.__trial.firstText=text;}});}
       });observer.observe(document.body,{subtree:true,childList:true,characterData:true});window.__trialObserver=observer;
@@ -104,12 +109,12 @@ app.whenReady().then(async () => {
     await waitFor(()=>overlay.webContents.executeJavaScript("window.__trial.events.some(e=>e.type==='done'||e.type==='error')"),120000);
     const trial=await overlay.webContents.executeJavaScript('window.__trial');
     const answer=trial.events.find(e=>e.type==='done')?.data?.finalText||trial.events.find(e=>e.type==='done')?.data?.text||'';
-    if(answer) await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(answer))})`),15000);
+    if(answer) await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(stripDisplayMarkup(answer)))})`),15000);
     const measured=await overlay.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{window.__trialObserver.disconnect();window.__trialOff.forEach(f=>f());resolve({...window.__trial,finalVisible:performance.now()});})))`);
-    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,firstUsefulVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,finalVisibleMs:measured.finalVisible-measured.start,calls:calls.slice(c),reads:reads.slice(r)});
+    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,firstTextVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,paints:measured.paints,finalVisibleMs:measured.finalVisible-measured.start,calls:calls.slice(c),reads:reads.slice(r)});
     fs.writeFileSync(path.join(temp,'real-world.json'),JSON.stringify({model:'llama3.2:3b',readiness:'preloaded',source:'synthetic documents and actual production UI/pipeline',results},null,2));
-    console.log('REAL_WORLD',results.length,results.at(-1).firstUsefulVisibleMs,results.at(-1).finalVisibleMs);
+    console.log('REAL_WORLD',results.length,results.at(-1).firstTextVisibleMs,results.at(-1).finalVisibleMs);
   }
   fs.writeFileSync(path.join(temp,'real-world.png'),(await overlay.webContents.capturePage()).toPNG());
   console.log('REAL_WORLD_DONE',temp);app.exit(0);
-}).catch(error=>{console.error(error);app.exit(1);});
+}).catch(async error=>{console.error(error);for(const w of windows.filter(w=>!w.isDestroyed())){try{if(/window=overlay(?:&|$)/.test(w.webContents.getURL())){fs.writeFileSync(path.join(temp,'failure.png'),(await w.webContents.capturePage()).toPNG());fs.writeFileSync(path.join(temp,'failure.json'),JSON.stringify(await w.webContents.executeJavaScript('({text:document.body.innerText,trial:window.__trial,inputs:[...document.querySelectorAll("input,textarea")].map(e=>({value:e.value,disabled:e.disabled,testId:e.getAttribute("data-testid")}))})'),null,2));}}catch{}}app.exit(1);});

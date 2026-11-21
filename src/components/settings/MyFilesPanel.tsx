@@ -1,3 +1,4 @@
+import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 // src/components/settings/MyFilesPanel.tsx
 //
 // PERSON 1 renderer surface.
@@ -35,6 +36,8 @@ type PersonalFile = {
     fileType: PersonalFileType;
     indexStatus: PersonalFileIndexStatus;
     ragIndexStatus?: RagIndexStatus;
+    pageCount?: number;
+    extractedPageCount?: number;
 };
 
 const FILE_TYPE_LABELS: Record<PersonalFileType, string> = {
@@ -80,6 +83,7 @@ const formatBytes = (bytes: number | string | undefined | null) => {
 };
 
 export function MyFilesPanel() {
+    const theme = useResolvedTheme();
     const [files, setFiles] = useState<PersonalFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
@@ -179,7 +183,7 @@ export function MyFilesPanel() {
     };
 
     return (
-        <section style={{ padding: 20 }}>
+        <section style={{ padding: 20, color: theme === 'light' ? '#111827' : '#f5f5f7' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                 <div>
                     <h3 style={{ margin: 0, fontSize: 16, fontWeight: 650 }}>My Files</h3>
@@ -238,7 +242,8 @@ export function MyFilesPanel() {
 
             <div style={{ marginTop: 16, display: 'grid', gap: 7 }}>
                 {files.map(file => {
-                    const badge = file.ragIndexStatus
+                    const badge = file.pageCount && file.extractedPageCount !== undefined && file.extractedPageCount < file.pageCount && file.ragIndexStatus === 'READY'
+                        ? {label:'PARTIALLY EXTRACTED', color:'#d97706'} : file.ragIndexStatus
                         ? RAG_STATUS_BADGES[file.ragIndexStatus]
                         : STATUS_BADGES[file.indexStatus] ?? STATUS_BADGES.indexing;
                     return (
@@ -257,7 +262,7 @@ export function MyFilesPanel() {
                             <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {file.fileName}
                             </div>
-                            <div style={{ fontSize: 10, opacity: 0.5, marginTop: 2 }}>
+                            <div style={{ fontSize: 10, opacity: 0.75, marginTop: 2 }}>
                                 {formatBytes(file.sizeBytes)} · {file.chunkCount} indexed chunks
                                 {file.ragIndexStatus && file.ragIndexStatus !== 'NOT_INDEXED' && file.ragIndexStatus !== 'FAILED' && (
                                     <> · {file.ragIndexStatus === 'READY' ? file.chunkCount : '…'} embedded</>

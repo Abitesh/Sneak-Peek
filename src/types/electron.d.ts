@@ -86,6 +86,24 @@ tone: string
 }
 }
 export interface ElectronAPI {
+practiceList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+practiceCreate: (category:string,projectIds:string[]) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceAnswer: (id:string,questionId:string,answer:string,feedback?:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceReview: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceDelete: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+practiceMeetings: () => Promise<{success:boolean;value?:any[];error?:string}>;
+practiceMeetingReview: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsPickImage: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsImagePreview: (id:string,imageId:string) => Promise<{success:boolean;value?:string;error?:string}>;
+projectsAnalyzeImage: (id:string,imageId:string) => Promise<{success:boolean;error?:string}>;
+projectsList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+projectsSave: (input:any) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsImportGitHub: (url:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsSetEnabled: (id:string,enabled:boolean) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsDelete: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsReindex: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+projectsPickFile: (id:string) => Promise<{success:boolean;value?:any;error?:string}>;
+
 updateContentDimensions: (dimensions: {
 width: number
 height: number
@@ -500,7 +518,7 @@ onIntelligenceError: (callback: (data: { error: string, mode: string }) => void)
 // Session Management
 onSessionReset: (callback: () => void) => () => void;
 // Streaming listeners
-streamGeminiChat: (message: string, imagePaths?: string[], context?: string, options?: { skipSystemPrompt?: boolean, ignoreKnowledgeMode?: boolean, skipRollingContext?: boolean }) => Promise<void>
+streamGeminiChat: (message: string, imagePaths?: string[], context?: string, options?: { skipSystemPrompt?: boolean, ignoreKnowledgeMode?: boolean, skipRollingContext?: boolean; projectIds?: string[] }) => Promise<void>
 onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => () => void
 onGeminiStreamDone: (callback: (data?: { finalText?: string; streamId?: number; citationMarkers?: Record<string, { marker: string; evidenceId: string; citationId: string; citation: { citationId: string; documentId: string; documentName: string; chunkId: string; pageStart?: number; pageEnd?: number; section?: string; sourceType: string } }>; text?: string; citations?: Record<string, { marker: string; evidenceId: string; citationId: string; citation: { citationId: string; documentId: string; documentName: string; chunkId: string; pageStart?: number; pageEnd?: number; section?: string; sourceType: string } }>; ragUsed?: boolean; confidence?: number; sources?: string[] }) => void) => () => void
 onGeminiStreamError: (callback: (error: string, meta?: { streamId?: number | null; source?: string }) => void) => () => void;
@@ -599,9 +617,9 @@ downloadUpdate: () => Promise<void>
 getCanAutoUpdate: () => Promise<{ canAutoUpdate: boolean }>
 testReleaseFetch: () => Promise<{ success: boolean; error?: string }>
 // RAG (Retrieval-Augmented Generation) API
-ragQueryMeeting: (meetingId: string, query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>
-ragQueryLive: (query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>
-ragQueryGlobal: (query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>
+ragQueryMeeting: (meetingId: string, query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>
+ragQueryLive: (query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>
+ragQueryGlobal: (query: string) => Promise<{ success?: boolean; fallback?: boolean; error?: string; answer?: string }>
 ragCancelQuery: (options: { meetingId?: string; global?: boolean; clearContext?: boolean }) => Promise<{ success: boolean }>
 ragIsMeetingProcessed: (meetingId: string) => Promise<boolean>
 ragGetQueueStatus: () => Promise<{ pending: number; processing: number; completed: number; failed: number }>

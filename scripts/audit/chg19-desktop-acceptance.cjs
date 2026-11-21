@@ -602,22 +602,18 @@ app.whenReady().then(async () => {
     state.getRAGManager = () => null;
     try {
       await input('input[placeholder="Search or ask anything..."]', 'What does my project say about violet leases?');
-      await waitFor(() => js(`(() => {
-        const notice = [...document.querySelectorAll('div')].find(el =>
-          el.children.length === 0 && el.textContent.startsWith('Meeting search is unavailable.'));
-        if (!notice) return false;
-        for (let el = notice; el; el = el.parentElement) {
-          if (Number(getComputedStyle(el).opacity) < 0.98) return false;
-        }
-        const bounds = notice.getBoundingClientRect();
-        return bounds.height > 0 && document.elementFromPoint(
-          bounds.left + bounds.width / 2, bounds.top + bounds.height / 2,
-        ) === notice;
-      })()`), 'scoped unavailable notice is painted inside the open overlay');
-      const query = records.slice(beforeUnavailable).find(row => row.channel === 'rag:query-global');
-      assert.equal(query?.result?.fallback, true);
+      const query = await waitFor(() => records.slice(beforeUnavailable).find(row => row.channel === 'rag:query-global' && row.providerStartedAt), 'unindexed saved-meeting fallback starts');
+      assert.match(query.prompt, /source="meeting_transcript"/);
+      assert.match(query.prompt, /source_id="chg19-a"/);
+      assert.match(query.prompt, /source_id="chg19-b"/);
+      assert.match(query.prompt, /violet leases/);
+      assert.doesNotMatch(query.prompt, /FORBIDDEN_PERSONAL_CANARY/);
+      query.release();
+      await waitFor(() => query.settledAt, 'saved-meeting query settled');
+      assert.equal(query.result.success, true);
+      await waitFor(() => js(`document.body.innerText.includes(${JSON.stringify(query.first.trim())})`), 'saved transcript answer is visible');
       assert.equal(ordinaryChatInvocations, beforeOrdinaryChat, 'global overlay must not invoke ordinary chat');
-      scenarios.push({ id: 'ERR-065', status: 'PASS', senderId: query.senderId, ordinaryChatInvocations: 0, screenshot: await screenshot('global-unavailable') });
+      scenarios.push({ id: 'ERR-065-SAVED-TRANSCRIPT-RECOVERY', status: 'PASS', senderId: query.senderId, ordinaryChatInvocations: 0, screenshot: await screenshot('global-saved-transcript') });
     } finally {
       state.getRAGManager = originalGetRAGManager;
     }
@@ -672,7 +668,7 @@ app.whenReady().then(async () => {
     await js2('window.__ipcOff.forEach(off=>off());void 0;'); second.destroy(); save();
     const row = await open('global', 'repeated-enter');
     const before = records.filter(r => r.channel.startsWith('rag:query-')).length;
-    await input('input[placeholder="Ask me anything..."]', 'Repeated Enter must not submit while busy', 3);
+    await input('input[placeholder="Search saved meetings..."]', 'Repeated Enter must not submit while busy', 3);
     await sleep(150);
     assert.equal(records.filter(r => r.channel.startsWith('rag:query-')).length, before);
     row.release(); await waitFor(() => row.settledAt, 'one completed request');

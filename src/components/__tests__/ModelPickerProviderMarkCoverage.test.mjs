@@ -94,8 +94,8 @@ test('every cloud provider the picker can list resolves to a real brand mark', (
     );
 });
 
-test('the Sneak-Peek row the picker adds itself also has a mark', () => {
-    assert.match(pickerSrc, /provider: 'natively'/, 'picker no longer adds a natively row — update this test');
+test('the app mark remains registered and cloud rows require configured credentials', () => {
+    assert.match(pickerSrc, /if \(!cfg.hasKeyCheck\(creds\)\) continue/);
     assert.ok(markKeys.has('natively'), 'natively must resolve to a mark');
 });
 

@@ -341,7 +341,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
             const doneCleanup = window.electronAPI?.onRAGStreamComplete((data?: any) => {
                 if (!isThisMeeting(data)) return;
                 // Final commit — flush any remaining buffered content
-                const finalContent = streamBuffer.getBufferedContent().trim() || data?.answer || 'No answer was returned. Check your selected model and try again.';
+                const finalContent = data?.answer?.trim() || streamBuffer.getBufferedContent().trim() || 'No answer was returned. Check your selected model and try again.';
                 setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
                         ? { ...msg, content: finalContent, isStreaming: false }
@@ -378,6 +378,13 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
                 return;
             }
             const result = await window.electronAPI?.ragQueryMeeting(meetingId, question);
+            // Invoke and stream events can settle in either order. The same
+            // completed canonical answer is a request-owned terminal fallback.
+            if (isCurrent() && result?.success && result.answer?.trim()) {
+                setMessages(prev => prev.map(msg => msg.id === assistantMessageId
+                    ? {...msg, content: result.answer!, isStreaming: false} : msg));
+                setChatState('idle');
+            }
             if (isCurrent() && (!result?.success || result.fallback)) {
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
                 setErrorMessage(result?.error || 'Could not get a response. Check your selected model.');

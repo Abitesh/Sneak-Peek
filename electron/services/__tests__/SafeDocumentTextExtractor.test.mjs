@@ -145,3 +145,11 @@ for (const extension of ['txt', 'csv']) test(`extracts generated ${extension} th
   const result = await extractSafeDocumentText(createFixture(`synthetic.${extension}`, content));
   assert.equal(result.content, content);
 });
+
+test('source text requires explicit opt-in, preserves Unicode, never executes, and still rejects binary or secrets',async()=>{
+ const text='// Γειά σου — नमस्ते\nexport const value = "violet leases";\nthrow new Error("THIS MUST NOT EXECUTE");';
+ const source=createFixture('source.ts',text);await assert.rejects(extractSafeDocumentText(source),/unsupported/);
+ assert.equal((await extractSafeDocumentText(source,{allowSourceText:true})).content,text);
+ await assert.rejects(extractSafeDocumentText(createFixture('binary.py',Buffer.from([1,0,3])),{allowSourceText:true}),/binary/);
+ await assert.rejects(extractSafeDocumentText(createFixture('secrets.env','KEY=canary'),{allowSourceText:true}),/unsupported/);
+});

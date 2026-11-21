@@ -1,3 +1,5 @@
+import { PracticePanel } from './PracticePanel';
+import { ProjectsPanel } from './ProjectsPanel';
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import {
     X, RefreshCw, Upload, Briefcase, Trash2, Check, Globe,
@@ -737,6 +739,8 @@ const FileUploadIndexing = ({ label, settling }: { label: string; settling?: boo
 const NAV_ITEMS = [
     { id: 'identity',    label: 'Identity',           Icon: User },
     { id: 'insights',    label: 'Profile',            Icon: FileText },
+    { id: 'projects',    label: 'Projects',           Icon: FolderKanban },
+    { id: 'practice',    label: 'Practice & Review',  Icon: MessageSquare },
     // Role Insight reads the résumé and JD that Profile owns, so it sits
     // directly after it — ahead of the outbound artifacts (Company Intel,
     // Cover Letter) that come later in the user's actual sequence.
@@ -1611,6 +1615,7 @@ export function ProfileIntelligenceSettings({
                         <div className="pi-section-header">
                             <span className="pi-section-header-icon"><FolderKanban size={12} /></span>
                             <h4 className="pi-section-header-label">Projects</h4>
+                            <button type="button" onClick={() => goToSection('projects')} className="text-xs text-text-primary underline ml-auto">Manage project knowledge</button>
                         </div>
                         <div className="pi-stagger" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {projects.slice(0, PROJ_CAP).map((proj, i) => {
@@ -2385,6 +2390,8 @@ export function ProfileIntelligenceSettings({
     const SECTION_RENDERERS: Record<string, () => React.ReactNode> = {
         identity: renderIdentity,
         insights: renderInsights,
+        projects: () => <ProjectsPanel />,
+        practice: () => <PracticePanel />,
         roleinsight: renderRoleInsight,
         tavily: renderTavily,
         company: renderCompany,
@@ -2442,6 +2449,8 @@ export function ProfileIntelligenceSettings({
                                 else navItemRefs.current.delete(id);
                             }}
                             className={`pi-nav-item${activeSection === id ? ' active' : ''}`}
+                            role="button" tabIndex={0} aria-current={activeSection === id ? 'page' : undefined}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToSection(id); } }}
                             onClick={() => goToSection(id)}
                         >
                             <Icon size={15} />

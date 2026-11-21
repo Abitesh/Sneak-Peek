@@ -478,7 +478,7 @@ writeStatus('EXTRACTING', { chunkCount: 0, embeddedChunkCount: 0, totalPageCount
 if (!content.trim() && input.filePath) {
 writeStatus('EXTRACTING', { totalPageCount: pageCount, extractedPageCount });
 try {
-const extracted = await extractSafeDocumentText(input.filePath);
+const extracted = await extractSafeDocumentText(input.filePath, {allowSourceText: input.sourceType === 'personal'});
 content = extracted.content;
 fileName = fileName || extracted.fileName;
 pageCount = pageCount ?? extracted.pageCount;
@@ -667,6 +667,7 @@ provider: vector.provider,
 dimensions: vector.dimensions,
 });
 }
+return true; // A void storeEmbedding success must not look like a revoked attempt.
 });
 if (!wrote) {
 return { documentId, sourceType: input.sourceType, chunkCount: chunks.length, embeddedChunkCount, status: 'failed' };

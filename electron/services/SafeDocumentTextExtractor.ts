@@ -24,6 +24,13 @@ export const SAFE_DOCUMENT_EXTENSIONS = new Set([
   '.xml', '.html', '.htm', '.log', '.pdf', '.docx',
 ]);
 
+/** Read as text only; never execute or import selected source files. Opt-in is
+ * confined to My Files/project callers; résumé/Mode documents keep the default. */
+export const SAFE_SOURCE_TEXT_EXTENSIONS = new Set([
+ '.toml','.js','.jsx','.ts','.tsx','.py','.java','.c','.cpp','.h','.hpp',
+ '.cs','.go','.rs','.sql','.sh','.yaml','.yml',
+]);
+
 /** 50 MB hard cap — should be enforced by the upload UI's progress bar first. */
 export const SAFE_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 
@@ -165,11 +172,12 @@ export interface SafeDocumentTextExtractResult {
  */
 export const extractSafeDocumentText = async (
   inputFilePath: string,
+  options: { allowSourceText?: boolean } = {},
 ): Promise<SafeDocumentTextExtractResult> => {
   const filePath = path.resolve(inputFilePath);
   const fileName = path.basename(filePath);
   const extension = path.extname(fileName).toLowerCase();
-  if (!SAFE_DOCUMENT_EXTENSIONS.has(extension)) {
+  if (!SAFE_DOCUMENT_EXTENSIONS.has(extension) && !(options.allowSourceText && SAFE_SOURCE_TEXT_EXTENSIONS.has(extension))) {
     throw new Error(`unsupported file type ${extension || 'none'}`);
   }
 

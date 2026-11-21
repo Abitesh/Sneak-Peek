@@ -222,7 +222,7 @@ test('SkillsSettings renderer guards against a missing bridge instead of silent 
 //    fixed; without this check, the next missing preload binding regresses
 //    silently again.
 // ---------------------------------------------------------------------------
-test('every preload ipcRenderer.invoke channel has a matching ipcMain.handle registration', () => {
+test('every preload ipcRenderer.invoke channel has a matching ipcMain.handle registration', async () => {
   const preload = read('electron/preload.ts');
   const handlers = read('electron/ipcHandlers.ts');
 
@@ -256,6 +256,13 @@ test('every preload ipcRenderer.invoke channel has a matching ipcMain.handle reg
     }
   };
   walk(path.join(root, 'electron'));
+  // These real registrars receive the existing safeHandle wrapper. Execute
+  // registration without invoking handlers (therefore no database/user data).
+  for (const [name,file] of [['registerProjectKnowledgeIpc','projects/projectKnowledgeIpc'],['registerPracticeIpc','practice/practiceIpc']]) {
+    assert.match(handlers, new RegExp(name+'\\(safeHandle'));
+    const module = await import(path.join(root,'dist-electron/electron',file+'.js'));
+    module[name]((channel,handler)=>{assert.equal(typeof handler,'function');registered.add(channel);});
+  }
 
   // Known-stale invokes: channels exposed in preload that have no handler.
   // These are pre-existing issues unrelated to the skills fix — fail loudly

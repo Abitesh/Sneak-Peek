@@ -276,8 +276,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 // prompt can make the model return an empty/degenerate completion).
                 // Without this fallback, the bubble renders as nothing — no text,
                 // no error — which reads as "the app didn't respond at all".
-                const finalContent = streamBuffer.getBufferedContent().trim()
-                    || data?.answer || 'No answer was returned. Check your selected model and try again.';
+                const finalContent = data?.answer?.trim() || streamBuffer.getBufferedContent().trim() || 'No answer was returned. Check your selected model and try again.';
                 setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
                         ? { ...msg, content: finalContent, isStreaming: false }
@@ -309,7 +308,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
             // Use global RAG query. Wrapped in a hard client-side ceiling — see
             // RAG_QUERY_CLIENT_TIMEOUT_MS above for why this exists: nothing
             // upstream of this call can guarantee the invoke() ever resolves.
-            let result: { fallback?: boolean; success?: boolean; error?: string } | undefined;
+            let result: { fallback?: boolean; success?: boolean; error?: string; answer?: string } | undefined;
             try {
                 const call = window.electronAPI?.ragQueryGlobal(question);
                 result = call
@@ -338,6 +337,13 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 return;
             }
 
+            // Invoke and stream events can settle in either order. The same
+            // completed canonical answer is a request-owned terminal fallback.
+            if (isCurrent() && result?.success && result.answer?.trim()) {
+                setMessages(prev => prev.map(msg => msg.id === assistantMessageId
+                    ? {...msg, content: result.answer!, isStreaming: false} : msg));
+                setChatState('idle');
+            }
             if (isCurrent() && (!result?.success || result.fallback)) {
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
                 setErrorMessage(result?.error || 'Meeting search is unavailable. Check your selected model and try again.');

@@ -961,6 +961,11 @@ export class CanonicalRagStorage {
     return this.activateRevision(documentId, revisionId, requiredEmbeddingSpaceIds, true);
   }
 
+  /** Reindexing revokes the active revision without deleting revision history. */
+  deactivateCurrentRevision(documentId: string): void {
+    this.db.prepare('UPDATE rag_documents SET current_revision_id = NULL, updated_at = ? WHERE id = ?').run(nowIso(), documentId);
+  }
+
   softDeleteDocument(documentId: string): void {
     const tx = this.db.transaction(() => {
       const document = this.requireDocument(documentId);

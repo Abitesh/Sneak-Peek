@@ -27,3 +27,12 @@ test('summary regeneration reports a failed provider response and preserves save
  const fn=vm.runInContext(ts.transpileModule(`(${source})`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,c);
  await fn();assert.match(error,/Summary could not be generated/);assert.equal(busy,false);assert.equal(reloads,0);
 });
+
+for(const name of ['MeetingChatOverlay','GlobalChatOverlay'])test(`${name}: invoke answer paints without stream events and rejects late chunks after settlement`,async()=>{
+ const source=callback(`src/components/${name}.tsx`,'submitQuestion');let messages=[],state='idle',counter=0;const ref={current:null},saved=[],listeners=new Set();
+ const subscribe=fn=>{saved.push(fn);listeners.add(fn);return()=>listeners.delete(fn);};
+ const c=vm.createContext({Symbol,console,useCallback:fn=>fn,chatState:'idle',meetingContext:{id:'m'},submitInFlightRef:ref,genMessageId:()=>String(++counter),setMessages:fn=>{messages=fn(messages);},setErrorMessage(){},setChatState:v=>{state=typeof v==='function'?v(state):v;},messagesEndRef:{current:null},setTimeout:()=>0,streamBuffer:{reset(){},getBufferedContent(){return '';},appendToken(_token,flush){flush('FORBIDDEN_LATE');}},window:{electronAPI:{onRAGStreamChunk:subscribe,onRAGStreamComplete:subscribe,onRAGStreamError:subscribe,ragQueryMeeting:async()=>({success:true,answer:'The meeting discussed violet leases.'}),ragQueryGlobal:async()=>({success:true,answer:'The meeting discussed violet leases.'})}},withTimeout:p=>p,RAG_QUERY_CLIENT_TIMEOUT_MS:20000});
+ const fn=vm.runInContext(ts.transpileModule(`(${source})`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,c);await fn('What did the meeting discuss?');
+ assert.equal(messages.find(m=>m.role==='assistant').content,'The meeting discussed violet leases.');assert.equal(state,'idle');assert.equal(ref.current,null);assert.equal(listeners.size,0);
+ saved[0]({global:name==='GlobalChatOverlay',meetingId:'m',chunk:'FORBIDDEN_LATE'});assert.equal(messages.find(m=>m.role==='assistant').content,'The meeting discussed violet leases.');
+});
