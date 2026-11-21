@@ -1,6 +1,8 @@
 # Sneak-Peek — authoritative task tracker
 
-## TASK-0012 / WORK-0089 — V2-05 intelligence quality, speed and cost (2026-11-20)
+## TASK-0012 / WORK-0089 and WORK-0090 — V2-05 intelligence quality, speed and cost (2026-11-20)
+
+**WORK-0090 in progress.** Owner's eight-question real-use sequence exposes ERR-128 project referents, ERR-129 saved-meeting search and ERR-130 summary recovery. Exact-ID conversation focus, saved transcript lexical fallback, request-bound model snapshots, shared model selection and explicit summary recovery are being implemented. Initial protected project regressions 27/27 pass. Full regression, real renderer/provider measurements and factual review remain required; no acceptance threshold changed.
 
 **In progress.** Scoped fixes ERR-125/126/127 are locally verified. Concurrent retrieval reduced controlled p95 103.3 → 62.2 ms. Built-in startup compiler calls are eliminated, retaining explicit custom compilation. All frozen cohorts reviewed 26/26 correct, raw rubric 25/26. Actual prepared global first-visible p95 1229 ms and max final 2564 ms; final synthetic-STT Analyze 255/1610 ms. Final suites: Electron 9053 pass/67 skip, intelligence 2200 pass/9 TODO, library 383 pass/1 skip, scripts 103 pass. Five typechecks and both builds passed. Exact commands, failed experiments and metrics are in WORK-0089 and the quality evaluation.
 

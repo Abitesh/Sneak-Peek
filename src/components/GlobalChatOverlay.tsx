@@ -1,3 +1,4 @@
+import { MeetingModelSelector } from './ui/MeetingModelSelector';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStreamBuffer } from '../hooks/useStreamBuffer';
 import { X, Copy, Check, Globe, ArrowUp } from 'lucide-react';
@@ -276,7 +277,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 // Without this fallback, the bubble renders as nothing — no text,
                 // no error — which reads as "the app didn't respond at all".
                 const finalContent = streamBuffer.getBufferedContent().trim()
-                    || "I'm not sure how to answer that from your meetings — try asking a more specific question.";
+                    || data?.answer || 'No answer was returned. Check your selected model and try again.';
                 setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
                         ? { ...msg, content: finalContent, isStreaming: false }
@@ -293,7 +294,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 if (!isCurrent() || !isGlobal(data)) return;
                 console.error('[GlobalChat] RAG stream error:', data.error);
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-                setErrorMessage("Couldn't get a response. Please try again.");
+                setErrorMessage(data.error || 'Could not get a response. Check your selected model.');
                 setChatState('error');
                 streamBuffer.reset();
                 tokenCleanup?.();
@@ -337,9 +338,9 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                 return;
             }
 
-            if (isCurrent() && (!result || result.fallback)) {
+            if (isCurrent() && (!result?.success || result.fallback)) {
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-                setErrorMessage("Meeting search is unavailable. Check your AI provider settings and try again.");
+                setErrorMessage(result?.error || 'Meeting search is unavailable. Check your selected model and try again.');
                 setChatState('error');
             }
 
@@ -443,16 +444,17 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
 
                         {/* Floating Footer (Ask Bar) */}
                         <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-center z-50 pointer-events-none">
-                            <div className="w-full max-w-[440px] relative group pointer-events-auto">
+                            <div className="w-full max-w-[620px] flex items-center gap-2 group pointer-events-auto">
                                 {/* Dark Glass Effect Input */}
                                 <input
                                     type="text"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     onKeyDown={handleInputKeyDown}
-                                    placeholder="Ask me anything..."
-                                    className="w-full pl-5 pr-12 py-3 bg-bg-elevated shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-border-muted rounded-full text-sm text-text-primary placeholder-text-tertiary/70 focus:outline-none transition-all"
+                                    placeholder="Search saved meetings..."
+                                    className="min-w-0 flex-1 pl-5 pr-3 py-3 bg-bg-elevated shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-border-muted rounded-full text-sm text-text-primary placeholder-text-tertiary/70 focus:outline-none transition-all"
                                 />
+                                <MeetingModelSelector />
                                 <button
                                     onClick={() => {
                                         if (query.trim()) {
@@ -460,7 +462,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                                             setQuery('');
                                         }
                                     }}
-                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all duration-200 border border-white/5 ${query.trim() ? 'bg-text-primary text-bg-primary hover:scale-105' : 'bg-bg-item-active text-text-primary hover:bg-bg-item-hover'
+                                    className={`p-2 shrink-0 rounded-full transition-all duration-200 border border-white/5 ${query.trim() ? 'bg-text-primary text-bg-primary hover:scale-105' : 'bg-bg-item-active text-text-primary hover:bg-bg-item-hover'
                                         }`}
                                 >
                                     <ArrowUp size={16} className="transform rotate-45" />

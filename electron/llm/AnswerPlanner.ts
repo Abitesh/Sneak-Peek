@@ -1,3 +1,4 @@
+import { intentTextWithoutCapabilityProbe } from './capabilityQuestion';
 import type { IntentResult } from './IntentClassifier';
 import type { ExtractedQuestion } from './transcriptQuestionExtractor';
 import { CODING_CONTRACT, CODING_CONTRACT_IMPL, CODING_VERIFICATION_INSTRUCTION } from './codingContract';
@@ -1530,7 +1531,7 @@ const resolveJdSourceType = (
 export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   const rawQuestion = input.question || input.extractedQuestion?.latestQuestion || '';
   const question = rawQuestion.trim();
-  const text = normalizeSms(question.toLowerCase());
+  const text = normalizeSms(intentTextWithoutCapabilityProbe(question.toLowerCase()));
   // "tech stack" / "technology stack" is a phrase, not the DSA `stack` data
   // structure — neutralize it so the project-followup DSA-exclusion guard below
   // doesn't mis-fire on "what tech stack did you use?".

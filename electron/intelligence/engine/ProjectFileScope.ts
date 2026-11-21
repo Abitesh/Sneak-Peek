@@ -22,12 +22,16 @@ export interface ProjectFileScope {
   missingNamedProject: boolean;
   /** An ambiguous same-project reference was not safely resolved. */
   unresolvedReference?: boolean;
+  /** Focus resolved from the currently active resume, not from assistant facts. */
+  profileProject?: boolean;
 }
 
 /** Resolve a retrieval hint only after the engine authorized exact current IDs. */
 export function projectRetrievalQuery(question: string, projectName?: string, sourceIds?: readonly string[]): string {
   if (!projectName?.trim() || !sourceIds?.length) return question;
-  return question.replace(/\b(?:my|your|our|the|this|that)\s+(?:(?:current|previous|last|main|existing)\s+)?(?:project|repo|repository|codebase)\b/gi, () => projectName.trim());
+  if (/^(?:please\s+)?elaborate\b|^no[,.]?\s+i\s+(?:asked|meant)\b/i.test(question.trim())) return `Tell me about ${projectName.trim()}.`;
+  const rewritten = question.replace(/\b(?:my|your|our|the|this|that)\s+(?:(?:current|previous|last|main|existing)\s+)?(?:project|repo|repository|codebase)\b/gi, () => projectName.trim());
+  return words(rewritten).join(' ').includes(words(projectName).join(' ')) ? rewritten : `${rewritten} (project: ${projectName.trim()})`;
 }
 
 const NON_PROJECT_NAMES = new Set([
@@ -82,7 +86,7 @@ function projectNameFromQuestion(question: string): string | undefined {
   // such as "in detail" or "for an interview". The previous preposition-first
   // order interpreted those modifiers as project names and could fall through
   // to a broad project retrieval instead of an exact file-ID allowlist.
-  const overview = question.match(/\b(?:tell\s+(?:me|us)\s+about|describe|explain|summari[sz]e|give\s+(?:me|us)\s+(?:an?\s+)?overview\s+of)\s+(?:(?:the|my|your|our)\s+)?(?:(?:project|repo|repository|codebase)\s+)?([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,3})(?:,?\s+(?:please|briefly|in\s+detail|for\s+(?:me|an?\s+interview)))?[.!?]?\s*$/i);
+  const overview = question.match(/\b(?:tell\s+(?:me|us)\s+about|describe|explain|elaborate|summari[sz]e|give\s+(?:me|us)\s+(?:an?\s+)?overview\s+of)\s+(?:(?:the|my|your|our)\s+)?(?:(?:project|repo|repository|codebase)\s+)?([a-z][a-z0-9_-]{2,}(?:\s+[a-z][a-z0-9_-]{2,}){0,3})(?:,?\s+(?:please|briefly|in\s+detail|for\s+(?:me|an?\s+interview)))?[.!?]?\s*$/i);
   // In "Why did you use Redis in Linkship?", the subject is "you", not a
   // project name. Fall back to the explicit "in Linkship" source instead.
   const subjectName = subject?.[1];
@@ -145,9 +149,14 @@ export function resolveProjectFileScopeForTurn(
   allFiles: readonly ProjectFileDescriptor[],
   turns: readonly ProjectScopeConversationTurn[],
   currentTurnId: string,
+  findProjectFilesMentioning?: (name: string) => readonly string[],
+  activeProfileProjectNames: readonly string[] = [],
 ): ProjectFileScope {
   const direct = resolveProjectFileScope(question, allFiles);
-  if (direct.namedProject || !referencesOnePreviousProject(question)) return direct;
+  if (direct.namedProject && !direct.missingNamedProject) return direct;
+  const contextual = referencesOnePreviousProject(question)
+    || /\b(?:why\s+(?:did|do)\s+(?:you|we)\s+(?:use|choose|pick)|elaborate|explain\s+(?:it|that)|no[,.]?\s+(?:i|we)\s+(?:meant|asked))\b/i.test(question);
+  if (!contextual) return direct;
 
   const unresolved: ProjectFileScope = {
     projectAvailable: false,
@@ -170,9 +179,66 @@ export function resolveProjectFileScopeForTurn(
     return unresolved;
   }
 
-  const previous = resolveProjectFileScope(user.text, allFiles);
-  // A now-deleted/retired file or an ambiguous previous question cannot grant
-  // broad access. A named-but-missing project returns a zero-ID allowlist.
-  if (!previous.namedProject) return unresolved;
-  return previous;
+  const projects = allFiles.filter(file => file.fileType === 'project' && file.id);
+  const profileNames = activeProfileProjectNames.map(name => words(name).join(' ')).filter(Boolean);
+  const identities = [...new Set([...projects.map(file => normalizedProjectIdentity(file).join(' ')), ...profileNames])];
+  const resolveIdentity = (name: string): ProjectFileScope => {
+    const match = resolveProjectFileScope('Explain ' + name + ' project', allFiles);
+    return !match.projectAvailable && profileNames.includes(name)
+      ? { namedProject: name, projectAvailable: false, selectedFileIds: [], missingNamedProject: false, profileProject: true } : match;
+  };
+  // Completed conversation supplies names only. The current catalog supplies
+  // exact source IDs, and the planner still decides whether they are permitted.
+  const mentioned = (text: string) => identities.filter(name =>
+    (' ' + words(text).join(' ') + ' ').includes(' ' + name + ' '));
+  const fromContentCatalog = (name: string): ProjectFileScope | undefined => {
+    if (identities.some(identity => identity.startsWith(name + ' '))) return undefined;
+    const permitted = new Set(projects.map(file => file.id));
+    const ids = [...new Set(findProjectFilesMentioning?.(name) ?? [])].filter(id => permitted.has(id));
+    // A generic filename can contain the named project. This is an exact local
+    // existence hint, not evidence or authority. Multiple files remain ambiguous.
+    return ids.length === 1 ? { namedProject: name, projectAvailable: true,
+      selectedFileIds: ids, missingNamedProject: false } : undefined;
+  };
+  if (direct.namedProject) {
+    const target = words(direct.namedProject).join(' ');
+    const matches = identities.filter(name => name === target || name.startsWith(target + ' '));
+    if (matches.length === 0 && turns.slice(0, currentIndex).some(turn =>
+      turn.generationStatus === 'completed' && turn.finalized !== false && turn.source === user.source
+      && (' ' + words(turn.text).join(' ') + ' ').includes(' ' + target + ' '))) {
+      const catalog = fromContentCatalog(target);
+      if (catalog) return catalog;
+    }
+    if (matches.length !== 1 || !turns.slice(0, currentIndex).some(turn =>
+      turn.generationStatus === 'completed' && turn.finalized !== false && turn.source === user.source && mentioned(turn.text).includes(matches[0]))) return direct;
+    return resolveIdentity(matches[0]);
+  }
+  for (let i = currentIndex - 2; i >= 0; i -= 2) {
+    const priorUser = turns[i];
+    const priorAnswer = turns[i + 1];
+    if (priorUser.role !== 'user' || priorAnswer?.role !== 'assistant'
+      || priorUser.generationStatus !== 'completed' || priorAnswer.generationStatus !== 'completed'
+      || priorUser.source !== user.source || priorAnswer.source !== user.source
+      || priorUser.finalized === false || priorAnswer.finalized === false
+      || priorUser.requestSequence !== priorAnswer.requestSequence) return unresolved;
+    const previous = resolveProjectFileScope(priorUser.text, allFiles);
+    if (previous.namedProject && !previous.missingNamedProject) return previous;
+    if (previous.namedProject && profileNames.includes(previous.namedProject)) return resolveIdentity(previous.namedProject);
+    if (previous.namedProject) {
+      const expanded = identities.filter(name => name.startsWith(previous.namedProject + ' '));
+      if (expanded.length === 1 && turns.slice(0, currentIndex).some(turn =>
+        turn.source === user.source && turn.generationStatus === 'completed' && mentioned(turn.text).includes(expanded[0]))) return resolveIdentity(expanded[0]);
+    }
+    if (previous.namedProject && /\b(?:elaborate|project|architecture)\b/i.test(priorUser.text)) {
+      const catalog = fromContentCatalog(previous.namedProject);
+      if (catalog) return catalog;
+    }
+    const names = mentioned(priorAnswer.text);
+    if (names.length === 1) return resolveIdentity(names[0]);
+    if (names.length > 1) return unresolved;
+    // A standalone topic switch ends the focus chain.
+    if (!referencesOnePreviousProject(priorUser.text)
+      && !/\b(?:elaborate|why did you use|why did you choose|no.*asked)\b/i.test(priorUser.text)) return unresolved;
+  }
+  return unresolved;
 }

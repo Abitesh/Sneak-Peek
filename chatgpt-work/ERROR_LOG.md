@@ -1,5 +1,23 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-132 — Ordinary project architecture mistaken for protected assistant internals (WORK-0090)
+**In progress.** Owner reports “I can't share that information” replacing useful project answers. The local real-model run reproduced it. Full/local system prompts prohibit “architecture” without limiting that noun to hidden assistant internals. Narrow this wording, retain protected internals/confidential data, and allow clearly separated general LLM explanations when authorized personal evidence is absent. Owner requested preserving the earlier answer formatting; experimental brevity guidance was removed.
+
+## ERR-131 — Capability probe misclassified as code and unnecessarily regenerated (WORK-0090)
+**In progress.** The real isolated eight-question renderer run classified “What is system design? Can you solve any system design problem I give you?” as coding_question_answer. Canonical validation then requested missing Code and issued a second generation. Synthetic-source desktop evidence in Downloads retains both prompts/calls. Fix only capability framing, preserving compound genuine code requests and all validation requirements.
+
+## ERR-128 — Project focus lost across abbreviated and consecutive follow-ups (2026-11-20)
+
+WORK-0090 / TASK-0012. Owner supplied eight real answers and timings. Generic Geospatial answer and later missing-profile statement contradict established project context. Current scope resolution checks only an explicit singular phrase and the immediately previous user question. Previous assistant text may identify a referent, but remains non-authoritative. Revalidate current source IDs. **In progress.**
+
+## ERR-129 — Meeting/global search lacks visible outcomes and nonindexed transcript recovery (2026-11-20)
+
+WORK-0090 / TASK-0012. Owner-reported blank search surfaces. Inspect provider errors, stream completion and transcript retrieval. Current global fallback returns no evidence when canonical index is unavailable; meeting fallback only sees final 20 turns. Preserve source scope and distinguish keyword fallback from semantic ranking. **In progress.**
+
+## ERR-130 — Missing summary renders an empty tab and regeneration hides failures (2026-11-20)
+
+WORK-0090 / TASK-0012. Summary overview is rendered only if populated. Regeneration catches failures without feedback. Surface a real recovery action with error/status and preserve transcript-backed generation. **In progress.**
+
 ## ERR-127 — First-launch built-in mode seeding invokes background section generation (2026-11-20)
 
 WORK-0089 / TASK-0012. Isolated desktop startup showed 48 failed Gemini attempt-2 messages before user generation. ensureSeeded/ensureBuiltinModes call createMode, which unconditionally fires compileAllSectionsAsync. Built-in title/description fallback already supports summary extraction. Built-in/default seeding now bypasses compilation; explicit custom creation and editing retain it. Fresh DB regression passed. The final isolated startup has zero matching failed attempt messages versus 48 before, and Listen/STOP still pass. Paid-token savings are unmeasured. **Verified locally.**

@@ -1188,6 +1188,7 @@ async function streamSneakPeekMeetingAnswer(
       request = buildSneakPeekMeetingRequest(appState, query, meetingId, requestId, abortController.signal, sessionId);
       if (!streamMeta.live) request.retrievalScope = { kind: 'meeting', meetingId };
     }
+    request.providerRoute = llmHelper.getSneakPeekGenerationRouteOptions(['transcript'], false);
     meetingRequest = request;
     const engine = createPrimaryManualSneakPeekEngine(llmHelper, appState, requestId);
     return await streamRagEngineAnswer({
@@ -1348,7 +1349,17 @@ if (true as boolean) {
     const personalFilesAvailable = personalFiles.length > 0;
     const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
     const scopedConversationTurns = options?.skipRollingContext ? [] : getRecentConversationTurns(nativeSessionId, 12);
-    const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles, scopedConversationTurns, nativeCurrentTurn.id);
+    const projectScope = resolveProjectFileScopeForTurn(String(message || ''), personalFiles,
+      options?.skipRollingContext ? [] : getRecentConversationTurns(nativeSessionId, 40), nativeCurrentTurn.id, name => {
+        try { return require('./personalKnowledge').getPersonalKnowledgeManager().findProjectFileIdsMentioning(name); }
+        catch { return []; }
+      }, (() => {
+        try {
+          const projects = canonicalSnapshot.profileDocuments?.filter(doc => doc.sourceType === 'RESUME')
+            .flatMap(doc => JSON.parse(doc.content).projects ?? []);
+          return Array.isArray(projects) ? projects.map((project: any) => String(project?.name ?? '')).filter(Boolean) : [];
+        } catch { return []; }
+      })());
     const projectFilesAvailable = projectScope.projectAvailable;
     const { isBroadCandidateProjectsQuestion } = require('./context-intelligence/question/ProjectOverviewIntent') as typeof import('./context-intelligence/question/ProjectOverviewIntent');
     const broadPortfolio = isBroadCandidateProjectsQuestion(String(message || ''));
@@ -1399,6 +1410,7 @@ if (true as boolean) {
         projectSourceIds: projectScope.selectedFileIds ?? portfolioProjectIds,
         resumeSourceIds,
         projectName: projectScope.namedProject,
+        profileProjectName: projectScope.profileProject ? projectScope.namedProject : undefined,
       },
       cancellationSignal: myController.signal,
       providerPreferences: {
@@ -10031,13 +10043,13 @@ safeHandle('set-default-model', async (_, modelId: string) => {
 try {
 const { CredentialsManager } = require('./services/CredentialsManager');
 const cm = CredentialsManager.getInstance();
-cm.setDefaultModel(modelId);
 // Also update the runtime model
 const llmHelper = appState.processingHelper.getLLMHelper();
 const curlProviders = cm.getCurlProviders();
 const legacyProviders = cm.getCustomProviders() || [];
 const allProviders = [...curlProviders, ...legacyProviders];
 llmHelper.setModel(modelId, allProviders);
+cm.setDefaultModel(modelId);
 // Apply the same background local load as the session model selector.
 if (llmHelper.isUsingOllama()) {
 llmHelper.prewarmPromptCache().catch((_e: any): void => {});
@@ -10050,6 +10062,12 @@ return { success: true };
 console.error('Error setting default model:', error);
 return { success: false, error: error.message };
 }
+});
+// Read the active selection without exposing provider credentials.
+safeHandle('get-current-model', async () => {
+const helper = appState.processingHelper.getLLMHelper();
+const id = helper.getCurrentModelId();
+return { model: helper.isUsingOllama() ? `ollama-${id}` : id };
 });
 // Read the persisted default model
 safeHandle('get-default-model', async () => {
@@ -11521,10 +11539,6 @@ safeHandle('rag:query-live', async (event, { query }: { query: string }) => {
 // Query global (cross-meeting search)
 safeHandle('rag:query-global', async (event, { query }: { query: string }) => {
 if (typeof query !== 'string' || !query.trim()) return { success: false, error: 'A question is required.' };
-const ragManager = appState.getRAGManager?.();
-if (!ragManager) {
-return { fallback: true };
-}
 return streamSneakPeekMeetingAnswer(event, appState, query, '', { global: true });
 });
 // Cancel active RAG query

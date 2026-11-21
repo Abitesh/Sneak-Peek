@@ -69,6 +69,7 @@ const RETRIEVAL_STOP_WORDS = new Set([
   'overview', 'highlight', 'highlights', 'key', 'point', 'points', 'meeting',
   'call', 'action', 'actions', 'item', 'items', 'task', 'tasks', 'follow',
   'followup', 'follow-up', 'next', 'step', 'steps',
+  'explain', 'elaborate', 'describe', 'technically', 'technical',
 ]);
 
 function retrievalTokens(text: string): string[] {

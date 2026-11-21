@@ -171,7 +171,7 @@ test('CHG-17: state-store completion and clear-chat constrain follow-up across s
 test('CHG-17: both IPC routes consume current-session completed-turn scope and gate ambiguous profile fallback', () => {
   const ipc = readFileSync(path.join(process.cwd(), 'electron/ipcHandlers.ts'), 'utf8');
   assert.match(ipc, /resolveProjectFileScopeForTurn\(query, personalFiles, projectTurns, requestId\)/);
-  assert.match(ipc, /resolveProjectFileScopeForTurn\(String\(message \|\| ''\), personalFiles, scopedConversationTurns, nativeCurrentTurn\.id\)/);
+  assert.match(ipc, /resolveProjectFileScopeForTurn\(String\(message \|\| ''\), personalFiles,\s*(?:options\?\.skipRollingContext \? \[\] : getRecentConversationTurns\(nativeSessionId, 40\)), nativeCurrentTurn\.id,/);
   assert.match(ipc, /profile: profileAvailable && !projectScope\.unresolvedReference/g);
   const runtime = readFileSync(path.join(process.cwd(), 'electron/intelligence/engine/CanonicalRuntime.ts'), 'utf8');
   assert.match(runtime, /projectFileIds: request\.activeContext\?\.projectSourceIds/);

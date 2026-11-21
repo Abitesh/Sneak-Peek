@@ -1,3 +1,4 @@
+import { intentTextWithoutCapabilityProbe } from '../../llm/capabilityQuestion';
 // electron/context-intelligence/question/question-resolver.ts
 //
 // Resolve ONE question from messy live input (§12.1).
@@ -274,7 +275,7 @@ function responseShapeOf(text: string, coding: boolean): ResponseShape {
 }
 
 function heuristicIntent(text: string, input: UnderstandTurnInput, classification?: Classification): TurnIntent {
-  const q = text.trim();
+  const q = intentTextWithoutCapabilityProbe(text.trim());
   const lower = q.toLowerCase();
   const types = new Set(classification?.questionTypes ?? []);
   if (types.has('FOLLOW_UP')) return 'follow-up';

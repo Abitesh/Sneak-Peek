@@ -1,3 +1,4 @@
+import { deterministicChatResponse } from './DeterministicChatResponse';
 import { freezeAnswerRequest } from './AnswerRequest';
 import type {
   IntelligenceIntent,
@@ -133,7 +134,15 @@ export class SneakPeekIntelligenceEngine {
           return;
         }
 
-        const providerStream = engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, lifecycle });
+        const directResponse = result.evidence.items.length === 0 ? deterministicChatResponse(request) : undefined;
+        const providerStream = directResponse === undefined
+          ? engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, lifecycle })
+          : (async function* () {
+            lifecycle.transition('GENERATING', 'deterministic courtesy response; no provider call');
+            lifecycle.transition('COMMITTED', 'deterministic visible answer accepted');
+            yield directResponse;
+            if (!request.cancellationSignal?.aborted) lifecycle.transition('COMPLETED', 'courtesy response completed');
+          })();
         for await (const chunk of providerStream) {
           if (request.cancellationSignal?.aborted) break;
           text += chunk;

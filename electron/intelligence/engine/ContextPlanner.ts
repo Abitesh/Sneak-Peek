@@ -203,7 +203,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     if (useActivePortfolioResume) require('profile');
     require('rag');
     rationale.push('Portfolio overview uses project-tagged documents and/or explicitly authorized résumé file IDs.');
-  } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : understanding.intent) {
+  } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : (request.activeContext?.profileProjectName || request.activeContext?.projectName && request.activeContext?.projectSourceIds?.length) && /\b(?:elaborate|why\s+(?:did|do)\s+(?:you|we)|explain\s+(?:it|that)|(?:my|your|this|that)\s+project|no.*(?:asked|meant))\b/i.test(understanding.question) ? 'project-question' : understanding.intent) {
     case 'project-question':
       require('recent_conversation');
       if (request.contextPermissions.project) {
@@ -497,10 +497,10 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
       surface: request.surface === 'what-to-answer' ? 'what-to-answer' : 'manual-chat',
       modeId,
       scope: { userId: 'local', sessionId: request.sessionId },
-      manualQuestion: understanding.question,
+      manualQuestion: request.activeContext?.profileProjectName ? `In my project ${request.activeContext.profileProjectName}, ${understanding.question}` : understanding.question,
       hasScreenContext: false,
       hasAttachedDocuments: true,
-    }, understanding.question);
+    }, request.activeContext?.profileProjectName ? `In my project ${request.activeContext.profileProjectName}, ${understanding.question}` : understanding.question);
     const active = request.activeContext;
     const sourceDecision = active?.modeSourceContract ? resolveTurnSourceDecision({
       sourceContract: active.modeSourceContract,

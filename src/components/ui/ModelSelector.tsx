@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, Cloud, Terminal, Server, Plus } from 'lucide-react';
-import { getCodexCliModelDisplayName, STANDARD_CLOUD_MODELS, prettifyModelId } from '../../utils/modelUtils';
+import { getCodexCliModelDisplayName, STANDARD_CLOUD_MODELS, prettifyModelId, isModelAllowed } from '../../utils/modelUtils';
 import { useT } from '../../i18n';
 import { ProviderMark } from './ProviderMark';
 
@@ -62,7 +62,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
                         cModels.push({ id: pm, name: prettifyModelId(pm), desc: `${prov.charAt(0).toUpperCase() + prov.slice(1)} • Preferred`, provider: prov });
                     }
                 }
-                setCloudModels(cModels);
+                const disabled = new Set(creds?.disabledProviders || []);
+                const allowLists = creds?.cloudEnabledModels || {};
+                setCloudModels(cModels.filter(model => !disabled.has(model.provider)
+                    && isModelAllowed(model.provider, model.id, allowLists[model.provider] || [])));
+                if (disabled.has('ollama')) setOllamaModels([]);
+                if (disabled.has('custom')) setCustomProviders([]);
             } catch (e) {
                 console.error("Failed to load models:", e);
             }
@@ -112,7 +117,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <button
+            <button type="button"
+                aria-label="Choose answer model"
+                aria-expanded={isOpen}
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-bg-input hover:bg-bg-elevated border border-border-subtle rounded-lg transition-colors text-xs font-medium text-text-primary max-w-[150px]"
             >
@@ -121,22 +128,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
             </button>
 
             {isOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-64 bg-bg-item-surface border border-border-subtle rounded-xl shadow-xl z-50 overflow-hidden animated fadeIn">
+                <div className="absolute bottom-full right-0 mb-2 w-64 bg-bg-item-surface border border-border-subtle rounded-xl shadow-xl z-50 overflow-hidden animated fadeIn">
                     {/* Tabs */}
                     <div className="flex border-b border-border-subtle bg-bg-input/50">
-                        <button
+                        <button type="button"
                             onClick={() => setActiveTab('cloud')}
                             className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'cloud' ? 'text-accent-primary bg-bg-item-surface border-t-2 border-t-accent-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         >
                             {t('Cloud')}
                         </button>
-                        <button
+                        <button type="button"
                             onClick={() => setActiveTab('custom')}
                             className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'custom' ? 'text-accent-primary bg-bg-item-surface border-t-2 border-t-accent-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         >
                             {t('Custom')}
                         </button>
-                        <button
+                        <button type="button"
                             onClick={() => setActiveTab('local')}
                             className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${activeTab === 'local' ? 'text-accent-primary bg-bg-item-surface border-t-2 border-t-accent-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         >
@@ -189,7 +196,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
                                 {customProviders.length === 0 ? (
                                     <div className="text-center py-6 text-text-tertiary">
                                         <p className="text-xs mb-2">{t('No custom providers.')}</p>
-                                        <button className="text-[10px] text-accent-primary hover:underline">{t('Manage in Settings')}</button>
+                                        <button type="button" className="text-[10px] text-accent-primary hover:underline">{t('Manage in Settings')}</button>
                                     </div>
                                 ) : (
                                     customProviders.map(provider => (
@@ -247,7 +254,7 @@ interface ModelOptionProps {
 }
 
 const ModelOption: React.FC<ModelOptionProps> = ({ name, desc, icon, selected, onSelect }) => (
-    <button
+    <button type="button"
         onClick={onSelect}
         className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors group ${selected ? 'bg-accent-subtle' : 'hover:bg-bg-input'}`}
     >

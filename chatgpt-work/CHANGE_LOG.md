@@ -1,5 +1,11 @@
 # Sneak-Peek — agent work log
 
+## WORK-0090 / TASK-0012 — Real-world context, meeting search and response latency (2026-11-20)
+
+**In progress.** Baseline clean main 2a0c784d. Read current records, WORK-0089 evaluation and owner-provided answer transcript. Registered ERR-128/129/130 before repairs. Targeted source/caller searches used because graph/Copilot tools are unavailable. Installed-app settings inspection observed Gemini 3.5 Flash Lite; it does not establish which route produced historical owner timings. No credentials or settings were changed.
+
+**Current implementation.** Exact current project IDs can be resolved from completed conversation referents, including a unique abbreviated name; planner still enforces source permissions. Saved-meeting fallback reads scoped transcript records instead of requiring indexed embeddings. Meeting/global generation snapshots its route before retrieval. Shared model selector and summary recovery UI are in progress. Initial existing project regression run passed 27/27. A first typecheck caught an incorrect TurnUnderstanding property; corrected before acceptance. Renderer edits stopped at an assertion before any overlay write, then resumed at the actual markup. Full results and actual changed paths will be reconciled below before handoff. No Git publication or unrelated capture/packaging changes.
+
 ## WORK-0089 / TASK-0012 — V2-05 quality, speed and idle cost (2026-11-20)
 
 **Baseline.** Clean main cad730c9. Read current roadmap, tracking, evaluation and active code. Targeted source/caller searches substituted for unavailable graph tools. Existing Ollama llama3.2:3b weights were used on a separate loopback 11436 daemon. No model download or cloud credentials were used.

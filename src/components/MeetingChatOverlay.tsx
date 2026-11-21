@@ -1,6 +1,7 @@
+import { MeetingModelSelector } from './ui/MeetingModelSelector';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStreamBuffer } from '../hooks/useStreamBuffer';
-import { X, Copy, Check } from 'lucide-react';
+import { X, Copy, Check, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { genMessageId } from '../utils/messageId';
 import { mapLanguageForPrism, isBlockCode } from '../utils/prismLanguage';
@@ -208,6 +209,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
     // onNewQuery
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [query, setQuery] = useState('');
     const [chatState, setChatState] = useState<ChatState>('idle');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const submitInFlightRef = useRef<symbol | null>(null);
@@ -339,7 +341,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
             const doneCleanup = window.electronAPI?.onRAGStreamComplete((data?: any) => {
                 if (!isThisMeeting(data)) return;
                 // Final commit — flush any remaining buffered content
-                const finalContent = streamBuffer.getBufferedContent();
+                const finalContent = streamBuffer.getBufferedContent().trim() || data?.answer || 'No answer was returned. Check your selected model and try again.';
                 setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
                         ? { ...msg, content: finalContent, isStreaming: false }
@@ -356,7 +358,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
                 if (!isThisMeeting(data)) return;   // F-122
                 console.error('[MeetingChat] RAG stream error:', data.error);
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-                setErrorMessage("Couldn't get a response. Please try again.");
+                setErrorMessage(data.error || 'Could not get a response. Check your selected model.');
                 setChatState('error');
                 streamBuffer.reset();
                 tokenCleanup?.();
@@ -378,7 +380,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
             const result = await window.electronAPI?.ragQueryMeeting(meetingId, question);
             if (isCurrent() && (!result?.success || result.fallback)) {
                 setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-                setErrorMessage("Couldn't get a response. Please try again.");
+                setErrorMessage(result?.error || 'Could not get a response. Check your selected model.');
                 setChatState('error');
             }
         } catch (error) {
@@ -454,7 +456,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
                         </div>
 
                         {/* Messages area - scrollable */}
-                        <div className="flex-1 overflow-y-auto px-6 py-4 pb-32 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0 custom-scrollbar">
                             {messages.map((msg) => (
                                 msg.role === 'user'
                                     ? <UserMessage key={msg.id} content={msg.content} />
@@ -475,6 +477,16 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
 
                             <div ref={messagesEndRef} />
                         </div>
+                        <form className="shrink-0 p-3 border-t border-border-subtle flex items-center gap-2" onSubmit={e => {
+                            e.preventDefault();
+                            if (query.trim() && !submitInFlightRef.current) { void submitQuestion(query); setQuery(''); }
+                        }}>
+                            <input aria-label="Search this meeting" placeholder="Ask about this meeting..." value={query}
+                                onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1 rounded-xl bg-bg-elevated p-3 text-sm text-text-primary" />
+                            <MeetingModelSelector />
+                            <button type="submit" aria-label="Send meeting question" disabled={!query.trim() || chatState === 'waiting_for_llm' || chatState === 'streaming_response'}
+                                className="p-2 rounded-full bg-accent-primary text-white disabled:opacity-40"><ArrowUp size={16} /></button>
+                        </form>
                     </motion.div>
                 </motion.div>
             )}

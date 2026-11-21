@@ -552,6 +552,7 @@ items: any[];
 ) => () => void;
 // Model Management
 getDefaultModel: () => Promise<{ model: string }>;
+getCurrentModel: () => Promise<{ model: string }>;
 setModel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
 setDefaultModel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
 toggleModelSelector: (coords: { x: number; y: number; activate?: boolean }) => Promise<void>;
@@ -2112,6 +2113,7 @@ ipcRenderer.removeListener('gemini-stream-error', subscription);
 // stale autocomplete until the next mount, which is acceptable for v1.
 // Model Management
 getDefaultModel: () => ipcRenderer.invoke('get-default-model'),
+getCurrentModel: () => ipcRenderer.invoke('get-current-model'),
 setModel: (modelId: string) => ipcRenderer.invoke('set-model', modelId),
 setDefaultModel: (modelId: string) => ipcRenderer.invoke('set-default-model', modelId),
 toggleModelSelector: (coords: { x: number; y: number; activate?: boolean }) =>

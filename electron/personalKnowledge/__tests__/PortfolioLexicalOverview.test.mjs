@@ -24,6 +24,10 @@ test('portfolio overview uses indexed project and scoped resume chunks without r
     const other=await manager.ingestFile(otherPath,'project');
     const resume=await manager.ingestFile(resumePath,'resume');
     await manager.ingestFile(privatePath,'general');
+    assert.deepEqual(manager.findProjectFileIdsMentioning('Linkship'),[project.id]);
+    assert.deepEqual(manager.findProjectFileIdsMentioning('secret canary'),[],'general files cannot establish a project scope');
+    assert.deepEqual(manager.findProjectFileIdsMentioning('NotExistingProject'),[]);
+    assert.deepEqual(manager.findProjectFileIdsMentioning('***'),[]);
     const question='Can you explain your projects?';
     const projects=manager.searchRelevant(question,8,'project');
     assert.ok(projects.some(r=>r.fileId===project.id && /Redis job leases/.test(r.text)));

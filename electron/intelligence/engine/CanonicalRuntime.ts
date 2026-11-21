@@ -1,5 +1,6 @@
 import { readProviderScopePolicy } from '../../context-intelligence/policies/provider-scope-policy';
 import { createHash } from 'crypto';
+import { savedTranscriptEvidence, meetingSearchTerms } from './SavedMeetingEvidence';
 import { DatabaseManager } from '../../db/DatabaseManager';
 import { SneakPeekIntelligenceEngine } from './SneakPeekIntelligenceEngine';
 import { RetrievalCoordinator, createRetrievalCapability } from './RetrievalCoordinator';
@@ -178,6 +179,11 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
           metadata: { sourceId: input.request.activeContext?.meetingId ?? input.request.sessionId,
             timestampStart: turn.createdAt, retrievalSource: 'live-transcript' } })) };
     }
+    const requestedScope = input.request.retrievalScope;
+    if (requestedScope?.kind === 'meeting' && /\bquestions?\b.*\b(?:me|myself|i|user)\b/i.test(input.query)) {
+      const selected = DatabaseManager.getInstance().getMeetingDetails(requestedScope.meetingId);
+      return { items: selected ? savedTranscriptEvidence([selected], input.query, false) : [] };
+    }
     try {
       const persisted = await persistedMeeting?.retrieve(input);
       if (input.signal?.aborted) return { items: [] };
@@ -187,7 +193,22 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
     }
     if (input.signal?.aborted) return { items: [] };
     const scope = input.request.retrievalScope;
-    if (scope?.kind === 'global-meetings') return { items: [] };
+    if (scope?.kind === 'global-meetings') {
+      const terms = meetingSearchTerms(input.query);
+      const db = DatabaseManager.getInstance().getDb();
+      if (!db || terms.length === 0) return { items: [] };
+      const rows = db.prepare(`SELECT m.id, m.title, t.id AS transcript_id, t.speaker, t.content, t.timestamp_ms
+        FROM transcripts t JOIN meetings m ON m.id = t.meeting_id
+        WHERE t.speaker IN ('user', 'interviewer') AND (${terms.map(() => 'instr(lower(t.content), ?) > 0').join(' OR ')})
+        ORDER BY m.created_at DESC, t.timestamp_ms ASC LIMIT 200`).all(...terms) as Array<{
+          id: string; transcript_id: string; title: string; speaker: string; content: string; timestamp_ms: number;
+        }>;
+      const meetings = rows.map(row => ({ id: row.id, title: row.title, transcript: [{
+        id: row.transcript_id, speaker: row.speaker, text: row.content, timestamp: row.timestamp_ms,
+      }] }));
+      return { items: savedTranscriptEvidence(meetings, input.query, true),
+        metadata: { retrievalBackend: 'source-fallback', fallbackReason: 'empty' } };
+    }
     if (scope?.kind === 'meeting') {
       // Read the selected record from the local store. The renderer cannot
       // supply replacement evidence and another meeting is never consulted.
@@ -309,8 +330,8 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
         if (request.imageAnalysis && !imagePaths?.length) {
           throw new Error('Selected model does not support the requested images.');
         }
-        const pinned = request.answerContext?.providerRoute;
-        const route: ProviderRouteOptions | null = request.answerContext
+        const pinned = request.answerContext?.providerRoute ?? request.providerRoute;
+        const route: ProviderRouteOptions | null = request.answerContext || request.providerRoute !== undefined
           ? (pinned ? { ...pinned, models: { ...pinned.models }, dataScopes: [...new Set([...scopes, ...(pinned.dataScopes ?? [])])] } : null)
           : llmHelper.getSneakPeekGenerationRouteOptions([...scopes], Boolean(imagePaths?.length));
         if (!route) throw new Error('Active provider transport is not yet supported by the Sneak-Peek generation contract.');

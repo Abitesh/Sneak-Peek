@@ -101,6 +101,8 @@ export interface SneakPeekActiveContext {
   meetingId?: string;
   projectId?: string;
   projectName?: string;
+  /** Project focus from the pinned active resume; does not authorize files. */
+  profileProjectName?: string;
   /** Authorized original file IDs for an explicitly named project. */
   projectSourceIds?: string[];
   /** Resume-file IDs authorized for a broad portfolio overview, never for a named project. */
@@ -180,6 +182,8 @@ export interface CanonicalAnswerContext {
 }
 
 export interface SneakPeekIntelligenceRequest {
+  /** Frozen at submission for meeting/search requests before retrieval awaits. */
+  providerRoute?: import('../../llm/ProviderRouter').ProviderRouteOptions | null;
   answerContext?: CanonicalAnswerContext;
   /** A repair reuses the original authorized evidence, not a new source lookup. */
   repair?: {

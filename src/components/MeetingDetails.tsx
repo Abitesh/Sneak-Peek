@@ -1,3 +1,4 @@
+import { MeetingModelSelector } from './ui/MeetingModelSelector';
 import React, { useState, useRef, useEffect, useId } from 'react';
 import { useT } from '../i18n';
 import { useResolvedTheme } from '../hooks/useResolvedTheme';
@@ -948,6 +949,7 @@ const MeetingDetails: React.FC<MeetingDetailsProps> = ({ meeting: initialMeeting
 
     // Regenerate / evidence-jump / speaker-rename UI state.
     const [isRegenerating, setIsRegenerating] = useState(false);
+    const [summaryError, setSummaryError] = useState('');
     const [isRegeneratingFollowUp, setIsRegeneratingFollowUp] = useState(false);
     // Selected follow-up tone, shown in the selector. Seeded from the saved draft's tone.
     const [followUpTone, setFollowUpTone] = useState<'professional' | 'warm' | 'concise' | 'friendly'>(followUpDraftTone || 'professional');
@@ -979,10 +981,12 @@ const MeetingDetails: React.FC<MeetingDetailsProps> = ({ meeting: initialMeeting
     const handleRegenerate = async (templateType?: string) => {
         if (isRegenerating || !window.electronAPI?.regenerateMeetingSummary) return;
         setIsRegenerating(true);
+        setSummaryError('');
         try {
             const res = await window.electronAPI.regenerateMeetingSummary(meeting.id, templateType ? { templateType } : undefined);
             if (res?.success) await reloadMeeting();
-        } catch { /* swallow */ } finally { setIsRegenerating(false); }
+            else setSummaryError(res?.error || 'Summary could not be generated. At least three transcript entries and an authorized, configured model are required. Check AI provider settings.');
+        } catch { setSummaryError('Summary generation failed. Your transcript is preserved. Check your selected model and try again.'); } finally { setIsRegenerating(false); }
     };
 
     const handleRegenerateFollowUp = async (tone?: 'professional' | 'warm' | 'concise' | 'friendly') => {
@@ -1285,6 +1289,21 @@ ${meeting.detailedSummary.keyPoints?.map(item => `- ${item}`).join('\n') || 'Non
                         {/* Using standard divs for content, framer motion for layout */}
                         {activeTab === 'summary' && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                {summaryError && <p role="alert" className="mb-4 text-sm text-red-400">{summaryError}</p>}
+                                {!meeting.detailedSummary?.overview?.trim() && !v3Tldr.length && (
+                                    <div className="rounded-xl border border-border-subtle p-5 mb-5" role="status">
+                                        <h3 className="font-semibold text-text-primary">{isRegenerating ? 'Generating summary…' : 'No summary yet'}</h3>
+                                        <p className="text-sm text-text-secondary mt-2">
+                                            {(meeting.transcript?.length ?? 0) < 3
+                                                ? 'A summary needs at least three transcript entries. Your available transcript is in the Transcript tab.'
+                                                : `Your transcript is available. ${v3SummaryStatus === 'failed' ? 'The previous summary could not be generated. ' : ''}Generate notes using your configured model and summary privacy permissions.`}
+                                        </p>
+                                        <button onClick={() => handleRegenerate()} disabled={isRegenerating || (meeting.transcript?.length ?? 0) < 3}
+                                            className="mt-3 px-3 py-2 rounded-lg bg-accent-primary text-white text-sm disabled:opacity-40">
+                                            {isRegenerating ? 'Generating…' : 'Generate summary'}
+                                        </button>
+                                    </div>
+                                )}
                                 {/* Overview - Rendered as Markdown */}
                                 {meeting.detailedSummary?.overview && (
                                 <div className="pb-5 border-b border-border-subtle prose prose-sm max-w-none">
@@ -2003,8 +2022,8 @@ ${meeting.detailedSummary.keyPoints?.map(item => `- ${item}`).join('\n') || 'Non
             </main>
 
             {/* Floating Footer (Ask Bar) */}
-            <div className={`absolute bottom-0 left-0 right-0 p-6 flex justify-center pointer-events-none ${isChatOpen ? 'z-50' : 'z-20'}`}>
-                <div className="w-full max-w-[440px] relative group pointer-events-auto">
+            {!isChatOpen && <div className="absolute bottom-0 left-0 right-0 p-6 flex justify-center pointer-events-none z-20">
+                <div className="w-full max-w-[620px] flex items-center gap-2 group pointer-events-auto">
                     {/* Dark Glass Effect Input (Matching Reference) */}
                     <input
                         type="text"
@@ -2012,17 +2031,18 @@ ${meeting.detailedSummary.keyPoints?.map(item => `- ${item}`).join('\n') || 'Non
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={handleInputKeyDown}
                         placeholder={t("Ask about this meeting...")}
-                        className="w-full pl-5 pr-12 py-3 bg-transparent backdrop-blur-[24px] backdrop-saturate-[140%] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-white/20 rounded-full text-sm text-text-primary placeholder-text-tertiary/70 focus:outline-none transition-shadow duration-200"
+                        className="min-w-0 flex-1 pl-5 pr-3 py-3 bg-transparent backdrop-blur-[24px] backdrop-saturate-[140%] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-white/20 rounded-full text-sm text-text-primary placeholder-text-tertiary/70 focus:outline-none transition-shadow duration-200"
                     />
+                    <MeetingModelSelector />
                     <button
                         onClick={handleSubmitQuestion}
-                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all duration-200 border border-white/5 ${query.trim() ? 'bg-text-primary text-bg-primary hover:scale-105' : 'bg-bg-item-active text-text-primary hover:bg-bg-item-hover'
+                        className={`p-2 shrink-0 rounded-full transition-all duration-200 border border-white/5 ${query.trim() ? 'bg-text-primary text-bg-primary hover:scale-105' : 'bg-bg-item-active text-text-primary hover:bg-bg-item-hover'
                             }`}
                     >
                         <ArrowUp size={16} className="transform rotate-45" />
                     </button>
                 </div>
-            </div>
+            </div>}
 
             {/* Chat Overlay */}
             <MeetingChatOverlay

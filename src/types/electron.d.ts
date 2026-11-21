@@ -513,6 +513,7 @@ clearChatContext: () => Promise<{ success: boolean }>;
 stopActiveAnswer: () => void;
 // Model Management
 getDefaultModel: () => Promise<{ model: string }>;
+getCurrentModel: () => Promise<{ model: string }>;
 setModel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
 setDefaultModel: (modelId: string) => Promise<{ success: boolean; error?: string }>;
 toggleModelSelector: (coords: { x: number; y: number; activate?: boolean }) => Promise<void>;

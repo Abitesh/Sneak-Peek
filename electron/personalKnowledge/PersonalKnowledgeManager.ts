@@ -632,6 +632,17 @@ ORDER BY pf.updated_at DESC
 const garbled = this.garbledFileIds();
 return rows.map((row) => this.mapFile(row, garbled));
 }
+/** Local project-name existence lookup; never returns document contents or grants permission. */
+findProjectFileIdsMentioning(name: string): string[] {
+const tokens = name.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+if (!tokens.length || name.length > 100) return [];
+const phrase = '"' + tokens.join(' ') + '"';
+const rows = this.db.prepare(`SELECT DISTINCT pc.file_id AS id
+FROM personal_file_chunks_fts fts JOIN personal_file_chunks pc ON pc.id = fts.chunk_id
+JOIN personal_files pf ON pf.id = pc.file_id
+WHERE personal_file_chunks_fts MATCH ? AND pf.file_type = 'project' LIMIT 3`).all(phrase) as Array<{id: string}>;
+return rows.map(row => row.id);
+}
 getFile(id: string): PersonalFileRecord | null {
 const row = this.db.prepare(`
 SELECT
