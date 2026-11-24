@@ -40,6 +40,7 @@ const NON_PROJECT_NAMES = new Set([
   'code', 'design', 'implementation', 'architecture', 'repository',
   'python', 'javascript', 'typescript', 'java', 'redis', 'sql', 'postgresql',
   'data', 'file', 'document', 'resume', 'api', 'database',
+  'flow', 'complete', 'backend', 'frontend', 'its', 'their', 'implementation',
   'alternatives', 'alternative', 'others', 'other', 'options', 'option', 'frameworks',
   'yourself', 'myself', 'me', 'us', 'you', 'we', 'they', 'he', 'she', 'it',
 ]);
@@ -143,6 +144,13 @@ function referencesOnePreviousProject(question: string): boolean {
   return /\b(?:my|your|our|the|this|that)\s+(?:(?:current|previous|last|main|existing)\s+)?(?:project|repo|repository|codebase)\b/i.test(question);
 }
 
+/** Referential syntax only; a completed, authorized project is still required. */
+export function isProjectFollowupQuestion(question: string): boolean {
+  return referencesOnePreviousProject(question)
+    || /^(?:explain (?:the (?:complete |implementation |request )?flow|(?:its|the) (?:backend|frontend|architecture)|it|that|them)|how (?:does|did) (?:it|that|its (?:backend|frontend|API|database)) (?:work|communicate)|why (?:did you choose it|not (?:other frameworks|others|alternatives))|what (?:about (?:the )?database|alternatives(?: did you consider)?|was your contribution)|how did you implement that)[?.!\s]*$/i.test(question.trim())
+    || /\b(?:why\s+(?:did|do)\s+(?:you|we)\s+(?:use|choose|pick)|elaborate|explain\s+(?:it|that)|no[,.]?\s+(?:i|we)\s+(?:meant|asked))\b/i.test(question);
+}
+
 /**
  * Bind a singular project follow-up to the *immediately preceding completed*
  * conversation exchange, then re-resolve it from the current authorized files.
@@ -158,10 +166,17 @@ export function resolveProjectFileScopeForTurn(
   activeProfileProjectNames: readonly string[] = [],
 ): ProjectFileScope {
   const direct = resolveProjectFileScope(question, allFiles);
+  if (direct.namedProject && direct.missingNamedProject && !direct.unresolvedReference && /\b(?:project|repo|repository|codebase)\b/i.test(question)) {
+    const target = words(direct.namedProject).join(' ');
+    const managed = allFiles.filter(file=>file.projectId&&file.projectName&&normalizedProjectIdentity(file).join(' ').startsWith(target+' '));
+    if(new Set(managed.map(file=>file.projectId)).size===1) {
+      const identity=normalizedProjectIdentity(managed[0]).join(' ');
+      return resolveProjectFileScope(`Explain ${identity} project`,allFiles);
+    }
+  }
+
   if (direct.unresolvedReference || direct.namedProject && !direct.missingNamedProject) return direct;
-  const contextual = referencesOnePreviousProject(question)
-    || /^(?:explain (?:the flow|it|that|them)|how (?:does|did) (?:it|that)|why did you choose it|what about (?:the )?database|what alternatives|what was your contribution|how did you implement that)[?.!\s]*$/i.test(question.trim())
-    || /\b(?:why\s+(?:did|do)\s+(?:you|we)\s+(?:use|choose|pick)|elaborate|explain\s+(?:it|that)|no[,.]?\s+(?:i|we)\s+(?:meant|asked))\b/i.test(question);
+  const contextual = isProjectFollowupQuestion(question);
   if (!contextual) return direct;
 
   const unresolved: ProjectFileScope = {

@@ -1,3 +1,4 @@
+import { isProjectFollowupQuestion } from './ProjectFileScope';
 import { isProjectOnlyProfileRequest, resolveExplicitSourceRequests } from '../context-os/explicitSourceSwitch';
 import { resolveTurnSourceDecision } from '../../llm/turnSourceDecision';
 import { planResolvedTurn } from '../../context-intelligence/orchestration/orchestrator';
@@ -203,7 +204,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     if (useActivePortfolioResume) require('profile');
     require('rag');
     rationale.push('Portfolio overview uses project-tagged documents and/or explicitly authorized résumé file IDs.');
-  } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : (request.activeContext?.profileProjectName || request.activeContext?.projectName && request.activeContext?.projectSourceIds?.length) && (Boolean(request.activeContext?.projectName && (` ${understanding.question.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')} `).includes(` ${request.activeContext.projectName.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `)) || /\b(?:elaborate|why\s+(?:did|do)\s+(?:you|we)|explain\s+(?:it|that)|(?:my|your|this|that)\s+project|explain the flow|what about (?:the )?database|what alternatives|what was your contribution|how did you implement that|no.*(?:asked|meant))\b/i.test(understanding.question)) ? 'project-question' : understanding.intent) {
+  } else switch (personalPrompt ? 'personal-question' : conversationRecall ? 'follow-up' : meetingScopedTurn ? 'meeting-question' : (request.activeContext?.profileProjectName || request.activeContext?.projectName && request.activeContext?.projectSourceIds?.length) && (Boolean(request.activeContext?.projectName && (` ${understanding.question.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')} `).includes(` ${request.activeContext.projectName.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `)) || isProjectFollowupQuestion(understanding.question)) ? 'project-question' : understanding.intent) {
     case 'project-question':
       require('recent_conversation');
       if (request.contextPermissions.project) {

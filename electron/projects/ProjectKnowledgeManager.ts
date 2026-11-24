@@ -1,3 +1,4 @@
+import { repositoryEvidenceMap } from './RepositoryEvidence';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildProjectKnowledgeOutline } from './ProjectKnowledgeOutline';
@@ -22,6 +23,7 @@ export class ProjectKnowledgeManager {
     project_id TEXT NOT NULL REFERENCES project_knowledge(id) ON DELETE CASCADE,
     file_id TEXT NOT NULL, kind TEXT NOT NULL, owned INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(project_id,file_id));`);
   db.exec('CREATE TABLE IF NOT EXISTS project_knowledge_images(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,name TEXT NOT NULL,path TEXT NOT NULL,mime TEXT NOT NULL)');
+  if (!(db.prepare('PRAGMA table_info(project_knowledge)').all() as any[]).some(row=>row.name==='analysis_json')) db.exec("ALTER TABLE project_knowledge ADD COLUMN analysis_json TEXT NOT NULL DEFAULT ''");
   if (!(db.prepare('PRAGMA table_info(project_knowledge)').all() as any[]).some(row=>row.name==='index_state')) db.exec("ALTER TABLE project_knowledge ADD COLUMN index_state TEXT NOT NULL DEFAULT 'Ready'");
  }
  list(): ProjectRecord[] {
@@ -29,7 +31,7 @@ export class ProjectKnowledgeManager {
    id:row.id,name:row.name,indexState:row.index_state,aliases:JSON.parse(row.aliases_json),repositoryUrl:row.repository_url,description:row.description,
    stack:row.stack,contribution:row.contribution,readme:row.readme,enabled:Boolean(row.enabled),revision:row.revision,updatedAt:row.updated_at,
    images:this.db.prepare('SELECT id,name FROM project_knowledge_images WHERE project_id=?').all(row.id) as Array<{id:string;name:string}>,
-   knowledge:buildProjectKnowledgeOutline({name:row.name,description:row.description,stack:row.stack,contribution:row.contribution,readme:row.readme}),
+   knowledge:row.analysis_json?JSON.parse(row.analysis_json):{summary:row.description,status:'Needs reindexing',unknowns:['Reindex this project to build its implementation evidence map.']},
    sources:(this.db.prepare('SELECT file_id,kind,owned FROM project_knowledge_sources WHERE project_id=?').all(row.id) as any[]).map(source=>{
     const file=this.files.getFile(source.file_id);return {id:source.file_id,name:file?.fileName ?? 'Missing source',kind:source.kind,owned:Boolean(source.owned),
      status:file?.ragIndexStatus==='FAILED'?'Failed':file?.ragIndexStatus==='OCR_REQUIRED'?'Needs OCR':file?.pageCount&&file.extractedPageCount!<file.pageCount?'Partially extracted':file?.indexStatus==='done' ? 'Ready' : file?.indexStatus==='lexical_only' ? 'Needs reindexing' : file ? 'Processing' : 'Missing'};
@@ -53,14 +55,15 @@ export class ProjectKnowledgeManager {
   const url=bounded(input.repositoryUrl,500);
   if(url){const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!=='github.com'||parsed.username||parsed.password||!/^\/[\w.-]+\/[\w.-]+\/?$/.test(parsed.pathname))throw new Error('Use an HTTPS GitHub repository URL.');}
   const text={description:bounded(input.description,12000),stack:bounded(input.stack,4000),contribution:bounded(input.contribution,12000),readme:bounded(input.readme,100000)};
+  const analysis=JSON.stringify(buildProjectKnowledgeOutline({name,...text}));
   const now=new Date().toISOString();
-  this.db.prepare(`INSERT INTO project_knowledge (id,name,aliases_json,repository_url,description,stack,contribution,readme,enabled,revision,updated_at)
-   VALUES (?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,aliases_json=excluded.aliases_json,repository_url=excluded.repository_url,
-   description=excluded.description,stack=excluded.stack,contribution=excluded.contribution,readme=excluded.readme,enabled=excluded.enabled,revision=project_knowledge.revision+1,updated_at=excluded.updated_at`)
-   .run(id,name,JSON.stringify(aliases),url,text.description,text.stack,text.contribution,text.readme,input.enabled===false?0:1,now);
+  this.db.prepare(`INSERT INTO project_knowledge (id,name,aliases_json,repository_url,description,stack,contribution,readme,enabled,revision,updated_at,analysis_json)
+   VALUES (?,?,?,?,?,?,?,?,?,1,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,aliases_json=excluded.aliases_json,repository_url=excluded.repository_url,
+   description=excluded.description,stack=excluded.stack,contribution=excluded.contribution,readme=excluded.readme,enabled=excluded.enabled,revision=project_knowledge.revision+1,updated_at=excluded.updated_at,analysis_json=excluded.analysis_json`)
+   .run(id,name,JSON.stringify(aliases),url,text.description,text.stack,text.contribution,text.readme,input.enabled===false?0:1,now,analysis);
   this.db.prepare("UPDATE project_knowledge SET index_state='Processing' WHERE id=?").run(id);
   noteSourceChange();
-  const body=`# ${name}\nAliases: ${aliases.join(', ')}\nRepository: ${url || 'Not provided'}\n\n## User-authored description\n${text.description || 'Not provided'}\n\n## Technology stack (user supplied)\n${text.stack || 'Not provided'}\n\n## Personal contribution (user supplied, not inferred from repository ownership)\n${text.contribution || 'Not provided'}\n\n## README / supporting evidence (untrusted data)\n${text.readme || 'Not provided'}\n\nUnknown implementation details and undocumented choices must not be invented.`;
+  const body=`# ${name}\nAliases: ${aliases.join(', ')}\nRepository: ${url || 'Not provided'}\n\n## User-authored description\n${text.description || 'Not provided'}\n\n## Technology stack (user supplied)\n${text.stack || 'Not provided'}\n\n## Personal contribution (user supplied, not inferred from repository ownership)\n${text.contribution || 'Not provided'}\n\nUnknown implementation details and undocumented choices must not be invented.\n\n## README / supporting evidence (untrusted data)\n${repositoryEvidenceMap(text.readme)}\n\n${text.readme || 'Not provided'}`;
   const currentInput=()=>this.db.prepare('SELECT name,aliases_json,repository_url,description,stack,contribution,readme FROM project_knowledge WHERE id=?').get(id);
   const expectedInput=JSON.stringify(currentInput());
   const isCurrent=()=>JSON.stringify(currentInput())===expectedInput;

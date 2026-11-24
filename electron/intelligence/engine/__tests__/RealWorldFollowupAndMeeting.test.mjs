@@ -136,5 +136,6 @@ test('compacted followup identity is revalidated from completed-turn metadata, n
 test('a comparison with alternatives is a project followup, not a project named alternatives',()=>{
  const history=pair('Tell me about Geospatial Dispatch.','The backend uses Spring Boot.');
  assert.deepEqual(scope('Why did you use Spring Boot instead of alternatives?',history).selectedFileIds,['geo']);
- assert.deepEqual(scope('Why not other frameworks?',history).selectedFileIds,undefined);
+ assert.deepEqual(scope('Why not other frameworks?',history).selectedFileIds,['geo']);
+ assert.equal(scope('Compare Spring Boot and Express.',history).selectedFileIds,undefined);
 });

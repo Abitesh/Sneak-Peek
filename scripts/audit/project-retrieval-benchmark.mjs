@@ -1,0 +1,15 @@
+// Isolated production SQLite/lexical retrieval; no model calls or owner data.
+import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {pathToFileURL} from 'node:url';import {performance} from 'node:perf_hooks';import assert from 'node:assert/strict';import Database from 'better-sqlite3';
+const [root,fixture,out]=process.argv.slice(2);const load=p=>import(pathToFileURL(path.join(root,'dist-electron/electron',p+'.js')).href);
+const {RAGManager}=await load('rag/RAGManager'),{PersonalRagAdapter}=await load('rag/adapters/PersonalRagAdapter'),{PersonalKnowledgeManager}=await load('personalKnowledge/PersonalKnowledgeManager'),{ProjectKnowledgeManager}=await load('projects/ProjectKnowledgeManager');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sneak-0092-retrieval-'));const db=new Database(path.join(dir,'test.db'));PersonalKnowledgeManager.instance=null;const files=PersonalKnowledgeManager.getInstance(db),projects=new ProjectKnowledgeManager(db,files),rag=Object.create(RAGManager.prototype);
+try{
+ const imported=JSON.parse(fs.readFileSync(fixture,'utf8'));const project=await projects.save({name:'RealWorld API',aliases:['RealWorld'],repositoryUrl:imported.repositoryUrl,readme:imported.readme});
+ const decoy=await projects.save({name:'Decoy',description:'Do not return PRIVATE_DECOY_CANARY'});
+ rag.db=db;rag.embeddingPipeline={getActiveSpaceKey:()=>undefined};rag.getConversationForRetrieval=()=>undefined;rag.personalAdapter=new PersonalRagAdapter(db);rag.personalAdapter.getPersonalKnowledge=()=>files;
+ // Same no-reranker cohort in both builds. Real indexed SQLite adapter executes.
+ rag.rerankCanonicalResults=async(_query,rows)=>rows;rag.gateCanonicalResults=rows=>rows;
+ let reads=0;const read=rag.personalAdapter.retrieve.bind(rag.personalAdapter);rag.personalAdapter.retrieve=async input=>{reads++;return read(input);};
+ const rows=[];for(let i=0;i<100;i++){const query=['RealWorld API backend routes','RealWorld API database schema','RealWorld API authentication','RealWorld API implementation flow'][i%4];const t=performance.now();const result=await rag.readPlannedCanonicalSource({sourceType:'personal',projectFilesOnly:true,projectFileIds:[project.id],sessionId:'benchmark',query,limit:8,tokenBudget:1800});rows.push({ms:performance.now()-t,count:result.results.length});assert.ok(result.results.every(r=>r.source.id===project.id));assert.doesNotMatch(JSON.stringify(result),/PRIVATE_DECOY_CANARY/);}
+ const sorted=rows.slice(4).map(r=>r.ms).sort((a,b)=>a-b);const report={root,commit:imported.commit,cohort:'real imported source; production SQLite lexical adapter; no reranker/model calls',trials:rows.length,warmTrials:sorted.length,p50:sorted[Math.ceil(sorted.length*.5)-1],p95:sorted[Math.ceil(sorted.length*.95)-1],worst:Math.max(...sorted),adapterReads:reads,cache:rag.getProjectRetrievalCacheStats?.(),chunks:files.getFile(project.id).chunkCount,rows};fs.writeFileSync(out,JSON.stringify(report,null,2));console.log(JSON.stringify({...report,rows:undefined}));
+}finally{rag.projectReadCache?.dispose();db.close();PersonalKnowledgeManager.instance=null;fs.rmSync(dir,{recursive:true,force:true});}

@@ -88,6 +88,7 @@ function toEvidenceItem(result: RagSearchResult, source: ContextSource, index: n
       canonicalContentHash,
       contentHash: canonicalContentHash,
       sourceLocator,
+      ...Object.fromEntries(['repositoryPath','repositoryCommit','repositoryBlob','lineStart','lineEnd','sourceCategory'].filter(key=>chunkMetadata[key]!==undefined).map(key=>[key,chunkMetadata[key]])),
       documentName: String(result.source?.name ?? ''),
       page: result.chunk?.pageStart,
       pageStart: result.chunk?.pageStart,

@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## WORK-0092 — TASK-0013 project reliability resumed (2026-11-23)
+In progress. Implement balanced authorized GitHub import, implementation-derived source maps, architecture/source-aware canonical chunks, deterministic referents and scoped revision caching. Baseline 343d542f clean. Verify real public import, repeated read timings, multi-turn answers, edits/reindex/deletion/disable/isolation and desktop source/model lifecycle. Keep V2-05 acceptance open unless its actual thresholds pass.
+
+
 ## WORK-0091 — Verification checkpoint and owner-requested stop (2026-11-21)
 
 TASK-0012 / V2-05 remains **In progress**. TASK-0013 Projects and TASK-0014 text practice/review are **Implemented, unverified** at milestone level. No latency threshold has changed. Focused 48/48 and project/practice 29/29 passed at the recorded checkpoint. Actual disposable macOS UI passes Projects save, revised-source answers, offline drafts, optional canonical feedback, feedback STOP and a second-process relaunch. Model transports in this UI check are explicit fixtures, not live-provider quality evidence. ERR-136–139 cover failed indexing retry, an actual void-write ownership defect, exact project planning and advertised source-file extraction. Further improvements stopped at owner request on 2026-11-21; final wrap evidence is recorded in HANDOFF.md. Evidence: `/Users/abitesh/Downloads/sneak-peek-work-0091`; final counts supersede these checkpoints below when available.

@@ -1,3 +1,5 @@
+import { ProjectRetrievalCache } from './ProjectRetrievalCache';
+import { buildProjectSourceChunks } from '../projects/RepositoryEvidence';
 // electron/rag/RAGManager.ts
 // Central orchestrator for RAG pipeline
 // Coordinates preprocessing, chunking, embedding, and retrieval
@@ -537,7 +539,7 @@ dbManager.updateModeReferenceIndexState(documentId, contentHash, 0, 'ocr_require
 return { documentId, sourceType: input.sourceType, chunkCount: 0, embeddedChunkCount: 0, status: 'ocr_required' };
 }
 writeStatus('CHUNKING', { totalPageCount: pageCount, extractedPageCount });
-const chunks = buildDocumentChunks(content, {
+const chunks = (input.metadata?.projectId || input.metadata?.fileType === 'project' && /^## Source: /m.test(content)) ? buildProjectSourceChunks(content) : buildDocumentChunks(content, {
 chunkWords: 140,
 chunkOverlap: 30,
 tableRowsPerChunk: 10,
@@ -818,6 +820,8 @@ public async readPlannedKnowledgeSource(input: {
  * or RAGManager.search(). It reuses the canonical read, the selected source's
  * existing fallback adapter, common dedupe/rerank, and the relevance gate.
  */
+private projectReadCache?: ProjectRetrievalCache<PlannedCanonicalSourceReadResult>;
+public getProjectRetrievalCacheStats() {return {hits:this.projectReadCache?.hits ?? 0, misses:this.projectReadCache?.misses ?? 0};}
 public async readPlannedCanonicalSource(
 input: PlannedCanonicalSourceReadInput,
 ): Promise<PlannedCanonicalSourceReadResult> {
@@ -833,6 +837,18 @@ if (input.projectFilesOnly && input.projectFileIds?.length === 0) {
 
 const query = String(input.query ?? '').trim();
 if (!query) return cancelled();
+const cacheIds = input.sourceType === 'personal' && input.projectFilesOnly && input.projectFileIds?.length ? [...new Set(input.projectFileIds)].sort() : undefined;
+let cacheSpace: string | undefined;
+try {cacheSpace = this.embeddingPipeline?.getActiveSpaceKey?.();} catch { /* cold embedder: cache key remains local and bounded */ }
+const requestKey = [input.sessionId ?? '',input.ownerId ?? '',query,input.limit,input.tokenBudget,
+  isRagHybridEnabled(),isRagRerankEnabled(),isRagConfidenceGateEnabled(),isIntelligenceFlagEnabled('canonicalRagRead'),
+  cacheSpace];
+const cache = cacheIds ? this.projectReadCache ??= new ProjectRetrievalCache(this.db) : undefined;
+if(cache && cacheIds && cache.isAvailable(cacheIds)===false) throw new Error('A selected project is disabled, deleted or not ready. Select an available project.');
+const cacheKey = cacheIds && cache?.key(cacheIds,requestKey);
+const cached = cache?.get(cacheKey || undefined);
+if(cached && !input.signal?.aborted) return cached;
+
 const rerankActive = isRagRerankEnabled();
 const { topK, candidatePoolSize, rerankCandidatePoolSize } = resolveCanonicalRerankLimits({
 topK: input.limit,
@@ -939,7 +955,13 @@ finalResults = this.gateCanonicalResults(rerankedFallback.slice(0, topK), query,
 readResult = { results: finalResults, usedCanonical: false, fallbackReason: 'empty' };
 }
 if (input.signal?.aborted) return cancelled();
-return { ...readResult, results: finalResults };
+const result = { ...readResult, results: finalResults };
+if (cache && cacheKey && cacheIds) {
+  if(cache.key(cacheIds,requestKey) !== cacheKey) throw new Error('Project source changed during retrieval. Please ask again.');
+  // Do not memoize failure-derived fallbacks or misses as authoritative evidence.
+  if(result.results.length && result.fallbackReason !== 'error') cache.put(cacheKey,result);
+}
+return result;
 }
 /**
 * Build the Context Intelligence retrieval port used by normal/manual chat.
@@ -2259,6 +2281,7 @@ this._autoReindexTimer = null;
 * terminates the VectorStore worker thread. Call from the before-quit handler.
 */
 async dispose(): Promise<void> {
+this.projectReadCache?.dispose();
 this.cancelPendingReindex();
 // Stop the embedding drain loop BEFORE the shared DB handle is closed
 // (main.ts disposes RAG, then closes the DB): an in-flight embed that

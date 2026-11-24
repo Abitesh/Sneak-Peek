@@ -1,5 +1,15 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-144 — Project imports lose implementation coverage and source locations (WORK-0092)
+In progress. File selection sorts docs before source and caps at 14; only first 12k characters of each file are kept without a specific truncation explanation. Structured understanding mostly recognizes Markdown headings and two manifest kinds. Flat project Markdown passes through generic document chunks, losing per-file commit/line provenance. Verify balanced coverage, truthful partial states, source-derived claims and compatible canonical indexing.
+
+## ERR-145 — Common project follow-ups are not consistently resolved (WORK-0092)
+In progress. Current referent matching excludes “How does its backend work?”, “Explain the complete flow” and “What alternatives did you consider?”. Preserve exact current IDs, ambiguity, disabled/deleted sources and unrelated topic switches while extending deterministic matching.
+
+## ERR-146 — Project follow-up reads repeat work without a revision-bound cache (WORK-0092)
+In progress. Existing canonical project retrieval has no completed-result cache. Add a bounded per-instance/session/exact-ID cache with source-version, current availability, embedding and retrieval-policy keys; invalidate immediately on source changes. Never cache failed or cancelled reads or share in-flight ownership.
+
+
 ## WORK-0091 disposition at owner-requested stop (2026-11-21)
 
 No unresolved issue was closed merely to end this run. ERR-134, 136–140 have passing scoped regressions/desktop evidence for their implemented corrections. Broader milestone acceptance remains unverified. ERR-135 live import is externally blocked for the attempted anonymous request (403); private authenticated import is unimplemented. ERR-141 parser/fictional-style-example corrections pass focused checks, but real-model quality/latency remain open. Subsequent compact provenance/task-order/typed-core prototypes were rejected and removed after incorrect answers or no reliable benefit. ERR-142 rejects oversized extracted input instead of silently publishing a clipped source; focused test passes. ERR-143 phone snapshot/source availability integration compiles and passes the focused phone contract; physical Phone Mirror and final full-suite acceptance are unverified. ERR-128/132 have scope/policy repairs but real answer quality remains open; ERR-129 fast completion is now tested through the real renderer. ERR-130 provides visible recovery; no new hosted-generated owner summary is claimed. ERR-104/110 remain open.

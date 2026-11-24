@@ -1,3 +1,4 @@
+import { buildProjectSourceChunks } from '../projects/RepositoryEvidence';
 import { noteSourceChange } from './SourceChangeEpoch';
 // electron/personalKnowledge/PersonalKnowledgeManager.ts
 //
@@ -646,7 +647,7 @@ this.db.transaction(() => {
   this.db.prepare('DELETE FROM personal_file_chunks WHERE file_id=?').run(id);
   const put=this.db.prepare(`INSERT INTO personal_file_chunks (id,file_id,chunk_index,text,start_char,end_char,page_start,page_end,section,heading,content_type,metadata_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
-  chunkDocument(text).forEach((chunk,index)=>put.run(makeId('pchunk',id+':'+hash+':'+index),id,index,chunk.text,chunk.startChar,chunk.endChar,
+  buildProjectSourceChunks(text).map(chunk=>({...chunk,startChar:chunk.startOffset??0,endChar:chunk.endOffset??chunk.text.length})).forEach((chunk,index)=>put.run(makeId('pchunk',id+':'+hash+':'+index),id,index,chunk.text,chunk.startChar,chunk.endChar,
     chunk.pageStart ?? null,chunk.pageEnd ?? null,chunk.section ?? null,chunk.heading ?? null,chunk.contentType ?? 'text',JSON.stringify(chunk.metadata ?? {})));
 })();
 noteSourceChange();

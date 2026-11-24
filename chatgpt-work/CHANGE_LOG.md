@@ -1,5 +1,9 @@
 # Sneak-Peek — agent work log
 
+## WORK-0092 / TASK-0013 / V2-05 — Interview-ready project knowledge (2026-11-23)
+In progress. Owner resumes and authorizes GitHub implementation understanding, source-aware chunking, exact project followups and revision-aware retrieval caching. Baseline main 343d542f is clean. Preserve provider/STOP/privacy and existing canonical RAG. Read existing records and current production owners; previous AGENTS instructions were explicitly retracted. Source inspection identifies documentation-heavy file selection, weak source analysis, flat repository ingestion, missing referential phrases and repeated retrieval. Save isolated baseline/final evidence in Downloads/sneak-peek-work-0092. No credentials, owner data, staging or publication required.
+
+
 ## WORK-0091 — Owner-requested wrap-up, retained implementation (2026-11-21)
 
 Owner requested stopping improvements because of limited credits and delivering the current result. No further live evaluation, broad benchmark or product expansion follows this request. Removed this run's unaccepted compact typed core, evidence/provenance compaction and question/task reordering experiments; retained canonical scope/privacy fixes, natural chat guidance and removal of the fictional personal punctuation example. Experimental logs remain as failures, not passing acceptance. Latest retained-source checks: `npm run build:electron`, `npm run typecheck:electron`, explicit focused Electron tests (138/138), `npm run test:lib` (388 pass, 1 skip), and `git diff --check` pass. Final full suites are intentionally not rerun after the last narrow changes at owner stop.
