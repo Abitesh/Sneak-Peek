@@ -60,7 +60,8 @@ export type ContractTemplateType =
   // reference files" preamble (NEVER a refusal in this built-in mode).
   | 'seminar'
   // 9th built-in (2026-08-23): support / call-center.
-  | 'call-center';
+  | 'call-center'
+  | 'coding-dsa' | 'cs-fundamentals' | 'resume-projects';
 
 export type ModeConflictPolicy =
   | 'reference_files_win'
@@ -242,7 +243,7 @@ const EVIDENCE_REQUIRED_FOR_AUTHORITY: Record<ModeSourceAuthority, boolean> = {
 export function defaultSourceContractForNewMode(
   templateType?: string,
 ): ModeSourceContract {
-  const isInterviewPrep = templateType === 'looking-for-work'
+  const isInterviewPrep = templateType === 'resume-projects' || templateType === 'looking-for-work'
     || templateType === 'technical-interview';
   const allowedExplicitSwitches: ModeSourceSwitch[] = isInterviewPrep
     ? ['profile', 'job_description']
@@ -293,7 +294,7 @@ function isContractTemplateType(s: string | undefined): s is ContractTemplateTyp
     // Campaign-3 (2026-07-19): add 'seminar' to the template-type whitelist
     // so seededForTemplateType round-trips for the 8th mode.
     || s === 'seminar'
-    || s === 'call-center';
+    || s === 'call-center' || s === 'coding-dsa' || s === 'cs-fundamentals' || s === 'resume-projects';
 }
 
 /**

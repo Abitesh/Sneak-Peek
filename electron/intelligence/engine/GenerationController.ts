@@ -140,7 +140,9 @@ function describeProviderFailure(error: unknown): { detail: string; status?: num
   const vendorMessage = typeof response?.message === 'string' ? response.message : '';
   const dailyQuota = /insufficient_quota|perday|per day|daily.{0,30}(?:limit|quota)|monthly.{0,30}(?:limit|quota)|\b(?:TPD|RPD)\b|(?:billing|credits?).{0,30}(?:limit|exhaust)/i;
   let detail: string;
-  if (response?.name === 'ProviderScopeError' || response?.name === 'VisionPolicyError') {
+  if(response?.name === 'LocalContextCapacityError') {
+    detail='The selected local model cannot safely fit this context. Use fewer sources or explicitly select a model with a larger context window.';
+  } else if (response?.name === 'ProviderScopeError' || response?.name === 'VisionPolicyError') {
     detail = 'The provider is blocked by the current data scope or screenshot privacy settings.';
   } else if (response?.name === 'ProviderDisabledError') {
     detail = 'This provider is disabled in AI Providers.';
@@ -183,6 +185,7 @@ export interface GenerationRequest {
   thinkingBudget?: number;
   imagePaths?: readonly string[];
   lifecycle?: GenerationLifecycle;
+  onAttemptStatus?: (status:{provider:string;model?:string;state:'ready'|'failed';message:string})=>void;
 }
 
 export interface GenerationOutcome {
@@ -362,6 +365,7 @@ export class GenerationController {
             lifecycle.committedModel = attempt.model;
             lifecycle.transition('COMMITTED', 'first visible token emitted');
             record.status = 'committed';
+            try { request.onAttemptStatus?.({provider:attempt.provider,model:attempt.model,state:'ready',message:'This model began the answer successfully.'}); } catch { /* Observation cannot interrupt generation. */ }
             outcome.committedProvider = attempt.provider;
             outcome.committedModel = attempt.model;
           }
@@ -406,6 +410,7 @@ export class GenerationController {
           ? 'Gemini' : attempt.provider;
         const message = `${providerLabel}${status ? ` (HTTP ${status})` : ''}: ${detail}`;
         record.error = message;
+        try { request.onAttemptStatus?.({provider:attempt.provider,model:attempt.model,state:'failed',message}); } catch { /* Observation cannot interrupt failure handling. */ }
         console.warn('[GenerationController] Provider attempt failed', {
           provider: attempt.provider, status, reason: detail, elapsedMs: record.endedAt - record.startedAt,
           phase: committed ? 'after-first-token' : 'before-first-token',

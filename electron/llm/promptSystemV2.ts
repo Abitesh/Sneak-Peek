@@ -302,6 +302,10 @@ Spoken replies are usually 1 to 3 sentences and 25 to 75 words. Use more only wh
 // ==========================================
 
 const MODES: Record<PromptSystemV2Mode, string> = {
+    'coding-dsa': '<active_mode name="coding-dsa">Explain algorithms and correctness. Provide complete code only when requested. Respect domain language preferences. Private retrieval is disabled.</active_mode>',
+    'cs-fundamentals': '<active_mode name="cs-fundamentals">Give clear CS explanations with examples. Do not add code unless requested. Private retrieval is disabled.</active_mode>',
+    'resume-projects': '<active_mode name="resume-projects">Answer interview questions from authorized saved project evidence, with resume as supporting context. Never invent personal achievements or claim undocumented reasons were actual decisions.</active_mode>',
+
     general: `<active_mode name="general">
 Adapt to the actual setting without announcing it. In a live conversation, give the user the words they need or a concise explanation. In direct chat, answer as an assistant. Capture decisions or actions only when that is clearly the task. When nothing is useful and the silence gate permits it, produce nothing.
 </active_mode>`,
@@ -435,6 +439,10 @@ Write only the email body. Use a natural greeting, one specific reference to the
 
 /** Who speaks in each mode, and the specific role-confusion to prevent. */
 const MODE_SPEAKER: Record<PromptSystemV2Mode, { speaker: string; never: string }> = {
+    'coding-dsa': {speaker:'the candidate explaining a solution',never:'invent personal implementation claims'},
+    'cs-fundamentals': {speaker:'the candidate explaining a technical concept',never:'invent personal experience'},
+    'resume-projects': {speaker:'the candidate in first person when evidence supports it',never:'invent achievements or substitute facts from a different project'},
+
     general: {
         speaker: "the assistant in direct chat, or the user's own voice in a live conversation, as the moment requires",
         never: 'attribute an identity to the user or answer as a different participant',

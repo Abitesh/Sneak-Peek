@@ -136,6 +136,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
     onClose,
     initialQuery = ''
 }) => {
+    const [answeringBinding,setAnsweringBinding]=useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [chatState, setChatState] = useState<ChatState>('idle');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -271,6 +272,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
 
             const doneCleanup = window.electronAPI?.onRAGStreamComplete((data?: any) => {
                 if (!isCurrent() || !isGlobal(data)) return;
+                if(data?.answeringModel)setAnsweringBinding(`${data.answeringProvider??''} · ${data.answeringModel}`);
                 // The stream can legitimately complete with zero chunks (e.g. a
                 // short non-question like "hi" fed through the strict RAG-grounding
                 // prompt can make the model return an empty/degenerate completion).
@@ -460,7 +462,7 @@ const GlobalChatOverlay: React.FC<GlobalChatOverlayProps> = ({
                                     placeholder="Search saved meetings..."
                                     className="min-w-0 flex-1 pl-5 pr-3 py-3 bg-bg-elevated shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-border-muted rounded-full text-sm text-text-primary placeholder-text-tertiary/70 focus:outline-none transition-all"
                                 />
-                                <MeetingModelSelector />
+                                <MeetingModelSelector />{answeringBinding&&<span className="max-w-40 truncate text-[10px] text-text-secondary" title={answeringBinding}>Last answer: {answeringBinding}</span>}
                                 <button
                                     onClick={() => {
                                         if (query.trim()) {

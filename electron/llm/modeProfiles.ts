@@ -44,7 +44,8 @@ export type ModeTemplateType =
     // union without updating would compile-error.
     | 'seminar'
     // 9th built-in (2026-08-23): support / call-center.
-    | 'call-center';
+    | 'call-center'
+  | 'coding-dsa' | 'cs-fundamentals' | 'resume-projects';
 
 /** The slice of the active mode the planner needs. Built by
  *  ModesManager.getActiveModeInfo() (cached) and threaded through
@@ -120,6 +121,7 @@ const NEUTRAL: ModeContextProfile = {
  *   (Campaign-3, 2026-07-19.)
  */
 export const MODE_CONTEXT_PROFILES: Record<ModeTemplateType, ModeContextProfile> = {
+    'coding-dsa': NEUTRAL, 'cs-fundamentals': NEUTRAL, 'resume-projects': NEUTRAL,
     'general': NEUTRAL,
     // 9th built-in (2026-08-23): support calls answer from live context +
     // reference files; no candidate-profile fallback shape applies.

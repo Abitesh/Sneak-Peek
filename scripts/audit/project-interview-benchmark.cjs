@@ -67,7 +67,7 @@ app.whenReady().then(async () => {
   };
   const rag = await waitFor(()=>state.getRAGManager());
   const read=rag.readPlannedCanonicalSource.bind(rag);
-  rag.readPlannedCanonicalSource=async input=>{const t=performance.now();const result=await read(input);reads.push({source:input.sourceType,ms:performance.now()-t,count:result.results.length});return result;};
+  rag.readPlannedCanonicalSource=async input=>{const t=performance.now();const result=await read(input);reads.push({source:input.sourceType,query:input.query,ids:input.projectFileIds,ms:performance.now()-t,count:result.results.length});return result;};
   await rag.embeddingPipeline.initialize({ollamaUrl:'http://127.0.0.1:11436',explicitKeyManagement:true});
   const imported=JSON.parse(fs.readFileSync(path.join(temp,'project-import.json'),'utf8'));
   const projectInput={name:'RealWorld API',aliases:['RealWorld'],repositoryUrl:imported.repositoryUrl,description:imported.description,readme:imported.readme};
@@ -101,9 +101,10 @@ app.whenReady().then(async () => {
     await waitFor(()=>overlay.webContents.executeJavaScript("window.__trial.events.some(e=>e.type==='done'||e.type==='error')"),120000);
     const trial=await overlay.webContents.executeJavaScript('window.__trial');
     const answer=trial.events.find(e=>e.type==='done')?.data?.finalText||trial.events.find(e=>e.type==='done')?.data?.text||'';
-    if(answer){const html=marked.parse(stripDisplayMarkup(answer));const expected=await overlay.webContents.executeJavaScript(`new DOMParser().parseFromString(${JSON.stringify(html)},'text/html').body.textContent`);await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(expected))})`),15000);}
+    let finalDomMatched=false,visibilityError;
+    if(answer){const html=marked.parse(stripDisplayMarkup(answer));const expected=await overlay.webContents.executeJavaScript(`new DOMParser().parseFromString(${JSON.stringify(html)},'text/html').body.textContent`);try{await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(expected))})`),15000);finalDomMatched=true;}catch(e){visibilityError=e.message;}}
     const measured=await overlay.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{window.__trialObserver.disconnect();window.__trialOff.forEach(f=>f());resolve({...window.__trial,finalVisible:performance.now()});})))`);
-    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,firstTextVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,paints:measured.paints,finalVisibleMs:measured.finalVisible-measured.start,calls:calls.slice(c),reads:reads.slice(r)});
+    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,finalDomMatched,visibilityError,firstTextVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,paints:measured.paints,finalVisibleMs:finalDomMatched?measured.finalVisible-measured.start:null,calls:calls.slice(c),reads:reads.slice(r)});
     fs.writeFileSync(path.join(temp,'real-world.json'),JSON.stringify({model:'llama3.2:3b',readiness:'preloaded',source:'real imported public repository; actual production renderer/IPC/RAG; existing local models',commit:imported.commit,resourceBefore,cacheStats:rag.getProjectRetrievalCacheStats?.(),results},null,2));
     console.log('REAL_WORLD',results.length,results.at(-1).firstTextVisibleMs,results.at(-1).finalVisibleMs);
   }

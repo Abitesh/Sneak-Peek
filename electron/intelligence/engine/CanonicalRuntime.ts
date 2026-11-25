@@ -1,3 +1,5 @@
+import { providerStatusRegistry } from '../../services/ProviderStatusRegistry';
+import { sessionPreferencesStore } from '../../session/SessionPreferencesStore';
 import { readProviderScopePolicy } from '../../context-intelligence/policies/provider-scope-policy';
 import { createHash } from 'crypto';
 import { savedTranscriptEvidence, meetingSearchTerms } from './SavedMeetingEvidence';
@@ -300,6 +302,7 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
   }));
 
   const engine = new SneakPeekIntelligenceEngine({
+    preferences: () => sessionPreferencesStore().get(),
     retrievalCoordinator: new RetrievalCoordinator({
       capabilities: scopedCapabilities,
       onDecision: (trace) => {
@@ -347,7 +350,7 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
             : route.preferredProvider === 'gemini_pro' ? 'geminiPro' : route.preferredProvider;
           route.models = { ...route.models, [key]: request.providerPreferences.preferredModel };
         }
-        if (request.answerContext?.modeInstructions || request.answerContext?.skill || request.answerContext?.callerInstruction) {
+        if (request.activeContext?.sessionPreferences?.instructions || request.answerContext?.modeInstructions || request.answerContext?.skill || request.answerContext?.callerInstruction) {
           // User-authored instruction text can include private facts.
           for (const scope of conversationActionDataScopes({ unknownLineage: true })) scopes.add(scope);
           route.dataScopes = [...new Set([...scopes, ...(route.dataScopes ?? [])])];
@@ -374,6 +377,7 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
           imagePaths,
           thinkingBudget: request.responseShape?.detailed ? 1024 : 0,
           lifecycle,
+          onAttemptStatus: status => providerStatusRegistry().setStatus({id:`answer:${status.provider}:${status.model??''}`,kind:status.provider==='ollama'?'external_local':'cloud',health:status.state==='ready'?'ready':'degraded',requiredForStartup:false,requiredForCoreFallback:false,message:status.message,recoverable:true,details:{provider:status.provider,model:status.model}}),
         });
         console.log('[Sneak-Peek Intelligence] ProviderRouter → GenerationController', {
           requestId,

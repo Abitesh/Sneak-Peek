@@ -208,6 +208,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
     initialQuery = '',
     // onNewQuery
 }) => {
+    const [answeringBinding,setAnsweringBinding]=useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [query, setQuery] = useState('');
     const [chatState, setChatState] = useState<ChatState>('idle');
@@ -340,6 +341,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
 
             const doneCleanup = window.electronAPI?.onRAGStreamComplete((data?: any) => {
                 if (!isThisMeeting(data)) return;
+                if(data?.answeringModel)setAnsweringBinding(`${data.answeringProvider??''} · ${data.answeringModel}`);
                 // Final commit — flush any remaining buffered content
                 const finalContent = data?.answer?.trim() || streamBuffer.getBufferedContent().trim() || 'No answer was returned. Check your selected model and try again.';
                 setMessages(prev => prev.map(msg =>
@@ -490,7 +492,7 @@ const MeetingChatOverlay: React.FC<MeetingChatOverlayProps> = ({
                         }}>
                             <input aria-label="Search this meeting" placeholder="Ask about this meeting..." value={query}
                                 onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1 rounded-xl bg-bg-elevated p-3 text-sm text-text-primary" />
-                            <MeetingModelSelector />
+                            <MeetingModelSelector />{answeringBinding&&<span className="max-w-40 truncate text-[10px] text-text-secondary" title={answeringBinding}>Last answer: {answeringBinding}</span>}
                             <button type="submit" aria-label="Send meeting question" disabled={!query.trim() || chatState === 'waiting_for_llm' || chatState === 'streaming_response'}
                                 className="p-2 rounded-full bg-accent-primary text-white disabled:opacity-40"><ArrowUp size={16} /></button>
                         </form>

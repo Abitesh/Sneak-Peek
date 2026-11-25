@@ -1,7 +1,7 @@
 import { repositoryEvidenceMap } from './RepositoryEvidence';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildProjectKnowledgeOutline } from './ProjectKnowledgeOutline';
+import { buildProjectKnowledgeOutline, deriveProjectMetadata } from './ProjectKnowledgeOutline';
 import type Database from 'better-sqlite3';
 import { randomUUID, createHash } from 'node:crypto';
 import { PersonalKnowledgeManager } from '../personalKnowledge/PersonalKnowledgeManager';
@@ -54,7 +54,10 @@ export class ProjectKnowledgeManager {
   const aliases=[...new Set((input.aliases ?? []).map(a=>bounded(a,80)).filter(Boolean))].slice(0,12);
   const url=bounded(input.repositoryUrl,500);
   if(url){const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!=='github.com'||parsed.username||parsed.password||!/^\/[\w.-]+\/[\w.-]+\/?$/.test(parsed.pathname))throw new Error('Use an HTTPS GitHub repository URL.');}
-  const text={description:bounded(input.description,12000),stack:bounded(input.stack,4000),contribution:bounded(input.contribution,12000),readme:bounded(input.readme,100000)};
+  const text={description:bounded(input.description,12000),stack:bounded(input.stack,4000),contribution:bounded(input.contribution,12000),readme:bounded(input.readme,200000)};
+  const derived=deriveProjectMetadata(text.readme,text.description);
+  if(!text.description)text.description=derived.description;
+  if(!text.stack)text.stack=derived.stack;
   const analysis=JSON.stringify(buildProjectKnowledgeOutline({name,...text}));
   const now=new Date().toISOString();
   this.db.prepare(`INSERT INTO project_knowledge (id,name,aliases_json,repository_url,description,stack,contribution,readme,enabled,revision,updated_at,analysis_json)
@@ -63,7 +66,7 @@ export class ProjectKnowledgeManager {
    .run(id,name,JSON.stringify(aliases),url,text.description,text.stack,text.contribution,text.readme,input.enabled===false?0:1,now,analysis);
   this.db.prepare("UPDATE project_knowledge SET index_state='Processing' WHERE id=?").run(id);
   noteSourceChange();
-  const body=`# ${name}\nAliases: ${aliases.join(', ')}\nRepository: ${url || 'Not provided'}\n\n## User-authored description\n${text.description || 'Not provided'}\n\n## Technology stack (user supplied)\n${text.stack || 'Not provided'}\n\n## Personal contribution (user supplied, not inferred from repository ownership)\n${text.contribution || 'Not provided'}\n\nUnknown implementation details and undocumented choices must not be invented.\n\n## README / supporting evidence (untrusted data)\n${repositoryEvidenceMap(text.readme)}\n\n${text.readme || 'Not provided'}`;
+  const body=`# ${name}\nAliases: ${aliases.join(', ')}\nRepository: ${url || 'Not provided'}\n\n## Saved project description\n${text.description || 'Not provided'}\n\n## Technology stack (source-derived or user supplied; verify use against implementation)\n${text.stack || 'Not provided'}\n\n## Personal contribution (user supplied, not inferred from repository ownership)\n${text.contribution || 'Not provided'}\n\nUnknown implementation details and undocumented choices must not be invented.\n\n## README / supporting evidence (untrusted data)\n${repositoryEvidenceMap(text.readme)}\n\n${text.readme || 'Not provided'}`;
   const currentInput=()=>this.db.prepare('SELECT name,aliases_json,repository_url,description,stack,contribution,readme FROM project_knowledge WHERE id=?').get(id);
   const expectedInput=JSON.stringify(currentInput());
   const isCurrent=()=>JSON.stringify(currentInput())===expectedInput;
@@ -92,11 +95,20 @@ export class ProjectKnowledgeManager {
   if(!this.get(id))throw new Error('Project not found.');const file=this.files.getFile(fileId);if(!file)throw new Error('Source not found.');
   this.files.setFileType(fileId,'project');
   this.db.prepare('INSERT OR REPLACE INTO project_knowledge_sources(project_id,file_id,kind,owned) VALUES (?,?,?,?)').run(id,fileId,kind,owned?1:0);
-  this.bump(id);return this.get(id)!;
+  this.refreshDocumentKnowledge(id);this.bump(id);return this.get(id)!;
  }
+ private refreshDocumentKnowledge(id:string){
+  const project=this.get(id);if(!project)return;
+  const documents=project.sources.filter(s=>s.kind!=='notes'&&s.status!=='Missing').map(source=>({id:source.id,name:source.name,status:source.status,excerpts:(this.db.prepare('SELECT text FROM personal_file_chunks WHERE file_id=? ORDER BY start_char LIMIT 4').all(source.id) as Array<{text:string}>).map(c=>c.text.slice(0,1200))}));
+  const knowledge={...project.knowledge,attachedDocuments:documents};
+  const placeholder=project.description==='Saved project sources; review the implementation evidence map.';
+  const description=placeholder&&documents[0]?.excerpts[0]?documents[0].excerpts[0].slice(0,900):project.description;
+  this.db.prepare('UPDATE project_knowledge SET analysis_json=?,description=? WHERE id=?').run(JSON.stringify(knowledge),description,id);
+ }
+ markIndexFailed(id:string){this.db.prepare("UPDATE project_knowledge SET index_state='Failed' WHERE id=?").run(id);this.bump(id);}
  setEnabled(id:string,enabled:boolean){if(!this.get(id))throw new Error('Project not found.');this.db.prepare('UPDATE project_knowledge SET enabled=? WHERE id=?').run(enabled?1:0,id);this.bump(id);return this.get(id)!;}
  private bump(id:string){this.db.prepare('UPDATE project_knowledge SET revision=revision+1,updated_at=? WHERE id=?').run(new Date().toISOString(),id);noteSourceChange();}
- async reindex(id:string){const project=this.get(id);if(!project)throw new Error('Project not found.');await this.save(project);for(const source of project.sources.filter(s=>s.status!=='Missing'))await this.files.reindexStoredFile(source.id);this.bump(id);return this.get(id)!;}
+ async reindex(id:string){const project=this.get(id);if(!project)throw new Error('Project not found.');await this.save(project);for(const source of project.sources.filter(s=>s.status!=='Missing'))await this.files.reindexStoredFile(source.id);this.refreshDocumentKnowledge(id);this.bump(id);return this.get(id)!;}
  remove(id:string){
   const project=this.get(id);if(!project)throw new Error('Project not found.');
   // Revoke every project-owned copy first. Original external files/repositories are untouched.

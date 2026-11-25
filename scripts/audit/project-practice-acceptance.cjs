@@ -93,7 +93,7 @@ app.whenReady().then(async () => {
   await type('[aria-label="Project knowledge manager"] label:has(input) input','Orchid Dispatch');
   await type('[aria-label="Project knowledge manager"] textarea','Uses violet leases. Backend uses Java and spatial queries.');
   fs.writeFileSync(path.join(temp,'form.json'),JSON.stringify(await js('[...document.querySelectorAll("input,textarea,button")].map(e=>({value:e.value,text:e.innerText,disabled:e.disabled}))'),null,2));
-  await click('Save and index');
+  await click('Save project');
   await waitFor(()=>js('document.body.innerText.includes("Orchid Dispatch")&&!document.body.innerText.includes("Processing…")'),45000);
   const listed=await js('window.electronAPI.projectsList()');assert.equal(listed.success,true);assert.equal(listed.value.length,1);
   const project=listed.value[0];assert.equal(project.indexState,'Ready');assert.ok(project.sources.length);
@@ -103,7 +103,7 @@ app.whenReady().then(async () => {
   const answer=await js(`(async()=>{let answer='',error='';const off=[window.electronAPI.onGeminiStreamDone(d=>answer=d.finalText||''),window.electronAPI.onGeminiStreamError(e=>error=e)];try{await window.electronAPI.streamGeminiChat(${JSON.stringify(question)},undefined,undefined,{skipRollingContext:true,projectIds:[${JSON.stringify(project.id)}]});return{answer,error};}finally{off.forEach(f=>f());}})()`);
   assert.equal(answer.error,'');assert.match(answer.answer,/violet leases/);assert.match(calls.at(-1).prompt,/violet leases/);
   results.push({scenario:'Actual preload/canonical project grounding',status:'PASS'});
-  const edited=await js(`window.electronAPI.projectsSave({...${JSON.stringify(project)},description:'Uses indigo leases.'})`);assert.equal(edited.success,true);assert.equal(edited.value.id,project.id);
+  const edited=await js(`window.electronAPI.projectsSave({...${JSON.stringify(project)},description:'Uses indigo leases.',contribution:'Uses indigo leases.'})`);assert.equal(edited.success,true);assert.equal(edited.value.id,project.id);
   const revised=await js(`(async()=>{let answer='',error='';const off=[window.electronAPI.onGeminiStreamDone(d=>answer=d.finalText||''),window.electronAPI.onGeminiStreamError(e=>error=e)];try{await window.electronAPI.streamGeminiChat('Explain Orchid Dispatch.',undefined,undefined,{skipRollingContext:true,projectIds:[${JSON.stringify(project.id)}]});return{answer,error};}finally{off.forEach(f=>f());}})()`);
   assert.equal(revised.error,'');assert.match(revised.answer,/indigo leases/);assert.doesNotMatch(calls.at(-1).prompt,/Uses violet leases/);
   results.push({scenario:'Edited stable project source replaces stale facts',status:'PASS'});

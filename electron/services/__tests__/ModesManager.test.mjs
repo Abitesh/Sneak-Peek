@@ -14,6 +14,7 @@ const promptsMod = await import(pathToFileURL(promptsPath).href);
 const { ModesManager, MODE_TEMPLATES, TEMPLATE_NOTE_SECTIONS } = modesMod;
 
 const EXPECTED_MODE_TYPES = [
+  'coding-dsa', 'cs-fundamentals', 'resume-projects',
   'general',
   'sales',
   'recruiting',

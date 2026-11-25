@@ -209,10 +209,10 @@ function defaultDecision(
     });
   }
   if (authority === 'profile_only' || authority === 'profile_plus_transcript') {
-    if (!availability.hasProfileFacts) {
+    if (!availability.hasProfileFacts && !availability.hasScopedProjectFiles) {
       return unavailable(authority, contract, switches, [], 'default_profile_unavailable');
     }
-    const allowed = profileKinds();
+    const allowed:TurnEvidenceKind[] = availability.hasProfileFacts ? profileKinds() : ['projects'];
     if (availability.hasJobDescription) allowed.push('profile_jd');
     if (authority === 'profile_plus_transcript' && availability.hasLiveTranscript) {
       allowed.push('live_transcript');
@@ -224,7 +224,7 @@ function defaultDecision(
       outcome: 'default',
       owner: 'profile',
       allowed,
-      required: profileKinds(),
+      required: availability.hasProfileFacts ? profileKinds() : ['projects'],
       reasonCode: `${authority}:default_profile`,
     });
   }

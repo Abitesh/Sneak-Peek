@@ -7,8 +7,8 @@ import type { SneakPeekIntelligenceRequest, SneakPeekIntelligenceResult } from '
 
 /** One request-owned engine and immutable inputs, also used for bounded repairs. */
 export function createAnswerExecution(helper: any, appState: any, input: SneakPeekIntelligenceRequest) {
-  const request = freezeAnswerRequest(input);
-  const engine = createPrimaryManualSneakPeekEngine(helper, appState, request.requestId);
+  const engine = createPrimaryManualSneakPeekEngine(helper, appState, input.requestId);
+  const request = engine.pinRequest(input);
   let completed: SneakPeekIntelligenceResult | undefined;
   let repairSequence = 0;
   const run = engine.prepareAndStream(request);

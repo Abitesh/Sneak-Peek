@@ -251,6 +251,7 @@ function evaluateProductionIpcEngine(overrides = {}) {
     console: { log() {}, warn() {} }, AbortController, AbortSignal,
     SneakPeekIntelligenceEngine, RetrievalCoordinator, createRetrievalCapability, createCanonicalRagRetrievalCapability,
     conversationActionDataScopes, createHash, readProviderScopePolicy: () => undefined,
+    sessionPreferencesStore: () => ({get:()=>undefined}), providerStatusRegistry:()=>({setStatus(){}}),
     streamCanonicalProvider: (helper, input) => new GenerationController(helper).stream(input).stream,
     ...overrides,
   };

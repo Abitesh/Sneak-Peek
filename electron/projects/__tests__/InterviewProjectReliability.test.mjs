@@ -19,7 +19,7 @@ const files=[{id:'orchid',fileType:'project',fileName:'notes.md',projectName:'Or
 const turns=[{id:'u',role:'user',text:'Explain Orchid Dispatch.',source:'manual',generationStatus:'completed',finalized:true,requestSequence:1,metadata:{projectFocusName:'Orchid Dispatch'}},{id:'a',role:'assistant',text:'It routes dispatch requests.',source:'manual',generationStatus:'completed',finalized:true,requestSequence:1}];
 test('balanced selection covers implementation categories even with many early-sorting docs',()=>{
  const rows=[...Array.from({length:40},(_,i)=>`docs/${i}.md`),'README.md','package.json','backend/server.js','frontend/App.tsx','backend/routes.js','db/schema.sql'].map(path=>({path,sha:blob,size:100,type:'blob',mode:'100644'}));
- const chosen=selectRepositoryFiles(rows).map(f=>f.path);assert.ok(chosen.length<=20);
+ const chosen=selectRepositoryFiles(rows).map(f=>f.path);assert.ok(chosen.length<=40);
  for(const file of ['backend/server.js','frontend/App.tsx','backend/routes.js','db/schema.sql'])assert.ok(chosen.includes(file),file);
 });
 test('source chunks never mix files and preserve SHA, commit, lines and source roles',()=>{
@@ -65,4 +65,18 @@ test('first explicit abbreviated managed-project question resolves only one curr
  const q='Explain your Orchid project.';assert.deepEqual(resolveProjectFileScopeForTurn(q,files,[],'now').selectedFileIds,['orchid']);
  const ambiguous=[...files,{id:'sibling',fileType:'project',fileName:'other.md',projectName:'Orchid Analytics',projectId:'three'}];
  assert.deepEqual(resolveProjectFileScopeForTurn(q,ambiguous,[],'now').selectedFileIds,[]);
+});
+
+test('full registered project names containing API survive presentation suffixes without broad retrieval',()=>{
+ const catalog=[{id:'rw-notes',fileType:'project',fileName:'source.md',projectName:'RealWorld API',projectId:'rw'},{id:'rw-doc',fileType:'project',fileName:'document.pdf',projectName:'RealWorld',projectId:'rw'},{id:'decoy',fileType:'project',fileName:'other.md',projectName:'Other API',projectId:'other'}];
+ assert.deepEqual(resolveProjectFileScopeForTurn('Explain the RealWorld API project in two sentences.',catalog,[],'now').selectedFileIds,['rw-notes','rw-doc']);
+ assert.equal(resolveProjectFileScopeForTurn('What is an API?',catalog,[],'now').selectedFileIds,undefined);
+ assert.deepEqual(resolveProjectFileScopeForTurn('Compare the RealWorld API and Other API project.',catalog,[],'now').selectedFileIds,[]);
+});
+
+test('API project focus survives consecutive follow-ups using current authorized identities',()=>{
+ const catalog=[{id:'rw',fileType:'project',fileName:'source.md',projectName:'RealWorld API',projectId:'realworld'}];
+ const history=[{id:'u',role:'user',text:'Explain the RealWorld API project in two sentences.',source:'manual',generationStatus:'completed',finalized:true,requestSequence:1,metadata:{projectFocusName:'RealWorld API'}},{id:'a',role:'assistant',text:'A REST application.',source:'manual',generationStatus:'completed',finalized:true,requestSequence:1},{id:'current',role:'user',text:'How does its backend work?',source:'manual',generationStatus:'pending',requestSequence:2}];
+ assert.deepEqual(resolveProjectFileScopeForTurn('How does its backend work?',catalog,history,'current').selectedFileIds,['rw']);
+ assert.deepEqual(resolveProjectFileScopeForTurn('How does its backend work?',[],history,'current').selectedFileIds,[]);
 });

@@ -24,6 +24,7 @@ describe('registry completeness', () => {
     // services/ModesManager.ts — imported there would drag DB init and prompt
     // warnings into a pure registry test, so it is mirrored, not imported.
     assert.deepEqual([...MODE_IDS].sort(), [
+      'coding-dsa', 'cs-fundamentals', 'resume-projects',
       'call-center',        // 9th built-in, 2026-08-23
       'general',
       'lecture',

@@ -1,7 +1,7 @@
 import { repositoryCategory, type RepositoryCategory } from './RepositoryEvidence';
 const MAX_RESPONSE_BYTES = 2_000_000;
-const MAX_FILES = 20;
-const MAX_TEXT = 96_000;
+const MAX_FILES = 40;
+const MAX_TEXT = 160_000;
 const cooldowns = new Map<string, number>();
 export function parseGitHubRepository(value: string) {
   const url = new URL(value);
@@ -57,7 +57,7 @@ export async function importPublicGitHubProject(value: string, options: {fetch?:
   const cooldownKey = 'api.github.com';
   // Injected transports own their own account/rate-limit domain in tests.
   if (!options.fetch && (cooldowns.get(cooldownKey) ?? 0) > Date.now()) throw new Error(`GitHub is rate limited. Retry after ${new Date(cooldowns.get(cooldownKey)!).toISOString()}. No request was sent.`);
-  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000);
+  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(45_000)]) : AbortSignal.timeout(45_000);
   const api = `https://api.github.com/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}`;
   async function get(path: string) {
     const response = await request(api + path, {headers: {Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10'}, redirect: 'error', signal});
@@ -117,7 +117,7 @@ export async function importPublicGitHubProject(value: string, options: {fetch?:
   const categories = [...new Set(sources.map(s => s.category))];
   return {name: String(metadata.name ?? repository.repo), repositoryUrl: repository.url, commit: branch.sha,
     description: redactRepositorySecrets(String(metadata.description ?? '')),
-    readme: `Repository: ${repository.url}\nCommit: ${branch.sha}\nImport scope: ${sources.length} selected files. Coverage: ${categories.join(', ')}. Unread files and undocumented rationales remain unknown. Repository ownership is not proof of personal authorship.\n${warnings.map(w => 'Import warning: ' + w).join('\n')}\n\n` +
+    readme: `Repository: ${repository.url}\nCommit: ${branch.sha}\nImport scope: ${sources.length} selected files. Coverage: ${categories.join(', ')}. Unread files and undocumented rationales remain unknown. Repository ownership is not proof of personal authorship.\n${warnings.map(w => 'Import warning: ' + w).join('\n')}\n\nDirectory inventory (paths only, not proof their contents were read):\n${candidates.filter(eligible).map(f=>f.path).slice(0,100).join('\n').slice(0,3000)}\n\n` +
       sources.map(s => `## Source: ${s.path}\nRevision: ${s.sha}\nCategory: ${s.category}\n${s.text}`).join('\n\n'),
     sources: sources.map(({text, ...s}) => s), categories, warnings, partial: warnings.length > 0};
 }

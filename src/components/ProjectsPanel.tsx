@@ -14,6 +14,7 @@ function knowledgeValue(value:unknown):ReactNode {
 export function ProjectsPanel() {
  const [projects,setProjects]=useState<ProjectRecord[]>([]),[draft,setDraft]=useState<ProjectInput|null>(null);
  const [imageAnswer,setImageAnswer]=useState(''),[preview,setPreview]=useState('');
+ const [uploads,setUploads]=useState<Array<{token:string;name:string}>>([]);
  const analyzing=useRef(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  async function refresh(){const result=await window.electronAPI.projectsList();if(!result.success)throw new Error(result.error);setProjects(result.value ?? []);}
@@ -34,23 +35,20 @@ export function ProjectsPanel() {
  </label>;
  return <section className="text-text-primary space-y-5" aria-label="Project knowledge manager">
   <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Projects</h2><p className="text-sm text-text-secondary mt-1">Your project evidence, ready for interview follow-ups.</p></div>
-   <button className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-3 py-2 text-white text-sm" onClick={()=>setDraft(blank())} disabled={busy}><Plus size={15}/>Add project</button></header>
+   <button className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-3 py-2 text-white text-sm" onClick={()=>{setUploads([]);setDraft(blank());}} disabled={busy}><Plus size={15}/>Add project</button></header>
   {error&&<p role="alert" className="rounded-lg p-3 border border-red-500/30 text-red-400 text-sm">{error}</p>}
   {preview&&<figure className="rounded-xl border border-border-subtle p-3"><img alt="Selected project architecture diagram" src={preview} className="max-h-80 max-w-full object-contain mx-auto"/><button className="text-xs mt-2" onClick={()=>setPreview('')}>Close preview</button></figure>}
   {imageAnswer&&<section className="rounded-xl border border-border-subtle p-3"><h3 className="text-sm font-medium">Diagram explanation · AI-generated, verify before using</h3><p className="text-sm whitespace-pre-wrap mt-2">{imageAnswer}</p></section>}
   {notice&&<p role="status" className="text-sm text-text-secondary">{notice}</p>}
-  {draft?<form className="rounded-xl border border-border-subtle p-4 space-y-4" onSubmit={e=>{e.preventDefault();void run(async()=>{let ready=draft;if(draft.repositoryUrl&&(!draft.readme?.includes(`Repository: ${draft.repositoryUrl}\n`)||!draft.readme?.includes('Commit: '))){const imported=resultValue(await window.electronAPI.projectsImportGitHub(draft.repositoryUrl));ready={...draft,name:draft.name||imported.name,description:draft.description||imported.description,readme:imported.readme+(draft.readme?`\n\n## Additional user-provided notes\n${draft.readme}`:'')};}const saved=resultValue(await window.electronAPI.projectsSave(ready));setDraft(null);setNotice(`${saved.name} saved and indexed.`);});}}>
+  {draft?<form className="rounded-xl border border-border-subtle p-4 space-y-4" onSubmit={e=>{e.preventDefault();void run(async()=>{const saved=resultValue(await window.electronAPI.projectsSave({...draft,uploadTokens:uploads.map(f=>f.token)}));setDraft(null);setUploads([]);setNotice(`${saved.name} saved. ${saved.knowledge?.sourceCoverage?.partial?'Repository analysis is partial; review coverage and unknowns.':'Project knowledge indexed locally.'}`);});}}>
+
     <button type="button" className="flex items-center gap-1 text-sm text-text-secondary" onClick={()=>setDraft(null)} disabled={busy}><ArrowLeft size={14}/>All projects</button>
-    {field('name','Project name')}{field('aliases','Aliases, separated by commas')}{field('repositoryUrl','GitHub repository URL (optional)')}
-    <button type="button" className="flex items-center gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm" disabled={busy||!draft.repositoryUrl} onClick={()=>void run(async()=>{
-     const imported=resultValue(await window.electronAPI.projectsImportGitHub(draft.repositoryUrl!));
-     setDraft(current=>current?{...current,name:current.name||imported.name,description:current.description||imported.description,readme:imported.readme}:current);
-     setNotice(`Read ${imported.sources.length} files at commit ${imported.commit.slice(0,8)}. Review the evidence, then save. ${imported.partial?'Partial import: '+(imported.warnings?.join(' ')||'some repository content was not read.'):''}`);
-    })}><Github size={15}/>Read public repository</button>
-    <p className="text-xs text-text-secondary">Read-only import. No code runs. Private repositories can use a pasted README or uploaded authorized documentation. Contributions are never inferred from repository ownership.</p>
-    {field('description','Description / problem solved',true)}{field('stack','Technology stack')}{field('contribution','Your contribution (only what you actually did)',true)}{field('readme','README / implementation notes and source evidence',true)}
+    {field('name','Project name')}{field('aliases','Aliases, separated by commas')}{field('repositoryUrl','GitHub URL')}
+    <p className="text-xs text-text-secondary">Save project reads the public GitHub repository and selected documents, then stores an evidence map for interview answers. Interview questions use the saved database, not live GitHub. No imported code is executed. Import limits and missing files are reported.</p>
+    {field('contribution','Your contribution (only what you actually did)',true)}
+    <section aria-label="Files uploaded" className="rounded-xl border border-border-subtle p-3 space-y-2"><h3 className="text-sm font-medium">Files uploaded</h3>{!uploads.length&&!draft.id&&<p className="text-xs text-text-secondary">No files selected yet.</p>}{uploads.map(file=><div className="flex justify-between gap-2 text-sm" key={file.token}><span>{file.name}</span><button type="button" onClick={()=>setUploads(u=>u.filter(f=>f.token!==file.token))}>Remove</button></div>)}{draft.id&&projects.find(p=>p.id===draft.id)?.sources.filter(s=>s.kind!=='notes').map(s=><p className="text-xs" key={s.id}>{s.name} · {s.status}</p>)}</section>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={draft.enabled!==false} onChange={e=>setDraft({...draft,enabled:e.target.checked})}/>Available for interviews</label>
-    <button type="submit" disabled={busy||(!draft.name.trim()&&!draft.repositoryUrl)} className="rounded-lg bg-accent-primary px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Processing…':'Save and index'}</button>
+    <div className="flex flex-wrap items-center gap-3"><button type="button" disabled={busy} className="inline-flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-sm" onClick={()=>void run(async()=>{const selected=resultValue(await window.electronAPI.projectsPrepareFiles());setUploads(u=>[...u,...selected].slice(0,12));})}><Upload size={15}/>Upload files</button><button type="submit" disabled={busy||(!draft.name.trim()&&!draft.repositoryUrl)} className="rounded-lg bg-accent-primary px-4 py-2 text-sm text-white disabled:opacity-50">{busy?'Reading and indexing…':'Save project'}</button></div>
    </form>:<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
     {!projects.length&&<div className="rounded-xl border border-dashed border-border-subtle p-6 text-text-secondary text-sm">Add a project or import a README. Your résumé’s existing project summary is preserved; connect detailed evidence here.</div>}
     {projects.map(project=><article key={project.id} className="rounded-xl border border-border-subtle p-4 space-y-3">
@@ -61,9 +59,10 @@ export function ProjectsPanel() {
      {!!project.images?.length&&<div className="space-y-2 text-xs text-text-secondary"><p>Diagrams are attached locally; no OCR or cloud processing runs until you request analysis.</p><MeetingModelSelector/>{project.images.map(image=><div key={image.id} className="flex flex-wrap gap-3"><span>{image.name}</span><button disabled={busy} onClick={()=>void run(async()=>{setPreview(resultValue(await window.electronAPI.projectsImagePreview(project.id,image.id)));})}>Preview</button><button disabled={busy||!project.enabled} onClick={()=>void analyzeImage(project.id,image.id)}>Analyze diagram</button></div>)}</div>}
      {project.knowledge&&<details className="text-xs text-text-secondary"><summary className="cursor-pointer">Knowledge map & unknowns</summary><p className="mt-2">Source signals and user-authored statements; repository ownership is not proof of personal contribution.</p><dl className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-auto mt-3">{Object.entries(project.knowledge).filter(([key])=>key!=='name').map(([key,value])=><div className="space-y-1" key={key}><dt className="font-medium text-text-primary">{knowledgeLabel(key)}</dt><dd>{knowledgeValue(value)}</dd></div>)}</dl></details>}
      <div className="flex flex-wrap gap-3 text-xs">
-      <button disabled={busy} onClick={()=>setDraft({...project})}>Edit knowledge</button>
+      <button disabled={busy} onClick={()=>{setUploads([]);setDraft({...project});}}>Edit knowledge</button>
       <button className="flex items-center gap-1" disabled={busy} onClick={()=>void run(async()=>{resultValue(await window.electronAPI.projectsPickFile(project.id));})}><Upload size={13}/>Add documents</button>
-      <button disabled={busy} onClick={()=>void run(async()=>{resultValue(await window.electronAPI.projectsPickImage(project.id));})}>Add diagram</button>
+      {project.repositoryUrl&&<button disabled={busy} onClick={()=>void run(async()=>{resultValue(await window.electronAPI.projectsSave({...project,refreshRepository:true}));setNotice('GitHub sources refreshed and indexed. Review coverage and unknowns.');})}>Refresh GitHub</button>}
+     <button disabled={busy} onClick={()=>void run(async()=>{resultValue(await window.electronAPI.projectsPickImage(project.id));})}>Add diagram</button>
       <button className="flex items-center gap-1" disabled={busy} onClick={()=>void run(async()=>{resultValue(await window.electronAPI.projectsReindex(project.id));setNotice('Current stored sources reindexed.');})}><RefreshCw size={13}/>Reindex</button>
       <button className="text-red-400 flex items-center gap-1" disabled={busy} onClick={()=>{if(confirm(`Delete ${project.name} and its indexed copies? Original external files and the GitHub repository will not be deleted.`))void run(async()=>{resultValue(await window.electronAPI.projectsDelete(project.id));});}}><Trash2 size={13}/>Delete</button>
      </div>

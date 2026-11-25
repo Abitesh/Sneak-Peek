@@ -777,9 +777,12 @@ private parseChunkMetadata(value: unknown): Record<string, unknown> {
     }
 }
 
-search(query: string, limit = MAX_RESULTS): PersonalFileSearchResult[] {
+search(query: string, limit = MAX_RESULTS, scopedFileIds?:readonly string[]): PersonalFileSearchResult[] {
 const q = query.trim();
 if (!q) return [];
+const ids=scopedFileIds?[...new Set(scopedFileIds)]:undefined;
+if(ids?.length===0)return [];
+const scopeSql=ids?` AND f.file_id IN (${ids.map(()=>'?').join(',')})`:'';
 const safeLimit = Math.max(1, Math.min(MAX_RESULTS, limit));
 const ftsQuery = makeFtsQuery(q);
 const candidates: PersonalFileSearchResult[] = [];
@@ -806,10 +809,10 @@ pc.embedding_space,
 bm25(personal_file_chunks_fts) AS bm25_score
 FROM personal_file_chunks_fts f
 JOIN personal_file_chunks pc ON pc.id = f.chunk_id
-WHERE personal_file_chunks_fts MATCH ?
+WHERE personal_file_chunks_fts MATCH ? ${scopeSql}
 ORDER BY bm25_score ASC
 LIMIT 24
-`).all(ftsQuery) as any[];
+`).all(ftsQuery,...(ids??[])) as any[];
 for (const row of rows) {
 candidates.push({
 fileId: row.file_id,
@@ -843,7 +846,8 @@ SELECT pc.id, pc.file_id, pf.file_name, pc.text, pc.start_char, pc.end_char,
        pc.page_start, pc.page_end, pc.section, pc.heading, pc.content_type, pc.metadata_json, pc.embedding_space
 FROM personal_file_chunks pc
 JOIN personal_files pf ON pf.id = pc.file_id
-`).all() as any[];
+${ids?`WHERE pc.file_id IN (${ids.map(()=>'?').join(',')})`:''}
+`).all(...(ids??[])) as any[];
 for (const row of rows) {
 const score = lexicalScore(q, row.text);
 if (score <= 0) continue;
@@ -965,6 +969,14 @@ if (isBroadCandidateProjectsQuestion(q)
   && (fileType === 'project' || (selectedIds !== null && files.every((file) => file.fileType === 'resume')))) {
   return this.getPortfolioOverviewExcerpts(files, limit);
 }
+// Repository structural follow-ups need representative components, rather
+// than eight chunks that all happen to repeat the project name. Read only
+// already authorized, indexed files; no repository/network work occurs here.
+if (fileType === 'project' && selectedIds && /\b(?:overview|backend|frontend|implementation|database|dependencies)\s*$/i.test(q)) {
+  const topic=q.match(/\b(overview|backend|frontend|implementation|database|dependencies)\s*$/i)![1].toLowerCase();
+  const excerpts=this.getRepositorySectionExcerpts(files,topic,limit);
+  if(excerpts.length)return excerpts;
+}
 const lower = q.toLowerCase();
 const named = files.filter((file) => {
 const name = file.fileName.toLowerCase().replace(/[_-]+/g, ' ');
@@ -1027,6 +1039,38 @@ if (!previous || result.score > previous.score) merged.set(result.chunkId, resul
 }
 }
 return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
+}
+private getRepositorySectionExcerpts(files:readonly PersonalFileRecord[],topic:string,limit:number):PersonalFileSearchResult[] {
+ const priorities:Record<string,string[]>={overview:['overview','architecture','backend','api','database','dependencies'],backend:['backend','api','database','dependencies'],frontend:['frontend','api','dependencies'],implementation:['backend','api','database','frontend'],database:['database','backend','api'],dependencies:['dependencies','backend','database','api']};
+ const candidates:Array<PersonalFileSearchResult & {path:string;category:string;rank:number}>=[];
+ let hasRepositorySources=false;
+ for(const file of files){
+  const rows=this.db.prepare(`SELECT id,file_id,text,chunk_index,start_char,end_char,page_start,page_end,section,heading,content_type,metadata_json,embedding_space FROM personal_file_chunks WHERE file_id=? ORDER BY chunk_index LIMIT 600`).all(file.id) as any[];
+  for(const row of rows){
+   const metadata=this.parseChunkMetadata(row.metadata_json);
+   const repositoryPath=String(metadata?.repositoryPath??'');
+   if(repositoryPath)hasRepositorySources=true;
+   else if(lexicalScore(topic+' '+file.fileName,String(row.text))<=0)continue;
+   const path=repositoryPath||`supporting:${file.id}:${row.heading??row.chunk_index}`;
+   const category=repositoryPath?String(metadata?.sourceCategory??row.section??''):'supporting';
+   const entry=/(?:^|\/)(?:main|app|server|index)\.[jt]s$/i.test(path);
+   const seed=/(?:^|\/)(?:seed|seeds|test|tests|fixtures?)(?:[./]|$)|\.spec\./i.test(path);
+   const index=category==='supporting'?0:priorities[topic]?.indexOf(category)??-1;if(index<0||seed)continue;
+   const rank=100-index*10+(entry?5:0)-Math.min(5,Number(row.chunk_index)/100);
+   candidates.push({fileId:file.id,fileName:file.fileName,chunkId:String(row.id),text:String(row.text),score:0.9,startChar:Number(row.start_char)||0,endChar:Number(row.end_char)||0,pageStart:row.page_start??undefined,pageEnd:row.page_end??undefined,section:row.section??undefined,heading:row.heading??undefined,contentType:row.content_type??undefined,metadata,embeddingSpace:row.embedding_space??undefined,path,category,rank});
+  }
+ }
+ // First cover distinct files, then allow a second chunk from each. Never let
+ // a long README or service crowd out the other components in a flow answer.
+ if(!hasRepositorySources)return [];
+ const ordered=candidates.sort((a,b)=>b.rank-a.rank),counts=new Map<string,number>();
+ const chosen:typeof candidates=[];
+ for(const pass of [0,1])for(let round=0;round<MAX_RESULTS;round++)for(const category of ['supporting',...(priorities[topic]??[])]){
+  const item=ordered.find(item=>item.category===category&&(counts.get(item.fileId+'\0'+item.path)??0)===pass&&!chosen.some(c=>c.chunkId===item.chunkId));
+  if(!item)continue;chosen.push(item);counts.set(item.fileId+'\0'+item.path,pass+1);
+  if(chosen.length>=Math.min(MAX_RESULTS,limit))return chosen.map(({path,category,rank,...result})=>result);
+ }
+ return chosen.map(({path,category,rank,...result})=>result);
 }
 /**
  * Document-grounded excerpts for an explicitly authorized portfolio request.
@@ -1100,7 +1144,10 @@ const lexical = this.searchRelevant(query, limit * 2, fileType, scopedFileIds);
 const isAuthorizedPortfolioOverview = isBroadCandidateProjectsQuestion(query)
   && (fileType === 'project' || (scopedFileIds !== undefined && scopedFiles !== undefined
     && scopedFiles.length > 0 && scopedFiles.every((file) => file.fileType === 'resume')));
-if (isAuthorizedPortfolioOverview) {
+const isAuthorizedRepositoryStructure = fileType === 'project' && Boolean(scopedFileIds?.length)
+  && /\b(?:overview|backend|frontend|implementation|database|dependencies)\s*$/i.test(query)
+  && lexical.some(item=>Boolean(item.metadata?.repositoryPath));
+if (isAuthorizedPortfolioOverview || isAuthorizedRepositoryStructure) {
   return lexical.slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
 }
 const semantic = await this.searchSemantic(String(query ?? '').trim(), limit * 2, scopedFiles?.map((file) => file.id), signal);
@@ -1278,8 +1325,7 @@ result.errors++;
 return result;
 }
 private searchScoped(query: string, fileIds: string[], limit: number): PersonalFileSearchResult[] {
-const allowed = new Set(fileIds);
-return this.search(query, Math.max(limit, MAX_RESULTS * 2)).filter((result) => allowed.has(result.fileId)).slice(0, limit);
+return this.search(query,limit,fileIds);
 }
 buildPromptContext(query: string, limit = 6, maxChars = 9000): string {
 const results = this.searchRelevant(query, limit);

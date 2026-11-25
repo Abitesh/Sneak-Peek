@@ -358,8 +358,8 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     const active = request.activeContext;
     if (active?.modeSourceContract) {
       const hasScopedProjectFiles = request.contextPermissions.project
-        && Boolean(active.projectName && active.projectSourceIds?.length)
-        && isProjectOnlyProfileRequest(understanding.question);
+        && Boolean(active.projectSourceIds?.length && (active.projectName || isBroadCandidateProjectsQuestion(understanding.question)))
+        && (!resolveExplicitSourceRequests(understanding.question).includes('profile') || isProjectOnlyProfileRequest(understanding.question));
       sourceDecision = resolveTurnSourceDecision({
         sourceContract: active.modeSourceContract,
         explicitRequests: resolveExplicitSourceRequests(understanding.question),
@@ -455,6 +455,14 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     }
   }
 
+  // Hard source ceiling for dedicated no-RAG modes, after every source override.
+  const noPrivateMode = ['coding-dsa','cs-fundamentals'].includes(request.activeContext?.modeTemplateType ?? '');
+  if(noPrivateMode) {
+    for(const source of SOURCES) if(source !== 'screen' && source !== 'recent_conversation' && source !== 'none') {required.delete(source);optional.delete(source);forbidden.add(source);}
+    if(request.contextPermissions.conversation&&request.recentConversation.length){forbidden.delete('recent_conversation');required.add('recent_conversation');}
+    rationale.push('Dedicated mode: private retrieval disabled, including explicit source requests.');
+  }
+
   const decisions: ContextSourceDecision[] = SOURCES.map((source) => {
     let requirement: ContextRequirement;
     if (required.has(source)) requirement = 'required';
@@ -545,7 +553,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     forbiddenSources,
     notRequiredSources,
     needsContext: requiredSources.length > 0 || optionalSources.length > 0,
-    generalKnowledgeAllowed: !phoneMeetingEvidenceUnavailable && !request.retrievalScope && !(sourceDecision && (sourceDecision.owner === 'clarify' || sourceDecision.sourceAuthority === 'reference_files_only' || sourceDecision.sourceAuthority === 'transcript_only' || sourceDecision.sourceAuthority === 'reference_files_plus_transcript')) && ((request.action || request.liveAnswer || request.documentDraft) ? request.contextPermissions.generalKnowledge : (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question')),
+    generalKnowledgeAllowed: noPrivateMode ? request.contextPermissions.generalKnowledge : !phoneMeetingEvidenceUnavailable && !request.retrievalScope && !(sourceDecision && (sourceDecision.owner === 'clarify' || sourceDecision.sourceAuthority === 'reference_files_only' || sourceDecision.sourceAuthority === 'transcript_only' || sourceDecision.sourceAuthority === 'reference_files_plus_transcript')) && ((request.action || request.liveAnswer || request.documentDraft) ? request.contextPermissions.generalKnowledge : (!requiredSources.some((source) => PRIVATE_SOURCES.has(source)) || understanding.intent === 'general-question')),
     retrievalRequired,
     retrievalSources,
     rationale,

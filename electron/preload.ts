@@ -57,6 +57,7 @@ projectsPickImage: (id:string) => Promise<{success:boolean;value?:any;error?:str
 projectsImagePreview: (id:string,imageId:string) => Promise<{success:boolean;value?:string;error?:string}>;
 projectsAnalyzeImage: (id:string,imageId:string) => Promise<{success:boolean;error?:string}>;
 projectsList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+projectsPrepareFiles: () => Promise<{success:boolean;value?:Array<{token:string;name:string}>;error?:string}>;
 projectsSave: (input:any) => Promise<{success:boolean;value?:any;error?:string}>;
 projectsImportGitHub: (url:string) => Promise<{success:boolean;value?:any;error?:string}>;
 projectsSetEnabled: (id:string,enabled:boolean) => Promise<{success:boolean;value?:any;error?:string}>;
@@ -67,6 +68,9 @@ personalFilesList: () => Promise<{ success: boolean; files?: any[]; error?: stri
 personalFilesDelete: (fileId: string) => Promise<{ success: boolean; error?: string }>;
 personalFilesSearch: (query: string) => Promise<{ success: boolean; results?: any[]; error?: string }>;
 personalFilesSetFileType: (fileId: string, fileType: string) => Promise<{ success: boolean; file?: any; error?: string }>;
+onSessionPreferencesChanged: (callback:()=>void) => ()=>void;
+sessionPreferencesGet: () => Promise<import('./session/SessionPreferences').SessionPreferences>;
+sessionPreferencesSave: (value: import('./session/SessionPreferences').SessionPreferences, section?:'presentation'|'favorites') => Promise<import('./session/SessionPreferences').SessionPreferences>;
 notesList: () => Promise<LocalNote[]>;
 notesGet: (id: string) => Promise<LocalNote | null>;
 notesCreate: (title: string) => Promise<LocalNote | null>;
@@ -703,7 +707,7 @@ imagePaths?: string[],
 context?: string,
 options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean; projectIds?: string[] },
 ) => Promise<void>;
-onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => () => void;
+onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number; answeringModel?:string; answeringProvider?:string }) => void) => () => void;
 onGeminiStreamDone: (callback: (data?: { finalText?: string; streamId?: number; citationMarkers?: Record<string, RagCitationMarker>; text?: string; citations?: Record<string, RagCitationMarker>; ragUsed?: boolean; confidence?: number; sources?: string[] }) => void) => () => void;
 onGeminiStreamError: (callback: (error: string, meta?: { streamId?: number | null; source?: string }) => void) => () => void;
 onUndetectableChanged: (callback: (state: boolean) => void) => () => void;
@@ -1211,6 +1215,7 @@ projectsPickImage: id => ipcRenderer.invoke('projects:pick-image',id),
 projectsImagePreview: (id,imageId) => ipcRenderer.invoke('projects:image-preview',id,imageId),
 projectsAnalyzeImage: (id,imageId) => ipcRenderer.invoke('projects:analyze-image',id,imageId),
 projectsList: () => ipcRenderer.invoke('projects:list'),
+projectsPrepareFiles: () => ipcRenderer.invoke('projects:prepare-files'),
 projectsSave: input => ipcRenderer.invoke('projects:save',input),
 projectsImportGitHub: url => ipcRenderer.invoke('projects:import-github',url),
 projectsSetEnabled: (id,enabled) => ipcRenderer.invoke('projects:set-enabled',id,enabled),
@@ -1221,6 +1226,9 @@ personalFilesList: () => ipcRenderer.invoke('personal-files:list'),
 personalFilesDelete: (fileId: string) => ipcRenderer.invoke('personal-files:delete', fileId),
 personalFilesSearch: (query: string) => ipcRenderer.invoke('personal-files:search', query),
 personalFilesSetFileType: (fileId: string, fileType: string) => ipcRenderer.invoke('personal-files:set-file-type', fileId, fileType),
+onSessionPreferencesChanged: callback => {const fn=()=>callback();ipcRenderer.on('session-preferences-changed',fn);return()=>ipcRenderer.removeListener('session-preferences-changed',fn);},
+sessionPreferencesGet: () => ipcRenderer.invoke('session-preferences:get'),
+sessionPreferencesSave: (value,section) => ipcRenderer.invoke('session-preferences:save',value,section),
 notesList: () => ipcRenderer.invoke('notes:list'),
 notesGet: (id: string) => ipcRenderer.invoke('notes:get', id),
 notesCreate: (title: string) => ipcRenderer.invoke('notes:create', title),
@@ -2116,10 +2124,10 @@ imagePaths?: string[],
 context?: string,
 options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean; skipRollingContext?: boolean; projectIds?: string[] },
 ) => ipcRenderer.invoke('gemini-chat-stream', message, imagePaths, context, options),
-onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => {
+onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number; answeringModel?:string; answeringProvider?:string }) => void) => {
 // meta is an optional 2nd arg carrying { streamId } (audit finding #3). Existing
 // (token)=>& callbacks ignore it; the renderer uses it to drop stale-stream tokens.
-const subscription = (_: any, token: string, meta?: { streamId?: number }) => callback(token, meta);
+const subscription = (_: any, token: string, meta?: { streamId?: number; answeringModel?:string; answeringProvider?:string }) => callback(token, meta);
 ipcRenderer.on('gemini-stream-token', subscription);
 return () => {
 ipcRenderer.removeListener('gemini-stream-token', subscription);

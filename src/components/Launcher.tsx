@@ -7,7 +7,7 @@ import mainui from "../UI_comp/mainui.png";
 import UpcomingCalendarCard from './ui/UpcomingCalendarCard';
 import { useToggleInit } from './settings/useToggleInit';
 import MeetingDetails from './MeetingDetails';
-import NotesPage from './NotesPage';
+import SessionControlsPage from './SessionControlsPage';
 import TopSearchPill from './TopSearchPill';
 import GlobalChatOverlay from './GlobalChatOverlay';
 import { motion, AnimatePresence, useReducedMotion, type TargetAndTransition, type Variants } from 'framer-motion';
@@ -437,7 +437,7 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
     const prefersReducedMotion = useReducedMotion();
 
     if (isNotesOpen) {
-        return <NotesPage onBack={() => setIsNotesOpen(false)} onOpenModes={onOpenModes} />;
+        return <SessionControlsPage onBack={() => setIsNotesOpen(false)} onOpenModes={onOpenModes} onOpenAudioSettings={() => onOpenSettings('audio')} />;
     }
 
     // iOS/Ionic panel curve — strong ease-out, no overshoot. Used for the parts
@@ -729,10 +729,10 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                     </div>
                     <div className="relative group/notes-btn select-none">
                         <button
-                            data-testid="open-notes-page"
+                            data-testid="open-session-controls"
                             onClick={() => setIsNotesOpen(true)}
-                            title={t('Notes')}
-                            aria-label={t('Notes')}
+                            title="Modes & session"
+                            aria-label="Modes & session"
                             className={`p-2 text-text-secondary hover:text-text-primary transition-all duration-300 ${isLight ? 'hover:drop-shadow-[0_0_6px_rgba(0,0,0,0.25)]' : 'hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'}`}
                         >
                             <svg width={18} height={18} viewBox="0 0 14 14" fill="none">

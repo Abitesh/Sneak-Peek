@@ -30,7 +30,7 @@ export async function streamRagEngineAnswer(input: {
   request: SneakPeekIntelligenceRequest;
   meta: RagStreamMeta;
   isCurrent: () => boolean;
-  send: (channel: string, payload: RagStreamMeta & { chunk?: string; error?: string; answer?: string }) => void;
+  send: (channel: string, payload: RagStreamMeta & { chunk?: string; error?: string; answer?: string; answeringModel?:string; answeringProvider?:string }) => void;
   settle: (status: 'completed' | 'cancelled' | 'failed', answer?: string) => void;
   abort?: () => void;
   /** Preserve the former RAG stream stall bound; injectable for timeout tests. */
@@ -72,7 +72,7 @@ export async function streamRagEngineAnswer(input: {
           const answer = result.finalAnswer?.text ?? '';
           if (!answer.trim()) throw new Error('The provider returned no answer. Please try again.');
           input.settle('completed', answer);
-          input.send('rag:stream-complete', { ...input.meta, answer });
+          input.send('rag:stream-complete', { ...input.meta, answer, ...(run.lifecycle.committedModel?{answeringModel:run.lifecycle.committedModel,answeringProvider:run.lifecycle.committedProvider}:{}) });
           return { success: true, answer };
         }
         if (run.lifecycle.state === 'CANCELLED') break;

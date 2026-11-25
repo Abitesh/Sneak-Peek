@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { dialog, nativeImage } from 'electron';
 import { getPersonalKnowledgeManager } from '../personalKnowledge';
 import { getProjectKnowledgeManager, type ProjectInput } from './ProjectKnowledgeManager';
-import { importPublicGitHubProject } from './GitHubProjectImporter';
+import { importPublicGitHubProject, parseGitHubRepository } from './GitHubProjectImporter';
+const pendingDocuments=new Map<string,{path:string;expires:number}>();
+const DOCUMENT_EXTENSIONS=['pdf','docx','txt','md','markdown','json','csv','html','xml','ts','tsx','js','jsx','py','java','sql','go','rs','c','cpp','yaml','yml','toml'];
 type Register=(channel:string,handler:(event:any,...args:any[])=>any)=>void;
 /** Renderer never supplies filesystem paths. File access comes from the native picker. */
 export function registerProjectKnowledgeIpc(register:Register, analyzeDiagram?:(event:any,id:string,imageId:string)=>Promise<unknown>) {
@@ -23,7 +26,38 @@ export function registerProjectKnowledgeIpc(register:Register, analyzeDiagram?:(
   try{await analyzeDiagram(event,id,imageId);return {success:true};}catch(e){return {success:false,error:e instanceof Error?e.message:'Diagram analysis failed.'};}
  });
  register('projects:list',guard(()=>getProjectKnowledgeManager().list()));
- register('projects:save',guard((input:ProjectInput)=>{if(!input||typeof input!=='object')throw new Error('Invalid project.');return getProjectKnowledgeManager().save(input);}));
+ register('projects:prepare-files',guard(async()=>{
+  for(const [key,value] of pendingDocuments)if(value.expires<Date.now())pendingDocuments.delete(key);
+  if(pendingDocuments.size>60)throw new Error('Too many pending uploads. Save or reopen Projects.');
+  const selected=await dialog.showOpenDialog({properties:['openFile','multiSelections'],filters:[{name:'Project documentation',extensions:DOCUMENT_EXTENSIONS}]});
+  if(selected.canceled)return [];
+  if(selected.filePaths.length>12)throw new Error('Choose up to 12 documents per save.');
+  return selected.filePaths.map(file=>{const stat=fs.lstatSync(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>20*1024*1024)throw new Error('Use regular documents up to 20 MB.');const token=randomUUID();pendingDocuments.set(token,{path:file,expires:Date.now()+30*60_000});return {token,name:path.basename(file)};});
+ }));
+ register('projects:save',guard(async(input:ProjectInput)=>{
+  if(!input||typeof input!=='object')throw new Error('Invalid project.');
+  const tokens=input.uploadTokens??[];
+  if(!Array.isArray(tokens)||tokens.length>12||tokens.some(t=>typeof t!=='string'||!pendingDocuments.has(t)||pendingDocuments.get(t)!.expires<Date.now()))throw new Error('Upload selection expired. Choose the files again.');
+  const paths=[...new Set(tokens)].map(t=>pendingDocuments.get(t)!.path);
+  const projects=getProjectKnowledgeManager();
+  let ready={...input};
+  if(input.repositoryUrl&&(input.refreshRepository===true||!input.readme?.includes(`Repository: ${parseGitHubRepository(input.repositoryUrl).url}\n`)||!input.readme?.includes('Commit: ')||!input.readme.includes('## Source: '))){
+   const imported=await importPublicGitHubProject(input.repositoryUrl);
+   ready={...input,name:input.name||imported.name,description:imported.description,readme:imported.readme};
+  }
+  const saved=await projects.save(ready);
+  const files=getPersonalKnowledgeManager();
+  try {for(let i=0;i<paths.length;i++){
+   const previous=new Set(files.listFiles().map((file:{id:string})=>file.id));
+   const stat=fs.lstatSync(paths[i]);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>20*1024*1024)throw new Error('Selected document changed. Choose it again.');
+   const file=await files.ingestFile(paths[i],'project');
+   if(!projects.get(saved.id)){if(!previous.has(file.id))files.deleteFile(file.id,true);throw new Error('Project removed during upload.');}
+   projects.attach(saved.id,file.id,!previous.has(file.id));
+  }
+  }catch(error){projects.markIndexFailed(saved.id);throw new Error(`${saved.name} was saved, but a document could not be indexed. Reopen the project and retry: ${error instanceof Error?error.message:'Document import failed.'}`);}
+  tokens.forEach(t=>pendingDocuments.delete(t));
+  return projects.get(saved.id);
+ }));
  register('projects:import-github',guard((url:string)=>{if(typeof url!=='string')throw new Error('Repository URL required.');return importPublicGitHubProject(url);}));
  register('projects:set-enabled',guard((id:string,enabled:boolean)=>{if(typeof enabled!=='boolean')throw new Error('Invalid selection.');return getProjectKnowledgeManager().setEnabled(id,enabled);}));
  register('projects:delete',guard((id:string)=>getProjectKnowledgeManager().remove(id)));

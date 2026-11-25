@@ -17,6 +17,30 @@ async function collect(stream) {
   return text;
 }
 
+test('health observation reports sanitized failures and the committed binding without affecting fallback',async()=>{
+ const observed=[];
+ const controller=new GenerationController({async *streamFinalPrompt(provider){if(provider==='groq')throw Object.assign(new Error('PRIVATE_SECRET_CANARY'),{status:401});yield 'visible answer';}});
+ const {stream,outcome}=controller.stream({requestId:'observed',finalPrompt:'private prompt',route:route(),onAttemptStatus:s=>{observed.push(s);throw new Error('observer failure');}});
+ assert.equal(await collect(stream),'visible answer');
+ assert.equal(outcome.committedProvider,'gemini_flash');
+ assert.equal(observed[0].state,'failed');assert.match(observed[0].message,/401|authentication/i);
+ assert.equal(observed[1].state,'ready');assert.equal(observed[1].model,'gemini-3.7-flash');
+ assert.doesNotMatch(JSON.stringify(observed),/PRIVATE_SECRET_CANARY|private prompt/);
+});
+test('an in-flight answer retains its committed model while the next request uses the new selection',async()=>{
+ let selected='model-one';let release;
+ const controller=new GenerationController({async *streamFinalPrompt(_provider,model){const gate=model==='model-one'?new Promise(r=>{release=r;}):undefined;yield model;if(gate)await gate;yield ' complete';}});
+ const make=()=>controller.stream({requestId:selected,finalPrompt:'hello',route:route({models:{groq:selected},allowedProviders:['groq'],maxAttempts:1})});
+ const first=make();assert.equal((await first.stream.next()).value,'model-one');
+ selected='model-two';release();assert.equal(await collect(first.stream),' complete');assert.equal(first.outcome.committedModel,'model-one');
+ const next=make();assert.equal(await collect(next.stream),'model-two complete');assert.equal(next.outcome.committedModel,'model-two');
+});
+test('local context capacity failure is actionable without exposing prompt contents',async()=>{
+ const controller=new GenerationController({async *streamFinalPrompt(){throw Object.assign(new Error('PRIVATE_PROMPT_CANARY'),{name:'LocalContextCapacityError'});}});
+ const {stream,outcome}=controller.stream({requestId:'context-overflow',finalPrompt:'secret',route:route({maxAttempts:1})});
+ assert.equal(await collect(stream),'');assert.match(outcome.error,/fewer sources|larger context window/);assert.doesNotMatch(outcome.error,/PRIVATE_PROMPT_CANARY/);
+});
+
 test('pre-first-token provider failure falls back and emits only one final answer', async () => {
   const calls = [];
   const transport = {

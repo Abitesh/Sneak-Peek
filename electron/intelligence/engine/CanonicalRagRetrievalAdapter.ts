@@ -137,7 +137,12 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
         return { items: [], metadata: { scopeDenied: true, resultCount: 0 } };
       }
       const result = await options.read({
-        query: input.query,
+        // Short follow-ups contain conversational words absent from source
+        // files. Resolve the saved project first, then search its indexed
+        // section vocabulary. This cannot expand the ID authorization below.
+        query: options.source === 'project_knowledge'
+          ? projectEvidenceQuery(input.query, input.request.activeContext?.projectName)
+          : input.query,
         sourceType: options.sourceType,
         sourceId: scope.sourceId,
         scopeId: scope.scopeId,
@@ -176,4 +181,17 @@ export function createCanonicalRagRetrievalCapability(options: CanonicalRagRetri
       };
     },
   };
+}
+
+export function projectEvidenceQuery(query: string, projectName?: string): string {
+  if (!projectName?.trim()) return query;
+  const topic = /\bbackend\b/i.test(query) ? 'backend'
+    : /\bfrontend\b/i.test(query) ? 'frontend'
+    : /\b(?:database|schema|SQL|postgres|mongodb)\b/i.test(query) ? 'database'
+    : /\b(?:complete flow|end.to.end|request flow)\b/i.test(query) ? 'implementation'
+    : /\b(?:alternatives?|trade.offs?|choose|chosen)\b/i.test(query) ? 'dependencies'
+    : /\b(?:explain|describe|overview|architecture)\b/i.test(query) ? 'overview' : '';
+  // Keep specific technology/property questions intact. Only rewrite these
+  // structural synthesis requests; the original question still drives answers.
+  return topic ? `${projectName.trim()} ${topic}` : query;
 }

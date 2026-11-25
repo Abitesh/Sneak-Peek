@@ -79,6 +79,6 @@ describe('MODE_IDS is the single source of truth', () => {
     const { MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
     assert.deepEqual(MODE_POLICIES.general.profileSources, ['RESUME', 'PROFILE_FACT']);
     const profileCapable = MODE_IDS.filter((id) => (MODE_POLICIES[id].profileSources ?? []).length > 0);
-    assert.deepEqual(profileCapable.sort(), ['general', 'looking-for-work', 'technical-interview']);
+    assert.deepEqual(profileCapable.sort(), ['general', 'looking-for-work', 'resume-projects', 'technical-interview']);
   });
 });

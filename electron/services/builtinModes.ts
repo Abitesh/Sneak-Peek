@@ -24,6 +24,9 @@
 
 /** The canonical name each built-in template ships with. */
 export const BUILTIN_MODE_LABELS = {
+  'coding-dsa': 'Coding / DSA',
+  'cs-fundamentals': 'CS Fundamentals',
+  'resume-projects': 'Resume & Projects',
   'general': 'General',
   'sales': 'Sales',
   'recruiting': 'Recruiting',

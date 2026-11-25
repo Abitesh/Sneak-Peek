@@ -165,6 +165,22 @@ export function resolveProjectFileScopeForTurn(
   findProjectFilesMentioning?: (name: string) => readonly string[],
   activeProfileProjectNames: readonly string[] = [],
 ): ProjectFileScope {
+  // Registered identities may contain generic technical words (e.g. "API").
+  // Match the complete saved name/alias first; heuristics for unknown names must
+  // not reject those identities or let presentation suffixes swallow the name.
+  const normalizedQuestion=' '+words(question).join(' ')+' ';
+  const namedManaged=allFiles.filter(file=>file.projectId&&file.projectName&&file.fileType==='project'
+    && normalizedProjectIdentity(file).some(token=>token.length>=3&&!NON_PROJECT_NAMES.has(token)&&!QUERY_STOP_WORDS.has(token))
+    && normalizedQuestion.includes(' '+normalizedProjectIdentity(file).join(' ')+' '));
+  if(/\b(?:project|repo|repository|codebase|explain|describe|elaborate)\b/i.test(question)&&namedManaged.length){
+    const identities=new Set(namedManaged.map(file=>file.projectId));
+    if(identities.size===1){
+      const projectId=namedManaged[0].projectId;
+      const namedProject=namedManaged.sort((a,b)=>normalizedProjectIdentity(b).length-normalizedProjectIdentity(a).length)[0].projectName!;
+      return {namedProject,projectAvailable:true,missingNamedProject:false,selectedFileIds:[...new Set(allFiles.filter(file=>file.projectId===projectId&&file.fileType==='project').map(file=>String(file.id)).filter(Boolean))]};
+    }
+    if(!/\b(?:projects|repositories)\b/i.test(question))return {projectAvailable:false,missingNamedProject:false,unresolvedReference:true,selectedFileIds:[]};
+  }
   const direct = resolveProjectFileScope(question, allFiles);
   if (direct.namedProject && direct.missingNamedProject && !direct.unresolvedReference && /\b(?:project|repo|repository|codebase)\b/i.test(question)) {
     const target = words(direct.namedProject).join(' ');
@@ -204,6 +220,11 @@ export function resolveProjectFileScopeForTurn(
   const profileNames = activeProfileProjectNames.map(name => words(name).join(' ')).filter(Boolean);
   const identities = [...new Set([...projects.map(file => normalizedProjectIdentity(file).join(' ')), ...profileNames])];
   const resolveIdentity = (name: string): ProjectFileScope => {
+    const exact=projects.filter(file=>normalizedProjectIdentity(file).join(' ')===name);
+    const stableIds=new Set(exact.map(file=>file.projectId).filter(Boolean));
+    if(stableIds.size>1)return unresolved;
+    if(exact.length){const stableId=exact.find(file=>file.projectId)?.projectId;
+      return {namedProject:name,projectAvailable:true,missingNamedProject:false,selectedFileIds:[...new Set(projects.filter(file=>stableId?file.projectId===stableId:normalizedProjectIdentity(file).join(' ')===name).map(file=>String(file.id)))]};}
     const match = resolveProjectFileScope('Explain ' + name + ' project', allFiles);
     return !match.projectAvailable && profileNames.includes(name)
       ? { namedProject: name, projectAvailable: false, selectedFileIds: [], missingNamedProject: false, profileProject: true } : match;

@@ -21,6 +21,7 @@ import {
   TINY_PROMPTS_SET
 } from "./llm/tinyPrompts"
 import { getModelCapabilities, selectPromptTier, estimateTokens, truncateTranscriptToFit, getOpenAiMaxOutput, getOpenAiReasoningEffort, resolveMaxOutputTokens, type OpenAiReasoningEffort, type PromptTier, type ModelCapabilities } from "./llm/modelCapabilities"
+import { ollamaContextWindow } from './llm/ollamaContext';
 import { resolveProviderCeiling } from "./llm/promptBudget"
 import { GeminiPromptCache } from "./llm/GeminiPromptCache"
 import {
@@ -8159,20 +8160,7 @@ let isMultimodal = !!(imagePaths?.length);
     // caller passes the resolved vision-capable model here so the image is
     // actually understood instead of silently dropped.
     const ollamaModel = modelOverride || this.ollamaModel;
-    let userContent = context ? `CONTEXT:\n${context}\n\nUSER:\n${message}` : message;
-    // Per-request hard guard: trim userContent (never systemPrompt) until total fits the model's max ctx.
-    {
-      const maxCtx = getModelCapabilities(ollamaModel, true).maxContextTokens;
-      const total = estimateTokens(systemPrompt) + estimateTokens(userContent) + 2000;
-      if (total > maxCtx) {
-        console.warn('[Ollama] context overflow', { model: ollamaModel, total, max: maxCtx });
-        const lines = userContent.split('\n');
-        while (lines.length > 1 && (estimateTokens(systemPrompt) + estimateTokens(lines.join('\n')) + 2000) > maxCtx) {
-          lines.shift();
-        }
-        userContent = lines.join('\n');
-      }
-    }
+    const userContent = context ? `CONTEXT:\n${context}\n\nUSER:\n${message}` : message;
 
     let images: string[] | undefined;
     if (imagePaths?.length) {
@@ -8213,6 +8201,7 @@ let isMultimodal = !!(imagePaths?.length);
         // Keep the model resident between real turns for a bounded interval.
         keep_alive: this.ollamaKeepAlive,
         options: {
+          num_ctx: ollamaContextWindow(ollamaModel, messages),
           temperature: getModelCapabilities(ollamaModel, true).tier === 'local-small' ? 0.2 : 0.7,
           top_p: getModelCapabilities(ollamaModel, true).tier === 'local-small' ? 0.8 : undefined,
           // Uncapped for ALL Ollama models (sub-7B through 70B+). The previous cap was

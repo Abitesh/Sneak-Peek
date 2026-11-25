@@ -6,6 +6,7 @@ import type { CanonicalAnswerContext, SneakPeekIntelligenceRequest } from './typ
 
 /** Capture main-process configuration before the first asynchronous operation. No file contents are read. */
 export function captureAnswerContext(helper: any, mode: any, question: string, images = false, dataScopes: import('../../llm/ProviderRouter').ProviderDataScope[] = []): CanonicalAnswerContext {
+  const noPrivateMode=['coding-dsa','cs-fundamentals'].includes(mode?.templateType);
   const plan = planAnswer({ question, source: 'manual_input', speakerPerspective: 'user', activeMode: mode });
   let referenceSourceIds: string[] = [];
   let personalSourceIds: string[] = [];
@@ -13,7 +14,7 @@ export function captureAnswerContext(helper: any, mode: any, question: string, i
   const sourceVersions: Record<string, string> = {};
   try {
     const mm = require('../../services/ModesManager').ModesManager.getInstance();
-    if (mode?.id) {
+    if (mode?.id && !noPrivateMode) {
       referenceSourceIds = mm.getReferenceFiles(mode.id).map((file: { id: string; content: string }) => {
         sourceVersions[String(file.id)] = createHash('sha256').update(file.content).digest('hex');
         return String(file.id);
@@ -22,12 +23,14 @@ export function captureAnswerContext(helper: any, mode: any, question: string, i
     }
   } catch { /* unavailable source inventories grant no IDs */ }
   try {
+    if(!noPrivateMode){
     const projectManager = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
     sourceVersions.__projectCatalog = projectManager.catalogVersion();
     personalSourceIds = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles().filter((file: {id:string}) => projectManager.isSourceAvailable(file.id))
       .map((file: { id: string; updatedAt: string }) => { sourceVersions[String(file.id)] = file.updatedAt; return String(file.id); });
+    }
   } catch { /* unavailable */ }
-  const profile = buildActiveProfileContext(helper.getKnowledgeOrchestrator?.());
+  const profile = noPrivateMode ? {activeResume:null,activeJD:null} : buildActiveProfileContext(helper.getKnowledgeOrchestrator?.());
   const profileDocuments: NonNullable<CanonicalAnswerContext['profileDocuments']>[number][] = [];
   for (const [sourceType, doc] of [['RESUME', profile.activeResume], ['JOB_DESCRIPTION', profile.activeJD]] as const) {
     if (doc) profileDocuments.push({ sourceId: String(doc.sourceId), revisionId: doc.documentHash,
@@ -62,13 +65,14 @@ export function buildAnswerRequest(input: {
 }): SneakPeekIntelligenceRequest {
   const { id, question, mode, snapshot } = input;
   let files: any[] = [];
-  try { files = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles()
+  try { if(!['coding-dsa','cs-fundamentals'].includes(mode?.templateType))files = require('../../personalKnowledge').getPersonalKnowledgeManager().listFiles()
     .filter((file: any) => snapshot.personalSourceIds.includes(String(file.id))); } catch { /* fail closed */ }
   // All entry surfaces use stable project identity/aliases, not the generic
   // filename of a managed supporting document. Intersect with the frozen
   // authorized inventory before resolution; an unavailable catalogue fails closed.
   let descriptors = files;
   try {
+    if(['coding-dsa','cs-fundamentals'].includes(mode?.templateType))throw new Error('Private inventories are disabled in this mode.');
     const projects = require('../../projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
     const linked = projects.linkedSourceIds();
     descriptors = [...files.filter(file => !linked.has(file.id)),

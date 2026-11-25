@@ -1939,6 +1939,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
     };
   }, []);
 
+  const [answeringBinding,setAnsweringBinding]=useState('');
   // Model Selection State
   const [currentModel, setCurrentModel] = useState<string>('gemini-3-flash-preview');
   // Human-readable label for `currentModel`. Authoritative source is the
@@ -5990,6 +5991,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
         chatStreamIdRef.current = decision.activeId;
         chatStreamSourceRef.current = decision.activeSource ?? null;
         if (!decision.accept) return;
+        if(meta?.answeringModel)setAnsweringBinding(`${meta.answeringProvider??''} · ${meta.answeringModel}`);
         queueToken('chat', token);
       }),
     );
@@ -9596,7 +9598,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                                             `}
                       style={appearance.controlStyle}
                     >
-                      <span className="truncate min-w-0 flex-1">
+                      <span title={answeringBinding?`Last answering model: ${answeringBinding}`:undefined} className="truncate min-w-0 flex-1">
                         {(() => {
                           const m = currentModel;
                           const codexCliName = getCodexCliModelDisplayName(m);
@@ -9633,7 +9635,7 @@ const SneakPeekInterface: React.FC<SneakPeekInterfaceProps> = ({
                         })()}
                       </span>
                       <ChevronDown size={14} className="shrink-0 transition-transform" />
-                    </button>
+                    </button>{answeringBinding&&<span className="max-w-[190px] truncate text-[10px] text-text-secondary" title={answeringBinding}>Last answer: {answeringBinding}</span>}
 
                     <div className="w-px h-3 mx-1" style={appearance.dividerStyle} />
 

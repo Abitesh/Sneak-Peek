@@ -1,3 +1,4 @@
+import { ModelPreferencesPanel } from './ModelPreferencesPanel';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useT } from '../../i18n';
 import { Plus, Trash2, Edit2, AlertCircle, Save, ChevronDown, Check, RefreshCw, ExternalLink, Loader2, LogOut, Cloud, Server, Eye, Info, MessageSquare, Image, FileText, User, Boxes, ClipboardList, Laptop } from 'lucide-react';
@@ -3463,6 +3464,7 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
         // already neutralises both.
         <div className="aip-root space-y-5 pb-10" data-theme={theme} data-settings-stagger>
             <AmbiguousStoresCard />
+            <ModelPreferencesPanel/>
             {confirmCopy && (
                 <ConfirmDialog
                     open

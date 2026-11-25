@@ -77,7 +77,8 @@ export type ModeTemplateType =
 // Closest prior template was Sales, which frames everything as pipeline
 // (pain points / buying signals) — support calls need issue -> resolution
 // -> escalation framing instead.
-| 'call-center';
+| 'call-center'
+  | 'coding-dsa' | 'cs-fundamentals' | 'resume-projects';
 export interface Mode {
 id: string;
 name: string;
@@ -131,6 +132,9 @@ type: ModeTemplateType;
 label: string;
 description: string;
 }> = [
+{ type:'coding-dsa', label:'Coding / DSA', description:'Algorithms, correctness, executable solutions and complexity. No private document retrieval.' },
+{ type:'cs-fundamentals', label:'CS Fundamentals', description:'Clear operating systems, networking, databases and OOP explanations. No private document retrieval.' },
+{ type:'resume-projects', label:'Resume & Projects', description:'Interview answers grounded in authorized resume and saved project implementation evidence.' },
 { type: 'general', label: 'General', description: 'Universal adaptive copilot for any meeting or conversation.' },
 { type: 'sales', label: 'Sales', description: 'Close deals with strategic discovery and objection handling.' },
 { type: 'recruiting', label: 'Recruiting', description: 'Evaluate candidates with structured interview insights.' },
@@ -151,6 +155,9 @@ description: string;
 ];
 // Default note sections seeded when a mode is created from a template
 export const TEMPLATE_NOTE_SECTIONS: Record<ModeTemplateType, Array<{ title: string; description: string }>> = {
+'coding-dsa': [{title:'Problem and approach',description:'Problem, algorithm and correctness reasoning actually discussed.'},{title:'Implementation',description:'Code, tests and edge cases actually discussed.'},{title:'Complexity and follow-ups',description:'Time and space complexity, tradeoffs and unresolved questions.'}],
+'cs-fundamentals': [{title:'Concepts',description:'CS concepts and definitions discussed.'},{title:'Examples and distinctions',description:'Supporting examples and accurate comparisons.'},{title:'Questions to revisit',description:'Open or confusing questions and next steps.'}],
+'resume-projects': [{title:'Project implementation',description:'Source-supported architecture, component flow and responsibilities.'},{title:'Contribution and decisions',description:'Documented personal contribution and technology decisions; label unknowns.'},{title:'Follow-up questions',description:'Questions asked and unresolved evidence gaps.'}],
 general: [
 { title: 'What changed', description: 'Concrete outcomes, updates, or shifts from the meeting — not generic discussion.' },
 { title: 'Decisions', description: 'Confirmed decisions only. Do not include options that were merely discussed.' },
@@ -236,6 +243,9 @@ seminar: [
 // Campaign-3 (2026-07-19): exported (was `const`) so tests + future UI
 // debugging can verify which prompt each templateType resolves to.
 export const TEMPLATE_SYSTEM_PROMPTS: Record<ModeTemplateType, string> = {
+'coding-dsa': SHARED_MODE_PREFIX + '\nExplain algorithms naturally. When asked for code, give approach, steps, complete code, explanation, complexity and edge cases. Respect the selected domain coding language. Do not retrieve private files.',
+'cs-fundamentals': SHARED_MODE_PREFIX + '\nExplain CS concepts clearly with relevant examples. Do not add code unless requested. Do not retrieve private files.',
+'resume-projects': SHARED_MODE_PREFIX + '\nPrioritize saved authorized project implementation evidence over brief resume summaries. Resolve same-project follow-ups without mixing sources. Separate documented decisions from reasonable tradeoffs; do not invent achievements.',
 // General = universal adaptive copilot (own prompt, not technical interview)
 general: MODE_GENERAL_PROMPT,
 'technical-interview': MODE_TECHNICAL_INTERVIEW_PROMPT,
@@ -541,6 +551,7 @@ return store.info;
 // vectors of the same bug class — the intro-question shortcut and the
 // premium prompt/context injection — by gating the whole intercept here.
 private static readonly PREMIUM_INTERCEPT_INCOMPATIBLE_TEMPLATES: ReadonlySet<ModeTemplateType> = new Set([
+'coding-dsa','cs-fundamentals','resume-projects',
 'technical-interview',
 'team-meet',
 'lecture',

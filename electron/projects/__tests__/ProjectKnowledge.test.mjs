@@ -11,6 +11,17 @@ import { installCanonicalRagSchema } from '../../../dist-electron/electron/rag/c
 import { resolveProjectFileScopeForTurn } from '../../../dist-electron/electron/intelligence/engine/ProjectFileScope.js';
 import { parseGitHubRepository,safeRepositoryPath,redactRepositorySecrets,importPublicGitHubProject } from '../../../dist-electron/electron/projects/GitHubProjectImporter.js';
 function fixture(){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sneak-project-'));const db=new Database(path.join(dir,'test.db'));PersonalKnowledgeManager.instance=null;const files=PersonalKnowledgeManager.getInstance(db);installCanonicalRagSchema(db);const projects=new ProjectKnowledgeManager(db,files);return{dir,db,files,projects,close(){db.close();PersonalKnowledgeManager.instance=null;fs.rmSync(dir,{recursive:true,force:true});}};}
+test('structural project reads cover distinct implementation components and exclude seed scripts and decoys',async()=>{
+ const f=fixture();try{
+ const revision='a'.repeat(40),source=(p,t)=>`## Source: ${p}\nRevision: ${'b'.repeat(40)}\n${t}\n`;
+ const readme=`Repository: https://github.com/example/orchid\nCommit: ${revision}\n`+source('README.md','# Orchid API\nA REST application for dispatch.')+source('backend/main.ts',"app.use('/api',router);\nconst server = app.listen(3000);")+source('api/routes.ts',"router.post('/dispatch',assign);\nconst assign = service.assign;")+source('db/schema.sql','CREATE TABLE jobs (id INTEGER PRIMARY KEY);')+source('prisma/seed.ts','SEED_DISTRACTOR '.repeat(200));
+ const p=await f.projects.save({name:'Orchid API',readme});await f.projects.save({name:'Other',readme:readme.replaceAll('app.use','DECOY_CANARY')});
+ const result=f.files.searchRelevant('Orchid API implementation',8,'project',[p.id]);
+ const paths=result.map(r=>r.metadata?.repositoryPath);for(const path of ['backend/main.ts','api/routes.ts','db/schema.sql'])assert.ok(paths.includes(path),path);
+ assert.ok(result.every(r=>r.fileId===p.id));assert.doesNotMatch(JSON.stringify(result),/SEED_DISTRACTOR|DECOY_CANARY/);
+ assert.ok(result.every(r=>r.metadata.repositoryCommit===revision));
+ }finally{f.close();}
+});
 test('project CRUD keeps stable identity, source IDs and edited lexical facts; selection and deletion revoke retrieval',async()=>{
  const f=fixture();try{
  const one=await f.projects.save({name:'Orchid Dispatch',aliases:['Orchid'],description:'Uses violet job leases',contribution:'Wrote the routing API.'});

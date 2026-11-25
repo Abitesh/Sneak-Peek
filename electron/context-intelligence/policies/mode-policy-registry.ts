@@ -31,12 +31,13 @@ export type ModeId =
   | 'lecture'
   | 'seminar'
   // 9th built-in (2026-08-23): support / call-center.
-  | 'call-center';
+  | 'call-center'
+  | 'coding-dsa' | 'cs-fundamentals' | 'resume-projects';
 
 export const MODE_IDS: readonly ModeId[] = [
   'general', 'sales', 'recruiting', 'team-meet',
   'looking-for-work', 'technical-interview', 'lecture', 'seminar',
-  'call-center',
+  'call-center', 'coding-dsa', 'cs-fundamentals', 'resume-projects',
 ] as const;
 
 export interface CapabilityPolicy {
@@ -293,6 +294,57 @@ export const MODE_POLICIES: Record<ModeId, ModePolicy> = {
     autoAnswer: AUTO_ANSWER_INTERVIEW,
     citations: 'HIDDEN',
   },
+  'coding-dsa': {
+    id: 'coding-dsa', version: '1.1.0', name: 'Coding / DSA',
+    purpose: 'Whiteboard-style coding and system design support.',
+    allowedSourceTypes: ['CONVERSATION_STATE', 'SCREEN_CONTEXT'],
+    sourcePriorities: {},
+    // Same latent defect as looking-for-work: RESUME was planned but had no
+    // pool without duplicate attachments. JD/résumé hydrate; PROFILE_FACT is
+    // not in this mode's allowlist so it is not opted in.
+    profileSources: [],
+    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
+    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
+    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
+    retrievalPolicy: {enabled:false,maximumAttempts:2,maximumCandidates:0,maximumAcceptedEvidence:0}, contextBudget: budget(1600, 700, 700, 800),
+    autoAnswer: AUTO_ANSWER_INTERVIEW,
+    citations: 'HIDDEN',
+  },
+
+  'cs-fundamentals': {
+    id: 'cs-fundamentals', version: '1.1.0', name: 'CS Fundamentals',
+    purpose: 'Whiteboard-style coding and system design support.',
+    allowedSourceTypes: ['CONVERSATION_STATE', 'SCREEN_CONTEXT'],
+    sourcePriorities: {},
+    // Same latent defect as looking-for-work: RESUME was planned but had no
+    // pool without duplicate attachments. JD/résumé hydrate; PROFILE_FACT is
+    // not in this mode's allowlist so it is not opted in.
+    profileSources: [],
+    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
+    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
+    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
+    retrievalPolicy: {enabled:false,maximumAttempts:2,maximumCandidates:0,maximumAcceptedEvidence:0}, contextBudget: budget(1600, 700, 700, 800),
+    autoAnswer: AUTO_ANSWER_INTERVIEW,
+    citations: 'HIDDEN',
+  },
+
+  'resume-projects': {
+    id: 'resume-projects', version: '1.1.0', name: 'Resume & Projects',
+    purpose: 'Whiteboard-style coding and system design support.',
+    allowedSourceTypes: ['RESUME', 'JOB_DESCRIPTION', 'PROJECT_FILE', 'CODING_SAMPLE', 'SCREEN_CONTEXT', 'CONVERSATION_STATE'],
+    sourcePriorities: { PROJECT_FILE: 1, RESUME: 2, CODING_SAMPLE: 3, JOB_DESCRIPTION: 4 },
+    // Same latent defect as looking-for-work: RESUME was planned but had no
+    // pool without duplicate attachments. JD/résumé hydrate; PROFILE_FACT is
+    // not in this mode's allowlist so it is not opted in.
+    profileSources: ['RESUME', 'JOB_DESCRIPTION'],
+    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
+    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
+    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
+    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1600, 700, 700, 800),
+    autoAnswer: AUTO_ANSWER_INTERVIEW,
+    citations: 'HIDDEN',
+  },
+
 
   lecture: {
     id: 'lecture', version: '1.0.0', name: 'Lecture',

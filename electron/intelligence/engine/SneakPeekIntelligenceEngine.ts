@@ -49,10 +49,12 @@ function meetingRetrievalQuery(question: string): string {
 
 export class SneakPeekIntelligenceEngine {
   private readonly retrievalCoordinator: RetrievalCoordinator;
+  private readonly preferences?: () => import('../../session/SessionPreferences').SessionPreferences;
   private readonly generationPort?: SneakPeekGenerationPort;
 
   constructor(options?: {
     retrievalCoordinator?: RetrievalCoordinator;
+    preferences?: () => import('../../session/SessionPreferences').SessionPreferences;
     generationPort?: SneakPeekGenerationPort;
   } | RetrievalCoordinator) {
     // Each Electron entry is bundled separately; a coordinator supplied by
@@ -62,9 +64,10 @@ export class SneakPeekIntelligenceEngine {
       this.generationPort = undefined;
       return;
     }
-    const config = options as { retrievalCoordinator?: RetrievalCoordinator; generationPort?: SneakPeekGenerationPort } | undefined;
+    const config = options as { retrievalCoordinator?: RetrievalCoordinator; generationPort?: SneakPeekGenerationPort; preferences?: () => import('../../session/SessionPreferences').SessionPreferences } | undefined;
     this.retrievalCoordinator = config?.retrievalCoordinator ?? new RetrievalCoordinator();
     this.generationPort = config?.generationPort;
+    this.preferences = config?.preferences;
   }
 
   /**
@@ -77,7 +80,7 @@ export class SneakPeekIntelligenceEngine {
     result: Promise<SneakPeekIntelligenceResult>;
     lifecycle: GenerationLifecycle;
   } {
-    request = freezeAnswerRequest(request);
+    request = this.pinRequest(request);
     if (!this.generationPort) throw new Error('SneakPeekIntelligenceEngine generation port is not configured.');
     const lifecycle = new GenerationLifecycle(request.requestId);
     lifecycle.transition('PLANNING', 'manual chat request accepted by Sneak-Peek Intelligence Engine');
@@ -210,6 +213,7 @@ export class SneakPeekIntelligenceEngine {
   }
 
   async handle(request: SneakPeekIntelligenceRequest, lifecycle?: GenerationLifecycle): Promise<SneakPeekIntelligenceResult> {
+    request = this.withPreferences(request);
     const traceId = `${request.sessionId}:${request.requestId}`;
     const stages: string[] = [];
     const pipelineStages: string[] = [];
@@ -227,7 +231,7 @@ export class SneakPeekIntelligenceEngine {
       manualQuestion: request.manualQuestion ?? request.userMessage,
       selectedText: request.manualQuestion,
       sessionId: request.sessionId,
-      conversationState: storedConversation ? { ...storedConversation, turns: storedConversation.turns.filter((turn) => turn.id === request.currentTurn.id || isUsableConversationTurn(turn)) } : undefined,
+      conversationState: storedConversation ? { ...storedConversation, turns: storedConversation.turns.filter((turn) => turn.id === request.currentTurn.id || isUsableConversationTurn(turn) && (!['coding-dsa','cs-fundamentals'].includes(request.activeContext?.modeTemplateType??'') || turn.metadata?.modeTemplateType===request.activeContext?.modeTemplateType)) } : undefined,
       hasScreenContext: Boolean(request.screenContext),
       transcript: request.transcriptContext?.turns?.map((turn) => ({
         role: turn.role === 'assistant' ? 'assistant' : 'interviewer',
@@ -244,7 +248,7 @@ export class SneakPeekIntelligenceEngine {
       currentQuestion: request.userMessage,
       includePreviousTurns: request.contextPermissions.conversation,
     });
-    if (request.answerContext && request.contextPermissions.conversation) {
+    if ((request.answerContext || ['coding-dsa','cs-fundamentals'].includes(request.activeContext?.modeTemplateType??'')) && request.contextPermissions.conversation) {
       const turns = request.recentConversation.slice(-12).map(turn => this.toConversationTurn(turn));
       const currentTurn = this.toConversationTurn(request.currentTurn);
       conversationContext = { currentTurn, immediatePreviousTurns: turns.filter(turn => turn.id !== currentTurn.id).slice(-2).reverse(),
@@ -307,6 +311,14 @@ export class SneakPeekIntelligenceEngine {
       liveAnswer: request.liveAnswer,
       answerContext: request.answerContext,
     });
+    const preferences=request.activeContext?.sessionPreferences;
+    if(preferences&&!request.repair&&!request.documentDraft){
+      const explicitDetail=/\b(?:in detail|detailed|briefly|brief|concise|short|one sentence|two sentences|elaborate)\b/i.test(turnUnderstanding.question);
+      if(!explicitDetail){responsePlan.detailLevel=preferences.length==='short'?'concise':preferences.length==='long'?'detailed':'normal';
+        responsePlan.maxSentences=responsePlan.kind==='coding'?undefined:preferences.length==='short'?4:preferences.length==='long'?14:8;
+        responsePlan.maxTokens=responsePlan.kind==='coding'?1800:preferences.length==='short'?350:preferences.length==='long'?1100:650;}
+      if(responsePlan.kind!=='coding')responsePlan.format=preferences.format==='bullets'?'bullets':preferences.format==='script-bullets'?'structured':'prose';
+    }
     const intent = this.mapIntent(turnUnderstanding.intent);
     const responseType = responsePlan.kind === 'coding' ? 'coding-answer' : this.resolveResponseType(request, intent);
 
@@ -362,6 +374,21 @@ export class SneakPeekIntelligenceEngine {
       },
       finalAnswer: null,
     };
+  }
+
+  pinRequest(request:SneakPeekIntelligenceRequest):SneakPeekIntelligenceRequest {return freezeAnswerRequest(this.withPreferences(request));}
+
+  private withPreferences(request:SneakPeekIntelligenceRequest):SneakPeekIntelligenceRequest {
+    const mode=request.activeContext?.modeTemplateType;
+    const p=request.activeContext?.sessionPreferences??this.preferences?.();
+    if(['coding-dsa','cs-fundamentals'].includes(mode??'')){
+      const history=request.recentConversation.filter(turn=>turn.metadata?.modeTemplateType===mode);
+      return {...request,recentConversation:history,sessionSnapshot:undefined,imageConversationSnapshot:undefined,
+        action:request.action?{...request.action,sessionSnapshot:undefined,previousAnswer:history.some(t=>t.role==='assistant'&&t.content===request.action?.previousAnswer)?request.action.previousAnswer:undefined}:undefined,
+        activeContext:{...request.activeContext,sessionPreferences:p,projectName:undefined,projectSourceIds:undefined,resumeSourceIds:undefined,profileProjectName:undefined}};
+    }
+    if(!p)return request;
+    return {...request,activeContext:{...request.activeContext,sessionPreferences:p}};
   }
 
   private cancelledResult(

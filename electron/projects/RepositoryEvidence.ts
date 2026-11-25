@@ -22,11 +22,11 @@ export function repositoryCategory(file: string): RepositoryCategory {
 /** Read our bounded import envelope, not commands embedded in its contents. */
 export function parseRepositorySources(text: string): RepositorySource[] {
   const commit = text.match(/^Commit: ([a-f0-9]{40})\s*$/mi)?.[1] ?? '';
-  return [...text.matchAll(/^## Source: ([^\n]+)\nRevision: ([^\n]+)\n([\s\S]*?)(?=^## Source: |$(?![\s\S]))/gm)].map(match => {
+  return [...text.matchAll(/^## Source: ([^\n]+)\nRevision: ([^\n]+)\n([\s\S]*?)(?=^## Source: |^## Additional user-provided notes|$(?![\s\S]))/gm)].map(match => {
     const body = match[3].replace(/^Category: [^\n]+\n/, '');
     return { path: match[1].trim(), sha: match[2].trim(), commit, text: body.replace(/\n\[Import truncated:[^\n]*\]/g,'').trimEnd(),
       category: repositoryCategory(match[1]), truncated: body.includes('[Import truncated:') };
-  }).slice(0, 24);
+  }).slice(0, 48);
 }
 
 export interface ImplementationSignal {

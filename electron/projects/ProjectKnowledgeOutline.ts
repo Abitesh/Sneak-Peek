@@ -2,7 +2,7 @@ import { parseRepositorySources, implementationSignals } from './RepositoryEvide
 /** Bounded, deterministic source map. Signals are attributed, not invented implementation facts. */
 export function buildProjectKnowledgeOutline(input:{name:string;description?:string;stack?:string;contribution?:string;readme?:string}) {
  const text=String(input.readme ?? '');
- const paths=[...text.matchAll(/^## Source: (.+)$/gm)].map(m=>m[1]).slice(0,20);
+ const paths=[...text.matchAll(/^## Source: (.+)$/gm)].map(m=>m[1]).slice(0,48);
  const section=(names:string)=>{const re=new RegExp('^#{1,4}\\s+(?:'+names+')\\s*[:\\r]?\\n([\\s\\S]*?)(?=^#{1,4}\\s|$(?![\\s\\S]))','gim');return [...text.matchAll(re)].map(m=>m[1].trim().slice(0,1600)).filter(Boolean).slice(0,3);};
  const sources=parseRepositorySources(text);
  const signals=implementationSignals(sources);
@@ -26,4 +26,18 @@ export function buildProjectKnowledgeOutline(input:{name:string;description?:str
   likelyQuestions:[`What problem does ${input.name} solve?`,'Explain the implementation flow.','Which decisions are documented, and what alternatives are reasonable?','What did you personally implement?','How would you test failures and improve this project?'],
   evidenceLocations:paths,unknowns:['Undocumented implementation details, authorship, performance figures and decision rationales remain unverified.','A manifest dependency proves a declared dependency, not that a feature uses it.','README assertions may conflict with code; inspect the cited implementation before asserting details.'],
  };
+}
+
+/** Derived source summary, not a generated claim of complete repository coverage. */
+export function deriveProjectMetadata(readme:string,description='') {
+ const sources=parseRepositorySources(readme);
+ const dependencies:string[]=[];
+ for(const source of sources){
+  if(/(?:^|\/)package\.json$/.test(source.path))try{const p=JSON.parse(source.text);dependencies.push(...Object.keys(p.dependencies??{}));}catch{}
+  if(/(?:^|\/)pom\.xml$/.test(source.path))dependencies.push(...[...source.text.matchAll(/<artifactId>([^<]+)<\/artifactId>/g)].map(m=>m[1]));
+  if(/requirements[^/]*\.txt$/.test(source.path))dependencies.push(...source.text.split('\n').map(l=>l.split(/[=<>!~]/)[0].trim()).filter(l=>/^[\w.-]+$/.test(l)));
+ }
+ const overview=sources.find(s=>/(?:^|\/)readme\.md$/i.test(s.path))?.text??readme;
+ const paragraph=overview.split(/\n\s*\n/).map(p=>p.replace(/^#+.*$/gm,'').replace(/!\[[^\]]*\]\([^)]*\)/g,'').trim()).find(p=>p.length>50&&!/^```|^<|^\|/.test(p));
+ return {description:description||paragraph?.slice(0,900)||'Saved project sources; review the implementation evidence map.',stack:[...new Set(dependencies)].slice(0,35).join(', ')};
 }

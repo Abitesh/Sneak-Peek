@@ -1,3 +1,4 @@
+import { sessionPreferencesStore } from './session/SessionPreferencesStore';
 import { registerPracticeIpc } from './practice/practiceIpc';
 import { registerProjectKnowledgeIpc } from './projects/projectKnowledgeIpc';
 import { captureAnswerContext, buildAnswerRequest } from './intelligence/engine/AnswerRequest';
@@ -142,6 +143,8 @@ ipcMain.removeAllListeners(channel);
 ipcMain.on(channel, listener);
 };
 registerPerson1Ipc(safeHandle);
+safeHandle('session-preferences:get', () => sessionPreferencesStore().get());
+safeHandle('session-preferences:save', (_event, value: unknown, section?:unknown) => {if(section!==undefined&&section!=='presentation'&&section!=='favorites')throw new Error('Invalid preference section.');const store=sessionPreferencesStore();const current=store.get();const input=value as import('./session/SessionPreferences').SessionPreferences;const merged=section==='favorites'?{...current,favorites:input?.favorites}:section==='presentation'?{...input,favorites:current.favorites}:value;const saved=store.save(merged);for(const win of BrowserWindow.getAllWindows())if(!win.isDestroyed())win.webContents.send('session-preferences-changed');return saved;});
 registerProjectKnowledgeIpc(safeHandle, async (event,id,imageId) => {
 const manager=require('./projects/ProjectKnowledgeManager').getProjectKnowledgeManager();
 const project=manager.get(id);if(!project?.enabled)throw new Error('Enable this project before requesting diagram analysis.');
@@ -1340,10 +1343,11 @@ if (true as boolean) {
     settlePrimaryTurn = (generationStatus) => {
       updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus });
     };
+    const noPrivateMode=['coding-dsa','cs-fundamentals'].includes(manualActiveMode?.templateType??'');
     let hasResume = false;
     let hasJobDescription = false;
     try {
-      const orchestrator = llmHelper.getKnowledgeOrchestrator?.();
+      const orchestrator = noPrivateMode?undefined:llmHelper.getKnowledgeOrchestrator?.();
       hasResume = Boolean(orchestrator?.activeResume?.structured_data);
       hasJobDescription = Boolean(orchestrator?.activeJD?.structured_data);
     } catch { /* profile unavailable */ }
@@ -1351,19 +1355,19 @@ if (true as boolean) {
     const personalFiles = ((): import('./personalKnowledge/PersonalKnowledgeManager').PersonalFileRecord[] => {
       try {
         const { getPersonalKnowledgeManager } = require('./personalKnowledge') as typeof import('./personalKnowledge');
-        return getPersonalKnowledgeManager().listFiles();
+        return noPrivateMode?[]:getPersonalKnowledgeManager().listFiles();
       }
       catch { return []; }
     })();
     const projectManager = require('./projects/ProjectKnowledgeManager').getProjectKnowledgeManager() as import('./projects/ProjectKnowledgeManager').ProjectKnowledgeManager;
-    const requestedProjectIds = options?.projectIds;
+    const requestedProjectIds = noPrivateMode?undefined:options?.projectIds;
     if (requestedProjectIds !== undefined && (!Array.isArray(requestedProjectIds) || requestedProjectIds.length > 8
       || requestedProjectIds.some(id => typeof id !== 'string' || !projectManager.get(id)?.enabled))) throw new Error('One of the selected projects is unavailable.');
     const selectedProjectSourceIds = requestedProjectIds?.flatMap(id => projectManager.get(id)!.sources.map(source => source.id));
     const availablePersonalFiles = personalFiles.filter(file => projectManager.isSourceAvailable(file.id)
       && (!selectedProjectSourceIds || selectedProjectSourceIds.includes(file.id)));
     const linked = projectManager.linkedSourceIds();
-    const projectDescriptors = [...availablePersonalFiles.filter(file => !linked.has(file.id)),
+    const projectDescriptors = noPrivateMode?[]:[...availablePersonalFiles.filter(file => !linked.has(file.id)),
       ...projectManager.descriptors().filter(file => availablePersonalFiles.some(source => source.id === file.id))];
     const personalFilesAvailable = availablePersonalFiles.length > 0;
     const { resolveProjectFileScopeForTurn } = require('./intelligence/engine/ProjectFileScope') as typeof import('./intelligence/engine/ProjectFileScope');
@@ -1417,6 +1421,7 @@ if (true as boolean) {
         role: turn.role === 'assistant' ? 'assistant' as const : turn.role === 'system' ? 'system' as const : 'user' as const,
         content: turn.text,
         createdAt: turn.timestamp,
+        metadata:turn.metadata,
       })),
       manualQuestion: String(message || ''),
       activeContext: {
@@ -1468,7 +1473,7 @@ if (true as boolean) {
       if (!chunk) continue;
       finalText += chunk;
       primaryHasVisibleOutput = true;
-      event.sender.send('gemini-stream-token', chunk, { streamId: myStreamId });
+      event.sender.send('gemini-stream-token', chunk, { streamId: myStreamId, answeringModel:run.lifecycle.committedModel, answeringProvider:run.lifecycle.committedProvider });
       try { PhoneMirrorService.getInstance().publishToken(String(myStreamId), chunk); } catch { /* mirror only */ }
     }
     const sneakPeekResult = await run.result;
@@ -1495,8 +1500,8 @@ if (true as boolean) {
       }
       updateConversationTurn({ sessionId: nativeSessionId, turnId: nativeCurrentTurn.id, generationStatus: 'completed',
         metadata: projectScope.namedProject && !projectScope.missingNamedProject && !projectScope.unresolvedReference
-          ? { projectFocusName: projectScope.namedProject } : {} });
-      event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId });
+          ? { projectFocusName: projectScope.namedProject,modeTemplateType:modeInfo?.templateType } : {modeTemplateType:modeInfo?.templateType} });
+      event.sender.send('gemini-stream-done', { finalText: answer, streamId: myStreamId, answeringModel:run.lifecycle.committedModel, answeringProvider:run.lifecycle.committedProvider });
       try { PhoneMirrorService.getInstance().publishDone(String(myStreamId), answer); } catch { /* mirror only */ }
       if (answer) {
         appendConversationTurn({
@@ -1508,6 +1513,7 @@ if (true as boolean) {
           finalized: true,
           requestSequence: myStreamId,
           generationStatus: 'completed',
+          metadata:{modeTemplateType:modeInfo?.templateType},
         });
       }
       try {

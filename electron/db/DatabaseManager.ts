@@ -1938,6 +1938,11 @@ return;
 }
 }
 
+// Owner-authorized retirement of the standalone Notes feature. Meeting
+// summaries, profile notes, custom-mode instructions and project sources are separate.
+if ((this.db.pragma('user_version', { simple: true }) as number) < 39) {
+ this.db.transaction(() => { this.db!.exec('DROP TABLE IF EXISTS notes'); this.db!.pragma('user_version = 39'); })();
+}
 console.log('[DatabaseManager] Migrations completed.');
 }
 // ============================================
@@ -3409,86 +3414,12 @@ usage: [] as any[]
 };
 });
 }
-public listNotes(): UserNote[] {
-if (!this.db) return [];
-try {
-const rows = this.db.prepare(`
-SELECT id, title, content, created_at, updated_at
-FROM notes
-ORDER BY updated_at DESC, created_at DESC, id ASC
-`).all() as Array<{ id: string; title: string; content: string; created_at: string; updated_at: string }>;
-return rows.map((row) => ({
-id: row.id,
-title: row.title,
-content: row.content,
-createdAt: row.created_at,
-updatedAt: row.updated_at,
-}));
-} catch (error) {
-console.warn('[DatabaseManager] Failed to list notes:', error instanceof Error ? error.message : String(error));
-return [];
-}
-}
-public getNote(id: string): UserNote | null {
-if (!this.db || typeof id !== 'string' || !id.trim()) return null;
-try {
-const row = this.db.prepare(`
-SELECT id, title, content, created_at, updated_at
-FROM notes WHERE id = ? LIMIT 1
-`).get(id.trim()) as { id: string; title: string; content: string; created_at: string; updated_at: string } | undefined;
-return row ? {
-id: row.id,
-title: row.title,
-content: row.content,
-createdAt: row.created_at,
-updatedAt: row.updated_at,
-} : null;
-} catch (error) {
-console.warn('[DatabaseManager] Failed to get note:', error instanceof Error ? error.message : String(error));
-return null;
-}
-}
-public createNote(title: string): UserNote | null {
-if (!this.db || typeof title !== 'string') return null;
-const normalizedTitle = title.trim();
-if (!normalizedTitle) return null;
-const id = randomUUID();
-const now = new Date().toISOString();
-try {
-this.db.prepare(`
-INSERT INTO notes (id, title, content, created_at, updated_at)
-VALUES (?, ?, '', ?, ?)
-`).run(id, normalizedTitle, now, now);
-return this.getNote(id);
-} catch (error) {
-console.warn('[DatabaseManager] Failed to create note:', error instanceof Error ? error.message : String(error));
-return null;
-}
-}
-public updateNote(id: string, title: string, content: string): UserNote | null {
-if (!this.db || typeof id !== 'string' || !id.trim() || typeof title !== 'string' || typeof content !== 'string') return null;
-const normalizedTitle = title.trim();
-if (!normalizedTitle) return null;
-try {
-const updatedAt = new Date().toISOString();
-const result = this.db.prepare(`
-UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?
-`).run(normalizedTitle, content, updatedAt, id.trim());
-return result.changes > 0 ? this.getNote(id) : null;
-} catch (error) {
-console.warn('[DatabaseManager] Failed to update note:', error instanceof Error ? error.message : String(error));
-return null;
-}
-}
-public deleteNote(id: string): boolean {
-if (!this.db || typeof id !== 'string' || !id.trim()) return false;
-try {
-return this.db.prepare('DELETE FROM notes WHERE id = ?').run(id.trim()).changes > 0;
-} catch (error) {
-console.warn('[DatabaseManager] Failed to delete note:', error instanceof Error ? error.message : String(error));
-return false;
-}
-}
+/** Retired compatibility API: old renderers cannot recreate the removed store. */
+public listNotes(): UserNote[] { return []; }
+public getNote(_id:string): UserNote|null { return null; }
+public createNote(_title:string): UserNote|null { throw new Error('Notes was replaced by Modes & session.'); }
+public updateNote(_id:string,_title:string,_content:string): UserNote|null { throw new Error('Notes was replaced by Modes & session.'); }
+public deleteNote(_id:string):boolean { return false; }
 public getMeetingDetails(id: string): Meeting | null {
 if (!this.db) return null;
 const meetingStmt = this.db.prepare('SELECT * FROM meetings WHERE id = ?');

@@ -1,3 +1,4 @@
+import { loadConfiguredModels } from '../../utils/configuredModels';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, Cloud, Terminal, Server, Plus } from 'lucide-react';
 import { getCodexCliModelDisplayName, STANDARD_CLOUD_MODELS, prettifyModelId, isModelAllowed } from '../../utils/modelUtils';
@@ -22,6 +23,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
     const [ollamaModels, setOllamaModels] = useState<string[]>([]);
     const [customProviders, setCustomProviders] = useState<CustomProvider[]>([]);
     const [cloudModels, setCloudModels] = useState<{ id: string; name: string; desc: string; provider: string }[]>([]);
+    const [favorites,setFavorites]=useState<Record<string,string[]>>({});
+    const [loadError,setLoadError]=useState('');
+    const [opensDown,setOpensDown]=useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Close on click outside
@@ -68,8 +72,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
                     && isModelAllowed(model.provider, model.id, allowLists[model.provider] || [])));
                 if (disabled.has('ollama')) setOllamaModels([]);
                 if (disabled.has('custom')) setCustomProviders([]);
+                const configured=await loadConfiguredModels();
+                const prefs=await window.electronAPI.sessionPreferencesGet();
+                setFavorites(prefs.favorites);
+                setCloudModels(configured.filter(m=>m.provider!=='ollama'&&m.provider!=='custom').map(m=>({id:m.id,name:m.label,provider:m.provider,desc:`${m.status} · ${m.vision===true?'Vision':m.vision===false?'Text':'Capabilities unchecked'}`})));
+                setLoadError('');
             } catch (e) {
                 console.error("Failed to load models:", e);
+                setLoadError('Could not refresh configured models. Check AI Providers.');
             }
         };
         loadData();
@@ -120,7 +130,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
             <button type="button"
                 aria-label="Choose answer model"
                 aria-expanded={isOpen}
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => {const rect=dropdownRef.current?.getBoundingClientRect();setOpensDown(Boolean(rect&&rect.top<330));setIsOpen(!isOpen);}}
                 className="flex items-center gap-2 px-3 py-1.5 bg-bg-input hover:bg-bg-elevated border border-border-subtle rounded-lg transition-colors text-xs font-medium text-text-primary max-w-[150px]"
             >
                 <span className="truncate">{getModelDisplayName(currentModel)}</span>
@@ -128,7 +138,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
             </button>
 
             {isOpen && (
-                <div className="absolute bottom-full right-0 mb-2 w-64 bg-bg-item-surface border border-border-subtle rounded-xl shadow-xl z-50 overflow-hidden animated fadeIn">
+                <div className={`absolute ${opensDown?'top-full mt-2':'bottom-full mb-2'} right-0 w-64 bg-bg-item-surface border border-border-subtle rounded-xl shadow-xl z-50 overflow-hidden animated fadeIn`}>
                     {/* Tabs */}
                     <div className="flex border-b border-border-subtle bg-bg-input/50">
                         <button type="button"
@@ -151,6 +161,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ currentModel, onSe
                         </button>
                     </div>
 
+                    {loadError&&<p role="alert" className="p-2 text-xs text-red-400">{loadError}</p>}
+                    <div className="p-2 border-b border-border-subtle space-y-1" aria-label="Favorite models">{Object.entries(favorites).flatMap(([provider,ids])=>ids.map(id=>{const model=cloudModels.find(m=>m.id===id&&m.provider===provider);const installed=provider==='ollama'&&ollamaModels.some(m=>`ollama-${m}`===id);const custom=provider==='custom'&&customProviders.find(m=>m.id===id);return model||installed||custom?<button type="button" key={`${provider}:${id}`} className="block w-full text-left px-2 py-1 text-xs text-accent-primary hover:bg-bg-input rounded" onClick={()=>handleSelect(id)}>★ {model?.name||custom&&custom.name||id} · {provider}</button>:null;}))}</div>
                     {/* Content */}
                     <div className="p-2 max-h-64 overflow-y-auto">
 

@@ -97,6 +97,7 @@ projectsPickImage: (id:string) => Promise<{success:boolean;value?:any;error?:str
 projectsImagePreview: (id:string,imageId:string) => Promise<{success:boolean;value?:string;error?:string}>;
 projectsAnalyzeImage: (id:string,imageId:string) => Promise<{success:boolean;error?:string}>;
 projectsList: () => Promise<{success:boolean;value?:any[];error?:string}>;
+projectsPrepareFiles: () => Promise<{success:boolean;value?:Array<{token:string;name:string}>;error?:string}>;
 projectsSave: (input:any) => Promise<{success:boolean;value?:any;error?:string}>;
 projectsImportGitHub: (url:string) => Promise<{success:boolean;value?:any;error?:string}>;
 projectsSetEnabled: (id:string,enabled:boolean) => Promise<{success:boolean;value?:any;error?:string}>;
@@ -131,6 +132,9 @@ success: boolean
 file?: PersonalFileRecordShape
 error?: string
 }>
+onSessionPreferencesChanged: (callback:()=>void) => ()=>void;
+sessionPreferencesGet: () => Promise<import('../../electron/session/SessionPreferences').SessionPreferences>;
+sessionPreferencesSave: (value: import('../../electron/session/SessionPreferences').SessionPreferences, section?:'presentation'|'favorites') => Promise<import('../../electron/session/SessionPreferences').SessionPreferences>;
 notesList: () => Promise<LocalNote[]>
 notesGet: (id: string) => Promise<LocalNote | null>
 notesCreate: (title: string) => Promise<LocalNote | null>
@@ -519,7 +523,7 @@ onIntelligenceError: (callback: (data: { error: string, mode: string }) => void)
 onSessionReset: (callback: () => void) => () => void;
 // Streaming listeners
 streamGeminiChat: (message: string, imagePaths?: string[], context?: string, options?: { skipSystemPrompt?: boolean, ignoreKnowledgeMode?: boolean, skipRollingContext?: boolean; projectIds?: string[] }) => Promise<void>
-onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number }) => void) => () => void
+onGeminiStreamToken: (callback: (token: string, meta?: { streamId?: number; answeringModel?:string; answeringProvider?:string }) => void) => () => void
 onGeminiStreamDone: (callback: (data?: { finalText?: string; streamId?: number; citationMarkers?: Record<string, { marker: string; evidenceId: string; citationId: string; citation: { citationId: string; documentId: string; documentName: string; chunkId: string; pageStart?: number; pageEnd?: number; section?: string; sourceType: string } }>; text?: string; citations?: Record<string, { marker: string; evidenceId: string; citationId: string; citation: { citationId: string; documentId: string; documentName: string; chunkId: string; pageStart?: number; pageEnd?: number; section?: string; sourceType: string } }>; ragUsed?: boolean; confidence?: number; sources?: string[] }) => void) => () => void
 onGeminiStreamError: (callback: (error: string, meta?: { streamId?: number | null; source?: string }) => void) => () => void;
 // NOTE: onSkillsChanged broadcast subscription was removed. Skills are

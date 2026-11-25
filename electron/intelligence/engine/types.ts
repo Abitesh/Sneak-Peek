@@ -64,6 +64,7 @@ export type IntelligenceContextKind =
   | 'memory';
 
 export interface SneakPeekConversationTurn {
+  metadata?: Readonly<Record<string,unknown>>;
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -88,6 +89,7 @@ export interface SneakPeekScreenContext {
 }
 
 export interface SneakPeekActiveContext {
+  sessionPreferences?: import('../../session/SessionPreferences').SessionPreferences;
   modeId?: string;
   modeName?: string;
   /** Template type captured with the active mode, separate from its instance ID. */

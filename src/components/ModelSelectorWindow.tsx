@@ -1,3 +1,4 @@
+import { loadConfiguredModels } from '../utils/configuredModels';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { CODEX_CLI_MODEL, CODEX_CLI_MODEL_PRESETS, codexCliSelectorId, getCodexCliModelDisplayName, isModelAllowed, litellmModelLabel, STANDARD_CLOUD_MODELS, prettifyModelId } from '../utils/modelUtils';
@@ -81,6 +82,7 @@ const ModelSelectorWindow = () => {
             return cached ? JSON.parse(cached) : [];
         } catch { return []; }
     });
+    const [favorites,setFavorites]=useState<Record<string,string[]>>({});
     const [isLoading, setIsLoading] = useState<boolean>(() => availableModels.length === 0);
 
 
@@ -222,6 +224,10 @@ const ModelSelectorWindow = () => {
                     return isModelAllowed(family, m.id, allowLists[family] || []);
                 });
 
+                const prefs=await window.electronAPI.sessionPreferencesGet();setFavorites(prefs.favorites);
+                const configured=await loadConfiguredModels();
+                for(const model of configured)if(!visibleModels.some(m=>m.id===model.id))visibleModels.push({id:model.id,name:model.label,type:model.provider==='ollama'?'ollama':model.provider==='custom'?'custom':'cloud',provider:model.provider});
+                visibleModels.sort((a,b)=>{const fam=(m:ModelOption)=>m.provider??(m.type==='ollama'?'ollama':m.type==='custom'?'custom':'');const ar=prefs.favorites[fam(a)]?.indexOf(a.id)??-1,br=prefs.favorites[fam(b)]?.indexOf(b.id)??-1;return (ar<0?99:ar)-(br<0?99:br);});
                 localStorage.setItem('cached-models', JSON.stringify(visibleModels));
                 setAvailableModels(visibleModels);
 
@@ -261,6 +267,7 @@ const ModelSelectorWindow = () => {
         //
         // onModelChanged above is NOT a substitute — it only moves the
         // checkmark; it never rebuilds the list.
+        const unsubPreferences=window.electronAPI.onSessionPreferencesChanged?.(()=>loadModels());
         const unsubCredentials = window.electronAPI?.onCredentialsChanged?.(() => {
             loadModels();
         });
@@ -268,6 +275,7 @@ const ModelSelectorWindow = () => {
             cancelled = true;
             unsubscribe?.();
             unsubCredentials?.();
+            unsubPreferences?.();
         };
     }, []);
 
@@ -324,7 +332,7 @@ const ModelSelectorWindow = () => {
                                                 }
                                             `}
                                         >
-                                            <span className="text-[12px] font-medium truncate flex-1 min-w-0">{model.name}</span>
+                                            <span className="text-[12px] font-medium truncate flex-1 min-w-0">{(favorites[model.provider??(model.type==='ollama'?'ollama':'custom')]??[]).includes(model.id)?'★ ':''}{model.name}</span>
                                             {isSelected && <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${isDarkBg ? 'text-emerald-400' : 'text-emerald-600'}`} />}
                                         </button>
                                     );
