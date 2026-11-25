@@ -1,5 +1,11 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0015 / V2-01 and TASK-0016 / V2-04 — WORK-0093 (2026-11-24)
+
+**Implemented, unverified at full milestone scope.** Dedicated modes, source ceilings, persisted preferences and three ordered favorites per configured provider are implemented. Actual disposable macOS desktop checks pass favorites-only selection, limit/reordering, persistence, project import retry/upload, no-private-context modes and in-flight model pinning. The broken custom-manager entry is removed and previews show concrete illustrative answers. Final broad regressions and the remaining acceptance boundaries are recorded in [WORK-0093 report](../scripts/audit/work-0093-modes-models-projects.md).
+
+TASK-0013 project import/supporting-document repairs continue the implemented WORK-0092 foundation. TASK-0012/V2-05 remains **In progress**: real 3B-model answers still miss factual/completeness and six-second completion acceptance. Hosted text/vision, Windows, physical audio and generated alternative-language execution remain separate unverified acceptance. The owner explicitly resumed work after the historical November 21 stop; that stop is no longer the active instruction. User-staged changes are preserved.
+
 ## WORK-0092 — TASK-0013 project reliability resumed (2026-11-23)
 In progress. Implement balanced authorized GitHub import, implementation-derived source maps, architecture/source-aware canonical chunks, deterministic referents and scoped revision caching. Baseline 343d542f clean. Verify real public import, repeated read timings, multi-turn answers, edits/reindex/deletion/disable/isolation and desktop source/model lifecycle. Keep V2-05 acceptance open unless its actual thresholds pass.
 

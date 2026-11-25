@@ -156,8 +156,8 @@ export class ModelSelectorWindowHelper {
     ): void {
         const isMac = process.platform === 'darwin';
         const windowSettings: Electron.BrowserWindowConstructorOptions = {
-            width: 140,
-            height: 200,
+            width: 300,
+            height: 340,
             frame: false,
             transparent: true,
             resizable: false,

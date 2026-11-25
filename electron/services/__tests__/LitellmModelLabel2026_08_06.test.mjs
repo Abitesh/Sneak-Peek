@@ -87,39 +87,21 @@ describe('litellmModelLabel is wired into every surface that shows a LiteLLM mod
     );
   });
 
-  test('the model selector window labels with the bare name', () => {
-    const src = read('src/components/ModelSelectorWindow.tsx');
-    assert.match(src, /litellmModelLabel\(m\)\} \(LiteLLM\)/, 'selector should show the bare model name');
-    assert.doesNotMatch(src, /name: `\$\{m\} \(LiteLLM\)`/, 'the raw-id label must be gone');
-  });
-
-  test('settings labels LiteLLM rows without prettifyModelId', () => {
-    const src = read('src/components/settings/AIProvidersSettings.tsx');
-    assert.match(
-      src,
-      /litellmModels\.forEach\(m => push\(`litellm\/\$\{m\}`, litellmModelLabel\(m\)\)\)/,
-      'the model list should use the segment label',
-    );
-    assert.match(
-      src,
-      /provider === 'litellm' \? litellmModelLabel\(id\) : prettifyModelId\(id\)/,
-      'allow-listed ids with no catalog entry need the same treatment',
-    );
-    assert.match(
-      src,
-      /\$\{litellmModelLabel\(model\)\} \(LiteLLM\)/,
-      'the active-model options should use it too',
-    );
-    assert.doesNotMatch(src, /prettifyModelId\(m\)\)\);/, 'no prettify on litellm catalogue ids');
-  });
-
-  test('the ID keeps its litellm/ prefix — only the LABEL changes', () => {
-    // Regression guard for the tempting wrong fix: stripping the prefix from the
-    // id itself would break providerFamily()/modelAvailable() routing and the
-    // allow-list, which are all keyed on `litellm/<model>`.
-    const settings = read('src/components/settings/AIProvidersSettings.tsx');
+  test('all model pickers consume labels from the shared configured catalog', () => {
+    const loader = read('src/utils/configuredModels.ts');
     const selector = read('src/components/ModelSelectorWindow.tsx');
-    assert.match(settings, /const id = `litellm\/\$\{model\}`/, 'settings must still build prefixed ids');
-    assert.match(selector, /id: `litellm\/\$\{m\}`/, 'the selector must still emit prefixed ids');
+    assert.match(loader, /label:litellmModelLabel\(id\)/);
+    assert.match(loader, /label:litellmModelLabel\(m\.id\)/);
+    assert.match(selector, /loadConfiguredModels\(\)/);
+    assert.match(selector, /name:model\.label/);
+    assert.match(read('src/components/ui/ModelSelector.tsx'), /loadConfiguredModels\(\)/);
+  });
+
+  test('settings catalog labels LiteLLM rows without changing routing identity', () => {
+    const src = read('src/components/settings/AIProvidersSettings.tsx');
+    assert.match(src, /litellmModels\.forEach\(m => push\(`litellm\/\$\{m\}`, litellmModelLabel\(m\)\)\)/);
+    assert.match(src, /const id = `litellm\/\$\{model\}`/);
+    const loader=read('src/utils/configuredModels.ts');
+    assert.match(loader,/id:id\.startsWith\('litellm\/'\)\?id:`litellm\/\$\{id\}`/);
   });
 });

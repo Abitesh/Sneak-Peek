@@ -19,7 +19,12 @@ test('structural project reads cover distinct implementation components and excl
  const result=f.files.searchRelevant('Orchid API implementation',8,'project',[p.id]);
  const paths=result.map(r=>r.metadata?.repositoryPath);for(const path of ['backend/main.ts','api/routes.ts','db/schema.sql'])assert.ok(paths.includes(path),path);
  assert.ok(result.every(r=>r.fileId===p.id));assert.doesNotMatch(JSON.stringify(result),/SEED_DISTRACTOR|DECOY_CANARY/);
- assert.ok(result.every(r=>r.metadata.repositoryCommit===revision));
+ assert.ok(result.filter(r=>r.metadata.repositoryPath).every(r=>r.metadata.repositoryCommit===revision));
+ assert.ok(result.filter(r=>!r.metadata.repositoryPath).every(r=>!r.metadata.repositoryCommit),'user-authored context must not borrow a repository commit');
+ const original=path.join(f.dir,'implementation.txt');fs.writeFileSync(original,'Orchid API uses violet leases to retry dispatch safely.');
+ const upload=await f.files.ingestFile(original,'project');f.projects.attach(p.id,upload.id,true);
+ const supplemented=f.files.searchRelevant('Orchid API overview',8,'project',[p.id,upload.id]);
+ assert.ok(supplemented.some(r=>r.fileId===upload.id&&r.text.includes('violet leases')),'generic uploaded document must accompany repository components');
  }finally{f.close();}
 });
 test('project CRUD keeps stable identity, source IDs and edited lexical facts; selection and deletion revoke retrieval',async()=>{

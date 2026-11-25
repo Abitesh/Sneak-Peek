@@ -188,7 +188,7 @@ if (modelId.startsWith('litellm/')) return 'litellm';
 if (modelId.startsWith('nvidia_nim/')) return 'nvidia_nim';
 if (modelId.startsWith('ollama-')) return 'ollama';
 if (modelId.startsWith('gemini-') || modelId.startsWith('models/')) return 'gemini';
-if (isKnownGroqModel(modelId)) return 'groq';
+if (isKnownGroqModel(modelId,cm.getAllCloudFetchedModels?.())) return 'groq';
 // o4- included deliberately: modelFetcher.ts admits /^o[134]/, so o4-* ids reach
 // here. Omitting it made providerFamily return 'unknown', so the disabled-provider
 // check below never matched and switching OpenAI off did NOT hide o4 models from
@@ -239,7 +239,7 @@ if (allProviders.some((p: any) => p?.id === modelId)) return true;
 if (modelId.startsWith('gemini-') || modelId.startsWith('models/')) return has(cm.getGeminiApiKey());
 // Check Groq before the broad OpenAI catch-all so Groq-hosted ids such as
 // openai/gpt-oss-120b are gated by the Groq key, not the OpenAI key.
-if (isKnownGroqModel(modelId)) return has(cm.getGroqApiKey());
+if (isKnownGroqModel(modelId,cm.getAllCloudFetchedModels?.())) return has(cm.getGroqApiKey());
 if (modelId.startsWith('gpt-') || modelId.startsWith('o1-') || modelId.startsWith('o3-') || modelId.startsWith('o4-') || modelId.includes('openai')) return has(cm.getOpenaiApiKey());
 if (modelId.startsWith('claude-')) return has(cm.getClaudeApiKey());
 if (/^deepseek-v/i.test(modelId)) return has(cm.getDeepseekApiKey());

@@ -169,9 +169,14 @@ export function resolveProjectFileScopeForTurn(
   // Match the complete saved name/alias first; heuristics for unknown names must
   // not reject those identities or let presentation suffixes swallow the name.
   const normalizedQuestion=' '+words(question).join(' ')+' ';
-  const namedManaged=allFiles.filter(file=>file.projectId&&file.projectName&&file.fileType==='project'
-    && normalizedProjectIdentity(file).some(token=>token.length>=3&&!NON_PROJECT_NAMES.has(token)&&!QUERY_STOP_WORDS.has(token))
+  const completeMentions=allFiles.filter(file=>file.projectId&&file.projectName&&file.fileType==='project'
     && normalizedQuestion.includes(' '+normalizedProjectIdentity(file).join(' ')+' '));
+  // Even a generic-sounding saved name such as "Other API" makes an explicit
+  // multi-project question ambiguous. Do not discard it and select its sibling.
+  if(new Set(completeMentions.map(file=>file.projectId)).size>1
+    && /\b(?:project|repo|repository|codebase|compare|explain|describe)\b/i.test(question))
+    return {projectAvailable:false,missingNamedProject:false,unresolvedReference:true,selectedFileIds:[]};
+  const namedManaged=completeMentions.filter(file=>normalizedProjectIdentity(file).some(token=>token.length>=3&&!NON_PROJECT_NAMES.has(token)&&!QUERY_STOP_WORDS.has(token)));
   if(/\b(?:project|repo|repository|codebase|explain|describe|elaborate)\b/i.test(question)&&namedManaged.length){
     const identities=new Set(namedManaged.map(file=>file.projectId));
     if(identities.size===1){

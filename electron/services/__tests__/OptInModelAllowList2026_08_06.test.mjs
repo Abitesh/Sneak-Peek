@@ -24,6 +24,7 @@ const { isModelAllowed, isOptInModelProvider } = await import(pathToFileURL(path
 
 const settings = fs.readFileSync(path.join(root, 'src/components/settings/AIProvidersSettings.tsx'), 'utf8');
 const selector = fs.readFileSync(path.join(root, 'src/components/ModelSelectorWindow.tsx'), 'utf8');
+const configured = fs.readFileSync(path.join(root, 'src/utils/configuredModels.ts'), 'utf8');
 const ipc = fs.readFileSync(path.join(root, 'electron/ipcHandlers.ts'), 'utf8');
 
 describe('allow-list contract', () => {
@@ -63,7 +64,8 @@ describe('the rule is applied everywhere, identically', () => {
       /const isModelEnabled = \(provider: string, modelId: string\) =>\s*\n?\s*isModelAllowed\(provider, modelId, cloudEnabledModels\[provider\] \|\| \[\]\)/,
       'settings must not re-implement the contract',
     );
-    assert.match(selector, /isModelAllowed\(family, m\.id, allowLists\[family\] \|\| \[\]\)/, 'the overlay must gate on it too');
+    assert.match(selector, /loadConfiguredModels\(\)/, 'the overlay uses the shared catalog');
+    assert.match(configured, /isModelAllowed\('litellm',model\.id,creds\.cloudEnabledModels\?\.litellm\?\?\[\]\)/, 'the shared catalog preserves opt-in gating');
   });
 
   test('DRIFT GUARD: routing mirrors the opt-in carve-out', () => {
@@ -82,7 +84,9 @@ describe('the rule is applied everywhere, identically', () => {
   test('the overlay also honours disabled providers', () => {
     // Same class of gap: switching a provider off never removed it from the
     // overlay picker either.
-    assert.match(selector, /disabled\.has\(family\)/, 'a disabled provider must not reach the overlay picker');
+    assert.match(selector, /loadConfiguredModels\(\)/);
+    assert.match(configured, /disabled\.has\(provider\)/, 'disabled providers are removed in the shared loader');
+    assert.match(configured, /!disabled\.has\('litellm'\)/);
   });
 });
 

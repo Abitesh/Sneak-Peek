@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import {isInterviewChatModel} from '../llm/modelSelectionCatalog';
 import { normalizeProviderError, type NormalizedProviderError } from './ProviderErrorNormalizer';
 
 export interface ProviderModel {
@@ -31,17 +32,17 @@ export async function fetchProviderModels(
     try {
         switch (provider) {
             case 'openai':
-                return await fetchOpenAIModels(apiKey);
+                return (await fetchOpenAIModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             case 'groq':
-                return await fetchGroqModels(apiKey);
+                return (await fetchGroqModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             case 'claude':
-                return await fetchAnthropicModels(apiKey);
+                return (await fetchAnthropicModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             case 'gemini':
-                return await fetchGeminiModels(apiKey);
+                return (await fetchGeminiModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             case 'deepseek':
-                return await fetchDeepSeekModels(apiKey);
+                return (await fetchDeepSeekModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             case 'nvidia_nim':
-                return await fetchNvidiaNimModels(apiKey);
+                return (await fetchNvidiaNimModels(apiKey)).filter(model=>isInterviewChatModel(model.id));
             default:
                 throw new Error(`Unknown provider: ${provider}`);
         }

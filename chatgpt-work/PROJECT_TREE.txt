@@ -1,3 +1,7 @@
+WORK-0093 source inventory update (2026-11-24)
+New sources/tests: electron/session/{SessionPreferences,SessionPreferencesStore}.ts; electron/llm/{ollamaContext,modelSelectionCatalog}.ts; electron/llm/__tests__/{OllamaContext,ModelSelectionCatalog}.test.mjs; electron/services/__tests__/ConfiguredModelChoices.test.mjs; electron/intelligence/engine/__tests__/DedicatedSessionModes.test.mjs; src/components/{SessionControlsPage,FavoriteModelsPage}.tsx; src/components/settings/ModelPreferencesPanel.tsx; src/components/ui/ModelChoiceDropdown.tsx; src/utils/configuredModels.ts; src/lib/sessionAnswerPreview.ts and its test; scripts/audit/{run-session-controls-acceptance.mjs,session-controls-acceptance.cjs,work-0093-modes-models-projects.md}.
+Removed source: src/components/NotesPage.tsx (owner-authorized standalone Notes retirement). The complete changed-path inventory is in the WORK-0093 report. The historical tree follows.
+
 (.venv) abitesh@Abiteshs-MacBook-Air Sneak-Peek % tree
 .
 ├── AGENTS.md

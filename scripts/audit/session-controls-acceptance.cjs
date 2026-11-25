@@ -63,12 +63,13 @@ app.whenReady().then(async () => {
   rag.embeddingPipeline.getEmbeddingsWithFallback=async texts=>({embeddings:vectors(texts),...identity});
   rag.embeddingPipeline.embedDocumentChunks=async texts=>({vectors:vectors(texts).map(embedding=>({embedding,...identity})),embeddedCount:texts.length,complete:true});
   rag.embeddingPipeline.getEmbeddingForQuery=async()=>null;
-  let parkFeedback=false, releaseFeedback;
+  let parkFeedback=false, releaseFeedback, parkAnswer=false, releaseAnswer;
   const calls=[];
-  helper.getSneakPeekGenerationRouteOptions=()=>({capability:'stream_chat',preferredProvider:'groq',allowedProviders:['groq'],availability:{hasGroq:true},models:{groq:'offline-test'},maxAttempts:1});
+  helper.getSneakPeekGenerationRouteOptions=()=>({capability:'stream_chat',preferredProvider:'groq',allowedProviders:['groq'],availability:{hasGroq:true},models:{groq:helper.getCurrentModelId().startsWith('openai/gpt-oss-')?helper.getCurrentModelId():'offline-test'},maxAttempts:1});
   helper.streamFinalPrompt=async function*(provider,model,prompt,options){
     calls.push({provider,model,prompt,images:options?.imagePaths?.length??0});
     if(prompt.includes('Review my practice answer')){yield 'Your distinction between a process and a thread is correct.';if(parkFeedback){await new Promise(resolve=>{releaseFeedback=resolve;});yield ' LATE_CANCELLED_FEEDBACK';}return;}
+    if(parkAnswer){yield 'An index speeds up suitable lookups. ';await new Promise(r=>{releaseAnswer=r;});}
     yield prompt.includes('indigo leases')?'Orchid uses indigo leases.':prompt.includes('violet leases')?'Orchid uses violet leases.':'No authorized project facts found.';
   };
   helper.prewarmPromptCache=async()=>{};
@@ -84,7 +85,7 @@ app.whenReady().then(async () => {
  credentials.setGroqApiKey('fixture-only-never-network');
  credentials.setCloudFetchedModels('groq',[{id:'qwen/qwen3.8-27b',label:'Qwen fixture'},{id:'openai/gpt-oss-120b',label:'OSS 120 fixture'},{id:'openai/gpt-oss-20b',label:'OSS 20 fixture'},{id:'fourth-fixture',label:'Fourth fixture'}],Date.now());
  if(process.env.PROJECT_ACCEPTANCE_PHASE==='2'){
-  const p=await js('window.electronAPI.sessionPreferencesGet()');assert.equal(p.length,'short');assert.equal(p.codeLanguages.oop,'Java');assert.deepEqual(p.favorites.groq,['openai/gpt-oss-120b','qwen/qwen3.8-27b','openai/gpt-oss-20b']);
+  const p=await js('window.electronAPI.sessionPreferencesGet()');assert.equal(p.length,'short');assert.equal(p.codeLanguages.oop,'Java');assert.deepEqual(p.favorites.groq,['openai/gpt-oss-120b','openai/gpt-oss-20b','qwen/qwen3.8-27b']);
   const projects=await js('window.electronAPI.projectsList()');assert.equal(projects.value.length,1);assert.equal(projects.value[0].name,'Orchid API');
   assert.equal(calls.length,0);assert.equal(state.isMeetingActive,false);
   fs.writeFileSync(path.join(temp,'relaunch.json'),JSON.stringify({preferences:true,favorites:3,project:true,idleGeneration:0,capture:false}));console.log('SESSION_RELAUNCH_PASS',temp);app.exit(0);return;
@@ -97,6 +98,7 @@ app.whenReady().then(async () => {
  fs.writeFileSync(path.join(temp,'session.png'),(await win.webContents.capturePage()).toPNG());
  await js(`Array.from(document.querySelectorAll('button')).find(b=>b.innerText.startsWith('Answer mode')).click()`);
  await waitFor(()=>js('document.body.innerText.includes("Coding / DSA")'));
+ assert.doesNotMatch(await js('document.body.innerText'),/Manage custom modes and authorized sources/);
  await click('Coding / DSA');const active=await js('window.electronAPI.modesGetActive()');assert.equal(active.templateType,'coding-dsa');
  await js(`document.querySelector('[aria-label=Back]').click()`);
  await js(`Array.from(document.querySelectorAll('button')).find(b=>b.innerText.startsWith('Code languages')).click()`);
@@ -111,17 +113,27 @@ app.whenReady().then(async () => {
  await waitFor(()=>js('document.body.innerText.includes("English")'));await click('English');assert.equal(await js('window.electronAPI.getAiResponseLanguage()'),'English');
  await js(`document.querySelector('[aria-label=Back]').click()`);
  await js(`Array.from(document.querySelectorAll('button')).find(b=>b.innerText.startsWith('Select model')).click()`);
- await waitFor(()=>js('!!document.querySelector("[aria-label=\\"Add favorite qwen/qwen3.8-27b\\"]")'));
- for(const id of ['qwen/qwen3.8-27b','openai/gpt-oss-120b','openai/gpt-oss-20b']){
-  await js(`document.querySelector('[aria-label="Add favorite ${id}"]').click()`);
-  await waitFor(()=>js(`!!document.querySelector('[aria-label="Remove favorite ${id}"]')`));
- }
- const p=await js('window.electronAPI.sessionPreferencesGet()');assert.equal(p.favorites.groq.length,3);
- await js(`document.querySelector('[aria-label="Add favorite fourth-fixture"]').click()`);
- await waitFor(()=>js('document.body.innerText.includes("Three favorites are already selected")'));
+ await waitFor(()=>js('document.body.innerText.includes("No favorite chat models selected")'));
+ await click('Choose favorites in AI Providers');
+ await waitFor(()=>js(`!!document.querySelector('[aria-label="Groq favorite models"]')`));
+ await js(`document.querySelector('[aria-label="Groq favorite models"]').click()`);
+ const chooseModel=async label=>{await waitFor(()=>js(`Array.from(document.querySelectorAll('[role="option"]')).some(b=>b.getAttribute('aria-label')===${JSON.stringify(label)})`));await js(`Array.from(document.querySelectorAll('[role="option"]')).find(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}).click()`);await paint();};
+ for(const label of ['Qwen fixture','OSS 120 fixture','OSS 20 fixture']){await chooseModel(label);await waitFor(()=>js(`Array.from(document.querySelectorAll('[role="option"]')).some(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}&&b.getAttribute('aria-selected')==='true')`));}
+ await chooseModel('Fourth fixture');await waitFor(()=>js('document.body.innerText.includes("Choose up to three favorites")'));
  assert.equal((await js('window.electronAPI.sessionPreferencesGet()')).favorites.groq.length,3);
- await js(`document.querySelector('[aria-label="Move qwen/qwen3.8-27b favorite down"]').click()`);
- await waitFor(async()=>((await js('window.electronAPI.sessionPreferencesGet()')).favorites.groq[0])==='openai/gpt-oss-120b');
+ const geometry=await js(`(()=>{const r=document.querySelector('[role="listbox"][aria-label="Groq favorite models"]').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight}})()`);assert.ok(geometry.left>=0&&geometry.right<=geometry.width&&geometry.top>=0&&geometry.bottom<=geometry.height);
+ await chooseModel('Qwen fixture');await waitFor(async()=>((await js('window.electronAPI.sessionPreferencesGet()')).favorites.groq.length)===2);
+ await chooseModel('Qwen fixture');await waitFor(async()=>((await js('window.electronAPI.sessionPreferencesGet()')).favorites.groq.length)===3);
+ await js(`document.querySelector('[aria-label="Groq favorite models"]').click()`);await paint();
+ assert.doesNotMatch(await js(`document.querySelector('[aria-label="Model favorites"]').innerText`),/Stale|availability|quota|Vision supported|Streaming/);
+ fs.writeFileSync(path.join(temp,'favorites.png'),(await win.webContents.capturePage()).toPNG());
+ await js(`document.querySelector('button[aria-label="Close"]').click()`);
+ await waitFor(()=>js(`!document.querySelector('button[aria-label="Close"]')`));await paint();
+ await waitFor(()=>js(`!!document.querySelector('[aria-label="Select favorite answer model"]')`));
+ assert.doesNotMatch(await js(`document.querySelector('[aria-label="Select favorite answer model"]').innerText`),/Fourth fixture|Stale|availability/);
+ await js(`Array.from(document.querySelectorAll('button[role="radio"]')).find(b=>b.innerText==='OSS 120 fixture').click()`);
+ await waitFor(async()=>((await js('window.electronAPI.getCurrentModel()')).model)==='openai/gpt-oss-120b');
+ await paint();
  fs.writeFileSync(path.join(temp,'models.png'),(await win.webContents.capturePage()).toPNG());
  await js(`document.querySelector('[aria-label="Close session controls"]').click()`);
  const allModes=await js('window.electronAPI.modesGetAll()');await js(`window.electronAPI.modesSetActive(${JSON.stringify(allModes.find(m=>m.templateType==='resume-projects').id)})`);
@@ -144,11 +156,18 @@ app.whenReady().then(async () => {
  fs.writeFileSync(path.join(temp,'project.png'),(await win.webContents.capturePage()).toPNG());
  const requests=githubRequests;
  const response=await js(`(async()=>{let answer='',binding;const off=window.electronAPI.onGeminiStreamDone(d=>{answer=d.finalText||'';binding=d.answeringModel});try{await window.electronAPI.streamGeminiChat('Explain the Orchid API project.',undefined,undefined,{projectIds:[${JSON.stringify(project.id)}]});return {answer,binding};}finally{off();}})()`);
- assert.match(response.answer,/violet leases/);assert.equal(githubRequests,requests,'interview does not fetch GitHub');assert.equal(response.binding,'offline-test');
+ assert.match(response.answer,/violet leases/);assert.equal(githubRequests,requests,'interview does not fetch GitHub');assert.equal(response.binding,'openai/gpt-oss-120b');
  assert.match(calls.at(-1).prompt,/saved_presentation_preferences/);assert.match(calls.at(-1).prompt,/Length: short/);
  const noRagMode=allModes.find(m=>m.templateType==='coding-dsa');await js(`window.electronAPI.modesSetActive(${JSON.stringify(noRagMode.id)})`);
  await js(`window.electronAPI.streamGeminiChat('What is binary search?',undefined,undefined)`);
  assert.doesNotMatch(calls.at(-1).prompt,/violet leases|dispatch endpoint|Dispatch API using/);
+ // A model change applies to the next request, never to the parked committed answer.
+ parkAnswer=true;
+ await js(`(()=>{window.__pinnedDone=undefined;const off=window.electronAPI.onGeminiStreamDone(d=>{window.__pinnedDone=d;off();});window.__parked=window.electronAPI.streamGeminiChat('What is a database index?');return true;})()`);
+ await waitFor(()=>typeof releaseAnswer==='function');
+ await js(`window.electronAPI.setDefaultModel('openai/gpt-oss-20b')`);parkAnswer=false;releaseAnswer();
+ await js('window.__parked');assert.equal(await js('window.__pinnedDone.answeringModel'),'openai/gpt-oss-120b');
+ await js(`window.electronAPI.streamGeminiChat('What is a database transaction?')`);assert.equal(calls.at(-1).model,'openai/gpt-oss-20b');
  results.push({scenario:'Session UI settings, exact modes, favorites and relaunch persistence',status:'PASS'},{scenario:'Project URL auto import, upload, explicit 503 recovery, local knowledge and no interview network',status:'PASS'},{scenario:'Mode switch removes private source content and inherited private history',status:'PASS'},{scenario:'Actual committed answer model metadata',status:'PASS'});
  fs.writeFileSync(path.join(temp,'acceptance.json'),JSON.stringify({results,generationCalls:calls.length,githubProtocolFixtureRequests:githubRequests,physicalCapture:false},null,2));
  console.log('SESSION_CONTROLS_PASS',temp);app.exit(0);

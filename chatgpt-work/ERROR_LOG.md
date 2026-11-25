@@ -1,13 +1,25 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-147–151 — WORK-0093 screenshot and runtime repairs (2026-11-24)
+
+- **ERR-147 — Cluttered/ineligible model choices.** Reproduced speculative/speech choices and the availability wall. Shared account chat discovery, known-denial filtering, branded favorite dropdowns and favorites-only answer menus are implemented. Provider permissions and exact routing IDs remain. Desktop three/fourth/reorder/relaunch checks pass; live-provider entitlement remains unverified.
+- **ERR-148 — Blank custom mode popup.** Removed the broken launcher link from Answer mode; persisted custom modes are preserved. No replacement blank modal is opened.
+- **ERR-149 — Preferences lack an actual example.** Concrete offline question/sample answer previews now follow format, length, tone, STAR and code language; fictional experience is labeled. No preview generation call.
+- **ERR-150 — Uploaded implementation evidence omitted.** Actual desktop project answer ignored a generic-named supporting upload. Changed structural excerpt selection to use the resolved question instead of filename; added provenance/query regression. Desktop repeat passes. Scoped search also filters exact authorized IDs before the candidate cap.
+- **ERR-151 — Local prompt truncation.** Actual Ollama logs showed a 4,096 context silently discarding leading question/policy text. Explicit bounded UTF-8-aware context allocation and actionable overflow failure replace arbitrary leading-line removal. Estimates are not exact token counts; real model quality/latency still fails acceptance.
+
+The final affected suites also caught two real source-safety regressions: lost project scope markup in the prompt and a generic saved-name comparison selecting only its sibling. Restored prompt scope and explicit multi-name ambiguity rejection; intelligence 2,252 pass/9 TODO and project/practice 46 pass now pass.
+
+Regression correction inventory: LiteLLM labels/routing-prefix preservation, startup-safe Groq account classification, old assertions moved to the active shared loader, and new metadata fixture setup. See [WORK-0093 report](../scripts/audit/work-0093-modes-models-projects.md). All failed logs remain. Electron: 9,070 pass / 0 fail / 67 skipped. Intelligence: 2,252 pass / 0 fail / 9 TODO. Projects/Practice: 46 pass / 0 fail. Library: 391 pass / 0 fail / 1 skipped. Scripts: 103 pass / 0 fail. Both builds and all five typechecks pass. Both disposable macOS desktop scenarios pass both phases/relaunch. The final model-policy edge-case repeat passes 77/77. ERR-144/145 implementation remains exercised through current import/project tests; ERR-146's cache already exists in the WORK-0092 baseline and is preserved, without a new performance claim.
+
 ## ERR-144 — Project imports lose implementation coverage and source locations (WORK-0092)
-In progress. File selection sorts docs before source and caps at 14; only first 12k characters of each file are kept without a specific truncation explanation. Structured understanding mostly recognizes Markdown headings and two manifest kinds. Flat project Markdown passes through generic document chunks, losing per-file commit/line provenance. Verify balanced coverage, truthful partial states, source-derived claims and compatible canonical indexing.
+Implemented in WORK-0092 with WORK-0093 coverage extension; full real-model acceptance remains open. Historical defect: file selection sorted docs before source and capped at 14; only first 12k characters of each file are kept without a specific truncation explanation. Structured understanding mostly recognizes Markdown headings and two manifest kinds. Flat project Markdown passes through generic document chunks, losing per-file commit/line provenance. Verify balanced coverage, truthful partial states, source-derived claims and compatible canonical indexing.
 
 ## ERR-145 — Common project follow-ups are not consistently resolved (WORK-0092)
-In progress. Current referent matching excludes “How does its backend work?”, “Explain the complete flow” and “What alternatives did you consider?”. Preserve exact current IDs, ambiguity, disabled/deleted sources and unrelated topic switches while extending deterministic matching.
+Implemented and extended in WORK-0093 with stable-ID ambiguity/revocation regressions. Historical defect: referent matching excluded “How does its backend work?”, “Explain the complete flow” and “What alternatives did you consider?”. Preserve exact current IDs, ambiguity, disabled/deleted sources and unrelated topic switches while extending deterministic matching.
 
 ## ERR-146 — Project follow-up reads repeat work without a revision-bound cache (WORK-0092)
-In progress. Existing canonical project retrieval has no completed-result cache. Add a bounded per-instance/session/exact-ID cache with source-version, current availability, embedding and retrieval-policy keys; invalidate immediately on source changes. Never cache failed or cancelled reads or share in-flight ownership.
+Implemented in the WORK-0092 baseline, preserved and regression-tested in WORK-0093; no new cache-speed claim. Historical defect: canonical project retrieval had no completed-result cache. Add a bounded per-instance/session/exact-ID cache with source-version, current availability, embedding and retrieval-policy keys; invalidate immediately on source changes. Never cache failed or cancelled reads or share in-flight ownership.
 
 
 ## WORK-0091 disposition at owner-requested stop (2026-11-21)

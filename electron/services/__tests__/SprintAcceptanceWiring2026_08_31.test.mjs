@@ -66,11 +66,11 @@ describe('Acceptance step 1: Test Connection → Verified, real error on bad key
 });
 
 describe('Acceptance step 2: model picker shows only verified models', () => {
-  test('the picker filters to chat-capable bindings from providerHealth, falling back only when nothing is verified yet', () => {
+  test('the settings model list uses account chat discovery and excludes disconnected providers', () => {
     assert.match(
       AI_PROVIDERS_SETTINGS,
-      /const pickerModelsForProvider[\s\S]{0,400}status === 'verified'[\s\S]{0,200}filterChatCapable\(health\.models\)/,
-      'the model dropdown must be sourced from verified ProviderHealth bindings, not a static preset list',
+      /accountChatModels\(cloudFetchedModels\[provider\]\|\|\[\],providerHealth\[provider\]\?\.models\)/,
+      'account discovery and exact probe bindings own the model list',
     );
     assert.match(
       AI_PROVIDERS_SETTINGS,

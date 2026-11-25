@@ -1732,7 +1732,13 @@ export class LLMHelper {
     // Delegates to the ONE shared predicate (groqModels.ts) — the three
     // hand-synced copies had already drifted (code-review 2026-08-23).
     const { isGroqModelId } = require('./llm/groqModels') as typeof import('./llm/groqModels');
-    return isGroqModelId(modelId);
+    if (isGroqModelId(modelId)) return true;
+    // Catalog discovery extends known prefixes; unavailable startup metadata
+    // must not break classification of another provider's model.
+    try {
+      const { CredentialsManager } = require('./services/CredentialsManager');
+      return isGroqModelId(modelId, CredentialsManager.getInstance().getAllCloudFetchedModels?.());
+    } catch { return false; }
   }
 
   private isGeminiModel(modelId: string): boolean {

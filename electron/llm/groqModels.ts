@@ -23,6 +23,7 @@
 // Windows.
 
 import { classifyVisionError } from './visionStreamFallback';
+import { catalogModelProvider } from './modelSelectionCatalog';
 
 /** Preview tier, multimodal. What routing uses by default. */
 export const GROQ_PRIMARY_MODEL = 'qwen/qwen3.8-27b';
@@ -76,9 +77,9 @@ export const GROQ_MODEL_ID_PREFIXES: readonly string[] = [
   'openai/gpt-oss-', 'groq/',
 ];
 
-export function isGroqModelId(modelId: string | null | undefined): boolean {
+export function isGroqModelId(modelId: string | null | undefined, catalog?:Readonly<Record<string,readonly {id:string}[]>>): boolean {
   const id = modelId || '';
-  return GROQ_MODEL_ID_PREFIXES.some((p) => id.startsWith(p));
+  return GROQ_MODEL_ID_PREFIXES.some((p) => id.startsWith(p)) || Boolean(catalog&&catalogModelProvider(id,catalog)==='groq');
 }
 
 /**

@@ -1,9 +1,11 @@
 import { ModelPreferencesPanel } from './ModelPreferencesPanel';
+import { MeetingModelSelector } from '../ui/MeetingModelSelector';
+import {accountChatModels} from '../../../electron/llm/modelSelectionCatalog';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useT } from '../../i18n';
 import { Plus, Trash2, Edit2, AlertCircle, Save, ChevronDown, Check, RefreshCw, ExternalLink, Loader2, LogOut, Cloud, Server, Eye, Info, MessageSquare, Image, FileText, User, Boxes, ClipboardList, Laptop } from 'lucide-react';
 import { CODEX_CLI_MODEL, CODEX_CLI_MODEL_PRESETS, codexCliSelectorId, isModelAllowed, isOptInModelProvider, litellmModelLabel, STANDARD_CLOUD_MODELS, prettifyModelId } from '../../utils/modelUtils';
-import { filterChatCapable, type ProviderHealth } from '../../../electron/llm/providerRegistry';
+import { type ProviderHealth } from '../../../electron/llm/providerRegistry';
 import { validateCurl } from '../../lib/curl-validator';
 import { ProviderCard } from './ProviderCard';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -2353,19 +2355,9 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
     const isModelEnabled = (provider: string, modelId: string) =>
         isModelAllowed(provider, modelId, cloudEnabledModels[provider] || []);
 
-    /**
-     * The full model universe for a provider: presets ∪ persisted catalog ∪ every
-     * id already in the allow-list.
-     *
-     * That third term is load-bearing. It guarantees an allow-listed id ALWAYS has
-     * a row, even when the catalog is missing (never fetched, cleared on key
-     * rotation, or a failed persist). Without it the card would show "3 / 3" while
-     * silently filtering the picker by 12 invisible selections — and the toggle
-     * normalisation below would then collapse against the wrong cardinality and
-     * wipe them.
-     */
+    /** Account-discovered chat models only. Stored permissions are not rewritten
+     * merely because a catalog changes or access is temporarily unavailable. */
     const effectiveModels = useCallback((provider: string): AipModelEntry[] => {
-        const preset = STANDARD_CLOUD_MODELS[provider];
         const out: AipModelEntry[] = [];
         const seen = new Set<string>();
         const push = (id: string, label: string) => {
@@ -2373,40 +2365,23 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
             seen.add(id);
             out.push({ id, label });
         };
-        preset?.ids.forEach((id, i) => push(id, preset.names[i] || id));
+        // New choices come from the account catalog, not release presets.
+        // Keep the stored permission list untouched when a model disappears.
+        const accountModels=accountChatModels(cloudFetchedModels[provider]||[],providerHealth[provider]?.models);
+        accountModels.forEach(m=>push(m.id,m.label));
         // LiteLLM has no preset table and no `cloudFetchedModels` entry — its universe
         // is whatever the proxy reported, held UNPREFIXED in `litellmModels`. Prefix it
         // here so the allow-list stores the same `litellm/<model>` ids that
         // modelAvailable() in ipcHandlers.ts compares against; storing the bare name
         // would make the two surfaces disagree and the filter would silently no-op.
         if (provider === 'litellm') litellmModels.forEach(m => push(`litellm/${m}`, litellmModelLabel(m)));
-        (cloudFetchedModels[provider] || []).forEach(m => push(m.id, m.label || m.id));
-        // Allow-listed ids with no catalog entry still get a row, labelled as best we can.
-        // LiteLLM ids are proxy literals, so they take the segment label rather than
-        // prettifyModelId — which would render `litellm/openai/gpt-4o` as
-        // "Litellm/Openai/Gpt 4o".
-        (cloudEnabledModels[provider] || []).forEach(id =>
-            push(id, provider === 'litellm' ? litellmModelLabel(id) : prettifyModelId(id)));
         return out;
-    }, [cloudFetchedModels, cloudEnabledModels, litellmModels]);
+    }, [cloudFetchedModels, providerHealth, litellmModels]);
 
-    /**
-     * A provider's model source for the DEFAULT-MODEL picker (not the settings
-     * card's own model-management list, which stays on `effectiveModels` so the
-     * user can still manage allow-listing for a not-yet-probed provider).
-     *
-     * Once a probe exists: verified → its live/catalog-verified models; known
-     * broken (disconnected) → nothing, so a bad key can't leave stale preset
-     * models selectable. Before any probe (or a probe that returned no
-     * chat-capable models) → the old preset ∪ catalog behavior, i.e. unverified.
-     */
+    // Account chat discovery is authoritative; a disconnected provider offers no models.
     const pickerModelsForProvider = (prov: string): AipModelEntry[] => {
         const health = providerHealth[prov];
         if (health?.status === 'disconnected') return [];
-        if (health?.status === 'verified') {
-            const chatCapable = filterChatCapable(health.models);
-            if (chatCapable.length) return chatCapable.map(b => ({ id: b.id, label: b.label }));
-        }
         return effectiveModels(prov);
     };
 
@@ -3464,7 +3439,6 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
         // already neutralises both.
         <div className="aip-root space-y-5 pb-10" data-theme={theme} data-settings-stagger>
             <AmbiguousStoresCard />
-            <ModelPreferencesPanel/>
             {confirmCopy && (
                 <ConfirmDialog
                     open
@@ -3486,20 +3460,14 @@ export const AIProvidersSettings: React.FC<AIProvidersSettingsProps> = ({
                 </p>
             </header>
 
+            <ModelPreferencesPanel/>
+
             <div className="aip-card p-5 flex items-center justify-between gap-4">
                     <div className="min-w-0">
                         <label className="block text-xs font-medium uppercase tracking-wide mb-0 aip-hero">{t('Active Model')}</label>
                         <p className="text-[10px] aip-muted mt-0.5">{t('Applies to new chats instantly.')}</p>
                     </div>
-                    <ModelSelect
-                        value={defaultModel}
-                        options={buildAvailableModelOptions()}
-                        onChange={(val) => {
-                            setDefaultModel(val);
-                            // @ts-ignore - persist as default + update runtime + broadcast
-                            window.electronAPI?.setDefaultModel(val).catch(console.error);
-                        }}
-                    />
+                    <MeetingModelSelector/>
                 </div>
 
 <div className="aip-card p-5 flex items-center justify-between gap-4">

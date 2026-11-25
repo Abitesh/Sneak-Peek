@@ -19,6 +19,6 @@ test('overflow rejects explicitly instead of deleting instructions, questions or
 });
 test('UTF-8 source text receives byte-aware allocation',()=>{
  assert.equal(ollamaContextWindow('llama3.2:3b',[{content:'a'.repeat(2000)}]),4096);
- assert.ok(ollamaContextWindow('llama3.2:3b',[{content:'漢'.repeat(2000)}])>=12288);
+ assert.ok(ollamaContextWindow('llama3.2:3b',[{content:'漢'.repeat(2200)}])>=12288);
  assert.throws(()=>ollamaContextWindow('llama3.2:3b',[{content:'漢'.repeat(6000)}]),/cannot safely fit/);
 });

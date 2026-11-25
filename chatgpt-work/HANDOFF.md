@@ -1,5 +1,13 @@
 # Sneak-Peek — current session handoff
 
+## WORK-0093 — Current retained implementation (2026-11-24)
+
+The owner explicitly resumed the prior work and staged its earlier changes. Continue in `/Users/abitesh/Documents/Sneak-Peek`; the old workpack cwd is absent. Preserve the owner index: SHA-256 `a2b5f7bb3f0352c735b81fc2ba728001e65fb12d6020cad8c4ca1f07cc4c77cc`. No agent staging/commit/push/reset/stash occurred.
+
+Dedicated modes/session preferences, automatic project import/uploads, supporting-document retrieval, context sizing and screenshot-driven model UI repairs are implemented. Three ordered favorites per provider now feed answer selectors; no availability wall or blank custom-manager link remains. Concrete preference previews are offline. Both actual macOS desktop phases/relaunch pass with controlled transports. [WORK-0093 report](../scripts/audit/work-0093-modes-models-projects.md) is the current evidence and failure inventory; local verification is complete. Electron: 9,070 pass / 0 fail / 67 skipped. Intelligence: 2,252 pass / 0 fail / 9 TODO. Projects/Practice: 46 pass / 0 fail. Library: 391 pass / 0 fail / 1 skipped. Scripts: 103 pass / 0 fail. Both builds and all five typechecks pass. Both disposable macOS desktop scenarios pass both phases/relaunch. The final model-policy edge-case repeat passes 77/77.
+
+V2-01/V2-04 remain Implemented, unverified at complete milestone scope; V2-05 remains In progress. Do not repeat obsolete setup or claim real 3B-model quality/speed acceptance: recorded followups still contain factual failures and >6 s completion. Hosted/Windows/physical audio/packaged checks remain unverified. Historical WORK-0091 stop below is superseded by the user's current resume.
+
 ## WORK-0091 — Owner-requested wrap-up (2026-11-21)
 
 The owner stopped further improvement work because of limited credits. **Do not reopen the broad investigation or run live evaluations automatically.** Continue from the current local changes only when requested. HEAD remains main `2a0c784d`. The index contains externally staged work; this agent did not stage, commit, reset, stash or push.

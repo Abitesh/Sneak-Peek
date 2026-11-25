@@ -81,7 +81,7 @@ const formatTime = (dateStr: string) => {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
 };
 
-const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onOpenModes, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
+const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
     const t = useT();
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [isDetectable, setIsDetectable] = useState(false);
@@ -437,7 +437,7 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
     const prefersReducedMotion = useReducedMotion();
 
     if (isNotesOpen) {
-        return <SessionControlsPage onBack={() => setIsNotesOpen(false)} onOpenModes={onOpenModes} onOpenAudioSettings={() => onOpenSettings('audio')} />;
+        return <SessionControlsPage onBack={() => setIsNotesOpen(false)} onOpenAudioSettings={() => onOpenSettings('audio')} />;
     }
 
     // iOS/Ionic panel curve — strong ease-out, no overshoot. Used for the parts

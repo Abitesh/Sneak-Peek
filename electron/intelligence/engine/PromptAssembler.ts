@@ -226,7 +226,7 @@ function renderEvidence(pack: EvidencePack, globalMeetingSearch: boolean): {
     return [
       `  <item id="${escapeXml(item.evidenceId)}" source="${escapeXml(source)}" source_id="${escapeXml(item.sourceId)}">`,
       item.revisionId ? `    <source_revision>${escapeXml(item.revisionId)}</source_revision>` : '',
-      scope && !compactMeeting && !project ? `    <scope>${escapeXml(scope)}</scope>` : '',
+      scope && !compactMeeting ? `    <scope>${escapeXml(scope)}</scope>` : '',
       !compactMeeting && !project ? `    <relevance>${item.relevance ?? item.score.final ?? 0}</relevance>` : '',
       !compactMeeting && !project ? `    <confidence>${item.confidence ?? item.score.final ?? 0}</confidence>` : '',
       !compactMeeting && !project ? `    <authority>${escapeXml(item.authority)}</authority>` : '',

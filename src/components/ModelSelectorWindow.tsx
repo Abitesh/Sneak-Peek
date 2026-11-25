@@ -1,6 +1,6 @@
-import { loadConfiguredModels } from '../utils/configuredModels';
+import { loadConfiguredModels, favoriteModelChoices } from '../utils/configuredModels';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Cpu } from 'lucide-react';
 import { CODEX_CLI_MODEL, CODEX_CLI_MODEL_PRESETS, codexCliSelectorId, getCodexCliModelDisplayName, isModelAllowed, litellmModelLabel, STANDARD_CLOUD_MODELS, prettifyModelId } from '../utils/modelUtils';
 import { useResolvedTheme } from '../hooks/useResolvedTheme';
 import { getMeetingInterfaceTheme, type MeetingInterfaceTheme } from '../lib/meetingInterfaceTheme';
@@ -11,6 +11,8 @@ import {
     getOverlayAppearance,
     OVERLAY_OPACITY_DEFAULT,
 } from '../lib/overlayAppearance';
+
+import { ProviderMark } from './ui/ProviderMark';
 
 // Define Model Types
 interface ModelOption {
@@ -76,26 +78,13 @@ const ModelSelectorWindow = () => {
                 : getOverlayAppearance(overlayOpacity, isLight ? 'light' : 'dark'),
         [isGlassTheme, overlayOpacity, isLight],
     );
-    const [availableModels, setAvailableModels] = useState<ModelOption[]>(() => {
-        try {
-            const cached = localStorage.getItem('cached-models');
-            return cached ? JSON.parse(cached) : [];
-        } catch { return []; }
-    });
-    const [favorites,setFavorites]=useState<Record<string,string[]>>({});
-    const [isLoading, setIsLoading] = useState<boolean>(() => availableModels.length === 0);
-
-
-
-
+    const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError,setLoadError]=useState('');
 
     // Load Data
-    // StrictMode-safe: dev-mode mount→unmount→remount would otherwise issue a
-    // second `forceRestartOllama` IPC round-trip (and double-paint the spinner)
-    // on every launcher paint. The `loadModelsOnceRef` survives the second
-    // mount. Live updates from settings/model-changes still come through the
-    // `onModelChanged` IPC subscription below — the previous `focus` listener
-    // was redundant and high-frequency when toggling launcher ↔ overlay.
+    // Reading favorites never starts or restarts a local-model daemon.
+    // Subscribe because the prewarmed window is reused across openings.
     useEffect(() => {
         let cancelled = false;
         // Only the NEWEST run may commit. A cold LiteLLM discovery can take up
@@ -112,128 +101,15 @@ const ModelSelectorWindow = () => {
                     setIsLoading(true);
                 }
 
-                // 1. Get Stored Credentials (to know which Cloud providers are active)
-                const creds = await window.electronAPI?.getStoredCredentials?.();
-
-                // 2. Custom Providers
-                const customProviders = await window.electronAPI?.getCustomProviders?.() || [];
-
-                // 3. Codex CLI
-                const codexCliConfig = await window.electronAPI?.getCodexCliConfig?.();
-
-                // 4. Ollama
-                let ollamaModels: string[] = [];
-                try {
-                    let oModels = await window.electronAPI?.getAvailableOllamaModels?.();
-
-                    // If no models found, the daemon might be DOWN — or it might
-                    // simply be UP with zero models pulled. Only restart in the
-                    // former case: getAvailableOllamaModels returns [] for BOTH,
-                    // and forceRestartOllama does a `kill -9` that would tear down a
-                    // perfectly healthy user-managed daemon (and abort an in-flight
-                    // embedding-model pull). Probe reachability first.
-                    if (!oModels || oModels.length === 0) {
-                        try {
-                            const reachable = await window.electronAPI?.isOllamaReachable?.();
-                            // Reachable === false means the daemon isn't answering; only
-                            // then is a restart warranted. If reachable (or the probe is
-                            // unavailable on an older preload → undefined), leave it alone.
-                            if (reachable === false && window.electronAPI?.forceRestartOllama) {
-                                await window.electronAPI.forceRestartOllama();
-                                // Wait a moment for server to come up
-                                await new Promise(resolve => setTimeout(resolve, 1500));
-                                // Retry fetch
-                                oModels = await window.electronAPI?.getAvailableOllamaModels?.();
-                            }
-                        } catch (e) {
-                            console.warn("Retrying Ollama failed", e);
-                        }
-                    }
-
-                    if (oModels) ollamaModels = oModels;
-                } catch (e) {
-                    // Ignore ollama errors here
-                }
-
-                // Build the list
-                const models: ModelOption[] = [];
-
-                // Cloud Models — standard models + unique preferred models
-                for (const [prov, cfg] of Object.entries(STANDARD_CLOUD_MODELS)) {
-                    if (!cfg.hasKeyCheck(creds)) continue;
-                    cfg.ids.forEach((id, i) => {
-                        models.push({ id, name: cfg.names[i], type: 'cloud', provider: prov });
-                    });
-                    const pm = creds?.[cfg.pmKey];
-                    if (pm && !cfg.ids.includes(pm)) {
-                        models.push({ id: pm, name: prettifyModelId(pm), type: 'cloud', provider: prov });
-                    }
-                }
-
-                // Custom Providers
-                customProviders.forEach((p: any) => {
-                    models.push({ id: p.id, name: p.name, type: 'custom' });
-                });
-
-                // Codex CLI
-                if (codexCliConfig?.enabled) {
-                    models.push({ id: CODEX_CLI_MODEL.id, name: `${CODEX_CLI_MODEL.name} (${prettifyModelId(codexCliConfig.model)})`, type: 'codex-cli', provider: 'codex-cli' });
-                    CODEX_CLI_MODEL_PRESETS.forEach(model => {
-                        const id = codexCliSelectorId(model.id);
-                        models.push({ id, name: getCodexCliModelDisplayName(id) || model.name, type: 'codex-cli', provider: 'codex-cli' });
-                    });
-                }
-
-                // Ollama
-                ollamaModels.forEach((m: string) => {
-                    models.push({ id: `ollama-${m}`, name: `${m} (Local)`, type: 'ollama' });
-                });
-
-                // LiteLLM proxy — auto-discovered from the configured proxy's /v1/models.
-                // Wrapped in try/catch so a missing/offline proxy never blocks the list.
-                try {
-                    const litellmModels = await window.electronAPI?.getAvailableLiteLLMModels?.() || [];
-                    litellmModels.forEach((m: string) => {
-                        // Label is the bare model name — `m` still carries the proxy's
-                        // own `<upstream>/` prefix (see litellmModelLabel).
-                        models.push({ id: `litellm/${m}`, name: `${litellmModelLabel(m)} (LiteLLM)`, type: 'cloud', provider: 'litellm' });
-                    });
-                } catch {
-                    // LiteLLM proxy may not be running — ignore.
-                }
-
+                const [configured,prefs]=await Promise.all([loadConfiguredModels(),window.electronAPI.sessionPreferencesGet()]);
                 if (cancelled || myToken !== runToken) return;
-
-                // Settings → AI Providers is where the user curates this list, and
-                // until now NOTHING here honoured it: a provider switched off and a
-                // model un-ticked both still showed up in the meeting overlay. That
-                // is load-bearing for a gateway like LiteLLM, whose catalogue can run
-                // to 300+ models — its allow-list is opt-in (empty = none), so
-                // without this gate the picker would list every model on the proxy.
-                //
-                // `family` mirrors providerFamily() in ipcHandlers.ts. Codex presets
-                // and custom providers have no allow-list UI, so their empty list
-                // means "no filter" and isModelAllowed lets them through unchanged.
-                const disabled = new Set(creds?.disabledProviders || []);
-                const allowLists: Record<string, string[]> = creds?.cloudEnabledModels || {};
-                const visibleModels = models.filter(m => {
-                    const family = m.provider
-                        ?? (m.type === 'ollama' ? 'ollama' : m.type === 'custom' ? 'custom' : null);
-                    if (!family) return true;
-                    if (disabled.has(family)) return false;
-                    return isModelAllowed(family, m.id, allowLists[family] || []);
-                });
-
-                const prefs=await window.electronAPI.sessionPreferencesGet();setFavorites(prefs.favorites);
-                const configured=await loadConfiguredModels();
-                for(const model of configured)if(!visibleModels.some(m=>m.id===model.id))visibleModels.push({id:model.id,name:model.label,type:model.provider==='ollama'?'ollama':model.provider==='custom'?'custom':'cloud',provider:model.provider});
-                visibleModels.sort((a,b)=>{const fam=(m:ModelOption)=>m.provider??(m.type==='ollama'?'ollama':m.type==='custom'?'custom':'');const ar=prefs.favorites[fam(a)]?.indexOf(a.id)??-1,br=prefs.favorites[fam(b)]?.indexOf(b.id)??-1;return (ar<0?99:ar)-(br<0?99:br);});
+                const visibleModels:ModelOption[]=favoriteModelChoices(configured,prefs.favorites).map(model=>({id:model.id,name:model.label,provider:model.provider,type:model.provider==='ollama'?'ollama':model.provider==='custom'?'custom':model.provider==='codex-cli'?'codex-cli':'cloud'}));
                 localStorage.setItem('cached-models', JSON.stringify(visibleModels));
-                setAvailableModels(visibleModels);
+                setAvailableModels(visibleModels);setLoadError('');
 
                 // 4. Get Current Active Model
                 const config = await window.electronAPI?.getCurrentLlmConfig?.(); // Get runtime model
-                if (config && config.modelId) {
+                if (!cancelled && myToken === runToken && config && config.modelId) {
                     // Compare on `modelId` (stable identifier) — using `displayName`
                     // or the legacy `model` would mismatch against option IDs and
                     // hide the selected checkmark on the custom-provider row.
@@ -243,6 +119,7 @@ const ModelSelectorWindow = () => {
 
             } catch (err) {
                 console.error("Failed to load models:", err);
+                if(!cancelled&&myToken===runToken)setLoadError('Could not load favorites. Check AI Providers.');
             } finally {
                 if (!cancelled && myToken === runToken) setIsLoading(false);
             }
@@ -267,10 +144,10 @@ const ModelSelectorWindow = () => {
         //
         // onModelChanged above is NOT a substitute — it only moves the
         // checkmark; it never rebuilds the list.
-        const unsubPreferences=window.electronAPI.onSessionPreferencesChanged?.(()=>loadModels());
         const unsubCredentials = window.electronAPI?.onCredentialsChanged?.(() => {
             loadModels();
         });
+        const unsubPreferences=window.electronAPI.onSessionPreferencesChanged?.(()=>loadModels());
         return () => {
             cancelled = true;
             unsubscribe?.();
@@ -279,12 +156,14 @@ const ModelSelectorWindow = () => {
         };
     }, []);
 
-    const handleSelectFn = (modelId: string) => {
-        setCurrentModel(modelId);
-        localStorage.setItem('cached-current-model', modelId);
-        
-        window.electronAPI?.setModel(modelId)
-            .catch((err: any) => console.error("Failed to set model:", err));
+    const handleSelectFn = async (modelId: string) => {
+        setLoadError('');
+        try {
+            const result=await window.electronAPI.setDefaultModel(modelId);
+            if(!result.success)throw new Error('Selection rejected');
+            setCurrentModel(modelId);
+            localStorage.setItem('cached-current-model',modelId);
+        } catch {setLoadError('Could not select this model. Check AI Providers.');}
     };
 
     // Same isDarkBg concept SettingsPopup.tsx already established for this
@@ -302,10 +181,10 @@ const ModelSelectorWindow = () => {
     return (
         <div className="w-fit h-fit bg-transparent flex flex-col">
             <div
-                className={`w-[140px] h-[200px] backdrop-blur-md border rounded-[16px] overflow-hidden shadow-2xl p-2 flex flex-col animate-scale-in origin-top-left overlay-shell-surface ${panelClass}`}
+                className={`w-[300px] h-[340px] backdrop-blur-md border rounded-[16px] overflow-hidden shadow-2xl p-2 flex flex-col animate-scale-in origin-top-left overlay-shell-surface ${panelClass}`}
                 style={{ ...appearance.shellStyle }}
             >
-                <div className="relative z-[1] flex-1 min-h-0 flex flex-col">
+                <div className="relative z-[1] flex-1 min-h-0 flex flex-col">{loadError&&<p role="alert" className="text-xs text-red-400 px-2 py-1">{loadError}</p>}
                     {isLoading ? (
                         <div className={`flex items-center justify-center py-4 overlay-text-muted ${isDarkBg ? 'text-slate-500' : 'text-slate-400'}`}>
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -315,7 +194,7 @@ const ModelSelectorWindow = () => {
                         <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col gap-0.5">
                             {availableModels.length === 0 ? (
                                 <div className={`px-4 py-3 text-center text-xs overlay-text-muted ${isDarkBg ? 'text-slate-500' : 'text-slate-400'}`}>
-                                    No models connected.<br />Check Settings.
+                                    {loadError||"Choose favorites in AI Providers."}
                                 </div>
                             ) : (
                                 availableModels.map((model) => {
@@ -332,7 +211,7 @@ const ModelSelectorWindow = () => {
                                                 }
                                             `}
                                         >
-                                            <span className="text-[12px] font-medium truncate flex-1 min-w-0">{(favorites[model.provider??(model.type==='ollama'?'ollama':'custom')]??[]).includes(model.id)?'★ ':''}{model.name}</span>
+                                            <ProviderMark provider={model.provider??'custom'} size={18} fallback={<Cpu size={18}/>}/><span className="text-[12px] font-medium truncate flex-1 min-w-0 ml-3">{model.name}</span>
                                             {isSelected && <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${isDarkBg ? 'text-emerald-400' : 'text-emerald-600'}`} />}
                                         </button>
                                     );

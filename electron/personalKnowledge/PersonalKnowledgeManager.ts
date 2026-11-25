@@ -974,7 +974,7 @@ if (isBroadCandidateProjectsQuestion(q)
 // already authorized, indexed files; no repository/network work occurs here.
 if (fileType === 'project' && selectedIds && /\b(?:overview|backend|frontend|implementation|database|dependencies)\s*$/i.test(q)) {
   const topic=q.match(/\b(overview|backend|frontend|implementation|database|dependencies)\s*$/i)![1].toLowerCase();
-  const excerpts=this.getRepositorySectionExcerpts(files,topic,limit);
+  const excerpts=this.getRepositorySectionExcerpts(files,topic,limit,q);
   if(excerpts.length)return excerpts;
 }
 const lower = q.toLowerCase();
@@ -1040,7 +1040,7 @@ if (!previous || result.score > previous.score) merged.set(result.chunkId, resul
 }
 return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(MAX_RESULTS, limit)));
 }
-private getRepositorySectionExcerpts(files:readonly PersonalFileRecord[],topic:string,limit:number):PersonalFileSearchResult[] {
+private getRepositorySectionExcerpts(files:readonly PersonalFileRecord[],topic:string,limit:number,query:string):PersonalFileSearchResult[] {
  const priorities:Record<string,string[]>={overview:['overview','architecture','backend','api','database','dependencies'],backend:['backend','api','database','dependencies'],frontend:['frontend','api','dependencies'],implementation:['backend','api','database','frontend'],database:['database','backend','api'],dependencies:['dependencies','backend','database','api']};
  const candidates:Array<PersonalFileSearchResult & {path:string;category:string;rank:number}>=[];
  let hasRepositorySources=false;
@@ -1050,7 +1050,7 @@ private getRepositorySectionExcerpts(files:readonly PersonalFileRecord[],topic:s
    const metadata=this.parseChunkMetadata(row.metadata_json);
    const repositoryPath=String(metadata?.repositoryPath??'');
    if(repositoryPath)hasRepositorySources=true;
-   else if(lexicalScore(topic+' '+file.fileName,String(row.text))<=0)continue;
+   else if(lexicalScore(query,String(row.text))<=0)continue;
    const path=repositoryPath||`supporting:${file.id}:${row.heading??row.chunk_index}`;
    const category=repositoryPath?String(metadata?.sourceCategory??row.section??''):'supporting';
    const entry=/(?:^|\/)(?:main|app|server|index)\.[jt]s$/i.test(path);

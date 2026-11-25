@@ -446,7 +446,7 @@ test('isPremiumKnowledgeInterceptAllowed gates the whole premium intercept by ac
   const INTERCEPT_ALLOWED = new Set(['general', 'sales', 'recruiting', 'looking-for-work']);
   // 'call-center' joined 2026-08-23: support calls are not salary negotiations,
   // and ModesManager blocks it in PREMIUM_INTERCEPT_INCOMPATIBLE_TEMPLATES.
-  const INTERCEPT_BLOCKED = new Set(['technical-interview', 'team-meet', 'lecture', 'seminar', 'call-center']);
+  const INTERCEPT_BLOCKED = new Set(['technical-interview', 'team-meet', 'lecture', 'seminar', 'call-center', 'coding-dsa', 'cs-fundamentals', 'resume-projects']);
 
   // Every production mode must land on one side of the gate — guards against
   // a future template silently inheriting the wrong default.

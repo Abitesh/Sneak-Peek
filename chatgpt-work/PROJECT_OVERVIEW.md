@@ -1,5 +1,11 @@
 # Sneak-Peek — project overview and setup
 
+## WORK-0093 — Session preferences and model selection (2026-11-24)
+
+Launcher session controls replace the explicitly retired standalone Notes feature. Migration 39 removes only that Notes table, preserving meetings/profile/custom modes/project sources. Preferences persist in SQLite and freeze at the canonical request boundary. Coding / DSA and CS Fundamentals deny private retrieval; Resume & Projects requests only authorized current project evidence.
+
+Shared account-model discovery excludes non-chat and confirmed inaccessible choices while preserving provider permissions. AI Providers manages three ordered favorites per provider; all answer menus show those favorites. Opening a picker/preview does not generate answers or restart Ollama. The active stream retains its binding when the next model changes. Project URL save imports automatically; uploads and bounded GitHub source excerpts share existing source/revision ownership. Actual answering metadata is exposed separately. See [WORK-0093 report](../scripts/audit/work-0093-modes-models-projects.md) for final checks and limitations; V2-05 quality/speed acceptance is still open.
+
 ## V2-05 retrieval and idle setup (2026-11-20)
 
 The canonical RetrievalCoordinator starts independent planned capabilities concurrently and combines them in canonical source order. Each capability retains the request's source permission, exact source identity and cancellation checks. Results are scoped to one request; no shared evidence cache was added. Built-in/default mode seeding uses stored titles and descriptions without LLM compilation. User-created modes retain section compilation. WORK-0089 records measured scope and the remaining live-quality acceptance gaps.
