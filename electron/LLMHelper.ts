@@ -8520,7 +8520,10 @@ let isMultimodal = !!(imagePaths?.length);
       options.signal.throwIfAborted();
       const response = await fetch(`${base}/api/chat`, {
         ...options,
-        body: JSON.stringify({ model, messages: [], stream: false, keep_alive: '5m' }),
+        // Match the usual chat allocation even when the server's default is larger.
+        // Larger prompts still request their own safe window at dispatch.
+        body: JSON.stringify({ model, messages: [], stream: false, keep_alive: '5m',
+          options: { num_ctx: ollamaContextWindow(model, []) } }),
       });
       if (response.ok && (await response.json()).done_reason === 'load') request.finishedAt = performance.now();
     } finally {

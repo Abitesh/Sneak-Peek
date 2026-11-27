@@ -32,7 +32,7 @@ test('domain code choices apply only to implementation requests and respect expl
  assert.match(sessionAnswerGuidance(p,'Write a SQL query.'),/Selected database coding language: SQL/);
  assert.doesNotMatch(sessionAnswerGuidance(p,'What is logistic regression?'),/Selected .* coding language/);
  assert.doesNotMatch(sessionAnswerGuidance(p,'What is a database query?'),/Selected .* coding language/);
- assert.match(sessionAnswerGuidance(p,'Write it in Rust.'),/Explicit question language overrides/);
+ assert.match(sessionAnswerGuidance(p,'Write it in Rust.'),/unless the question explicitly requests another language/);
  assert.match(sessionAnswerGuidance(p,'Explain singleton pattern.'),/Selected oop coding language: Java/);
  assert.doesNotMatch(sessionAnswerGuidance(p,'How did you implement your project?'),/Selected .* coding language/);
 });
@@ -49,7 +49,7 @@ test('project prompt retains citation locators and separates choice rationale fr
  const metadata={sourceId:'private',repositoryPath:'src/server.ts',repositoryCommit:'a'.repeat(40),lineStart:1,lineEnd:8,retrievalSource:'INTERNAL_DIAGNOSTIC_CANARY'};
  const engine=new SneakPeekIntelligenceEngine({retrievalCoordinator:new RetrievalCoordinator({capabilities:[createRetrievalCapability('project_knowledge',async()=>({items:[{id:'source',source:'project_knowledge',content:'Orchid declares Express as a dependency.',metadata}]}))]})});
  const result=await engine.handle(base('resume-projects','Why did you choose Express in the Orchid project?'));
- assert.match(result.prompt.finalPrompt,/src\/server.ts/);assert.match(result.prompt.finalPrompt,/a{40}/);assert.match(result.prompt.finalPrompt,/separate verified implementation from engineering analysis/);
+ assert.match(result.prompt.finalPrompt,/src\/server.ts/);assert.match(result.prompt.finalPrompt,/a{40}/);assert.match(result.prompt.finalPrompt,/<project_decision_policy>.*reason for the choice is undocumented.*possibility/);
  assert.doesNotMatch(result.prompt.finalPrompt,/INTERNAL_DIAGNOSTIC_CANARY|<reason>|<relevance>/);
  assert.equal(metadata.retrievalSource,'INTERNAL_DIAGNOSTIC_CANARY');
 });

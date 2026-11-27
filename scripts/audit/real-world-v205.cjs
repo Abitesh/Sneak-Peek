@@ -56,7 +56,24 @@ app.whenReady().then(async () => {
 
   helper.ollamaUrl = 'http://127.0.0.1:11436';
   helper.setModel('ollama-llama3.2:3b');
-  const calls = [], reads = [];
+  const calls = [], reads = [], providerCalls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (url !== 'http://127.0.0.1:11436/api/chat') return realFetch(url, options);
+    const request = JSON.parse(options.body);
+    const call = { at: performance.now(), model: request.model, contextWindow: request.options?.num_ctx };
+    providerCalls.push(call);
+    const response = await realFetch(url, options);
+    call.headersAt = performance.now();
+    // Observe Ollama's native timing without changing the production stream.
+    call.finished = response.clone().text().then(body => {
+      const rows = body.trim().split('\n');
+      const done = JSON.parse(rows.at(-1));
+      for (const field of ['total_duration', 'load_duration', 'prompt_eval_count',
+        'prompt_eval_duration', 'eval_count', 'eval_duration', 'done_reason']) call[field] = done[field];
+    }).catch(error => { call.telemetryError = error.message; });
+    return response;
+  };
   const transport = helper.streamFinalPrompt.bind(helper);
   helper.streamFinalPrompt = async function* (provider,model,prompt,options) {
     const row={provider,model,promptChars:prompt.length,prompt,at:performance.now()}; calls.push(row);
@@ -88,13 +105,14 @@ app.whenReady().then(async () => {
   // Ready cohort: load the exact selected model without a content-bearing request.
   const prewarm=await fetch('http://127.0.0.1:11436/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'llama3.2:3b',prompt:'',stream:false,keep_alive:'10m'})});assert.equal(prewarm.ok,true);
   const {stripDisplayMarkup}=require(path.join(root,'dist-electron/electron/llm/promptSystemV2.js'));
-  const questions=['Hi','What is system design? Can you solve any system design problem I give you?','Explain your projects and implementations to someone with no coding knowledge','Explain those projects technically as an interviewer','Please elaborate Geospatial','No, I asked about your Geospatial project','Why did you use Spring Boot instead of alternatives?','What are Spring Boot and OSRM used for in your project?'];
+  const questions=['Hi','What is system design? Can you solve any system design problem I give you?','Explain your projects and implementations to someone with no coding knowledge','Now explain those projects technically','Please elaborate Geospatial','No, I asked about your Geospatial project','Why did you use Spring Boot instead of alternatives?','What are Spring Boot and OSRM used for in your project?', 'How does the database work?', 'What is a mutex?', 'Tell me about my Nimbus Ledger project.'];
   const results=[];
+  const { marked } = await import('marked');
   const normalize=text=>text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
   for(const question of questions){
-    const c=calls.length,r=reads.length;
+    const c=calls.length,r=reads.length,providerStart=providerCalls.length;
     await overlay.webContents.executeJavaScript(`(()=>{
-      window.__trial={start:performance.now(),events:[],paints:[]};window.__trialOff=[window.electronAPI.onGeminiStreamToken((token,meta)=>window.__trial.events.push({type:'token',at:performance.now()})),window.electronAPI.onGeminiStreamDone(data=>window.__trial.events.push({type:'done',data,at:performance.now()})),window.electronAPI.onGeminiStreamError(error=>window.__trial.events.push({type:'error',error,at:performance.now()}))];
+      window.__trial={origin:performance.timeOrigin,start:0,events:[],paints:[]};window.__trialOff=[window.electronAPI.onGeminiStreamToken((token,meta)=>window.__trial.events.push({type:'token',at:performance.now()})),window.electronAPI.onGeminiStreamDone(data=>window.__trial.events.push({type:'done',data,at:performance.now()})),window.electronAPI.onGeminiStreamError(error=>window.__trial.events.push({type:'error',error,at:performance.now()}))];
       const old=document.body.innerText;let paintPending=false;const observer=new MutationObserver(()=>{
         if(!paintPending){paintPending=true;requestAnimationFrame(()=>requestAnimationFrame(()=>{paintPending=false;
           const visible=[...document.querySelectorAll('.ai-response-card')].at(-1)?.innerText?.trim()||'';
@@ -105,14 +123,25 @@ app.whenReady().then(async () => {
       });observer.observe(document.body,{subtree:true,childList:true,characterData:true});window.__trialObserver=observer;
       document.querySelector('[data-testid=overlay-chat-input]').focus();
     })()`);
-    await overlay.webContents.insertText(question);overlay.webContents.sendInputEvent({type:'keyDown',keyCode:'Return'});overlay.webContents.sendInputEvent({type:'keyUp',keyCode:'Return'});
+    await overlay.webContents.insertText(question);
+    await overlay.webContents.executeJavaScript('window.__trial.start=performance.now()');
+    overlay.webContents.sendInputEvent({type:'keyDown',keyCode:'Return'});overlay.webContents.sendInputEvent({type:'keyUp',keyCode:'Return'});
     await waitFor(()=>overlay.webContents.executeJavaScript("window.__trial.events.some(e=>e.type==='done'||e.type==='error')"),120000);
     const trial=await overlay.webContents.executeJavaScript('window.__trial');
     const answer=trial.events.find(e=>e.type==='done')?.data?.finalText||trial.events.find(e=>e.type==='done')?.data?.text||'';
-    if(answer) await waitFor(()=>overlay.webContents.executeJavaScript(`document.body.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(stripDisplayMarkup(answer)))})`),15000);
+    let matched = false;
+    if (answer) {
+      const html = marked.parse(stripDisplayMarkup(answer));
+      const expected = await overlay.webContents.executeJavaScript(`new DOMParser().parseFromString(${JSON.stringify(html)},'text/html').body.textContent`);
+      try {
+        await waitFor(() => overlay.webContents.executeJavaScript(`[...document.querySelectorAll('.ai-response-card')].at(-1)?.innerText.toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').includes(${JSON.stringify(normalize(expected))})`), 8000);
+        matched = true;
+      } catch { /* preserve a failed visible match in the benchmark */ }
+    }
+    await Promise.all(providerCalls.slice(providerStart).map(call => call.finished));
     const measured=await overlay.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{window.__trialObserver.disconnect();window.__trialOff.forEach(f=>f());resolve({...window.__trial,finalVisible:performance.now()});})))`);
-    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,firstTextVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,paints:measured.paints,finalVisibleMs:measured.finalVisible-measured.start,calls:calls.slice(c),reads:reads.slice(r)});
-    fs.writeFileSync(path.join(temp,'real-world.json'),JSON.stringify({model:'llama3.2:3b',readiness:'preloaded',source:'synthetic documents and actual production UI/pipeline',results},null,2));
+    results.push({question,answer,error:trial.events.find(e=>e.type==='error')?.error,firstTextVisibleMs:measured.firstVisible?measured.firstVisible-measured.start:null,firstText:measured.firstText,paints:measured.paints,finalVisibleMs:matched ? (measured.paints.find(p => p.text === measured.paints.at(-1)?.text)?.ms ?? measured.finalVisible-measured.start) : null,rendererOrigin:measured.origin,rendererStart:measured.start,ipcFirstMs:measured.events.find(e=>e.type==='token')?.at-measured.start,ipcDoneMs:measured.events.find(e=>e.type==='done')?.at-measured.start,provider:providerCalls.slice(providerStart),calls:calls.slice(c),reads:reads.slice(r)});
+    fs.writeFileSync(path.join(temp,'real-world.json'),JSON.stringify({model:'llama3.2:3b',mainOrigin:performance.timeOrigin,readiness:'empty prewarm; inspect load durations',source:'synthetic documents and actual production UI/pipeline',results},null,2));
     console.log('REAL_WORLD',results.length,results.at(-1).firstTextVisibleMs,results.at(-1).finalVisibleMs);
   }
   fs.writeFileSync(path.join(temp,'real-world.png'),(await overlay.webContents.capturePage()).toPNG());

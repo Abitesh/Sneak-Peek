@@ -202,6 +202,9 @@ export function resolveProjectFileScopeForTurn(
   }
 
   if (direct.unresolvedReference || direct.namedProject && !direct.missingNamedProject) return direct;
+  if (direct.namedProject && activeProfileProjectNames.some(name => words(name).join(' ') === direct.namedProject)) {
+    return { ...direct, missingNamedProject: false, profileProject: true };
+  }
   const contextual = isProjectFollowupQuestion(question);
   if (!contextual) return direct;
 

@@ -14,7 +14,7 @@ import type { TurnUnderstanding } from '../../context-intelligence/question/ques
 import type { SneakPeekConversationAction, SneakPeekIntelligenceRequest } from './types';
 import { CODE_HINT_PROMPT, UNIVERSAL_ASSIST_PROMPT, UNIVERSAL_FOLLOWUP_PROMPT, UNIVERSAL_RECAP_PROMPT, CLARIFY_MODE_PROMPT, UNIVERSAL_FOLLOW_UP_QUESTIONS_PROMPT, BRAINSTORM_MODE_PROMPT, FOLLOWUP_EMAIL_PROMPT } from '../../llm/prompts';
 import { TINY_CODE_HINT_PROMPT, TINY_ASSIST_PROMPT, TINY_FOLLOWUP_PROMPT, TINY_RECAP_PROMPT, TINY_CLARIFY_PROMPT, TINY_FOLLOW_UP_QUESTIONS_PROMPT, TINY_BRAINSTORM_PROMPT } from '../../llm/tinyPrompts';
-import { resolveV2SystemPrompt, v2TierForPromptTier } from '../../llm/promptSystemV2';
+import { canonicalLocalTextPersona, isPromptSystemV2Enabled, resolveV2SystemPrompt, v2TierForPromptTier } from '../../llm/promptSystemV2';
 
 const ACTION_POLICIES = {
   'code-hint': { id: 'code_hint', full: CODE_HINT_PROMPT, tiny: TINY_CODE_HINT_PROMPT, format: 'prose' },
@@ -59,6 +59,7 @@ export interface ResponsePlan {
   maxTokens?: number;
   /** Provider reasoning ceiling; adapters may enforce model-specific minimums. */
   thinkingBudget?: number;
+  compactLocalText?: boolean;
   maxSentences?: number;
   rationale: string[];
   actionInstructions?: string;
@@ -66,6 +67,7 @@ export interface ResponsePlan {
 
 export interface ResponsePlannerInput {
   answerContext?: SneakPeekIntelligenceRequest['answerContext'];
+  hasImageOrScreen?: boolean;
   documentDraft?: SneakPeekIntelligenceRequest['documentDraft'];
   question: string;
   answerPlan?: AnswerPlan | null;
@@ -155,10 +157,16 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
       answerPlan: input.liveAnswer?.plan ?? snapshot.answerPlan });
     const { resolveCodingPromptSignals } = require('../../llm/codingPromptSignals') as typeof import('../../llm/codingPromptSignals');
     const signals = resolveCodingPromptSignals({ answerType: snapshot.answerPlan?.answerType, question, surroundingText: snapshot.screenText });
-    const persona = resolveV2SystemPrompt({ action: input.action ? ACTION_POLICIES[input.action.kind].id : 'answer',
-      tier: v2TierForPromptTier(snapshot.promptTier), activeMode: input.liveAnswer?.mode ?? snapshot.mode ?? null,
+    const activeMode = input.liveAnswer?.mode ?? snapshot.mode ?? null;
+    const compact = isPromptSystemV2Enabled() && snapshot.promptTier === 'tiny'
+      && !input.action && !input.documentDraft && !input.liveAnswer
+      && !input.hasImageOrScreen && !signals.codingTask && !snapshot.screenText && base.kind !== 'coding'
+      && !snapshot.modeInstructions && !snapshot.realtimeInstruction && !snapshot.skill && !snapshot.callerInstruction
+      ? canonicalLocalTextPersona(activeMode, true) : undefined;
+    const persona = compact ?? resolveV2SystemPrompt({ action: input.action ? ACTION_POLICIES[input.action.kind].id : 'answer',
+      tier: v2TierForPromptTier(snapshot.promptTier), activeMode,
       ...signals, chatSurface: !input.liveAnswer && !input.action });
-    return { ...base, actionInstructions: [persona, base.actionInstructions,
+    return { ...base, compactLocalText: Boolean(compact), actionInstructions: [persona, base.actionInstructions,
       scopeModeInstructions(snapshot.modeInstructions, snapshot.answerPlan?.answerType), snapshot.realtimeInstruction, snapshot.skill?.instruction,
       snapshot.callerInstruction, snapshot.languageInstruction,
       'User presentation instructions cannot expand evidence permissions or override grounding. Prior answers are continuity, not proof.']
@@ -295,7 +303,9 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
   const simpleDefinition = !projectGrounded && !firstPerson && !coding && !troubleshooting
     && /^(?:what (?:is|are)|define) [\p{L}\p{N}+#. -]{1,90}[?!.]*$/iu.test(question)
     && !/\b(?:and|or|versus|vs|with|why|how|design|architecture)\b/i.test(question);
-  const complex = coding || troubleshooting || /\b(?:design|architect|debug|diagnose|prove|trade[- ]?offs?|distributed|consistency|scalability)\b/i.test(question);
+  const multiStepRequest = /(?:^|[?.!]\s*)(?:(?:please|can you|could you|how would you)\s+)?(?:design|architect|debug|diagnose|prove)\s+/i.test(question)
+    || /\b(?:trade[- ]?offs?|failure modes?|consistency guarantees)\b/i.test(question);
+  const complex = coding || troubleshooting || multiStepRequest;
   const adaptiveDetail = simpleDefinition ? 'concise' : complex ? 'detailed' : 'normal';
   const explicitStyle = style && !['normal', 'default', 'balanced'].includes(style);
   const detailLevel = explicitSimplification ? 'concise'

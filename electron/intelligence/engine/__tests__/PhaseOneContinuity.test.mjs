@@ -31,3 +31,14 @@ test('explicit project correction replaces focus and Unicode saved names retain 
  assert.deepEqual(run('Explain नमस्ते सेवा project.',[]).selectedFileIds,['hindi']);
  assert.deepEqual(run('How does the database work?',pair('Explain नमस्ते सेवा project.','नमस्ते सेवा handles requests.')).selectedFileIds,['hindi']);
 });
+
+test('an exact project present only in the current profile can resolve on the first turn', () => {
+ const question = 'Tell me about my Nimbus Ledger project.';
+ const turns = [{ id: 'now', role: 'user', source: 'manual', text: question }];
+ const found = resolve(question, files, turns, 'now', undefined, ['Nimbus Ledger']);
+ assert.equal(found.profileProject, true);
+ assert.equal(found.missingNamedProject, false);
+ const missing = resolve(question, files, turns, 'now', undefined, ['Other Ledger']);
+ assert.equal(missing.profileProject, undefined);
+ assert.equal(missing.missingNamedProject, true);
+});

@@ -130,6 +130,8 @@ Historical measurements: [quality evaluation](scripts/audit/chg21-quality-evalua
 
 ## A1 — Biggest problem: Intelligence Engine performance (P0, V2-05)
 
+**2026-11-28 checkpoint:** WORK-0095 / TASK-0012 / ERR-155–156 measured A1 after WORK-0094. Local prompt tokens fell 19,896 → 8,061, median renderer completion 15.76 → 4.15 s, max 33.60 → 8.30 s, and strict scenario review 5/11 → 9/11. Useful frame p95 3.50 s on scored turns, with one contradictory answer having no qualifying frame. Inference is the dominant cost, with different cache/throughput conditions across runs. The missing named project no longer substitutes unrelated profile evidence. Short and long deadlines, 90% quality, and physical Auto Answer remain open. [Evidence and remaining acceptance](scripts/audit/work-0095-a1-performance.md).
+
 **Owner requirement:** Fastest recorded completion **25.9s**, slowest **36.7s**; improve short answers to **3 seconds** and longer answers to **6 seconds**. These are historical intermediate real-model llama3.2:3b renderer results from WORK-0093, not a measured post-WORK-0094 baseline. First-character proxies were 21.3–32.4 s; actual useful text requires semantic review. The latest work improved planning, not yet measured final inference speed. Reproduce before changing anything and retain the original misses. Earlier prepared WORK-0089 tests are useful controls but not substitutes for this workload.
 
 | Area | Required improvement | Starting files / implementation |

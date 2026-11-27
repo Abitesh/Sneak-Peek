@@ -29,3 +29,46 @@ test('the generation port receives the resolved reasoning budget and mode prompt
  assert.equal(observed.responsePlan.thinkingBudget,1024);
  assert.match(observed.prompt.finalPrompt,/<max_tokens>1100<\/max_tokens>/);
 });
+
+test('a definition and capability question about system design keeps both parts without extra reasoning', () => {
+  const plan = planResponse({ question: 'What is system design? Can you solve any system design problem I give you?' });
+  assert.equal(plan.thinkingBudget, 0);
+  assert.equal(plan.detailLevel, 'normal');
+  assert.match(plan.question, /Can you solve/);
+});
+
+test('standalone definitions leave out old project history while referential follow-ups keep it', async () => {
+  const engine = new SneakPeekIntelligenceEngine();
+  const snapshot = 'User: Explain the earlier concept.\nAssistant: PRIOR_PRIVATE_CONTEXT';
+  const context = { answerContext: { promptTier: 'tiny', referenceSourceIds: [], personalSourceIds: [] }, sessionSnapshot: snapshot };
+  const definition = await engine.handle({ ...request('What is a mutex?'), ...context });
+  assert.doesNotMatch(definition.prompt.finalPrompt, /PRIOR_PRIVATE_CONTEXT/);
+  const followUp = await engine.handle({ ...request('Explain that again.'), ...context });
+  assert.match(followUp.prompt.finalPrompt, /PRIOR_PRIVATE_CONTEXT/);
+});
+
+test('a missing named project excludes unrelated resume and conversation evidence', async () => {
+  const engine = new SneakPeekIntelligenceEngine();
+  const req = request('Tell me about my Nimbus Ledger project.');
+  req.contextPermissions.profile = req.contextPermissions.files = req.contextPermissions.memory = true;
+  req.activeContext = { ...req.activeContext, projectName: 'nimbus ledger', projectSourceIds: [], hasResume: true };
+  req.answerContext = { promptTier: 'tiny', profileDocuments: [{ sourceType: 'RESUME', sourceId: 'resume', content: 'UNRELATED_RESUME' }], referenceSourceIds: [], personalSourceIds: ['file'] };
+  req.sessionSnapshot = 'UNRELATED_HISTORY';
+  const result = await engine.handle(req);
+  assert.equal(result.contextPlan.missingNamedProject, true);
+  assert.ok(!result.contextPlan.requiredSources.some(source => ['profile', 'my_files', 'personal_knowledge'].includes(source)));
+  assert.deepEqual(result.contextPlan.sourceIds.project_knowledge, []);
+  assert.doesNotMatch(result.prompt.finalPrompt, /UNRELATED_(?:RESUME|HISTORY)/);
+  assert.match(result.prompt.finalPrompt, /evidence was not found/);
+});
+
+test('an internship question keeps profile access when the project-name heuristic finds no file', async () => {
+  const engine = new SneakPeekIntelligenceEngine();
+  const req = request('Explain my internship.');
+  req.contextPermissions.profile = true;
+  req.activeContext = { ...req.activeContext, projectName: 'internship', projectSourceIds: [], hasResume: true };
+  req.answerContext = { promptTier: 'tiny', referenceSourceIds: [], personalSourceIds: [] };
+  const result = await engine.handle(req);
+  assert.ok(result.contextPlan.requiredSources.includes('profile'));
+  assert.equal(result.contextPlan.missingNamedProject, undefined);
+});

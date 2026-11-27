@@ -35,6 +35,8 @@ export interface ContextSourceDecision {
 }
 
 export interface ContextPlan {
+  /** Exact named project has no authorized evidence; never substitute other private sources. */
+  missingNamedProject?: boolean;
   sourceDecision?: import('../../llm/turnSourceDecision').TurnSourceDecision;
   /** Exact-ID constraints applied again after retrieval, including on repairs. */
   sourceIds?: Partial<Record<ContextSource, readonly string[]>>;

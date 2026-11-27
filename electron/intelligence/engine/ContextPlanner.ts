@@ -413,7 +413,15 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     sourceIds.profile = snapshot.profileDocuments?.map(doc => doc.sourceId) ?? [];
     if (request.contextPermissions.screen && request.screenContext && sourceDecision?.owner !== 'clarify') require('screen');
     if (request.liveAnswer && request.contextPermissions.transcript && !forbidden.has('meeting_transcript')) require('meeting_transcript');
-    if (request.sessionSnapshot && request.contextPermissions.conversation && !forbidden.has('recent_conversation')) require('recent_conversation');
+    // A plain definition is self-contained. The overlay's mixed history is
+    // otherwise attached merely because it exists, even after a topic switch.
+    const standaloneDefinition = request.surface === 'manual-chat'
+      && understanding.intent === 'general-question' && !understanding.followUp
+      && !request.activeContext?.projectName
+      && /^(?:what (?:is|are)|define) (?:an? )?[\p{L}\p{N}+#-]+(?: [\p{L}\p{N}+#-]+){0,3}[?.!]*$/iu.test(understanding.question)
+      && !/\b(?:it|they|this|that|those|these|the|my|your|our|its|their|previous|above|mentioned)\b/i.test(understanding.question);
+    if (request.sessionSnapshot && request.contextPermissions.conversation
+      && !forbidden.has('recent_conversation') && !standaloneDefinition) require('recent_conversation');
     // General CS/design requests must not retrieve project files by default.
     if (understanding.intent === 'system-design' && !understanding.requiresProjectContext
       && !request.activeContext?.projectName) {
@@ -461,6 +469,21 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
     for(const source of SOURCES) if(source !== 'screen' && source !== 'recent_conversation' && source !== 'none') {required.delete(source);optional.delete(source);forbidden.add(source);}
     if(request.contextPermissions.conversation&&request.recentConversation.length){forbidden.delete('recent_conversation');required.add('recent_conversation');}
     rationale.push('Dedicated mode: private retrieval disabled, including explicit source requests.');
+  }
+
+  const missingNamedProject = request.surface === 'manual-chat' && !request.screenContext
+    && !request.action && !request.documentDraft && !request.retrievalScope && !noPrivateMode && !broadPortfolio
+    && (understanding.requiresProjectContext || /\b(?:project|repository|repo|codebase)\b/i.test(understanding.question))
+    && request.activeContext?.projectName && request.activeContext.projectSourceIds?.length === 0
+    && !request.activeContext.profileProjectName;
+  if (missingNamedProject) {
+    for (const source of SOURCES) {
+      if (source === 'recent_conversation' || source === 'longer_conversation' || source === 'project_knowledge') continue;
+      required.delete(source);
+      optional.delete(source);
+      forbidden.add(source);
+    }
+    rationale.push('The named project has no authorized sources. Do not substitute the rest of the portfolio.');
   }
 
   const decisions: ContextSourceDecision[] = SOURCES.map((source) => {
@@ -544,6 +567,7 @@ export function planContext(input: ContextPlannerInput): ContextPlan {
   }
 
   return {
+    ...(missingNamedProject ? { missingNamedProject: true } : {}),
     ...(profileRead ? { profileRead } : {}),
     ...(sourceDecision ? { sourceDecision } : {}),
     sourceIds,

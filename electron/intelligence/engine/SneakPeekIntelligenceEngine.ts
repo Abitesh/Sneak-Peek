@@ -218,6 +218,13 @@ export class SneakPeekIntelligenceEngine {
     const traceId = `${request.sessionId}:${request.requestId}`;
     const stages: string[] = [];
     const pipelineStages: string[] = [];
+    const stageMs: Record<string, number> = {};
+    let lastStageAt = performance.now();
+    const endStage = (name: string) => {
+      const now = performance.now();
+      stageMs[name] = now - lastStageAt;
+      lastStageAt = now;
+    };
 
     if (request.cancellationSignal?.aborted) {
       stages.push('cancelled');
@@ -241,6 +248,7 @@ export class SneakPeekIntelligenceEngine {
       })),
     });
 
+    endStage('understand');
     stages.push('plan-context');
     pipelineStages.push('ContextPlan');
     let conversationContext = getRecentConversationContext({
@@ -289,6 +297,7 @@ export class SneakPeekIntelligenceEngine {
     const retrievalPlan = this.planRetrieval(retrievalQuery, contextPlan);
 
     if (lifecycle?.state === 'PLANNING') lifecycle.transition('RETRIEVING', 'context plan created; retrieval started');
+    endStage('plan');
     stages.push('retrieve');
     const retrievalResult = await this.retrievalCoordinator.retrieve(
       contextPlan,
@@ -296,6 +305,7 @@ export class SneakPeekIntelligenceEngine {
       retrievalQuery,
     );
 
+    endStage('retrieve');
     stages.push('build-evidence');
     pipelineStages.push('EvidencePack');
     const evidencePack = buildEvidencePackFromSneakPeekEvidence({
@@ -311,6 +321,7 @@ export class SneakPeekIntelligenceEngine {
       documentDraft: request.documentDraft,
       liveAnswer: request.liveAnswer,
       answerContext: request.answerContext,
+      hasImageOrScreen: Boolean(request.imageAnalysis || request.screenContext),
     });
     const preferences=request.activeContext?.sessionPreferences;
     if(preferences&&!request.repair&&!request.documentDraft){
@@ -323,6 +334,7 @@ export class SneakPeekIntelligenceEngine {
     const intent = this.mapIntent(turnUnderstanding.intent);
     const responseType = responsePlan.kind === 'coding' ? 'coding-answer' : this.resolveResponseType(request, intent);
 
+    endStage('responsePlan');
     stages.push('assemble-prompt');
     pipelineStages.push('PromptAssembler');
     const assembledPrompt = assembleSneakPeekPrompt({
@@ -336,6 +348,7 @@ export class SneakPeekIntelligenceEngine {
       languageInstruction: request.action?.languageInstruction ?? request.liveAnswer?.languageInstruction,
     });
 
+    endStage('prompt');
     return {
       requestId: request.requestId,
       resolvedQuestion: turnUnderstanding.question || resolvedQuestion,
@@ -354,6 +367,7 @@ export class SneakPeekIntelligenceEngine {
       streamLifecycle: { status: 'not-started' },
       diagnostics: {
         traceId,
+        stageMs,
         stages,
         pipelineStages,
         warnings: [

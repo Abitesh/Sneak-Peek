@@ -1,5 +1,14 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-155 — A1 inference stalls on ready interview workload (WORK-0095, 2026-11-28)
+
+Reproduced on baseline 98c0bee9 with the installed llama3.2:3b through desktop IPC and renderer. The system-design definition took 33.56 s to final visible text: Ollama reported 3.42 s loading, 13.05 s prefilling 1,593 tokens and 17.05 s decoding 223 tokens. The empty prewarm allocated 4K while the real request needed 8K. Later turns remain slow with the runner warm. The assembled prompt duplicates voice and length instructions, and the presence of “design” classifies the definition as multi-step reasoning. Retained compaction and stable preload reduce prompt tokens and measured latency. Full speed criteria remain open, including an 8.30 s completion and 3.50 s useful-frame p95. See [WORK-0095](../scripts/audit/work-0095-a1-performance.md).
+
+
+## ERR-156 — Missing-project substitution and invented decision rationale (WORK-0095, 2026-11-28)
+
+The real renderer baseline and compact candidate used an unrelated resume project to describe an explicitly named missing project. Both also misstated the Spring Boot decision; the candidate claimed additional undocumented reasons. Fixed unrelated profile substitution via an exact missing-project guard and verified current profile access for ordinary résumé questions. Moved choice guidance after evidence. The refined model still makes a contradictory opening assertion about the decision, so factual acceptance remains open. See [WORK-0095](../scripts/audit/work-0095-a1-performance.md).
+
 ## ERR-152–154 — Phase 1 conversation, adaptation and memory (WORK-0094, 2026-11-26)
 
 **Locally verified for the scoped repairs; broader acceptance remains open.** See [WORK-0094](../scripts/audit/work-0094-phase-one-stabilization.md) for implementation, 11 new passing regressions, full suite results and failed-attempt inventory. Original findings: ERR-152: the project follow-up matcher omits “How does the database work?” and tokenizes saved identities as ASCII only. ERR-153: balanced session preferences overwrite question-specific response budgets, and duration requests can also be overwritten. ERR-154: the long-term facade delegates its promised deadline entirely to the provider; recalled IDs are discarded, and zero-length canonical history windows return the entire history (`slice(-0)`). Reproduce before changing behavior. Preserve exact authorized source IDs, opt-in memory, cancellation and selected model.

@@ -311,6 +311,8 @@ export interface SneakPeekStreamLifecycle {
 
 export interface SneakPeekDiagnostics {
   traceId: string;
+  /** Monotonic elapsed milliseconds, with no question or source content. */
+  stageMs?: Record<string, number>;
   stages: string[];
   /** Exact architecture stage names used by the manual-chat migration trace. */
   pipelineStages: string[];

@@ -1526,6 +1526,7 @@ if (true as boolean) {
       console.log('[Sneak-Peek Intelligence] manual-chat PRIMARY trace', {
         requestId,
         stages: sneakPeekResult.diagnostics.pipelineStages,
+        stageMs: sneakPeekResult.diagnostics.stageMs,
         lifecycle: run.lifecycle.state,
         provider: sneakPeekResult.providerAttempt.provider,
         providerFirstTokenMs: sneakPeekResult.streamLifecycle.firstTokenAt != null && sneakPeekResult.streamLifecycle.startedAt != null
