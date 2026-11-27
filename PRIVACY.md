@@ -1,6 +1,6 @@
 # Sneak-Peek Privacy Policy
 
-**Effective date:** 18 November 2026  
+**Effective date:** 28 November 2026  
 **Project:** [Sneak-Peek](https://github.com/Abitesh/Sneak-Peek)
 
 ## 1. Scope
