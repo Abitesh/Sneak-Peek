@@ -82,11 +82,11 @@ export function toRecalledMemoryEvidence(
       const dateTag = parseTag(m.tags, 'date');
       const validated = false; // no validation pipeline yet — always unverified
       return {
-        memoryId: `hs:${i}:${(m.source ?? sourceTag ?? 'unknown')}`,
+        memoryId: m.id ?? `hs:${i}:${(m.source ?? sourceTag ?? 'unknown')}`,
         text: m.text.trim(),
-        sourceId: m.source ?? sourceTag ?? 'unknown',
+        sourceId: m.documentId ?? m.source ?? sourceTag ?? 'unknown',
         sourceKind,
-        timestamp: dateTag,
+        timestamp: m.occurredAt ?? m.mentionedAt ?? dateTag,
         confidence: typeof m.score === 'number' ? m.score : 0.5,
         validated,
         stale: false,

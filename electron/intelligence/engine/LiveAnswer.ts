@@ -23,12 +23,12 @@ export function streamLiveAnswer(input: {
       })],
     }),
     generationPort: {
-      stream: ({ request, prompt, lifecycle }) => streamCanonicalProvider(input.transport, {
+      stream: ({ request, prompt, responsePlan, lifecycle }) => streamCanonicalProvider(input.transport, {
         requestId,
         finalPrompt: prompt.finalPrompt,
         route: input.route,
         abortSignal: request.cancellationSignal,
-        thinkingBudget: 0,
+        thinkingBudget: responsePlan?.thinkingBudget ?? 0,
         lifecycle,
       }),
     },

@@ -12,7 +12,7 @@ import type { RetainItem } from './MemoryProvider';
 
 export class HindsightRetainQueue {
   private q: RetainItem[] = [];
-  private draining = false;
+  private drainPromise?: Promise<void>;
   private readonly maxQueue: number;
 
   constructor(private worker: (item: RetainItem) => Promise<void>, maxQueue = 500) {
@@ -23,24 +23,22 @@ export class HindsightRetainQueue {
   enqueue(item: RetainItem): void {
     try {
       if (this.q.length >= this.maxQueue) this.q.shift(); // drop oldest under pressure
-      this.q.push(item);
+      this.q.push({ ...item, scope: { ...item.scope }, metadata: item.metadata ? { ...item.metadata } : undefined, timestamp: item.timestamp ?? Date.now() });
       // Schedule drain without blocking — microtask, not awaited.
-      if (!this.draining) void this.drain();
+      void this.drain();
     } catch { /* never throw */ }
   }
 
   /** Drain the queue, one item at a time. Safe to call repeatedly. */
-  async drain(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
-    try {
+  drain(): Promise<void> {
+    if (this.drainPromise) return this.drainPromise;
+    this.drainPromise = Promise.resolve().then(async () => {
       while (this.q.length > 0) {
         const item = this.q.shift()!;
         try { await this.worker(item); } catch { /* a failed item never stops the queue */ }
       }
-    } finally {
-      this.draining = false;
-    }
+    }).finally(() => { this.drainPromise = undefined; });
+    return this.drainPromise;
   }
 
   get depth(): number { return this.q.length; }

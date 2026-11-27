@@ -17,6 +17,8 @@ import {
   NoopMemoryProvider,
 } from './MemoryProvider';
 import { HindsightClientAdapter, type HindsightConfig } from './HindsightClientAdapter';
+import { memoryTimeout, memoryResultLimit, withMemoryDeadline } from './MemoryDeadline';
+import { currentMeetingMemoryPolicy } from './MeetingMemoryAuthority';
 import { isIntelligenceFlagEnabled } from '../intelligenceFlags';
 
 export interface LongTermMemoryConfig {
@@ -40,7 +42,7 @@ export class LongTermMemoryService {
       if (providerOverride) return new LongTermMemoryService(providerOverride);
       const memoryOn = isIntelligenceFlagEnabled('hindsightMemory');
       if (!memoryOn || !config?.hindsight?.baseUrl) return new LongTermMemoryService(new NoopMemoryProvider());
-      const adapter = new HindsightClientAdapter(config.hindsight);
+      const adapter = new HindsightClientAdapter(config.hindsight, undefined, currentMeetingMemoryPolicy());
       // If the client wasn't installed/constructable, adapter.enabled is false → Noop.
       return new LongTermMemoryService(adapter.enabled ? adapter : new NoopMemoryProvider());
     } catch {
@@ -53,8 +55,8 @@ export class LongTermMemoryService {
 
   private retain(content: string, scope: MemoryScope, source: MemorySourceType, mode?: string, timestamp?: number): void {
     try {
-      if (!content || !content.trim()) return;
-      this.provider.retain({ content, scope, source, mode, timestamp });
+      if (!this.provider.enabled || !content?.trim() || !scope.userId?.trim()) return;
+      this.provider.retain({ content, scope: { ...scope }, source, mode, timestamp: timestamp ?? Date.now() });
     } catch { /* never throw */ }
   }
 
@@ -85,16 +87,15 @@ export class LongTermMemoryService {
   async recallRelevantMemory(
     query: string,
     scope: MemoryScope,
-    options: { timeoutMs?: number; maxResults?: number } = {},
+    options: { timeoutMs?: number; maxResults?: number; signal?: AbortSignal } = {},
   ): Promise<RecalledMemory[]> {
-    try {
-      return await this.provider.recall(query, scope, {
-        timeoutMs: options.timeoutMs ?? 800,
-        maxResults: options.maxResults ?? 8,
-      });
-    } catch {
-      return [];
-    }
+    const timeoutMs = memoryTimeout(options.timeoutMs);
+    const maxResults = memoryResultLimit(options.maxResults);
+    if (!this.provider.enabled || !query.trim() || !scope.userId?.trim() || maxResults === 0) return [];
+    const snapshot = { ...scope };
+    const result = await withMemoryDeadline(timeoutMs, options.signal, signal =>
+      this.provider.recall(query, snapshot, { timeoutMs, maxResults, signal }));
+    return Array.isArray(result) ? result.filter(item => typeof item?.text === 'string' && item.text.trim()).slice(0, maxResults) : [];
   }
 
   async flush(): Promise<void> {

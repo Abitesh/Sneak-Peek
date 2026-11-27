@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0017 / WORK-0094 — Phase 1 production stabilization (2026-11-26)
+
+**Implemented checkpoint; full Phase 1 In progress.** See [WORK-0094 verification](../scripts/audit/work-0094-phase-one-stabilization.md): Electron 9,070 pass/67 skips; intelligence 2,263 pass/9 TODO; focused 11/11; Projects/Practice 46/46; library 391 pass/1 skip; scripts 103/103. Builds, five typechecks and disposable desktop two-launch check pass. Integrate sections 6.1/6.2/6.7 with the existing canonical engine and memory. Verify implicit project follow-ups, multilingual identities, corrections, topic switches and source revocation; adapt response budgets without overriding explicit duration/style; enforce bounded, provenance-preserving memory and retention/deletion behavior. Carry V2-05 quality/latency, CI and physical-audio acceptance forward rather than declaring them passed from unit tests.
+
 ## TASK-0015 / V2-01 and TASK-0016 / V2-04 — WORK-0093 (2026-11-24)
 
 **Implemented, unverified at full milestone scope.** Dedicated modes, source ceilings, persisted preferences and three ordered favorites per configured provider are implemented. Actual disposable macOS desktop checks pass favorites-only selection, limit/reordering, persistence, project import retry/upload, no-private-context modes and in-flight model pinning. The broken custom-manager entry is removed and previews show concrete illustrative answers. Final broad regressions and the remaining acceptance boundaries are recorded in [WORK-0093 report](../scripts/audit/work-0093-modes-models-projects.md).

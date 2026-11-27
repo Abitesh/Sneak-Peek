@@ -246,8 +246,8 @@ export function getConversationTurn(sessionId: string, turnId: string): Conversa
 export function getRecentConversationTurns(sessionId: string, limit = 10): ConversationTurn[] {
   const state = getInternal(sessionId);
   if (!state) return [];
-  const n = Math.max(0, Math.floor(limit));
-  return state.turns.slice(-n).map(cloneTurn);
+  const n = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+  return n === 0 ? [] : state.turns.slice(-n).map(cloneTurn);
 }
 
 export interface ConversationWindowOptions {
@@ -279,7 +279,8 @@ export function getConversationWindow(sessionId: string, options: ConversationWi
     (includeNonFinalized || turn.finalized) && turn.timestamp >= cutoff,
   );
   if (typeof options.limit === 'number' && Number.isFinite(options.limit)) {
-    turns = turns.slice(-Math.max(0, Math.floor(options.limit)));
+    const limit = Math.max(0, Math.floor(options.limit));
+    turns = limit === 0 ? [] : turns.slice(-limit);
   }
   return turns.map(cloneTurn);
 }

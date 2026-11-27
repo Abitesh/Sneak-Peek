@@ -28,6 +28,8 @@ export type MemorySourceType =
   | 'lecture_transcript' | 'lecture_summary' | 'lecture_diagram' | 'course_memory';
 
 export interface RetainItem {
+  documentId?: string;
+  metadata?: Record<string, string>;
   content: string;
   scope: MemoryScope;
   source: MemorySourceType;
@@ -39,10 +41,19 @@ export interface RecallOptions {
   /** Hard timeout in ms (live: 300–800; global: 2000–5000). */
   timeoutMs: number;
   maxResults?: number;
+  signal?: AbortSignal;
 }
 
 export interface RecalledMemory {
   text: string;
+  /** Provider provenance is a pointer, never proof of current source access. */
+  id?: string;
+  documentId?: string;
+  sourceRevision?: string;
+  chunkId?: string;
+  occurredAt?: string;
+  mentionedAt?: string;
+  entities?: string[];
   score?: number;
   source?: string;
   tags?: string[];

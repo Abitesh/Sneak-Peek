@@ -58,7 +58,7 @@ const QUERY_STOP_WORDS = new Set([
 ]);
 
 function words(text: string): string[] {
-  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
 }
 
 function normalizedProjectIdentity(file: ProjectFileDescriptor): string[] {
@@ -95,7 +95,8 @@ function projectNameFromQuestion(question: string): string | undefined {
   const subjectName = subject?.[1];
   const validSubject = subjectName && words(subjectName).every((token) => !NON_PROJECT_NAMES.has(token))
     ? subjectName : undefined;
-  const extracted = overview?.[1] ?? imperative?.[1] ?? validSubject ?? preposition?.[1];
+  const correction = question.match(/^(?:no[,!]?\s*)?(?:i|we)\s+meant\s+(?:(?:the|my|our)\s+)?(?:project\s+)?([\p{L}\p{M}\p{N}_ -]+?)[.!?]*$/iu);
+  const extracted = correction?.[1] ?? overview?.[1] ?? imperative?.[1] ?? validSubject ?? preposition?.[1];
   if (!extracted) return undefined;
   const tokens = words(extracted);
   // Remove a syntactically trailing modifier and filename-style document label.
@@ -146,8 +147,12 @@ function referencesOnePreviousProject(question: string): boolean {
 
 /** Referential syntax only; a completed, authorized project is still required. */
 export function isProjectFollowupQuestion(question: string): boolean {
-  return referencesOnePreviousProject(question)
-    || /^(?:explain (?:the (?:complete |implementation |request )?flow|(?:its|the) (?:backend|frontend|architecture)|it|that|them)|how (?:does|did) (?:it|that|its (?:backend|frontend|API|database)) (?:work|communicate)|why (?:did you choose it|not (?:other frameworks|others|alternatives))|what (?:about (?:the )?database|alternatives(?: did you consider)?|was your contribution)|how did you implement that)[?.!\s]*$/i.test(question.trim())
+  // These are explicitly referential forms, not general definitions. They
+  // still require a completed exchange and current source authorization.
+  return /^(?:इसका|उसका|इस प्रोजेक्ट का) (?:डेटाबेस|बैकएंड|एपीआई) कैसे काम करता है[?।\s]*$/u.test(question.trim())
+    || /^¿?c[oó]mo funciona (?:su|la) (?:base de datos|api|arquitectura)[?!.\s]*$/iu.test(question.trim())
+    || referencesOnePreviousProject(question)
+    || /^(?:explain (?:the (?:complete |implementation |request )?flow|(?:its|the) (?:backend|frontend|architecture|database|API)|it|that|them)|how (?:does|did) (?:it|that|(?:its|the) (?:backend|frontend|API|database)) (?:work|communicate)|why (?:did you choose it|not (?:other frameworks|others|alternatives))|what (?:about (?:the )?database|alternatives(?: did you consider)?|was your contribution)|how did you implement that)[?.!\s]*$/i.test(question.trim())
     || /\b(?:why\s+(?:did|do)\s+(?:you|we)\s+(?:use|choose|pick)|elaborate|explain\s+(?:it|that)|no[,.]?\s+(?:i|we)\s+(?:meant|asked))\b/i.test(question);
 }
 
@@ -177,7 +182,7 @@ export function resolveProjectFileScopeForTurn(
     && /\b(?:project|repo|repository|codebase|compare|explain|describe)\b/i.test(question))
     return {projectAvailable:false,missingNamedProject:false,unresolvedReference:true,selectedFileIds:[]};
   const namedManaged=completeMentions.filter(file=>normalizedProjectIdentity(file).some(token=>token.length>=3&&!NON_PROJECT_NAMES.has(token)&&!QUERY_STOP_WORDS.has(token)));
-  if(/\b(?:project|repo|repository|codebase|explain|describe|elaborate)\b/i.test(question)&&namedManaged.length){
+  if(/\b(?:project|repo|repository|codebase|explain|describe|elaborate|meant)\b/i.test(question)&&namedManaged.length){
     const identities=new Set(namedManaged.map(file=>file.projectId));
     if(identities.size===1){
       const projectId=namedManaged[0].projectId;
@@ -274,6 +279,9 @@ export function resolveProjectFileScopeForTurn(
     const focus = typeof priorUser.metadata?.projectFocusName === 'string'
       ? words(priorUser.metadata.projectFocusName).join(' ') : undefined;
     if (focus && identities.includes(focus)) return resolveIdentity(focus);
+    const explicitNames = mentioned(priorUser.text);
+    if (explicitNames.length > 1) return unresolved;
+    if (explicitNames.length === 1 && /\b(?:project|repo|repository|codebase|explain|describe|meant)\b/i.test(priorUser.text)) return resolveIdentity(explicitNames[0]);
     const previous = resolveProjectFileScope(priorUser.text, allFiles);
     if (previous.namedProject && !previous.missingNamedProject) return previous;
     if (previous.namedProject && profileNames.includes(previous.namedProject)) return resolveIdentity(previous.namedProject);
@@ -290,8 +298,7 @@ export function resolveProjectFileScopeForTurn(
     if (names.length === 1) return resolveIdentity(names[0]);
     if (names.length > 1) return unresolved;
     // A standalone topic switch ends the focus chain.
-    if (!referencesOnePreviousProject(priorUser.text)
-      && !/\b(?:elaborate|why did you use|why did you choose|no.*asked)\b/i.test(priorUser.text)) return unresolved;
+    if (!isProjectFollowupQuestion(priorUser.text)) return unresolved;
   }
   return unresolved;
 }

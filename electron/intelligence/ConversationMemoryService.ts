@@ -12,6 +12,7 @@
 // Long-term recall remains an optional separate capability and is not part of
 // the canonical short-term turn store.
 
+import { memoryTimeout, withMemoryDeadline } from './memory/MemoryDeadline';
 import {
   appendConversationTurn,
   clearConversationState,
@@ -243,12 +244,13 @@ export class ConversationMemoryService {
 
   /** Short-term: the last N canonical memory records of the current session. */
   getRecentTurns(sessionId: string, n = 10): StoredTurn[] {
-    return memoryRecords(sessionId).slice(-Math.max(0, n));
+    const limit = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    return limit === 0 ? [] : memoryRecords(sessionId).slice(-limit);
   }
 
   /** Session-level extractive rolling summary (no LLM). */
   getSessionSummary(sessionId: string, maxTurns = 12): string {
-    return memoryRecords(sessionId).slice(-maxTurns).map((t) => t.summary).join('\n');
+    return this.getRecentTurns(sessionId, maxTurns).map((t) => t.summary).join('\n');
   }
 
   /** The last assistant answer in the session (for "what was your previous suggestion?"). */
@@ -300,10 +302,9 @@ export class ConversationMemoryService {
   ): Promise<Array<{ text: string; score?: number }>> {
     if (!this.longTerm) return [];
     try {
-      const result = await Promise.race([
-        this.longTerm.recall(query, scope, timeoutMs),
-        new Promise<Array<{ text: string; score?: number }>>((resolve) => setTimeout(() => resolve([]), timeoutMs)),
-      ]);
+      const snapshot = { ...scope };
+      const result = await withMemoryDeadline(memoryTimeout(timeoutMs), undefined,
+        () => this.longTerm!.recall(query, snapshot, memoryTimeout(timeoutMs)));
       return Array.isArray(result) ? result : [];
     } catch {
       return [];

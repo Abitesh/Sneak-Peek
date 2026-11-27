@@ -1,5 +1,8 @@
 # Sneak-Peek Roadmap 2.0
 
+**2026-11-26 / WORK-0094:** Phase 1 stabilization checkpoint implements scoped 6.1 continuity/corrections/Unicode identity, 6.2 adaptive budgets and 6.7 bounded provenance-preserving recall with current source-revision/retention checks. [Verification and remaining criteria](scripts/audit/work-0094-phase-one-stabilization.md). V2-05 and full Phase 1 remain In progress; real-model final-answer quality/latency, physical audio, hosted matrix, remote memory erasure and full fact/relationship controls remain open.
+
+
 **Authoritative from 2026-11-18. Owner-approved in WORK-0084.** This plan adopts the product direction and scope proposed in WORK-0083 / TASK-0006. [Task tracker](chatgpt-work/TASK_TRACKER.md) · [Work history](chatgpt-work/CHANGE_LOG.md)
 
 [Roadmap v1 archive](ROADMAP-v1.md) preserves CHG-01–23, their evidence, historical plans and unresolved acceptance results. CHG-21 and CHG-22 are retired as milestone gates. Their open work retains its recorded status under the owners below. New changes must pass the checks relevant to their own behavior and dependencies.

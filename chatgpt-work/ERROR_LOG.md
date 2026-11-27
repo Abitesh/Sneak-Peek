@@ -1,5 +1,9 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-152–154 — Phase 1 conversation, adaptation and memory (WORK-0094, 2026-11-26)
+
+**Locally verified for the scoped repairs; broader acceptance remains open.** See [WORK-0094](../scripts/audit/work-0094-phase-one-stabilization.md) for implementation, 11 new passing regressions, full suite results and failed-attempt inventory. Original findings: ERR-152: the project follow-up matcher omits “How does the database work?” and tokenizes saved identities as ASCII only. ERR-153: balanced session preferences overwrite question-specific response budgets, and duration requests can also be overwritten. ERR-154: the long-term facade delegates its promised deadline entirely to the provider; recalled IDs are discarded, and zero-length canonical history windows return the entire history (`slice(-0)`). Reproduce before changing behavior. Preserve exact authorized source IDs, opt-in memory, cancellation and selected model.
+
 ## ERR-147–151 — WORK-0093 screenshot and runtime repairs (2026-11-24)
 
 - **ERR-147 — Cluttered/ineligible model choices.** Reproduced speculative/speech choices and the availability wall. Shared account chat discovery, known-denial filtering, branded favorite dropdowns and favorites-only answer menus are implemented. Provider permissions and exact routing IDs remain. Desktop three/fourth/reorder/relaunch checks pass; live-provider entitlement remains unverified.

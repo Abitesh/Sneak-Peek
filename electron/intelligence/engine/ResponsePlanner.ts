@@ -57,6 +57,8 @@ export interface ResponsePlan {
   answerType?: AnswerType;
   answerStyle?: string;
   maxTokens?: number;
+  /** Provider reasoning ceiling; adapters may enforce model-specific minimums. */
+  thinkingBudget?: number;
   maxSentences?: number;
   rationale: string[];
   actionInstructions?: string;
@@ -287,7 +289,18 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     rationale.push('direct answer fallback');
   }
 
-  const detailLevel = explicitSimplification ? 'concise' : detailFromStyle(style, duration);
+  // Only unambiguous single definitions use the smaller default. Compound
+  // questions, examples, personal claims and implementation requests keep room
+  // for a complete answer. Explicit presentation always wins.
+  const simpleDefinition = !projectGrounded && !firstPerson && !coding && !troubleshooting
+    && /^(?:what (?:is|are)|define) [\p{L}\p{N}+#. -]{1,90}[?!.]*$/iu.test(question)
+    && !/\b(?:and|or|versus|vs|with|why|how|design|architecture)\b/i.test(question);
+  const complex = coding || troubleshooting || /\b(?:design|architect|debug|diagnose|prove|trade[- ]?offs?|distributed|consistency|scalability)\b/i.test(question);
+  const adaptiveDetail = simpleDefinition ? 'concise' : complex ? 'detailed' : 'normal';
+  const explicitStyle = style && !['normal', 'default', 'balanced'].includes(style);
+  const detailLevel = explicitSimplification ? 'concise'
+    : explicitStyle || duration !== undefined ? detailFromStyle(style, duration) : adaptiveDetail;
+  rationale.push(simpleDefinition ? 'single definition budget' : complex ? 'multi-step reasoning budget' : 'standard answer budget');
   const format: ResponseFormat = coding
     ? 'code'
     : style === 'bullets' || style === 'notes'
@@ -314,6 +327,7 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     answerType: plan?.answerType,
     answerStyle: style,
     maxTokens: maxTokensFor(detailLevel, kind, duration),
+    thinkingBudget: complex ? 1024 : 0,
     maxSentences: maxSentencesFor(detailLevel, spoken, kind),
     rationale,
   };

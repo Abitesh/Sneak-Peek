@@ -34,6 +34,7 @@ export interface SneakPeekGenerationPort {
     request: SneakPeekIntelligenceRequest;
     prompt: SneakPeekIntelligenceResult['prompt'];
     contextPlan: SneakPeekIntelligenceResult['contextPlan'];
+    responsePlan?: SneakPeekIntelligenceResult['responsePlan'];
     lifecycle: GenerationLifecycle;
   }): AsyncGenerator<string, void, unknown>;
 }
@@ -139,7 +140,7 @@ export class SneakPeekIntelligenceEngine {
 
         const directResponse = result.evidence.items.length === 0 ? deterministicChatResponse(request) : undefined;
         const providerStream = directResponse === undefined
-          ? engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, lifecycle })
+          ? engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, responsePlan: result.responsePlan, lifecycle })
           : (async function* () {
             lifecycle.transition('GENERATING', 'deterministic courtesy response; no provider call');
             lifecycle.transition('COMMITTED', 'deterministic visible answer accepted');
@@ -314,7 +315,7 @@ export class SneakPeekIntelligenceEngine {
     const preferences=request.activeContext?.sessionPreferences;
     if(preferences&&!request.repair&&!request.documentDraft){
       const explicitDetail=/\b(?:in detail|detailed|briefly|brief|concise|short|one sentence|two sentences|elaborate)\b/i.test(turnUnderstanding.question);
-      if(!explicitDetail){responsePlan.detailLevel=preferences.length==='short'?'concise':preferences.length==='long'?'detailed':'normal';
+      if(!explicitDetail && responsePlan.requestedDurationSeconds === undefined && preferences.length !== 'medium'){responsePlan.detailLevel=preferences.length==='short'?'concise':preferences.length==='long'?'detailed':'normal';
         responsePlan.maxSentences=responsePlan.kind==='coding'?undefined:preferences.length==='short'?4:preferences.length==='long'?14:8;
         responsePlan.maxTokens=responsePlan.kind==='coding'?1800:preferences.length==='short'?350:preferences.length==='long'?1100:650;}
       if(responsePlan.kind!=='coding')responsePlan.format=preferences.format==='bullets'?'bullets':preferences.format==='script-bullets'?'structured':'prose';

@@ -317,7 +317,7 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
       },
     }),
     generationPort: {
-      stream: ({ request, prompt, contextPlan, lifecycle }) => {
+      stream: ({ request, prompt, contextPlan, responsePlan, lifecycle }) => {
         const required = new Set(contextPlan.requiredSources);
         const scopes = new Set<ProviderDataScope>();
         if ((request.imageConversationSnapshot || request.sessionSnapshot || request.action?.sessionSnapshot || request.action?.previousAnswer || request.recentConversation.some(turn => turn.role === 'assistant')) && required.has('recent_conversation')) {
@@ -375,7 +375,7 @@ export function createPrimaryManualSneakPeekEngine(llmHelper: any, appState: any
           cloudFirstTokenTimeoutMs: request.surface === 'manual-chat' && !imagePaths?.length
             ? LIVE_PROVIDER_FIRST_USEFUL_HARD_TIMEOUT_MS : undefined,
           imagePaths,
-          thinkingBudget: request.responseShape?.detailed ? 1024 : 0,
+          thinkingBudget: responsePlan?.thinkingBudget ?? (request.responseShape?.detailed ? 1024 : 0),
           lifecycle,
           onAttemptStatus: status => providerStatusRegistry().setStatus({id:`answer:${status.provider}:${status.model??''}`,kind:status.provider==='ollama'?'external_local':'cloud',health:status.state==='ready'?'ready':'degraded',requiredForStartup:false,requiredForCoreFallback:false,message:status.message,recoverable:true,details:{provider:status.provider,model:status.model}}),
         });

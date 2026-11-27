@@ -1,5 +1,11 @@
 # Sneak-Peek — project overview and setup
 
+## WORK-0094 / TASK-0017 — Phase 1 stabilization (2026-11-26)
+
+**Implemented checkpoint; full Phase 1 In progress.** Implicit project-component followups, Unicode identities, explicit project corrections, adaptive response/reasoning budgets, explicit duration precedence, bounded optional memory, provenance, snapshot-safe retain/flush, and zero-history limits are repaired. Production memory reads revalidate current completed meeting revision and retention; deletion/correction revoke old recall. Legacy untraceable memories are excluded. Remote erasure, complete cross-session structured facts/relationships and broader multilingual understanding remain open.
+
+Verification: Electron **9,070 pass / 0 fail / 67 skipped**; intelligence **2,263 pass / 0 fail / 9 TODO**; new focused **11/11**; Projects/Practice **46/46**; library **391 pass / 1 skip**; scripts **103/103**. Both builds and five typechecks pass. Disposable macOS Session Controls passes phases 1/2 including relaunch using controlled transports. No real-model six-second/quality, physical audio, Windows GUI, hosted CI or live Hindsight acceptance claim. Failed fixture/typecheck/build-overlap attempts are preserved in [report](../scripts/audit/work-0094-phase-one-stabilization.md). Evidence: `/Users/abitesh/Downloads/sneak-peek-work-0094`. No staging, commit or publication.
+
 ## WORK-0093 — Session preferences and model selection (2026-11-24)
 
 Launcher session controls replace the explicitly retired standalone Notes feature. Migration 39 removes only that Notes table, preserving meetings/profile/custom modes/project sources. Preferences persist in SQLite and freeze at the canonical request boundary. Coding / DSA and CS Fundamentals deny private retrieval; Resume & Projects requests only authorized current project evidence.
