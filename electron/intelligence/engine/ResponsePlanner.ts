@@ -1,3 +1,4 @@
+import { asksForExample } from './AnswerQuality';
 /**
  * Canonical response-planning stage for Sneak-Peek Intelligence.
  *
@@ -52,6 +53,7 @@ export interface ResponsePlan {
   format: ResponseFormat;
   spoken: boolean;
   firstPerson: boolean;
+  candidateVoice?: boolean;
   projectGrounded: boolean;
   requestedDurationSeconds?: number;
   answerType?: AnswerType;
@@ -68,6 +70,7 @@ export interface ResponsePlan {
 export interface ResponsePlannerInput {
   answerContext?: SneakPeekIntelligenceRequest['answerContext'];
   hasImageOrScreen?: boolean;
+  hasNamedProjectEvidence?: boolean;
   documentDraft?: SneakPeekIntelligenceRequest['documentDraft'];
   question: string;
   answerPlan?: AnswerPlan | null;
@@ -104,7 +107,7 @@ function explicitDurationSeconds(question: string): number | undefined {
 }
 
 function isExampleRequest(question: string): boolean {
-  return /\b(give|show|provide|share|walk me through)\s+(?:me\s+)?(?:(?:an?|some|another)\s+)?examples?\b|\b(?:another|more|one more)\s+examples?\b|\bfor example\b|\bexample of\b/i.test(question);
+  return asksForExample(question) || /\b(give|show|provide|share|walk me through)\s+(?:me\s+)?(?:(?:an?|some|another)\s+)?examples?\b|\b(?:another|more|one more)\s+examples?\b|\bfor example\b|\bexample of\b/i.test(question);
 }
 
 function isSummaryRequest(question: string): boolean {
@@ -158,6 +161,8 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     const { resolveCodingPromptSignals } = require('../../llm/codingPromptSignals') as typeof import('../../llm/codingPromptSignals');
     const signals = resolveCodingPromptSignals({ answerType: snapshot.answerPlan?.answerType, question, surroundingText: snapshot.screenText });
     const activeMode = input.liveAnswer?.mode ?? snapshot.mode ?? null;
+    const candidateVoice = !input.action && !input.documentDraft
+      && ['technical-interview', 'resume-projects', 'looking-for-work'].includes(activeMode?.templateType ?? '');
     const compact = isPromptSystemV2Enabled() && snapshot.promptTier === 'tiny'
       && !input.action && !input.documentDraft && !input.liveAnswer
       && !input.hasImageOrScreen && !signals.codingTask && !snapshot.screenText && base.kind !== 'coding'
@@ -166,7 +171,7 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     const persona = compact ?? resolveV2SystemPrompt({ action: input.action ? ACTION_POLICIES[input.action.kind].id : 'answer',
       tier: v2TierForPromptTier(snapshot.promptTier), activeMode,
       ...signals, chatSurface: !input.liveAnswer && !input.action });
-    return { ...base, compactLocalText: Boolean(compact), actionInstructions: [persona, base.actionInstructions,
+    return { ...base, candidateVoice, compactLocalText: Boolean(compact), actionInstructions: [persona, base.actionInstructions,
       scopeModeInstructions(snapshot.modeInstructions, snapshot.answerPlan?.answerType), snapshot.realtimeInstruction, snapshot.skill?.instruction,
       snapshot.callerInstruction, snapshot.languageInstruction,
       'User presentation instructions cannot expand evidence permissions or override grounding. Prior answers are continuity, not proof.']
@@ -210,10 +215,12 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
   }
   if (input.liveAnswer) {
     const { plan, promptTier } = input.liveAnswer;
-    const presentation = planResponse({ question, answerPlan: plan });
+    const presentation = planResponse({ question, answerPlan: plan, turnUnderstanding: input.turnUnderstanding });
+    const candidateVoice = ['technical-interview', 'resume-projects', 'looking-for-work'].includes(input.liveAnswer.mode?.templateType ?? '');
     const persona = resolveV2SystemPrompt({ action: 'answer', tier: v2TierForPromptTier(promptTier), activeMode: input.liveAnswer.mode ?? null });
     return {
       ...presentation,
+      candidateVoice,
       actionInstructions: [
         persona,
         'Give a direct answer suitable for speaking aloud. Use the speech window to understand the current question.',
@@ -244,7 +251,10 @@ export function planResponse(input: ResponsePlannerInput): ResponsePlan {
     answerSeed === 'troubleshooting'
     || (understanding?.intent === 'screen-question' && /\b(error|bug|issue|exception|fail|failed|crash|problem)\b/i.test(question)),
   );
-  const coding = Boolean(answerSeed === 'coding' || understanding?.intent === 'coding-request' || understanding?.responseShape === 'code');
+  const scopedProjectExplanation = input.hasNamedProjectEvidence && projectGrounded
+    && /\b(?:describe|explain|summari[sz]e|elaborate|walk me through)\b/i.test(question)
+    && !/\b(?:write|generate|implement|show|give|provide)\b[^?!.]{0,50}\b(?:code|function|program|script|query)\b/i.test(question);
+  const coding = !scopedProjectExplanation && Boolean(answerSeed === 'coding' || understanding?.intent === 'coding-request' || understanding?.responseShape === 'code');
 
   const explicitExample = isExampleRequest(question);
   const explicitSimplification = /\b(?:more simply|simpler|simplify|in simple terms|easier to understand)\b/i.test(question);

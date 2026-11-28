@@ -38,6 +38,7 @@ import { mintTurnId } from './llm/turnIdentity';
 import { buildProfileJitPrompt } from './llm/ProfileJitPromptBuilder';
 import { decideSessionWritePolicy, type FinalGenerationMode, type SessionWriteDecision } from './llm/FinalAnswerGenerationPolicy';
 import { stripEmbeddedAnswerContract } from './llm/stripEmbeddedAnswerContract';
+import { UnsupportedAnswerClaimError } from './intelligence/engine/AnswerQuality';
 import { isCodeVerificationEnabled } from './llm/codeVerification/verificationEnabled';
 import { shouldAttachLiveTranscriptToManualChat } from './llm/contextEngine';
 import { fitPromptToBudget, resolveProviderCeiling } from './llm/promptBudget';
@@ -1527,6 +1528,7 @@ if (true as boolean) {
         requestId,
         stages: sneakPeekResult.diagnostics.pipelineStages,
         stageMs: sneakPeekResult.diagnostics.stageMs,
+        answerQualityFindings: sneakPeekResult.diagnostics.answerQualityFindings,
         lifecycle: run.lifecycle.state,
         provider: sneakPeekResult.providerAttempt.provider,
         providerFirstTokenMs: sneakPeekResult.streamLifecycle.firstTokenAt != null && sneakPeekResult.streamLifecycle.startedAt != null
@@ -1546,7 +1548,10 @@ if (true as boolean) {
   } catch (error) {
     settlePrimaryTurn?.(myController.signal.aborted ? 'cancelled' : 'failed');
     if (!event.sender.isDestroyed() && _chatStreamsBySender.get(senderId)?.streamId === myStreamId) {
-      event.sender.send('gemini-stream-error', myController.signal.aborted ? 'Generation cancelled.' : 'The selected provider could not complete this request. Check its capabilities and privacy permissions.', { streamId: myStreamId });
+      const message = myController.signal.aborted ? 'Generation cancelled.'
+        : error instanceof UnsupportedAnswerClaimError ? error.message
+        : 'The selected provider could not complete this request. Check its capabilities and privacy permissions.';
+      event.sender.send('gemini-stream-error', message, { streamId: myStreamId });
     }
     return null;
   }

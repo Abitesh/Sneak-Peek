@@ -8,7 +8,7 @@ const { app, BrowserWindow, safeStorage, systemPreferences, desktopCapturer, dia
 const root = path.resolve(__dirname, '../..');
 const temp = process.env.SNEAK_PEEK_ACCEPTANCE_ROOT;
 if (!temp || !fs.existsSync(path.join(temp, 'sandbox.sb'))) throw new Error('Use the sandboxed acceptance runner');
-const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG21_LOCAL_OLLAMA']);
+const keep = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', '__CF_USER_TEXT_ENCODING', 'DISPLAY', 'XPC_FLAGS', 'XPC_SERVICE_NAME', 'SNEAK_PEEK_ACCEPTANCE_ROOT', 'CHG21_LOCAL_OLLAMA', 'SNEAK_PEEK_QUALITY']);
 for (const key of Object.keys(process.env)) if (!keep.has(key)) delete process.env[key];
 for (const key of ['appData','userData','sessionData','logs','crashDumps','documents','downloads','desktop','temp']) {
   const dir = path.join(temp, key); fs.mkdirSync(dir, { recursive: true }); app.setPath(key, dir);
@@ -99,17 +99,47 @@ app.whenReady().then(async () => {
   const selected=await win.webContents.executeJavaScript('window.electronAPI.profileSelectFile()');
   assert.equal((await win.webContents.executeJavaScript(`window.electronAPI.profileUploadResume(${JSON.stringify(selected.filePath)})`)).success,true);
   await win.webContents.executeJavaScript('window.electronAPI.profileSetMode(true)');
+  const routingOnly = process.env.SNEAK_PEEK_QUALITY === 'routing';
+  const quality = routingOnly || process.env.SNEAK_PEEK_QUALITY === '1';
+  if (quality) {
+    const modes = await win.webContents.executeJavaScript('window.electronAPI.modesGetAll()');
+    const interview = modes.find(mode => mode.templateType === 'technical-interview');
+    assert.ok(interview, 'Technical Interview mode must exist');
+    const activated = await win.webContents.executeJavaScript(`window.electronAPI.modesSetActive(${JSON.stringify(interview.id)})`);
+    assert.equal(activated.success, true);
+  }
   const overlay=await waitFor(()=>windows.find(w=>!w.isDestroyed()&&/window=overlay(?:&|$)/.test(w.webContents.getURL())));
   overlay.show();overlay.focus();overlay.webContents.focus();overlay.webContents.setBackgroundThrottling(false);
   await waitFor(()=>overlay.webContents.executeJavaScript('!!document.querySelector("[data-testid=overlay-chat-input]")'));
   // Ready cohort: load the exact selected model without a content-bearing request.
   const prewarm=await fetch('http://127.0.0.1:11436/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'llama3.2:3b',prompt:'',stream:false,keep_alive:'10m'})});assert.equal(prewarm.ok,true);
   const {stripDisplayMarkup}=require(path.join(root,'dist-electron/electron/llm/promptSystemV2.js'));
-  const questions=['Hi','What is system design? Can you solve any system design problem I give you?','Explain your projects and implementations to someone with no coding knowledge','Now explain those projects technically','Please elaborate Geospatial','No, I asked about your Geospatial project','Why did you use Spring Boot instead of alternatives?','What are Spring Boot and OSRM used for in your project?', 'How does the database work?', 'What is a mutex?', 'Tell me about my Nimbus Ledger project.'];
+  const questions=quality ? [
+    'What is system design? Can you solve any system design problem I give you?',
+    'Explain your projects and their implementations to someone with no coding knowledge.',
+    'Please elaborate on your Geospatial project.',
+    'Why did you use Spring Boot instead of alternatives?',
+    'Explain a bounded queue with an example.',
+    'Briefly explain system design and how you would approach a problem I give you.',
+    'Explain system design in detail and how you would approach an unfamiliar design problem.',
+    'Briefly explain your projects to someone with no coding knowledge.',
+    'Describe your projects in detail for an audience without a coding background.',
+    'Briefly summarize the Geospatial project.',
+    'Describe the implementation flow of the Geospatial project in detail.',
+    'Briefly explain why you used Spring Boot instead of alternatives in your Geospatial project.',
+    'Explain in detail why you used Spring Boot instead of alternatives in your Geospatial project.',
+    'Explain a bounded queue briefly with an example.',
+    'Explain a bounded queue in detail with an example of a full queue.',
+    'What happens on a cache miss in a write-through cache? Give a small example.',
+    'Explain how you reduced latency by 40% in your Nimbus Ledger project.',
+    'Explain the difference between a database transaction and a database lock.',
+  ] : ['Hi','What is system design? Can you solve any system design problem I give you?','Explain your projects and implementations to someone with no coding knowledge','Now explain those projects technically','Please elaborate Geospatial','No, I asked about your Geospatial project','Why did you use Spring Boot instead of alternatives?','What are Spring Boot and OSRM used for in your project?', 'How does the database work?', 'What is a mutex?', 'Tell me about my Nimbus Ledger project.'];
   const results=[];
   const { marked } = await import('marked');
   const normalize=text=>text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
-  for(const question of questions){
+  for (const [index, question] of questions.entries()) {
+    if (routingOnly && ![7, 9, 10, 15, 16].includes(index)) continue;
+    if (quality && index === 17) await win.webContents.executeJavaScript('window.electronAPI.modesSetActive(null)');
     const c=calls.length,r=reads.length,providerStart=providerCalls.length;
     await overlay.webContents.executeJavaScript(`(()=>{
       window.__trial={origin:performance.timeOrigin,start:0,events:[],paints:[]};window.__trialOff=[window.electronAPI.onGeminiStreamToken((token,meta)=>window.__trial.events.push({type:'token',at:performance.now()})),window.electronAPI.onGeminiStreamDone(data=>window.__trial.events.push({type:'done',data,at:performance.now()})),window.electronAPI.onGeminiStreamError(error=>window.__trial.events.push({type:'error',error,at:performance.now()}))];

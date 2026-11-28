@@ -1702,12 +1702,13 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // they'd wrongly veto a real comp question ("compute my total compensation").
   // Genuine SQL/coding "salary" cases are caught by the write/COMMON_CODING/DSA
   // signals instead.
-  const hasExplicitCodingVerb = /\b(write|implement|code|program|function|solve)\b/i.test(textWithoutProductSolveClause)
+  const codingVerbText = textWithoutProductSolveClause.replace(/\bwrite-(?:through|back|around|ahead)\b/gi, 'cache');
+  const hasExplicitCodingVerb = /\b(write|implement|code|program|function|solve)\b/i.test(codingVerbText)
     || includesAny(text, COMMON_CODING_PROBLEM_PATTERNS) || includesAny(textNoTechStack, DSA_PATTERNS);
   // Strict "write code" verbs only (no DSA-term inference). Used to gate the
   // HYPOTHETICAL branch: "how would you use BFS?" is a concept (BFS is a DSA term
   // but there's no write-verb), so it must NOT be blocked from technical_concept.
-  const hasWriteCodeVerb = /\b(write|implement|code|program|solve)\b/i.test(textWithoutProductSolveClause)
+  const hasWriteCodeVerb = /\b(write|implement|code|program|solve)\b/i.test(codingVerbText)
     || includesAny(text, COMMON_CODING_PROBLEM_PATTERNS);
   // A CLEAR past/present EXPERIENCE probe ("have you implemented X before", "where
   // have you used X", "did you actually use X") is about the CANDIDATE — it must
@@ -1966,8 +1967,9 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     && !/\b(not|don'?t|do not|never|avoid|without)\b[\w ,'-]*\bgeneric/i.test(text)
     && !hasWriteCodeVerb) {
     answerType = 'technical_concept_answer';
-  } else if (includesAny(text, TECHNICAL_CONCEPT_PATTERNS) &&
-             !includesAny(text, CODING_PATTERNS) &&
+  } else if ((includesAny(text, TECHNICAL_CONCEPT_PATTERNS) ||
+              (/\bwhat happens\b/i.test(text) && codingVerbText !== textWithoutProductSolveClause)) &&
+             !includesAny(codingVerbText, CODING_PATTERNS) &&
              (includesAny(textNoTechStack, DSA_PATTERNS) || isLikelyTechnicalConcept(textNoTechStack)) &&
              // BEHAVIORAL-PAST-EXPERIENCE GUARD (RC-9 code review, 2026-07-27):
              // same guard as the debugging branch above. "describe a time you
@@ -2002,12 +2004,12 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     // "What problem does RedisMart/Sneak-Peek/it solve?" trips the bare
     // `\bsolve\b` inside CODING_PATTERNS — that's a project-description ask,
     // never a coding task. CODING_PATTERNS is tested against the
-    // clause-stripped text (textWithoutProductSolveClause) so a genuine
+    // text with the product-solve clause and compound storage terms removed so a genuine
     // coding request ELSEWHERE in the same message still routes correctly
     // (compound-message fix, code-review 2026-07-05 HIGH: the original whole-
     // message boolean silently swallowed a real "write a function..." coding
     // ask appended after a "what problem does X solve" clause).
-    (includesAny(textWithoutProductSolveClause, CODING_PATTERNS) || input.intentResult?.intent === 'coding')
+    (includesAny(codingVerbText, CODING_PATTERNS) || input.intentResult?.intent === 'coding')
     // Guard: a very short addend phrase like "with code?", "show code?", "include code?",
     // "add code?", "can you give code?" is a conversational follow-up requesting a code
     // example from the prior context — NOT a new standalone coding problem. Only suppress

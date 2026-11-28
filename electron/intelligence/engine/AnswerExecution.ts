@@ -2,7 +2,7 @@ import { validateCanonicalAnswer, type AnswerValidationIssue } from './AnswerVal
 import { raceStreamWithDeadline, LIVE_LOCAL_FIRST_USEFUL_TIMEOUT_MS, LIVE_INTER_TOKEN_STALL_MS } from '../../llm/liveDeadlines';
 import { acceptRepairedAnswer } from '../../llm';
 import { createPrimaryManualSneakPeekEngine } from './CanonicalRuntime';
-import { freezeAnswerRequest } from './AnswerRequest';
+import { isBlockingQualityFinding, UnsupportedAnswerClaimError } from './AnswerQuality';
 import type { SneakPeekIntelligenceRequest, SneakPeekIntelligenceResult } from './types';
 
 /** One request-owned engine and immutable inputs, also used for bounded repairs. */
@@ -22,6 +22,9 @@ export function createAnswerExecution(helper: any, appState: any, input: SneakPe
       if (!isCurrent() || request.cancellationSignal?.aborted) return null;
       const original = completed ?? await result;
       if (!original.finalAnswer?.completed) throw new Error(original.providerAttempt.error ?? 'Answer generation interrupted.');
+      if (original.diagnostics.answerQualityFindings?.some(isBlockingQualityFinding)) {
+        throw new UnsupportedAnswerClaimError();
+      }
       const issue = validateCanonicalAnswer(request, original, text) ?? await additionalIssue?.(text);
       if (!isCurrent() || request.cancellationSignal?.aborted) return null;
       if (!issue) return text;
@@ -71,6 +74,9 @@ export function createAnswerExecution(helper: any, appState: any, input: SneakPe
       void settled.catch(() => undefined);
       yield* repaired.stream;
       const value = await settled;
+      if (!signal?.aborted && value.diagnostics.answerQualityFindings?.some(isBlockingQualityFinding)) {
+        throw new UnsupportedAnswerClaimError();
+      }
       if (!signal?.aborted && !value.finalAnswer?.completed) throw new Error('Canonical answer repair did not complete.');
     },
   };

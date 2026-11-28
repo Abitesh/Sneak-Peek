@@ -4,8 +4,8 @@
  * The application has no stable project identity on its legacy personal_files
  * rows. We therefore accept only an explicit project phrase and a complete
  * normalized filename identity (minus known document-descriptor suffixes).
- * Prefix/shared-token matches are unsafe: "Linkship" is not "Linkship Legacy".
- * A future stable project ID may replace this conservative compatibility gate.
+ * Exact identities take precedence. The turn resolver can also expand an
+ * explicit abbreviation when it has one current, noncompeting identity.
  */
 export interface ProjectFileDescriptor {
   id?: string;
@@ -96,7 +96,11 @@ function projectNameFromQuestion(question: string): string | undefined {
   const validSubject = subjectName && words(subjectName).every((token) => !NON_PROJECT_NAMES.has(token))
     ? subjectName : undefined;
   const correction = question.match(/^(?:no[,!]?\s*)?(?:i|we)\s+meant\s+(?:(?:the|my|our)\s+)?(?:project\s+)?([\p{L}\p{M}\p{N}_ -]+?)[.!?]*$/iu);
-  const extracted = correction?.[1] ?? overview?.[1] ?? imperative?.[1] ?? validSubject ?? preposition?.[1];
+  const explicitReference = question.match(/\b(?:in|of|about|on|summari[sz]e|describe|explain)\s+(?:(?:the|my|your|our)\s+)?([\p{L}\p{M}\p{N}_-]+(?:\s+[\p{L}\p{M}\p{N}_-]+){0,2})\s+(?:project|repository|repo|codebase)\b/iu);
+  const explicitName = explicitReference?.[1];
+  const scopedName = explicitName && words(explicitName).every(token => !NON_PROJECT_NAMES.has(token) && !QUERY_STOP_WORDS.has(token))
+    ? explicitName : undefined;
+  const extracted = correction?.[1] ?? scopedName ?? overview?.[1] ?? imperative?.[1] ?? validSubject ?? preposition?.[1];
   if (!extracted) return undefined;
   const tokens = words(extracted);
   // Remove a syntactically trailing modifier and filename-style document label.
@@ -143,6 +147,16 @@ function referencesOnePreviousProject(question: string): boolean {
   // Deliberately singular: broad questions about "my projects" should retain
   // their existing personal-history behavior rather than inherit one file.
   return /\b(?:my|your|our|the|this|that)\s+(?:(?:current|previous|last|main|existing)\s+)?(?:project|repo|repository|codebase)\b/i.test(question);
+}
+
+/** Use only after the turn resolver selected current authorized IDs. */
+export function questionNamesResolvedProject(question: string, projectName: string): boolean {
+  const name = words(projectName).join(' ');
+  if (!name) return false;
+  if (` ${words(question).join(' ')} `.includes(` ${name} `)) return true;
+  if (!/\b(?:project|repository|repo|codebase)\b/i.test(question)) return false;
+  const named = projectNameFromQuestion(question);
+  return Boolean(named && name.startsWith(`${words(named).join(' ')} `));
 }
 
 /** Referential syntax only; a completed, authorized project is still required. */
@@ -194,10 +208,23 @@ export function resolveProjectFileScopeForTurn(
   const direct = resolveProjectFileScope(question, allFiles);
   if (direct.namedProject && direct.missingNamedProject && !direct.unresolvedReference && /\b(?:project|repo|repository|codebase)\b/i.test(question)) {
     const target = words(direct.namedProject).join(' ');
-    const managed = allFiles.filter(file=>file.projectId&&file.projectName&&normalizedProjectIdentity(file).join(' ').startsWith(target+' '));
-    if(new Set(managed.map(file=>file.projectId)).size===1) {
-      const identity=normalizedProjectIdentity(managed[0]).join(' ');
-      return resolveProjectFileScope(`Explain ${identity} project`,allFiles);
+    const candidates = allFiles.filter(file => file.fileType === 'project' && file.id
+      && normalizedProjectIdentity(file).join(' ').startsWith(target + ' '));
+    const identities = new Set([
+      ...candidates.map(file => file.projectId ? `project:${file.projectId}` : `file:${normalizedProjectIdentity(file).join(' ')}`),
+    ]);
+    const matchingNames = new Set(candidates.map(file => normalizedProjectIdentity(file).join(' ')));
+    const competingProfileName = activeProfileProjectNames.map(name => words(name).join(' '))
+      .some(name => (name === target || name.startsWith(target + ' ')) && !matchingNames.has(name));
+    if (identities.size === 1 && !competingProfileName) {
+      const candidate = candidates[0];
+      return {
+        namedProject: candidate.projectName ?? normalizedProjectIdentity(candidate).join(' '),
+        projectAvailable: true, missingNamedProject: false,
+        selectedFileIds: [...new Set((candidate.projectId
+          ? allFiles.filter(file => file.projectId === candidate.projectId && file.fileType === 'project')
+          : candidates).flatMap(file => file.id ? [file.id] : []))],
+      };
     }
   }
 

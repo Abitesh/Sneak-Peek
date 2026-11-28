@@ -188,9 +188,9 @@ export function projectEvidenceQuery(query: string, projectName?: string): strin
   const topic = /\bbackend\b/i.test(query) ? 'backend'
     : /\bfrontend\b/i.test(query) ? 'frontend'
     : /\b(?:database|schema|SQL|postgres|mongodb)\b/i.test(query) ? 'database'
-    : /\b(?:complete flow|end.to.end|request flow)\b/i.test(query) ? 'implementation'
+    : /\b(?:complete flow|end.to.end|request flow|implementation flow)\b/i.test(query) ? 'implementation'
     : /\b(?:alternatives?|trade.offs?|choose|chosen)\b/i.test(query) ? 'dependencies'
-    : /\b(?:explain|describe|overview|architecture)\b/i.test(query) ? 'overview' : '';
+    : /\b(?:explain|describe|summari[sz]e|overview|architecture)\b/i.test(query) ? 'overview' : '';
   // Keep specific technology/property questions intact. Only rewrite these
   // structural synthesis requests; the original question still drives answers.
   return topic ? `${projectName.trim()} ${topic}` : query;

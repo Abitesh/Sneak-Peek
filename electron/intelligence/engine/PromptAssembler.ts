@@ -16,6 +16,7 @@ import type { SneakPeekIntelligenceRequest, SneakPeekPrompt } from './types';
 import type { RecentConversationContext } from './TranscriptContext';
 import type { EvidencePack } from '../context-os/evidencePack';
 import type { ResponsePlan } from './ResponsePlanner';
+import { asksForDecision, asksForDefinitionAndApproach, asksForExample, asksForPlainLanguage, decisionSubject, documentedChoice } from './AnswerQuality';
 
 export interface PromptAssemblerInput {
   request: SneakPeekIntelligenceRequest;
@@ -316,7 +317,21 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
   selectedSections.push(responsePolicy);
   sectionNames.push('response_policy');
 
-  const question = `<current_question>\n${escapeXml(input.question)}\n</current_question>`;
+  const reviewableText = input.responsePlan && input.responsePlan.kind !== 'coding'
+    && !input.request.action && !input.request.documentDraft && !input.request.retrievalScope
+    && !input.request.imageAnalysis && !input.request.screenContext;
+  const projects = reviewableText ? input.evidencePack.items.filter(item => item.authority === 'evidence'
+    && (item.canonicalSource === 'project_knowledge' || (item.canonicalSource === 'profile' && input.request.activeContext?.profileProjectName))
+    && evidence.ids.includes(item.evidenceId)) : [];
+  const decision = projects.length > 0 && asksForDecision(input.question);
+  const documented = decision && documentedChoice(input.question, projects.map(item => item.text));
+  const subject = decision && !documented ? decisionSubject(input.question) : undefined;
+  // Answer the same question as an engineering comparison when its historical
+  // premise is missing. Keep the original request for routing and validation.
+  const modelQuestion = subject
+    ? `What role does ${subject} have in the project? Explain its fit and compare plausible alternatives, without asserting an undocumented decision.`
+    : input.question;
+  const question = `<current_question>\n${escapeXml(modelQuestion)}\n</current_question>`;
   selectedSections.push(question);
   sectionNames.push('current_question');
 
@@ -419,10 +434,43 @@ export function assembleSneakPeekPrompt(input: PromptAssemblerInput): AssembledP
     selectedSections.push('<meeting_answer>Check each supplied meeting for the requested facts. For each match, write its exact meeting title once and give its reason if requested and supported by that meeting. Cover every match in the answer, including when the question assumes one. Leave out any meeting that does not match. Follow the requested answer length.</meeting_answer>');
     sectionNames.push('meeting_answer');
   }
-  if (input.evidencePack.items.some(item => item.canonicalSource === 'project_knowledge')
-    && /\b(?:why|alternatives?|trade.offs?|consider)\b/i.test(input.question)) {
-    selectedSections.push('<project_decision_policy>If the evidence only shows what was implemented, say the reason for the choice is undocumented before giving any analysis. Explain one possible engineering fit as a possibility. Do not say “I chose” or claim anyone evaluated alternatives unless a source records that decision. Retrieval labels are never project facts.</project_decision_policy>');
-    sectionNames.push('project_decision_policy');
+  if (reviewableText && input.responsePlan) {
+    const plan = input.responsePlan;
+    const task: string[] = [];
+    if (plan.candidateVoice) task.push('Use natural candidate voice. Say what you would do. Limit past work to documented facts. Skip AI identity and introductions.');
+    const plain = asksForPlainLanguage(input.question);
+    if (plain) {
+      task.push('One paragraph per project: problem, solution and everyday analogy. Omit framework names, acronyms and test counts.');
+    } else if (projects.length && input.request.activeContext?.projectName) {
+      task.push('Start with the named project’s purpose. Explain its evidenced steps and component roles only. Omit dictionary definitions, repeated facts and speculative design.');
+    }
+    if (decision) {
+      const policy = documented
+        ? 'State the documented decision and reason. Label other tradeoffs as possibilities.'
+        : 'Describe the technology’s verified role, then why it fits as an engineering assessment. Name plausible alternatives when asked. Use present or conditional language. Omit claims about past selection reasons or comparisons.';
+      selectedSections.push(`<project_decision_policy>${policy}</project_decision_policy>`);
+      sectionNames.push('project_decision_policy');
+    }
+    if (asksForDefinitionAndApproach(input.question)) {
+      task.push('Give the definition first, then answer the approach or capability question.');
+    }
+    if (asksForExample(input.question)) {
+      task.push('State the invariant and say which behavior is implementation-specific. Pick an explicit policy for one concrete example. Show the operation and result without violating the invariant.');
+    } else if (plan.kind === 'explanation') {
+      task.push('State the defining rule. Distinguish guarantees from optional behavior.');
+    }
+    if (plan.requestedDurationSeconds === undefined && !/\b(?:\d+\s+(?:words?|sentences?|paragraphs?)|as long as|without a length limit)\b/i.test(input.question)) {
+      const words = plan.detailLevel === 'concise'
+        ? (plan.kind === 'explanation' && !asksForExample(input.question) ? '25–45' : '35–65')
+        : plan.detailLevel === 'detailed' ? (projects.length ? '120–180' : '80–110')
+        : projects.length && !input.request.activeContext?.projectName ? '80–130'
+        : projects.length && asksForDecision(input.question) ? '40–65' : '65–100';
+      if (task.length) task.push(`Aim for ${words} words. Cover every requested part once.`);
+    }
+    if (task.length) {
+      selectedSections.push(`<answer_task>${task.join(' ')}</answer_task>`);
+      sectionNames.push('answer_task');
+    }
   }
   const finalPrompt = buildFinalPrompt(selectedSections);
 

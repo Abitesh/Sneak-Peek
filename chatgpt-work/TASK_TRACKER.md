@@ -1,5 +1,9 @@
 # Sneak-Peek — authoritative task tracker
 
+## TASK-0018 / WORK-0096 — Roadmap 6.8 (2026-11-28)
+
+**In progress.** Candidate voice, evidence-aware technology comparisons, narrow deterministic claim checks, named-project gap handling and exact project-routing fixes are implemented. The matched local Electron run reached 5/18 strict review, 17/18 matched renderer finals and 10.79 s median. A separate five-turn routing repeat restored project reads and handled an unsupported metric without a provider call. 90% quality and the 2/3/6-second thresholds remain open. [WORK-0096 report](../scripts/audit/work-0096-answer-verification.md). Evidence is under `/Users/abitesh/Downloads/sneak-peek-work-0096`.
+
 ## TASK-0012 / A1 (2026-11-28)
 
 **In progress.** WORK-0095 / TASK-0012 / ERR-155–156 measured A1 after WORK-0094. Local prompt tokens fell 19,896 → 8,061, median renderer completion 15.76 → 4.15 s, max 33.60 → 8.30 s, and strict scenario review 5/11 → 9/11. Useful frame p95 3.50 s on scored turns, with one contradictory answer having no qualifying frame. Inference is the dominant cost, with different cache/throughput conditions across runs. The missing named project no longer substitutes unrelated profile evidence. Short and long deadlines, 90% quality, and physical Auto Answer remain open. Intelligence 2,268 pass/0 fail/9 TODO, Auto Answer 58/58, renderer/Electron builds and three Electron typechecks pass. Disposable desktop lifecycle/STOP pass, injected Analyze completes in 7.97 s with an incorrect queue example. Supersession phases pass with an obsolete wrapper path-allowlist failure recorded. [Route metrics, quality rubric, checks and file inventory](../scripts/audit/work-0095-a1-performance.md). Evidence: `/Users/abitesh/Downloads/sneak-peek-work-0095`.

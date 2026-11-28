@@ -10,6 +10,7 @@ export function isBroadCandidateProjectsQuestion(question: string): boolean {
   const normalized = String(question ?? '').trim().replace(/\s+/g, ' ')
     .replace(/^(?:(?:then|and|so|also|now|okay|ok)\s*,?\s*){1,3}/i, '')
     .replace(/^(?:(?:can|could|would)\s+you\s+|please\s+)/i, '')
+    .replace(/^(?:(?:briefly|quickly|please)\s+){1,2}/i, '')
     .trim();
 
   const overviewVerb = /^(?:tell\s+(?:me|us)\s+about|explain(?:\s+(?:me|us|to\s+me|to\s+us))?|describe|summari[sz]e|discuss|walk\s+(?:me|us)\s+through|give\s+(?:me|us)\s+(?:an?\s+)?overview\s+of|list)\s+(.+)$/i;

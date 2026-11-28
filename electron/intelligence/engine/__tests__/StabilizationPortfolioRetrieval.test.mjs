@@ -32,6 +32,15 @@ for (const question of [
   });
 }
 
+test('asking for a brief portfolio keeps its exact authorized project scope', () => {
+  const question = 'Briefly explain your projects to a nontechnical audience.';
+  assert.equal(isBroadCandidateProjectsQuestion(question), true);
+  const context = plan(question);
+  assert.ok(context.requiredSources.includes('project_knowledge'));
+  assert.ok(!context.requiredSources.includes('personal_knowledge'));
+  assert.equal(isBroadCandidateProjectsQuestion('Briefly explain your Atlas project.'), false);
+});
+
 test('resume-only uploads remain a strictly scoped portfolio source', () => {
   const context=plan('Then can you explain me Your projects you mentioned in the resume', {
     contextPermissions:{...permissions,project:false},

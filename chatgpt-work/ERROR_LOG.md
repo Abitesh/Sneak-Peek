@@ -1,5 +1,14 @@
 # Sneak-Peek — error and investigation register
 
+## ERR-157 — Interview answer voice, grounding and technical precision (WORK-0096)
+
+WORK-0095 recorded assistant self-identification, jargon on beginner questions, a contradictory historical choice claim and a false default eviction policy in a bounded-queue example. The matched renderer repair improved candidate voice and the undocumented technology comparison. Plain-language and queue-overflow failures remain. Detailed provider latency also regressed in that run. Full quality and timing acceptance remains open. [WORK-0096](../scripts/audit/work-0096-answer-verification.md).
+
+
+## ERR-158 — Authorized project and caching variants misroute (WORK-0096)
+
+The matched real-model run omitted tagged sources for a brief portfolio, missed evidence for an abbreviated project overview and implementation flow, and treated a caching policy as a request to write code. The five-turn desktop repeat recovered exact portfolio and named-project document reads, kept the cache example in prose and returned a direct evidence gap for the absent achievement. The revised cache answer still misstated miss behavior, and the detailed project answer still overclaimed throughput. [WORK-0096](../scripts/audit/work-0096-answer-verification.md).
+
 ## ERR-155 — A1 inference stalls on ready interview workload (WORK-0095, 2026-11-28)
 
 Reproduced on baseline 98c0bee9 with the installed llama3.2:3b through desktop IPC and renderer. The system-design definition took 33.56 s to final visible text: Ollama reported 3.42 s loading, 13.05 s prefilling 1,593 tokens and 17.05 s decoding 223 tokens. The empty prewarm allocated 4K while the real request needed 8K. Later turns remain slow with the runner warm. The assembled prompt duplicates voice and length instructions, and the presence of “design” classifies the definition as multi-step reasoning. Retained compaction and stable preload reduce prompt tokens and measured latency. Full speed criteria remain open, including an 8.30 s completion and 3.50 s useful-frame p95. See [WORK-0095](../scripts/audit/work-0095-a1-performance.md).

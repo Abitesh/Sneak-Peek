@@ -20,6 +20,7 @@ import { assembleSneakPeekPrompt } from './PromptAssembler';
 import { planResponse } from './ResponsePlanner';
 import { GenerationLifecycle, type GenerationLifecycleSnapshot } from './GenerationController';
 import { projectRetrievalQuery } from './ProjectFileScope';
+import { inspectAnswerQuality, isBlockingQualityFinding, percentageClaims, UnsupportedAnswerClaimError } from './AnswerQuality';
 
 /**
  * Central entry boundary for Sneak-Peek Intelligence.
@@ -138,19 +139,29 @@ export class SneakPeekIntelligenceEngine {
           return;
         }
 
-        const directResponse = result.evidence.items.length === 0 ? deterministicChatResponse(request) : undefined;
+        const quantifiedQuestion = percentageClaims(result.resolvedQuestion).length > 0;
+        const missingProjectClaim = result.contextPlan.missingNamedProject && quantifiedQuestion;
+        const directResponse = missingProjectClaim
+          ? 'I don’t have an authorized source for that project or the stated result. Share the project notes or measurement and I can help explain what changed.'
+          : result.evidence.items.length === 0 ? deterministicChatResponse(request) : undefined;
         const providerStream = directResponse === undefined
           ? engine.generationPort!.stream({ request, prompt: result.prompt, contextPlan: result.contextPlan, responsePlan: result.responsePlan, lifecycle })
           : (async function* () {
-            lifecycle.transition('GENERATING', 'deterministic courtesy response; no provider call');
+            lifecycle.transition('GENERATING', 'deterministic response; no provider call');
             lifecycle.transition('COMMITTED', 'deterministic visible answer accepted');
             yield directResponse;
-            if (!request.cancellationSignal?.aborted) lifecycle.transition('COMPLETED', 'courtesy response completed');
+            if (!request.cancellationSignal?.aborted) lifecycle.transition('COMPLETED', 'deterministic response completed');
           })();
+        const grounded = Boolean(request.activeContext?.projectName || result.responsePlan.projectGrounded
+          || result.contextPlan.requiredSources.some(source => source === 'profile' || source === 'project_knowledge'));
+        // Claims about an actual choice or a quantified achievement can cause
+        // harm if the provider's premise is wrong. Hold only those turns.
+        const reviewBeforeDisplay = result.prompt.includedSections?.includes('project_decision_policy')
+          || (grounded && quantifiedQuestion && !missingProjectClaim);
         for await (const chunk of providerStream) {
           if (request.cancellationSignal?.aborted) break;
           text += chunk;
-          yield chunk;
+          if (!reviewBeforeDisplay) yield chunk;
         }
         if (request.cancellationSignal?.aborted) {
           resolveResult(buildCancelledResult(result, 'cancelled during provider stream'));
@@ -158,6 +169,25 @@ export class SneakPeekIntelligenceEngine {
         }
 
         const completed = lifecycle.state === 'COMPLETED';
+        const qualityEvidence = completed && grounded ? result.evidencePack.items.filter(item =>
+          item.authority === 'evidence' && result.prompt.includedEvidenceIds?.includes(item.evidenceId)) : [];
+        const findings = completed && result.responsePlan.kind !== 'coding' && !request.action && !request.documentDraft
+          ? inspectAnswerQuality({
+              question: result.resolvedQuestion, answer: text, grounded,
+              candidate: result.responsePlan.candidateVoice === true,
+              sourceTitles: qualityEvidence.flatMap(item => [item.documentName, item.citation?.documentName]
+                .filter((title): title is string => Boolean(title))),
+              evidence: qualityEvidence.map(item => item.text),
+            })
+          : [];
+        if (reviewBeforeDisplay && findings.some(isBlockingQualityFinding)) {
+          throw new UnsupportedAnswerClaimError();
+        }
+        if (reviewBeforeDisplay && completed && text) yield text;
+        if (request.cancellationSignal?.aborted) {
+          resolveResult(buildCancelledResult(result, 'cancelled during answer review'));
+          return;
+        }
         const lifecycleHistory: GenerationLifecycleSnapshot['history'] = lifecycle.snapshot.history;
         // GenerationController can fail without throwing (e.g. every cloud
         // provider is excluded by a data-scope policy). Preserve its terminal
@@ -182,6 +212,7 @@ export class SneakPeekIntelligenceEngine {
           },
           diagnostics: {
             ...result.diagnostics,
+            ...(findings.length ? { answerQualityFindings: findings } : {}),
             stages: [...result.diagnostics.stages, 'provider-router', 'generation-controller'],
             pipelineStages: [...result.diagnostics.pipelineStages, 'ProviderRouter', 'GenerationController'],
           },
@@ -322,6 +353,7 @@ export class SneakPeekIntelligenceEngine {
       liveAnswer: request.liveAnswer,
       answerContext: request.answerContext,
       hasImageOrScreen: Boolean(request.imageAnalysis || request.screenContext),
+      hasNamedProjectEvidence: Boolean(request.activeContext?.projectName && evidencePack.items.some(item => item.canonicalSource === 'project_knowledge')),
     });
     const preferences=request.activeContext?.sessionPreferences;
     if(preferences&&!request.repair&&!request.documentDraft){

@@ -1,5 +1,9 @@
 # Sneak-Peek — project overview and setup
 
+## WORK-0096 — Canonical answer review (2026-11-28)
+
+The canonical engine checks selected claims against the evidence included in the prompt, holds sensitive drafts for targeted review and records advisory findings without a verified label. It uses existing request ownership, source IDs and provider routing. The desktop and regression results leave quality and latency acceptance open. [WORK-0096 report](../scripts/audit/work-0096-answer-verification.md).
+
 ## WORK-0094 / TASK-0017 — Phase 1 stabilization (2026-11-26)
 
 **Implemented checkpoint; full Phase 1 In progress.** Implicit project-component followups, Unicode identities, explicit project corrections, adaptive response/reasoning budgets, explicit duration precedence, bounded optional memory, provenance, snapshot-safe retain/flush, and zero-history limits are repaired. Production memory reads revalidate current completed meeting revision and retention; deletion/correction revoke old recall. Legacy untraceable memories are excluded. Remote erasure, complete cross-session structured facts/relationships and broader multilingual understanding remain open.
